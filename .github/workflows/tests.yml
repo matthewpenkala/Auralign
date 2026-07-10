@@ -81,7 +81,7 @@ jobs:
       - name: Build wheel and source distribution
         run: uv build
       - name: Verify archive metadata, contents, and artifact SBOMs
-        run: uv run python scripts/verify_distribution.py --sbom-dir build/sbom
+        run: uv run --python 3.11 python scripts/verify_distribution.py --sbom-dir build/sbom
       - name: Install wheel in an isolated environment
         run: |
           wheel="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
@@ -116,13 +116,13 @@ jobs:
       - name: Sync compliance tools
         run: uv sync --locked --python 3.11 --extra dev --extra api
       - name: Verify file-level licensing
-        run: uv run reuse lint
+        run: uv run --python 3.11 reuse lint
       - name: Verify legal and asset policy
-        run: uv run python scripts/check_compliance.py
+        run: uv run --python 3.11 python scripts/check_compliance.py
       - name: Verify generated third-party notice is current
-        run: uv run python scripts/generate_third_party_notices.py --check
+        run: uv run --python 3.11 python scripts/generate_third_party_notices.py --check
       - name: Generate source SPDX SBOM
-        run: mkdir -p build/sbom && uv run reuse spdx -o build/sbom/source.spdx
+        run: mkdir -p build/sbom && uv run --python 3.11 reuse spdx -o build/sbom/source.spdx
       - name: Export locked CPU production dependency set
         run: >-
           uv export --locked --extra full --group cpu --no-dev
@@ -134,7 +134,7 @@ jobs:
           -o build/sbom/python-cpu.cdx.json
       - name: Validate CPU dependency graph SBOM
         run: >-
-          uv run python scripts/validate_dependency_sbom.py
+          uv run --python 3.11 python scripts/validate_dependency_sbom.py
           build/sbom/python-cpu.cdx.json --profile cpu
       - name: Assert CPU dependency profile is acceleration-clean
         run: >-
@@ -150,14 +150,14 @@ jobs:
           -o build/sbom/python-cu126.cdx.json
       - name: Validate CUDA 12.6 dependency graph SBOM
         run: >-
-          uv run python scripts/validate_dependency_sbom.py
+          uv run --python 3.11 python scripts/validate_dependency_sbom.py
           build/sbom/python-cu126.cdx.json --profile cu126
       - name: Audit locked CPU production dependencies
         run: |
           set +e
-          uv run pip-audit -r build/cpu-requirements.txt --disable-pip --no-deps \
+          uv run --python 3.11 pip-audit -r build/cpu-requirements.txt --disable-pip --no-deps \
             --strict --progress-spinner off -f json -o build/pip-audit.json
           status="$?"
           set -e
           test "$status" -eq 0 -o "$status" -eq 1
-          uv run python scripts/check_vulnerability_audit.py build/pip-audit.json
+          uv run --python 3.11 python scripts/check_vulnerability_audit.py build/pip-audit.json

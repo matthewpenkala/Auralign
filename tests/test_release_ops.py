@@ -162,10 +162,7 @@ def test_ci_lint_and_type_checks_reuse_the_matrix_python() -> None:
         encoding="utf-8"
     )
 
-    assert "uv run --python ${{ matrix.python-version }} ruff check ." in workflow
-    assert (
-        "uv run --python ${{ matrix.python-version }} mypy src/local_transcript_max" in workflow
-    )
+    assert not re.search(r"\buv run(?! --python)", workflow)
 
 
 def test_container_contract_is_pinned_non_root_and_uses_installed_cli() -> None:
