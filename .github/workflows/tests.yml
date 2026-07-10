@@ -57,10 +57,10 @@ jobs:
         run: uv run --python ${{ matrix.python-version }} pytest -q
       - name: Lint (Python 3.11)
         if: matrix.python-version == '3.11'
-        run: uv run ruff check .
+        run: uv run --python ${{ matrix.python-version }} ruff check .
       - name: Type check (Python 3.11)
         if: matrix.python-version == '3.11'
-        run: uv run mypy src/local_transcript_max
+        run: uv run --python ${{ matrix.python-version }} mypy src/local_transcript_max
 
   package:
     needs: verify

@@ -157,6 +157,17 @@ def test_doctor_marks_strict_forced_alignment_preflight_failure(
     assert report.ok is False
 
 
+def test_ci_lint_and_type_checks_reuse_the_matrix_python() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "tests.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "uv run --python ${{ matrix.python-version }} ruff check ." in workflow
+    assert (
+        "uv run --python ${{ matrix.python-version }} mypy src/local_transcript_max" in workflow
+    )
+
+
 def test_container_contract_is_pinned_non_root_and_uses_installed_cli() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
 
