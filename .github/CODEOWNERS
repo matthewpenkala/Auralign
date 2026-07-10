@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+# Matthew Penkala owns the repository by default.
+* @matthewpenkala
+
+# Explicitly call out high-risk governance and release surfaces.
+/LICENSE @matthewpenkala
+/LICENSES/ @matthewpenkala
+/NOTICE @matthewpenkala
+/THIRD_PARTY_NOTICES.md @matthewpenkala
+/REUSE.toml @matthewpenkala
+/SECURITY.md @matthewpenkala
+/CONTRIBUTING.md @matthewpenkala
+/docs/legal/ @matthewpenkala
+/docs/security-privacy.md @matthewpenkala
+/compliance/ @matthewpenkala
+/pyproject.toml @matthewpenkala
+/uv.lock @matthewpenkala
+/Dockerfile @matthewpenkala
+/docker-compose.yml @matthewpenkala
+/.github/ @matthewpenkala

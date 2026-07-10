@@ -1,0 +1,151 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+from __future__ import annotations
+
+import re
+import tomllib
+from importlib import metadata
+from pathlib import Path
+
+import yaml
+from pytest import MonkeyPatch
+
+import local_transcript_max
+from local_transcript_max.config import load_config
+from local_transcript_max.doctor import (
+    BASE_DEPENDENCIES,
+    _python_package_check,
+    _python_supported,
+    run_doctor,
+)
+from local_transcript_max.errors import BackendUnavailableError
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _normalized_requirement_name(requirement: str) -> str:
+    name = re.split(r"[<>=!~;\[]", requirement, maxsplit=1)[0]
+    return re.sub(r"[-_.]+", "-", name.strip()).lower()
+
+
+def test_runtime_version_comes_from_distribution_metadata() -> None:
+    assert local_transcript_max.__version__ == metadata.version("local-transcript-max")
+
+
+def test_runtime_version_has_source_checkout_fallback(monkeypatch: MonkeyPatch) -> None:
+    def missing_distribution(_name: str) -> str:
+        raise metadata.PackageNotFoundError
+
+    monkeypatch.setattr(local_transcript_max._metadata, "version", missing_distribution)
+
+    assert local_transcript_max._resolve_version() == "0+unknown"
+
+
+def test_doctor_python_support_matches_package_contract() -> None:
+    assert not _python_supported((3, 10))
+    assert _python_supported((3, 11))
+    assert _python_supported((3, 12))
+    assert not _python_supported((3, 13))
+
+
+def test_doctor_checks_every_base_dependency() -> None:
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    project_dependencies = {
+        _normalized_requirement_name(requirement)
+        for requirement in pyproject["project"]["dependencies"]
+    }
+    doctor_dependencies = {
+        _normalized_requirement_name(distribution) for distribution, _module in BASE_DEPENDENCIES
+    }
+
+    assert doctor_dependencies == project_dependencies
+
+
+def test_missing_required_dependency_is_an_error(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr("local_transcript_max.doctor._module_available", lambda _module: False)
+    monkeypatch.setattr("local_transcript_max.doctor._version", lambda _package: None)
+
+    check = _python_package_check("jiwer", "jiwer", required=True)
+
+    assert check.status == "error"
+    assert check.message == "not installed"
+
+
+def test_broken_required_dependency_reports_installed_metadata(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr("local_transcript_max.doctor._module_available", lambda _module: False)
+    monkeypatch.setattr("local_transcript_max.doctor._version", lambda _package: "4.0")
+
+    check = _python_package_check("jiwer", "jiwer", required=True)
+
+    assert check.status == "error"
+    assert check.message == "not importable; distribution version=4.0"
+
+
+def test_doctor_marks_strict_forced_alignment_preflight_failure(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    config = load_config(cwd=tmp_path)
+    config.alignment.backend = "forced"
+
+    def unavailable(_config):
+        raise BackendUnavailableError("forced alignment unavailable")
+
+    monkeypatch.setattr("local_transcript_max.doctor.preflight_forced_alignment", unavailable)
+    report = run_doctor(config, include_docker=False)
+
+    check = next(item for item in report.checks if item.name == "forced_alignment_readiness")
+    assert check.status == "error"
+    assert check.message == "forced alignment unavailable"
+    assert report.ok is False
+
+
+def test_container_contract_is_pinned_non_root_and_uses_installed_cli() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "ARG UV_IMAGE=ghcr.io/astral-sh/uv:" in dockerfile
+    assert "@sha256:" in dockerfile
+    assert "FROM ${UV_IMAGE} AS uv" in dockerfile
+    assert "ARG ACCELERATOR_GROUP=cpu" in dockerfile
+    assert "ARG FFMPEG_VERSION=7:5.1.9-0+deb12u1" in dockerfile
+    assert "ffmpeg=${FFMPEG_VERSION}" in dockerfile
+    assert (
+        'io.auralign.distribution-status="internal-only-not-cleared-for-redistribution"'
+        in dockerfile
+    )
+    assert 'org.opencontainers.image.licenses="NOASSERTION"' in dockerfile
+    assert 'io.auralign.project-license="LicenseRef-PolyForm-Internal-Use-1.0.0"' in dockerfile
+    assert "COPY --chown=ltm:ltm LICENSE NOTICE THIRD_PARTY_NOTICES.md" in dockerfile
+    assert "curl -LsSf" not in dockerfile
+    assert "USER ltm" in dockerfile
+    assert 'ENTRYPOINT ["/app/.venv/bin/ltm"]' in dockerfile
+
+
+def test_compose_server_has_healthcheck_and_private_writable_storage() -> None:
+    compose = yaml.safe_load((REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    server = compose["services"]["ltm-server"]
+    gpu_args = compose["services"]["ltm-gpu"]["build"]["args"]
+    assert compose["services"]["ltm-cpu"]["build"]["args"]["ACCELERATOR_GROUP"] == "cpu"
+    assert gpu_args["ACCELERATOR_GROUP"] == "cu126"
+    assert gpu_args["CA_CERTIFICATES_VERSION"] == "20260601~24.04.1"
+    assert gpu_args["FFMPEG_VERSION"] == "7:6.1.1-3ubuntu5"
+    assert server["build"]["args"]["ACCELERATOR_GROUP"] == "cpu"
+
+    assert all(
+        service["platform"] == "linux/amd64"
+        for service in compose["services"].values()
+    )
+    assert server["ports"] == ["127.0.0.1:8765:8765"]
+    assert server["healthcheck"]["test"][:3] == [
+        "CMD",
+        "/app/.venv/bin/python",
+        "-c",
+    ]
+    assert "./outputs:/output" in server["volumes"]
+    assert "./embeddings:/speaker-profiles" in server["volumes"]
+    assert server["environment"]["LTM_API_JOB_STORE"] == "/output/api/.job-store"
+    assert server["environment"]["LTM_API_NETWORK_BOUND"] == "1"
+    assert server["environment"]["LTM_API_ALLOWED_INPUT_ROOTS"] == "/input"
+    assert server["environment"]["LTM_API_ALLOWED_OUTPUT_ROOTS"] == "/output"
+    assert server["environment"]["LTM_SPEAKER_PROFILE_DIR"] == "/speaker-profiles"

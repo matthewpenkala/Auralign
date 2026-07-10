@@ -1,0 +1,89 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+schema_version = "1.0"
+policy_id = "auralign-external-assets-v1"
+reviewed_at = "2026-07-10"
+
+[defaults]
+unknown_license = "blocked"
+unverified_provenance = "blocked"
+mutable_or_missing_revision = "blocked"
+model_production_redistribution = "blocked"
+dataset_acquisition = "blocked"
+dataset_mirroring = "blocked"
+
+[license_classes]
+automatically_allowed = [
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "CC-BY-4.0",
+  "ISC",
+  "MIT",
+  "PSF-2.0",
+]
+conditionally_allowed = [
+  "GPL-3.0-or-later",
+  "LGPL-2.1-or-later",
+  "LGPL-3.0-or-later",
+  "MPL-2.0",
+]
+human_review_required = [
+  "LicenseRef-Build-Configuration-Dependent",
+  "LicenseRef-Docker-Official-Image-Mixed",
+  "LicenseRef-NVIDIA-Deep-Learning-Container",
+  "NOASSERTION",
+]
+prohibited_without_owner_evidence = [
+  "AGPL-3.0-only",
+  "AGPL-3.0-or-later",
+  "SSPL-1.0",
+  "LicenseRef-Proprietary-Unreviewed",
+  "LicenseRef-Noncommercial",
+  "LicenseRef-Field-of-Use-Restriction",
+]
+
+[requirements]
+immutable_revision_format = "lowercase 40-character hexadecimal commit SHA"
+required_registry_fields = [
+  "kind",
+  "key",
+  "identifier",
+  "revision",
+  "license_expression",
+  "source_url",
+  "terms_url",
+  "license_evidence_url",
+  "attribution",
+  "acquisition_status",
+  "runtime_status",
+  "redistribution_status",
+  "review_status",
+  "reviewed_at",
+]
+component_registry = "compliance/components.toml"
+
+[enforcement]
+model_pull_requires_immutable_revision = true
+model_pull_requires_verified_review = true
+dataset_download_requires_explicit_manifest_approval = true
+dataset_mirror_requires_explicit_manifest_approval = true
+unverified_mlx_production_redistribution = "blocked"
+unverified_sample_acquisition = "blocked"
+voxceleb_acquisition_and_mirroring = "blocked_without_versioned_approval"
+runtime_assets_must_not_be_bundled_in_source_distribution = true
+
+[overrides]
+registry = "compliance/overrides.toml"
+default_effect = "none"
+required_fields = [
+  "kind",
+  "key",
+  "revision",
+  "action",
+  "approved_by",
+  "approved_at",
+  "approval_reference",
+]

@@ -1,0 +1,107 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+services:
+  ltm-cpu:
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        ACCELERATOR_GROUP: cpu
+    profiles: ["cpu"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      LTM_MODEL_CACHE: /models
+      HF_HOME: /hf-cache
+      HF_HUB_CACHE: /hf-cache/hub
+      LTM_API_JOB_STORE: /output/api/.job-store
+      LTM_SPEAKER_PROFILE_DIR: /speaker-profiles
+      LTM_DEVICE: cpu
+    volumes:
+      - ./models:/models
+      - ./.hf-cache:/hf-cache
+      - ./data:/input:ro
+      - ./outputs:/output
+      - ./embeddings:/speaker-profiles
+    command: ["doctor"]
+
+  ltm-gpu:
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        BASE_IMAGE: nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04@sha256:8aef630a54bc5c5146ae5ce68e6af5caa3df0fb690bb91544175c91f307e4356
+        ACCELERATOR_GROUP: cu126
+        CA_CERTIFICATES_VERSION: 20260601~24.04.1
+        FFMPEG_VERSION: 7:6.1.1-3ubuntu5
+    profiles: ["gpu"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      LTM_MODEL_CACHE: /models
+      HF_HOME: /hf-cache
+      HF_HUB_CACHE: /hf-cache/hub
+      LTM_API_JOB_STORE: /output/api/.job-store
+      LTM_SPEAKER_PROFILE_DIR: /speaker-profiles
+      LTM_DEVICE: cuda
+    volumes:
+      - ./models:/models
+      - ./.hf-cache:/hf-cache
+      - ./data:/input:ro
+      - ./outputs:/output
+      - ./embeddings:/speaker-profiles
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: ["gpu"]
+    command: ["doctor"]
+
+  ltm-server:
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        ACCELERATOR_GROUP: cpu
+    profiles: ["server"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      LTM_MODEL_CACHE: /models
+      HF_HOME: /hf-cache
+      HF_HUB_CACHE: /hf-cache/hub
+      LTM_API_JOB_STORE: /output/api/.job-store
+      LTM_API_NETWORK_BOUND: "1"
+      LTM_API_ALLOWED_INPUT_ROOTS: /input
+      LTM_API_ALLOWED_OUTPUT_ROOTS: /output
+      LTM_SPEAKER_PROFILE_DIR: /speaker-profiles
+      LTM_DEVICE: cpu
+    volumes:
+      - ./models:/models
+      - ./.hf-cache:/hf-cache
+      - ./data:/input:ro
+      - ./outputs:/output
+      - ./embeddings:/speaker-profiles
+    ports:
+      - "127.0.0.1:8765:8765"
+    healthcheck:
+      test:
+        - CMD
+        - /app/.venv/bin/python
+        - -c
+        - >-
+          import json, urllib.request;
+          payload=json.load(urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3));
+          raise SystemExit(0 if payload.get('ok') is True else 1)
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    command: ["serve", "--host", "0.0.0.0", "--port", "8765", "--allow-network-bind"]

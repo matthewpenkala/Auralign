@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+# Candidate batched profile for local Apple Silicon benchmarking.
+# Validate against the same media before adopting it for real jobs.
+preset: balanced
+asr:
+  model: turbo
+  device: cpu
+  compute_type: int8_float32
+  batched: true
+  batch_size: 8
+  cpu_threads: 8
+  num_workers: 2
+  word_timestamps: true
+diarization:
+  backend: pyannote
+  device: cpu
+  preserve_overlap: true
+  exclusive_diarization: true
+alignment:
+  backend: auto
+  device: cpu
+cleanup:
+  mode: off

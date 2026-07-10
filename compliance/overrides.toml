@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+schema_version = "1.0"
+policy_id = "auralign-external-assets-v1"
+
+# Deliberately empty. An override is valid only when it is version-controlled,
+# scoped to an exact asset revision and action, and includes accountable human
+# approval metadata required by compliance/policy.toml.
+overrides = []

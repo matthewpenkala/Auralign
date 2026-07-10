@@ -1,0 +1,349 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+schema_version = "1.0"
+reviewed_at = "2026-07-10"
+
+# Fields here are inherited by every row unless overridden. The checker merges
+# these defaults before evaluating a component record.
+[defaults]
+bundling_status = "declared_or_build_only_not_bundled_in_source_wheel_sdist"
+notice_obligations = "Upstream terms govern installed copies; informative dependency notice only in Auralign archives."
+source_offer_obligations = "none_for_Auralign_source_wheel_sdist"
+commercial_use_status = "subject_to_upstream_terms_and_scope_review"
+privacy_classification = "not_a_user_data_asset"
+review_status = "automated_evidence_recorded_pending_owner_release_approval"
+reviewer = "automated pre-publication inventory; not a legal signatory"
+review_date = "2026-07-10"
+redistribution_status = "not_bundled; installed copy remains under upstream terms"
+
+[[components]]
+id = "pypi:huggingface-hub"
+category = "python-runtime"
+identifier = "huggingface-hub"
+versions = ["0.36.2"]
+source_url = "https://pypi.org/project/huggingface-hub/0.36.2/"
+terms_url = "https://github.com/huggingface/huggingface_hub/blob/v0.36.2/LICENSE"
+license_expression = "Apache-2.0"
+usage = "declared runtime dependency"
+
+[[components]]
+id = "pypi:jiwer"
+category = "python-runtime"
+identifier = "jiwer"
+versions = ["4.0.0"]
+source_url = "https://pypi.org/project/jiwer/4.0.0/"
+terms_url = "https://github.com/jitsi/jiwer/blob/v4.0.0/LICENSE"
+license_expression = "Apache-2.0"
+usage = "declared runtime dependency"
+
+[[components]]
+id = "pypi:pydantic"
+category = "python-runtime"
+identifier = "pydantic"
+versions = ["2.13.4"]
+source_url = "https://pypi.org/project/pydantic/2.13.4/"
+terms_url = "https://github.com/pydantic/pydantic/blob/v2.13.4/LICENSE"
+license_expression = "MIT"
+usage = "declared runtime dependency"
+
+[[components]]
+id = "pypi:pyyaml"
+category = "python-runtime"
+identifier = "pyyaml"
+versions = ["6.0.3"]
+source_url = "https://pypi.org/project/PyYAML/6.0.3/"
+terms_url = "https://github.com/yaml/pyyaml/blob/6.0.3/LICENSE"
+license_expression = "MIT"
+usage = "declared runtime dependency"
+
+[[components]]
+id = "pypi:typer"
+category = "python-runtime"
+identifier = "typer"
+versions = ["0.26.7"]
+source_url = "https://pypi.org/project/typer/0.26.7/"
+terms_url = "https://github.com/fastapi/typer/blob/0.26.7/LICENSE"
+license_expression = "MIT"
+usage = "declared runtime dependency"
+
+[[components]]
+id = "pypi:faster-whisper"
+category = "python-runtime-optional"
+identifier = "faster-whisper"
+versions = ["1.2.1"]
+source_url = "https://pypi.org/project/faster-whisper/1.2.1/"
+terms_url = "https://github.com/SYSTRAN/faster-whisper/blob/v1.2.1/LICENSE"
+license_expression = "MIT"
+usage = "optional ASR dependency"
+
+[[components]]
+id = "pypi:mlx-whisper"
+category = "python-runtime-optional"
+identifier = "mlx-whisper"
+versions = ["0.4.3"]
+source_url = "https://pypi.org/project/mlx-whisper/0.4.3/"
+terms_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+license_expression = "MIT"
+usage = "optional Apple Silicon ASR dependency"
+
+[[components]]
+id = "pypi:pyannote-audio"
+category = "python-runtime-optional"
+identifier = "pyannote-audio"
+versions = ["4.0.4"]
+source_url = "https://pypi.org/project/pyannote.audio/4.0.4/"
+terms_url = "https://github.com/pyannote/pyannote-audio/blob/4.0.4/LICENSE"
+license_expression = "MIT"
+usage = "optional diarization dependency"
+
+[[components]]
+id = "pypi:whisperx"
+category = "python-runtime-optional"
+identifier = "whisperx"
+versions = ["3.8.6"]
+source_url = "https://pypi.org/project/whisperx/3.8.6/"
+terms_url = "https://github.com/m-bain/whisperX/blob/v3.8.6/LICENSE"
+license_expression = "BSD-2-Clause"
+usage = "optional forced-alignment dependency; direct Triton edge excluded"
+
+[[components]]
+id = "pypi:speechbrain"
+category = "python-runtime-optional"
+identifier = "speechbrain"
+versions = ["1.1.0"]
+source_url = "https://pypi.org/project/speechbrain/1.1.0/"
+terms_url = "https://github.com/speechbrain/speechbrain/blob/v1.1.0/LICENSE"
+license_expression = "Apache-2.0"
+usage = "optional speaker-embedding dependency"
+
+[[components]]
+id = "pypi:fastapi"
+category = "python-runtime-optional"
+identifier = "fastapi"
+versions = ["0.137.1"]
+source_url = "https://pypi.org/project/fastapi/0.137.1/"
+terms_url = "https://github.com/fastapi/fastapi/blob/0.137.1/LICENSE"
+license_expression = "MIT"
+usage = "optional local API dependency"
+
+[[components]]
+id = "pypi:uvicorn"
+category = "python-runtime-optional"
+identifier = "uvicorn"
+versions = ["0.49.0"]
+source_url = "https://pypi.org/project/uvicorn/0.49.0/"
+terms_url = "https://github.com/Kludex/uvicorn/blob/0.49.0/LICENSE.md"
+license_expression = "BSD-3-Clause"
+usage = "optional local API dependency"
+
+[[components]]
+id = "pypi:torch-family"
+category = "python-acceleration-profile"
+identifier = "torch"
+versions = ["2.8.0", "2.8.0+cpu", "2.8.0+cu126"]
+source_url = "https://download.pytorch.org/whl/"
+terms_url = "https://github.com/pytorch/pytorch/blob/v2.8.0/LICENSE"
+license_expression = "BSD-3-Clause"
+usage = "mutually exclusive CPU/CUDA 12.6 source-workspace groups"
+redistribution_status = "not bundled; wheel/native obligations require artifact-specific review"
+
+[[components]]
+id = "pypi:torchaudio"
+category = "python-acceleration-profile"
+identifier = "torchaudio"
+versions = ["2.8.0", "2.8.0+cpu", "2.8.0+cu126"]
+source_url = "https://download.pytorch.org/whl/"
+terms_url = "https://github.com/pytorch/audio/blob/v2.8.0/LICENSE"
+license_expression = "BSD-2-Clause"
+usage = "mutually exclusive CPU/CUDA 12.6 source-workspace groups"
+redistribution_status = "not bundled; wheel/native obligations require artifact-specific review"
+
+[[components]]
+id = "pypi:torchvision"
+category = "python-acceleration-profile"
+identifier = "torchvision"
+versions = ["0.23.0", "0.23.0+cpu", "0.23.0+cu126"]
+source_url = "https://download.pytorch.org/whl/"
+terms_url = "https://github.com/pytorch/vision/blob/v0.23.0/LICENSE"
+license_expression = "BSD-3-Clause"
+usage = "mutually exclusive CPU/CUDA 12.6 source-workspace groups"
+redistribution_status = "not bundled; wheel/native obligations require artifact-specific review"
+
+[[components]]
+id = "pypi:cyclonedx-bom"
+category = "python-development"
+identifier = "cyclonedx-bom"
+versions = ["7.3.0"]
+source_url = "https://pypi.org/project/cyclonedx-bom/7.3.0/"
+terms_url = "https://github.com/CycloneDX/cyclonedx-python/blob/v7.3.0/LICENSE"
+license_expression = "Apache-2.0"
+usage = "SBOM generation only"
+
+[[components]]
+id = "pypi:mypy"
+category = "python-development"
+identifier = "mypy"
+versions = ["2.1.0"]
+source_url = "https://pypi.org/project/mypy/2.1.0/"
+terms_url = "https://github.com/python/mypy/blob/v2.1.0/LICENSE"
+license_expression = "MIT"
+usage = "type checking only"
+
+[[components]]
+id = "pypi:pip-audit"
+category = "python-development"
+identifier = "pip-audit"
+versions = ["2.10.1"]
+source_url = "https://pypi.org/project/pip-audit/2.10.1/"
+terms_url = "https://github.com/pypa/pip-audit/blob/v2.10.1/LICENSE"
+license_expression = "Apache-2.0"
+usage = "connected vulnerability audit only"
+
+[[components]]
+id = "pypi:pytest"
+category = "python-development"
+identifier = "pytest"
+versions = ["9.1.0"]
+source_url = "https://pypi.org/project/pytest/9.1.0/"
+terms_url = "https://github.com/pytest-dev/pytest/blob/9.1.0/LICENSE"
+license_expression = "MIT"
+usage = "testing only"
+
+[[components]]
+id = "pypi:reuse"
+category = "python-development"
+identifier = "reuse"
+versions = ["6.2.0"]
+source_url = "https://pypi.org/project/reuse/6.2.0/"
+terms_url = "https://github.com/fsfe/reuse-tool/blob/v6.2.0/LICENSES/GPL-3.0-or-later.txt"
+license_expression = "GPL-3.0-or-later"
+usage = "build-only license lint/SBOM tool"
+redistribution_status = "conditional build-only dependency; never bundled"
+
+[[components]]
+id = "pypi:ruff"
+category = "python-development"
+identifier = "ruff"
+versions = ["0.15.17"]
+source_url = "https://pypi.org/project/ruff/0.15.17/"
+terms_url = "https://github.com/astral-sh/ruff/blob/0.15.17/LICENSE"
+license_expression = "MIT"
+usage = "linting only"
+
+[[components]]
+id = "pypi:types-pyyaml"
+category = "python-development"
+identifier = "types-pyyaml"
+versions = ["6.0.12.20260518"]
+source_url = "https://pypi.org/project/types-PyYAML/6.0.12.20260518/"
+terms_url = "https://github.com/python/typeshed/blob/main/LICENSE"
+license_expression = "Apache-2.0"
+usage = "type stubs only"
+
+[[components]]
+id = "pypi:hatchling"
+category = "python-build"
+identifier = "hatchling"
+versions = ["1.27.0"]
+source_url = "https://pypi.org/project/hatchling/1.27.0/"
+terms_url = "https://github.com/pypa/hatch/blob/hatchling-v1.27.0/LICENSE.txt"
+license_expression = "MIT"
+usage = "pinned PEP 517 build backend"
+
+[[components]]
+id = "github-action:checkout"
+category = "github-action"
+identifier = "actions/checkout"
+versions = ["11bd71901bbe5b1630ceea73d27597364c9af683"]
+source_url = "https://github.com/actions/checkout/tree/11bd71901bbe5b1630ceea73d27597364c9af683"
+terms_url = "https://github.com/actions/checkout/blob/11bd71901bbe5b1630ceea73d27597364c9af683/LICENSE"
+license_expression = "MIT"
+usage = "private CI source checkout with persisted credentials disabled"
+
+[[components]]
+id = "github-action:setup-uv"
+category = "github-action"
+identifier = "astral-sh/setup-uv"
+versions = ["557e51de59eb14aaaba2ed9621916900a91d50c6"]
+source_url = "https://github.com/astral-sh/setup-uv/tree/557e51de59eb14aaaba2ed9621916900a91d50c6"
+terms_url = "https://github.com/astral-sh/setup-uv/blob/557e51de59eb14aaaba2ed9621916900a91d50c6/LICENSE"
+license_expression = "MIT"
+usage = "private CI uv provisioning"
+
+[[components]]
+id = "github-action:dependency-review"
+category = "github-action"
+identifier = "actions/dependency-review-action"
+versions = ["a1d282b36b6f3519aa1f3fc636f609c47dddb294"]
+source_url = "https://github.com/actions/dependency-review-action/tree/a1d282b36b6f3519aa1f3fc636f609c47dddb294"
+terms_url = "https://github.com/actions/dependency-review-action/blob/a1d282b36b6f3519aa1f3fc636f609c47dddb294/LICENSE"
+license_expression = "MIT"
+usage = "pull-request dependency review; requires eligible private-repository feature"
+
+[[components]]
+id = "container:python-3.11-slim-bookworm"
+category = "container-base"
+identifier = "docker.io/library/python:3.11-slim-bookworm"
+versions = ["sha256:f5cf0344c9886ff24d34797578d5d7dd6e8911ae0fe5962bb55d0f89603ec361"]
+source_url = "https://github.com/docker-library/python"
+terms_url = "https://hub.docker.com/_/python"
+license_expression = "LicenseRef-Docker-Official-Image-Mixed"
+usage = "internal-only CPU/runtime container base"
+redistribution_status = "blocked_external_container_pending_exact_image_clearance"
+
+[[components]]
+id = "container:uv-0.11.26"
+category = "container-build-tool"
+identifier = "ghcr.io/astral-sh/uv:0.11.26"
+versions = ["sha256:3d868e555f8f1dbc324afa005066cd11e1053fc4743b9808ca8025283e65efa5"]
+source_url = "https://github.com/astral-sh/uv/tree/0.11.26"
+terms_url = "https://github.com/astral-sh/uv/blob/0.11.26/LICENSE-MIT"
+license_expression = "Apache-2.0 OR MIT"
+usage = "internal-only container build stage"
+redistribution_status = "blocked_external_container_pending_exact_image_clearance"
+
+[[components]]
+id = "container:nvidia-cuda-12.6.3-cudnn"
+category = "container-base"
+identifier = "nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04"
+versions = ["sha256:8aef630a54bc5c5146ae5ce68e6af5caa3df0fb690bb91544175c91f307e4356"]
+source_url = "https://hub.docker.com/r/nvidia/cuda"
+terms_url = "https://docs.nvidia.com/deeplearning/frameworks/container-release-notes/index.html"
+license_expression = "LicenseRef-NVIDIA-Deep-Learning-Container"
+usage = "internal-only CUDA 12.6 container base"
+redistribution_status = "blocked_external_container_pending_NVIDIA_and_native_clearance"
+
+[[components]]
+id = "system:ffmpeg-bookworm"
+category = "container-system-runtime"
+identifier = "Debian bookworm ffmpeg package selected at image build"
+versions = ["7:5.1.9-0+deb12u1"]
+source_url = "https://packages.debian.org/bookworm/ffmpeg"
+terms_url = "https://ffmpeg.org/legal.html"
+license_expression = "LGPL-2.1-or-later AND LicenseRef-Build-Configuration-Dependent"
+usage = "media inspection/normalization in internal-only container"
+redistribution_status = "blocked_external_container_pending_dpkg_and_ffmpeg_build_configuration_evidence"
+
+[[components]]
+id = "system:ffmpeg-noble"
+category = "container-system-runtime"
+identifier = "Ubuntu noble ffmpeg package selected for the CUDA image"
+versions = ["7:6.1.1-3ubuntu5"]
+source_url = "https://packages.ubuntu.com/noble/ffmpeg"
+terms_url = "https://ffmpeg.org/legal.html"
+license_expression = "LGPL-2.1-or-later AND LicenseRef-Build-Configuration-Dependent"
+usage = "media inspection/normalization in internal-only CUDA 12.6 container"
+redistribution_status = "blocked_external_container_pending_exact_image_and_ffmpeg_build_configuration_evidence"
+
+[[components]]
+id = "system:debian-bookworm-runtime"
+category = "container-system-runtime"
+identifier = "Debian bookworm packages in exact image digest"
+versions = ["python-base-digest-and-container-SBOM-specific"]
+source_url = "https://www.debian.org/distrib/packages"
+terms_url = "https://www.debian.org/legal/licenses/"
+license_expression = "NOASSERTION"
+usage = "internal-only container operating-system closure"
+redistribution_status = "blocked_external_container_pending_dpkg_notices_and_corresponding_source_review"

@@ -1,0 +1,119 @@
+<!--
+SPDX-FileCopyrightText: 2026 Matthew Penkala
+
+SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+-->
+
+# Offline Mode
+
+Set `LTM_OFFLINE=1` to require local model files and block non-local runtime
+services. Localhost cleanup endpoints remain local-only; remote cleanup
+endpoints are rejected in offline mode even when remote cleanup is otherwise
+explicitly allowed.
+
+```bash
+LTM_OFFLINE=1 ltm doctor
+```
+
+When required models are missing, doctor and transcribe fail fast with the exact
+online pull command. Offline mode does not call Hugging Face metadata endpoints
+or attempt opportunistic downloads.
+
+`ltm speakers resolve-identities` is deterministic local post-processing. It
+reads only the selected job, explicitly supplied local inputs, configured local
+speaker-profile/rename stores, and bounded sibling artifacts. It never downloads
+a model or calls a service. ECAPA evidence is usable only when an existing
+current-job `speaker_map.json` proves a healthy local production backend;
+backend absence/failure remains non-evidence.
+
+MLX ASR is local-only even when `LTM_OFFLINE` is unset. When using
+`asr.backend: mlx-whisper`, set `asr.mlx_model_path`,
+`LTM_ASR_MLX_MODEL_PATH`, or `--asr-mlx-model-path` to an existing converted MLX
+model directory containing `config.json` and `weights.safetensors` or
+`weights.npz`. The runtime refuses remote repo IDs so `mlx-whisper` cannot fall
+back to Hugging Face downloads during transcription.
+
+The experimental MLX VAD-windowed mode is also local-only. It uses `vad.json`
+speech regions as window hints, writes temporary WAV chunks under the system temp
+directory, restores timestamps to the canonical timeline, and still uses only
+the resolved local MLX model path.
+
+If the converted MLX directory is outside the cache, import it explicitly:
+
+```bash
+uv run ltm models import-mlx /path/to/converted-mlx-whisper --cache-dir models
+```
+
+Use `ltm models audit` before and after model pulls to confirm whether each
+configured model is offline-usable:
+
+```bash
+uv run ltm models audit
+uv run ltm models pull --asr large-v3 --diarization community-1 --cache-dir models/
+LTM_OFFLINE=1 uv run ltm doctor
+```
+
+If this machine has no Hugging Face token or accepted pyannote terms, real
+diarization remains blocked. Resume after terms/token setup with:
+
+```bash
+export LTM_MODEL_CACHE="$PWD/models"
+export HF_HOME="$PWD/.hf-cache"
+export HF_HUB_CACHE="$HF_HOME/hub"
+export HF_TOKEN="REDACTED_USER_SUPPLIED_TOKEN"
+uv run ltm models pull --asr large-v3 --diarization community-1 --cache-dir models
+LTM_OFFLINE=1 uv run ltm doctor
+```
+
+For a full local procurement pass on a connected staging machine:
+
+```bash
+chmod +x bootstrap.sh
+./bootstrap.sh
+```
+
+Review `auralign_bootstrap.log`, `models/model_audit.json`, and
+`datasets/dataset_manifest.json`. Bootstrap exits nonzero for failed required
+model pulls, while missing gated pyannote access and optional assets are logged
+as caveats. Copy only the reviewed local model cache and source tree to the
+production air-gapped machine. Dataset sample acquisition is blocked until
+exact provenance and license are verified. Do not copy shell history or token
+files.
+
+## Budget-Aware Dataset Handling
+
+The default bootstrap profile is `runtime-samples`, capped by:
+
+```bash
+LTM_BOOTSTRAP_MAX_LOCAL_GB=65
+LTM_BOOTSTRAP_MIN_FREE_GB=100
+```
+
+The budget preflight checks both `LTM_MODEL_CACHE` and `LTM_DATASET_CACHE` so
+split-volume setups cannot pass based only on dataset-cache free space.
+
+Full LibriSpeech, AMI, and VoxCeleb are optional research corpora, not runtime
+dependencies. They are recorded as cloud-only in `datasets/dataset_manifest.json`
+and are not downloaded by `./bootstrap.sh`.
+
+Sample acquisition is intentionally disabled. The plan command reports the
+blocked asset without downloading it:
+
+```bash
+uv run ltm datasets plan --profile runtime-samples --max-local-gb 65
+```
+
+`ltm datasets plan` checks `LTM_MODEL_CACHE` by default. Pass
+`--model-cache-dir` only when planning a different model-cache path.
+
+Optional cloud/object storage mirrors require a named `rclone` remote and
+explicit bulk-transfer approval:
+
+```bash
+export LTM_DATASET_MIRROR_REMOTE="gdrive:auralign-datasets"
+uv run ltm datasets cloud-plan --remote "$LTM_DATASET_MIRROR_REMOTE"
+uv run ltm datasets cloud-sync --remote "$LTM_DATASET_MIRROR_REMOTE" --yes-i-understand-bulk-transfer
+```
+
+Cloud mirrors are storage-only for public datasets. They are not used for
+inference and are not required during offline transcription.

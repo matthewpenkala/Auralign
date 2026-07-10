@@ -1,0 +1,314 @@
+#!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+"""Fail-closed repository and packaging compliance checks."""
+
+from __future__ import annotations
+
+import hashlib
+import re
+import sys
+import tomllib
+from pathlib import Path
+
+from local_transcript_max.config import MODEL_MANIFEST
+from local_transcript_max.datasets import DATASET_MANIFEST
+
+ROOT = Path(__file__).resolve().parents[1]
+PROJECT_LICENSE = "LicenseRef-PolyForm-Internal-Use-1.0.0"
+LICENSE_SHA256 = "1ba74ee07fe40289275d57fd6a7206d350560e8246fb661e510c7ccd70fe883a"
+SHA40 = re.compile(r"[0-9a-f]{40}")
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+def read_toml(relative: str) -> dict[str, object]:
+    return tomllib.loads((ROOT / relative).read_text(encoding="utf-8"))
+
+
+def verify_legal_files() -> None:
+    required = [
+        "LICENSE",
+        "LICENSES/LicenseRef-PolyForm-Internal-Use-1.0.0.txt",
+        "NOTICE",
+        "THIRD_PARTY_NOTICES.md",
+        "compliance/THIRD_PARTY_COMPONENTS.generated.md",
+        "REUSE.toml",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+    ]
+    for relative in required:
+        path = ROOT / relative
+        require(
+            path.is_file() and not path.is_symlink(),
+            f"missing or unsafe legal file: {relative}",
+        )
+    license_text = (ROOT / "LICENSE").read_bytes()
+    reuse_license = (
+        ROOT / "LICENSES/LicenseRef-PolyForm-Internal-Use-1.0.0.txt"
+    ).read_bytes()
+    require(license_text == reuse_license, "root and REUSE license texts differ")
+    require(hashlib.sha256(license_text).hexdigest() == LICENSE_SHA256, "license text drift")
+    require(
+        license_text.startswith(b"Required Notice: Copyright 2026 Matthew Penkala\n"),
+        "PolyForm required notice is missing or changed",
+    )
+
+
+def verify_project_metadata() -> None:
+    data = read_toml("pyproject.toml")
+    project = data["project"]
+    assert isinstance(project, dict)
+    require(project.get("license") == PROJECT_LICENSE, "wrong project license expression")
+    require("Private :: Do Not Upload" in project.get("classifiers", []), "PyPI guard missing")
+    authors = project.get("authors", [])
+    require(authors == [{"name": "Matthew Penkala"}], "unexpected project author metadata")
+    license_files = set(project.get("license-files", []))
+    require(
+        {
+            "LICENSE",
+            "LICENSES/*",
+            "NOTICE",
+            "THIRD_PARTY_NOTICES.md",
+            "compliance/THIRD_PARTY_COMPONENTS.generated.md",
+        }
+        <= license_files,
+        "package license files are incomplete",
+    )
+
+
+def verify_asset_registry() -> None:
+    data = read_toml("compliance/external_assets.toml")
+    rows = data.get("assets")
+    require(isinstance(rows, list), "external asset registry has no assets")
+    defaults = data.get("defaults")
+    require(isinstance(defaults, dict), "external asset registry has no defaults")
+    required_effective = {
+        "bundling_status",
+        "commercial_use_status",
+        "notice_obligations",
+        "privacy_classification",
+        "reviewer",
+        "source_offer_obligations",
+    }
+    for row in rows:
+        effective = defaults | row
+        require(
+            required_effective <= effective.keys(),
+            f"asset governance fields missing: {row.get('key')}",
+        )
+    indexed = {(row["kind"], row["key"]): row for row in rows}
+    require(len(indexed) == len(rows), "duplicate external asset registry key")
+    require(len(MODEL_MANIFEST) + len(DATASET_MANIFEST) == len(rows), "asset count drift")
+
+    for key, entry in MODEL_MANIFEST.items():
+        row = indexed.get(("model", key))
+        require(row is not None, f"model missing from registry: {key}")
+        require(
+            SHA40.fullmatch(entry.revision or "") is not None,
+            f"model revision not pinned: {key}",
+        )
+        require(row["revision"] == entry.revision, f"model revision drift: {key}")
+        require(
+            row["license_expression"] == entry.license_expression,
+            f"model license drift: {key}",
+        )
+        require(row["review_status"] == entry.review_status, f"model review drift: {key}")
+        if entry.license_expression == "NOASSERTION":
+            require(
+                entry.redistribution_status == "blocked",
+                f"unlicensed model not blocked: {key}",
+            )
+            require(not entry.pullable, f"unlicensed model acquisition enabled: {key}")
+
+    for key, entry in DATASET_MANIFEST.items():
+        row = indexed.get(("dataset", key))
+        require(row is not None, f"dataset missing from registry: {key}")
+        require(SHA40.fullmatch(entry.revision) is not None, f"dataset revision not pinned: {key}")
+        require(row["revision"] == entry.revision, f"dataset revision drift: {key}")
+        require(
+            row["license_expression"] == entry.license_expression,
+            f"dataset license drift: {key}",
+        )
+        require(row["review_status"] == entry.review_status, f"dataset review drift: {key}")
+        if entry.license_expression == "NOASSERTION":
+            require(
+                not entry.acquisition_approved,
+                f"unlicensed dataset acquisition enabled: {key}",
+            )
+        if key == "voxceleb-full":
+            require(not entry.mirror_approved, "VoxCeleb mirror must remain blocked")
+
+
+def requirement_name(requirement: str) -> str:
+    match = re.match(r"[A-Za-z0-9_.-]+", requirement)
+    require(match is not None, f"invalid requirement: {requirement}")
+    assert match is not None
+    return re.sub(r"[-_.]+", "-", match.group().lower())
+
+
+def verify_component_registry() -> None:
+    registry = read_toml("compliance/components.toml")
+    defaults = registry.get("defaults")
+    rows = registry.get("components")
+    require(isinstance(defaults, dict), "component registry has no defaults")
+    require(isinstance(rows, list), "component registry has no components")
+    policy = read_toml("compliance/policy.toml")
+    classes = policy.get("license_classes")
+    require(isinstance(classes, dict), "license policy classes missing")
+    recognized = set().union(*(set(value) for value in classes.values()))
+    required = {
+        "bundling_status",
+        "category",
+        "commercial_use_status",
+        "id",
+        "identifier",
+        "license_expression",
+        "notice_obligations",
+        "privacy_classification",
+        "redistribution_status",
+        "review_date",
+        "review_status",
+        "reviewer",
+        "source_offer_obligations",
+        "source_url",
+        "terms_url",
+        "usage",
+        "versions",
+    }
+    indexed: dict[str, dict[str, object]] = {}
+    for row in rows:
+        effective = defaults | row
+        missing = required.difference(effective)
+        require(not missing, f"component fields missing for {row.get('id')}: {sorted(missing)}")
+        raw_identifier = str(effective["identifier"])
+        identifier = (
+            requirement_name(raw_identifier)
+            if str(effective["category"]).startswith("python-")
+            else raw_identifier.lower()
+        )
+        require(identifier not in indexed, f"duplicate component identifier: {identifier}")
+        indexed[identifier] = effective
+        expression = str(effective["license_expression"])
+        tokens = set(re.findall(r"LicenseRef-[A-Za-z0-9.-]+|[A-Za-z0-9.-]+", expression))
+        tokens.difference_update({"AND", "OR", "WITH"})
+        require(tokens <= recognized, f"unclassified component license: {expression}")
+        if tokens.intersection(
+            set(classes["conditionally_allowed"])
+            | set(classes["human_review_required"])
+            | set(classes["prohibited_without_owner_evidence"])
+        ):
+            disposition = str(effective["redistribution_status"])
+            require(
+                "blocked" in disposition or "conditional" in disposition,
+                f"conditional component lacks release block: {effective['id']}",
+            )
+
+    pyproject = read_toml("pyproject.toml")
+    project = pyproject["project"]
+    assert isinstance(project, dict)
+    requirements = list(project["dependencies"])
+    for values in project["optional-dependencies"].values():
+        requirements.extend(values)
+    for values in pyproject["dependency-groups"].values():
+        requirements.extend(values)
+    requirements.extend(pyproject["build-system"]["requires"])
+    direct = {requirement_name(item) for item in requirements}
+    missing_components = direct.difference(indexed)
+    require(not missing_components, f"direct components unregistered: {sorted(missing_components)}")
+
+    lock = read_toml("uv.lock")
+    locked: dict[str, set[str]] = {}
+    for package in lock["package"]:
+        name = requirement_name(package["name"])
+        locked.setdefault(name, set()).add(package["version"])
+    for name in direct.difference({"hatchling"}):
+        versions = set(indexed[name]["versions"])
+        require(locked.get(name, set()) <= versions, f"component version drift: {name}")
+
+
+def verify_workflow_pins_and_container_status() -> None:
+    workflow_paths = sorted((ROOT / ".github/workflows").glob("*.y*ml"))
+    require(bool(workflow_paths), "no GitHub workflows found")
+    workflows = {
+        path.relative_to(ROOT).as_posix(): path.read_text(encoding="utf-8")
+        for path in workflow_paths
+    }
+    uses: list[str] = []
+    for relative, workflow in workflows.items():
+        current_uses = re.findall(r"uses:\s*([^\s#]+)", workflow)
+        uses.extend(current_uses)
+        for use in current_uses:
+            require(
+                re.search(r"@[0-9a-f]{40}$", use) is not None,
+                f"workflow action is not pinned in {relative}: {use}",
+            )
+    components = read_toml("compliance/components.toml")["components"]
+    action_records = {
+        row["identifier"]: set(row["versions"])
+        for row in components
+        if row["category"] == "github-action"
+    }
+    for use in uses:
+        identifier, revision = use.rsplit("@", 1)
+        require(revision in action_records.get(identifier, set()), f"action registry drift: {use}")
+    forbidden_release_authority = (
+        "docker push",
+        "id-token: write",
+        "packages: write",
+        "pypa/gh-action-pypi-publish",
+        "twine upload",
+        "uv publish",
+    )
+    for marker in forbidden_release_authority:
+        for relative, workflow in workflows.items():
+            require(
+                marker not in workflow,
+                f"workflow contains release authority in {relative}: {marker}",
+            )
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    require(
+        "internal-only-not-cleared-for-redistribution" in dockerfile,
+        "container status missing",
+    )
+    require("ACCELERATOR_GROUP" in dockerfile, "container accelerator profile is not explicit")
+    require("@sha256:" in dockerfile, "container base images are not digest pinned")
+    require("ffmpeg=${FFMPEG_VERSION}" in dockerfile, "container FFmpeg package is not pinned")
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    require(
+        "CA_CERTIFICATES_VERSION: 20260601~24.04.1" in compose,
+        "Ubuntu CUDA ca-certificates pin missing",
+    )
+    require(
+        "FFMPEG_VERSION: 7:6.1.1-3ubuntu5" in compose,
+        "Ubuntu CUDA FFmpeg pin missing",
+    )
+    require(
+        (ROOT / "compliance/ffmpeg-bookworm-buildconf.txt").is_file(),
+        "FFmpeg build configuration inventory missing",
+    )
+
+
+def main() -> int:
+    try:
+        verify_legal_files()
+        verify_project_metadata()
+        verify_asset_registry()
+        verify_component_registry()
+        verify_workflow_pins_and_container_status()
+    except (AssertionError, KeyError, OSError, RuntimeError, TypeError) as exc:
+        print(f"compliance_error={exc}", file=sys.stderr)
+        return 1
+    print("compliance_ok=true")
+    print(f"models={len(MODEL_MANIFEST)} datasets={len(DATASET_MANIFEST)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

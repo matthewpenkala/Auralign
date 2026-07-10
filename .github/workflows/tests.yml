@@ -1,0 +1,163 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+name: tests
+
+permissions:
+  contents: read
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    if: >-
+      github.event_name == 'pull_request' &&
+      vars.AURALIGN_ENABLE_DEPENDENCY_REVIEW == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
+          allow-licenses: >-
+            Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MIT, PSF-2.0
+
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@557e51de59eb14aaaba2ed9621916900a91d50c6 # v6.6.1
+        with:
+          version: "0.11.26"
+          enable-cache: true
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install Python
+        run: uv python install ${{ matrix.python-version }}
+      - name: Sync locked environment
+        run: uv sync --locked --python ${{ matrix.python-version }} --extra dev --extra api
+      - name: Test on Python ${{ matrix.python-version }}
+        run: uv run --python ${{ matrix.python-version }} pytest -q
+      - name: Lint (Python 3.11)
+        if: matrix.python-version == '3.11'
+        run: uv run ruff check .
+      - name: Type check (Python 3.11)
+        if: matrix.python-version == '3.11'
+        run: uv run mypy src/local_transcript_max
+
+  package:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@557e51de59eb14aaaba2ed9621916900a91d50c6 # v6.6.1
+        with:
+          version: "0.11.26"
+          enable-cache: true
+      - name: Install build Python
+        run: uv python install 3.11
+      - name: Verify lock
+        run: uv lock --check
+      - name: Build wheel and source distribution
+        run: uv build
+      - name: Verify archive metadata, contents, and artifact SBOMs
+        run: uv run python scripts/verify_distribution.py --sbom-dir build/sbom
+      - name: Install wheel in an isolated environment
+        run: |
+          wheel="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          uv venv --python 3.11 .wheel-smoke
+          uv pip install --python .wheel-smoke/bin/python "$wheel"
+      - name: Smoke installed import and version metadata
+        run: |
+          .wheel-smoke/bin/python - <<'PY'
+          from importlib.metadata import version
+          import local_transcript_max
+
+          assert local_transcript_max.__version__ == version("local-transcript-max")
+          PY
+      - name: Smoke installed CLI
+        run: .wheel-smoke/bin/ltm --help
+
+  compliance:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@557e51de59eb14aaaba2ed9621916900a91d50c6 # v6.6.1
+        with:
+          version: "0.11.26"
+          enable-cache: true
+      - name: Install Python
+        run: uv python install 3.11
+      - name: Sync compliance tools
+        run: uv sync --locked --python 3.11 --extra dev --extra api
+      - name: Verify file-level licensing
+        run: uv run reuse lint
+      - name: Verify legal and asset policy
+        run: uv run python scripts/check_compliance.py
+      - name: Verify generated third-party notice is current
+        run: uv run python scripts/generate_third_party_notices.py --check
+      - name: Generate source SPDX SBOM
+        run: mkdir -p build/sbom && uv run reuse spdx -o build/sbom/source.spdx
+      - name: Export locked CPU production dependency set
+        run: >-
+          uv export --locked --extra full --group cpu --no-dev
+          --no-emit-project -o build/cpu-requirements.txt
+      - name: Generate CPU production dependency CycloneDX SBOM
+        run: >-
+          uv export --locked --extra full --group cpu --no-dev
+          --format cyclonedx1.5 --preview-features sbom-export
+          -o build/sbom/python-cpu.cdx.json
+      - name: Validate CPU dependency graph SBOM
+        run: >-
+          uv run python scripts/validate_dependency_sbom.py
+          build/sbom/python-cpu.cdx.json --profile cpu
+      - name: Assert CPU dependency profile is acceleration-clean
+        run: >-
+          ! grep -Ei '^(triton|nvidia-|.*cuda|.*cudnn|.*nccl)=' build/cpu-requirements.txt
+      - name: Export locked CUDA 12.6 production dependency set
+        run: >-
+          uv export --locked --extra full --group cu126 --no-dev
+          --no-emit-project -o build/cu126-requirements.txt
+      - name: Generate CUDA 12.6 production dependency CycloneDX SBOM
+        run: >-
+          uv export --locked --extra full --group cu126 --no-dev
+          --format cyclonedx1.5 --preview-features sbom-export
+          -o build/sbom/python-cu126.cdx.json
+      - name: Validate CUDA 12.6 dependency graph SBOM
+        run: >-
+          uv run python scripts/validate_dependency_sbom.py
+          build/sbom/python-cu126.cdx.json --profile cu126
+      - name: Audit locked CPU production dependencies
+        run: |
+          set +e
+          uv run pip-audit -r build/cpu-requirements.txt --disable-pip --no-deps \
+            --strict --progress-spinner off -f json -o build/pip-audit.json
+          status="$?"
+          set -e
+          test "$status" -eq 0 -o "$status" -eq 1
+          uv run python scripts/check_vulnerability_audit.py build/pip-audit.json

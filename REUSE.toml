@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+version = 1
+
+# First-party text and configuration files are annotated here when an inline
+# header would disrupt their format, generated output, or public presentation.
+[[annotations]]
+path = [
+  ".dockerignore",
+  ".env.example",
+  ".github/**",
+  ".gitignore",
+  ".python-version",
+  "AGENTS.md",
+  "CONTRIBUTING.md",
+  "Dockerfile",
+  "NOTICE",
+  "README.md",
+  "REUSE.toml",
+  "SECURITY.md",
+  "THIRD_PARTY_NOTICES.md",
+  "bootstrap.sh",
+  "compliance/**",
+  "docker-compose.yml",
+  "docs/**",
+  "examples/**",
+  "pyproject.toml",
+  "scripts/**",
+  "src/**",
+  "tests/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Matthew Penkala"
+SPDX-License-Identifier = "LicenseRef-PolyForm-Internal-Use-1.0.0"
+
+# The lock is machine-generated from the first-party dependency declaration.
+[[annotations]]
+path = "uv.lock"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Matthew Penkala"
+SPDX-License-Identifier = "LicenseRef-PolyForm-Internal-Use-1.0.0"

@@ -1,0 +1,23 @@
+Auralign
+Required Notice: Copyright 2026 Matthew Penkala
+
+Auralign-owned source code, tests, documentation, configuration, workflows, and
+examples are licensed under the PolyForm Internal Use License 1.0.0. Auralign is
+source-available/shared-source software; it is not open-source software.
+
+Repository access does not transfer ownership and does not grant permission to
+distribute, sublicense, offer as a hosted service, deploy for customers, or use
+outside the license's internal-business-use permission. Those rights require a
+separate written agreement from the rights holder.
+
+Third-party software, model weights, datasets, media, base images, system
+packages, and other external assets retain their own terms. They are not
+relicensed under Auralign's license. See THIRD_PARTY_NOTICES.md and
+docs/legal/EXTERNAL_ASSETS.md.
+
+No claim is made here that Auralign is a registered trademark. Public product or
+package branding remains subject to separate trademark clearance.
+
+Controlling license: LICENSE
+Legal and compliance index: docs/legal/README.md
+Security reporting policy: SECURITY.md

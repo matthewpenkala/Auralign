@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+# Candidate MLX profile for local Apple Silicon benchmarking.
+# Requires an existing converted MLX model directory; runtime downloads are disabled.
+preset: balanced
+asr:
+  backend: mlx-whisper
+  mlx_model: mlx-large-v3-turbo
+  mlx_model_path: models/mlx-community--whisper-large-v3-turbo
+  mlx_fp16: true
+  word_timestamps: true
+  condition_on_previous_text: false
+diarization:
+  backend: pyannote
+  device: cpu
+  preserve_overlap: true
+  exclusive_diarization: true
+alignment:
+  backend: auto
+  device: cpu
+cleanup:
+  mode: off

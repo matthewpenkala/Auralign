@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+preset: max
+asr:
+  model: large-v3
+  beam_size: 5
+  condition_on_previous_text: false
+  word_timestamps: true
+diarization:
+  backend: pyannote
+  model: community-1
+  enabled: true
+alignment:
+  backend: fallback
+audio:
+  normalize_loudness: false
+  denoise: off

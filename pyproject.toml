@@ -1,0 +1,172 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+[project]
+name = "local-transcript-max"
+version = "0.1.0"
+description = "Local, speaker-aware long-form transcription with diarization, QA, benchmarks, and exports."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+authors = [
+  { name = "Matthew Penkala" },
+]
+license = "LicenseRef-PolyForm-Internal-Use-1.0.0"
+license-files = [
+  "LICENSE",
+  "LICENSES/*",
+  "NOTICE",
+  "THIRD_PARTY_NOTICES.md",
+  "compliance/THIRD_PARTY_COMPONENTS.generated.md",
+]
+classifiers = [
+  "Private :: Do Not Upload",
+]
+dependencies = [
+  "huggingface-hub>=0.36,<1",
+  "jiwer>=4,<5",
+  "pydantic>=2,<3",
+  "pyyaml>=6,<7",
+  "typer>=0.12,<1",
+]
+
+[project.scripts]
+ltm = "local_transcript_max.cli:app"
+
+[project.optional-dependencies]
+asr = [
+  "faster-whisper>=1.2.1,<2",
+]
+mlx = [
+  "mlx-whisper>=0.4.3,<0.5; platform_system == 'Darwin' and platform_machine == 'arm64'",
+]
+diarization = [
+  "pyannote.audio>=4.0.4,<5",
+]
+alignment = [
+  "whisperx>=3.8.6,<4",
+]
+speaker-embeddings = [
+  "speechbrain>=1.1.0,<2",
+]
+speaker-id = [
+  "speechbrain>=1.1.0,<2",
+]
+api = [
+  "fastapi>=0.137,<1",
+  "uvicorn[standard]>=0.30,<1",
+]
+full = [
+  "faster-whisper>=1.2.1,<2",
+  "pyannote.audio>=4.0.4,<5",
+  "whisperx>=3.8.6,<4",
+  "speechbrain>=1.1.0,<2",
+  "fastapi>=0.137,<1",
+  "uvicorn[standard]>=0.30,<1",
+]
+dev = [
+  "cyclonedx-bom>=7,<8",
+  "mypy>=2,<3",
+  "pip-audit>=2.9,<3",
+  "pytest>=9,<10",
+  "reuse>=6.2,<7",
+  "ruff>=0.15,<1",
+  "types-PyYAML>=6,<7",
+]
+
+[dependency-groups]
+cpu = [
+  "torch==2.8.0",
+  "torchaudio==2.8.0",
+  "torchvision==0.23.0",
+]
+cu126 = [
+  "torch==2.8.0",
+  "torchaudio==2.8.0",
+  "torchvision==0.23.0",
+]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+conflicts = [
+  [
+    { group = "cpu" },
+    { group = "cu126" },
+  ],
+]
+exclude-dependencies = [
+  { package = { name = "torch", version = "2.8.0+cpu" }, dependencies = ["triton"] },
+  { package = { name = "whisperx", version = "3.8.6" }, dependencies = ["triton"] },
+]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", group = "cpu" },
+  { index = "pytorch-cu126", group = "cu126" },
+]
+torchaudio = [
+  { index = "pytorch-cpu", group = "cpu" },
+  { index = "pytorch-cu126", group = "cu126" },
+]
+torchvision = [
+  { index = "pytorch-cpu", group = "cpu" },
+  { index = "pytorch-cu126", group = "cu126" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/local_transcript_max"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/.env.example"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "slow: requires downloaded models or longer runtime",
+  "gpu: requires a CUDA-capable host",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+disallow_subclassing_any = false
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = [
+  "ctranslate2",
+  "faster_whisper",
+  "mlx_whisper",
+  "pyannote",
+  "pyannote.*",
+  "speechbrain",
+  "speechbrain.*",
+  "torch",
+  "torch.*",
+  "torchaudio",
+  "torchaudio.*",
+  "whisperx",
+  "whisperx.*",
+]
+ignore_missing_imports = true
