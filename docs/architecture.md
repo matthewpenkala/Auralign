@@ -68,6 +68,8 @@ validated across the CLI, pipeline, API, benchmarks, and tests.
   speaker-turn fusion.
 - Diagnostics and reports use counts, indexes, reason codes, and redacted paths
   rather than transcript excerpts wherever practical.
+- CSV exporters neutralize formula-capable text and speaker cells before writing
+  spreadsheet-readable artifacts.
 
 ## Output Contract
 

@@ -338,21 +338,44 @@ class ASRConfig(BaseModel):
 class DiarizationConfig(BaseModel):
     backend: Literal["auto", "pyannote", "off"] = "pyannote"
     model: str = "community-1"
-    num_speakers: int | None = None
-    min_speakers: int | None = None
-    max_speakers: int | None = None
+    num_speakers: int | None = Field(default=None, ge=1, le=128)
+    min_speakers: int | None = Field(default=None, ge=1, le=128)
+    max_speakers: int | None = Field(default=None, ge=1, le=128)
     device: str = "auto"
     enabled: bool = True
     preserve_overlap: bool = True
     exclusive_diarization: bool = True
 
+    @model_validator(mode="after")
+    def validate_speaker_range(self) -> DiarizationConfig:
+        if (
+            self.min_speakers is not None
+            and self.max_speakers is not None
+            and self.min_speakers > self.max_speakers
+        ):
+            raise ValueError("min_speakers must be less than or equal to max_speakers")
+        return self
+
 
 class AgenticDiarizationConfig(BaseModel):
     enabled: bool = False
-    candidates: int | None = None
+    candidates: int | None = Field(default=None, ge=1, le=128)
     candidate_range: str = "2:8"
-    known_speakers: int | None = None
+    known_speakers: int | None = Field(default=None, ge=1, le=128)
     write_decision_report: bool = True
+
+    @field_validator("candidate_range")
+    @classmethod
+    def validate_candidate_range(cls, value: str) -> str:
+        try:
+            left, right = value.split(":", maxsplit=1)
+            start = int(left)
+            end = int(right)
+        except ValueError as exc:
+            raise ValueError("candidate_range must be an inclusive range like 2:8") from exc
+        if start < 1 or end < start or end > 128:
+            raise ValueError("candidate_range must satisfy 1 <= start <= end <= 128")
+        return value
 
 
 class AlignmentConfig(BaseModel):

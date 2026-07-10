@@ -159,6 +159,42 @@ def test_overlap_preservation_counts_overlap_ratio() -> None:
     assert score["overlap_turn_ratio"] == 1.0
 
 
+def test_overlapping_turns_do_not_double_count_vad_coverage_or_hide_tail() -> None:
+    result = DiarizationResult(
+        turns=[
+            DiarizationTurn(start=0.0, end=5.0, speaker="A"),
+            DiarizationTurn(start=0.0, end=5.0, speaker="B"),
+        ]
+    )
+    score = score_candidate(
+        result,
+        words=[],
+        vad_regions=[VADRegion(start=0.0, end=10.0, source="test")],
+        expected_speakers=2,
+    )
+
+    assert score["vad_coverage"] == 0.5
+    assert score["long_unlabeled_region_seconds"] == 5.0
+
+
+def test_disjoint_turns_use_union_coverage() -> None:
+    result = DiarizationResult(
+        turns=[
+            DiarizationTurn(start=0.0, end=2.0, speaker="A"),
+            DiarizationTurn(start=4.0, end=6.0, speaker="B"),
+        ]
+    )
+    score = score_candidate(
+        result,
+        words=[],
+        vad_regions=[VADRegion(start=0.0, end=8.0, source="test")],
+        expected_speakers=2,
+    )
+
+    assert score["vad_coverage"] == 0.5
+    assert score["long_unlabeled_region_seconds"] == 4.0
+
+
 def test_deterministic_tie_break_prefers_lower_speaker_count() -> None:
     selected = select_candidate(
         [

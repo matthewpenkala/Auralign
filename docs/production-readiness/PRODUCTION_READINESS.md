@@ -349,13 +349,13 @@ real model accuracy is not inferred from synthetic tests.
 
 ### Human Blocked
 
-- Owner execution of the chain-of-title attestation; acceptance or remediation
-  of the exact expiring vulnerability register; public-network
-  authentication/TLS; gated or unverified external-asset terms; and approval of
-  a non-sensitive real-model canary corpus. The WhisperMLX/WhisperX provenance
-  review is resolved in `docs/legal/PROVENANCE.md`. The repository has
-  controlling PolyForm Internal Use terms, private security reporting,
-  invite-only contribution policy, and fail-closed asset governance.
+- Public-network authentication/TLS, gated or unverified external-asset terms,
+  approval of a non-sensitive real-model canary corpus, public branding,
+  customer/commercial terms, and exact container clearance remain human gates.
+  The owner chain-of-title confirmation and the exact vulnerability-register
+  risk acceptance were recorded on 2026-07-10 for the authorized private source
+  remote only. The WhisperMLX/WhisperX provenance review is resolved in
+  `docs/legal/PROVENANCE.md`.
 
 ### Rejected With Rationale
 
@@ -393,8 +393,8 @@ a successful build and smoke check.
 
 | Release boundary | Decision | Basis |
 | --- | --- | --- |
-| Technical local production readiness | **REQUIRES FRESH CANDIDATE GATES** | Repository-local unit, type, lint, packaging, compliance, and profile gates must all pass against the exact candidate tree; private media evidence remains external. |
-| Trusted private-remote readiness | **NOT YET AUTHORIZED** | Controlling terms, safeguards, resolved repository provenance, and sanitized-history controls are present, but the owner chain-of-title record, security disposition, remote configuration, and explicit push authorization remain required. |
+| Technical source-candidate readiness | **VERIFIED FOR PRIVATE SOURCE PUBLICATION** | Repository-local unit, type, lint, packaging, compliance, archive, and dependency-profile gates passed against the 2026-07-10 candidate; private media evidence and broader operational accuracy remain external and incomplete. |
+| Trusted private-remote readiness | **OWNER-AUTHORIZED FOR FIRST PRIVATE SOURCE PUSH** | The owner recorded chain-of-title authority, accepted the exact expiring vulnerability register, selected `matthewpenkala/Auralign` as a private remote, and explicitly authorized pushing only sanitized `main`. |
 | Public publication readiness | **BLOCKED; OUTSIDE CURRENT LICENSE POSTURE** | Auralign is intentionally source-available under PolyForm Internal Use, not open source. Public branding, external assets, public-network operation, and separate commercial/public terms require owner/counsel decisions. |
 
 The resolver is current supported behavior. Local LLM identity planning,

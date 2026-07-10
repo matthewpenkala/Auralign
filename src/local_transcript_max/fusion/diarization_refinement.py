@@ -299,14 +299,27 @@ def timestamp_contradictions(words: list[AlignedWord], turns: list[DiarizationTu
 
 
 def max_overlap(start: float, end: float, turns: list[DiarizationTurn]) -> float:
-    total = 0.0
+    intervals: list[tuple[float, float]] = []
     for turn in turns:
         if turn.end <= start:
             continue
         if turn.start >= end:
             break
-        total += overlap(start, end, turn.start, turn.end)
-    return total
+        clipped_start = max(start, turn.start)
+        clipped_end = min(end, turn.end)
+        if clipped_end > clipped_start:
+            intervals.append((clipped_start, clipped_end))
+    if not intervals:
+        return 0.0
+    total = 0.0
+    current_start, current_end = intervals[0]
+    for interval_start, interval_end in intervals[1:]:
+        if interval_start <= current_end:
+            current_end = max(current_end, interval_end)
+            continue
+        total += current_end - current_start
+        current_start, current_end = interval_start, interval_end
+    return total + current_end - current_start
 
 
 def has_overlap(start: float, end: float, turns: list[DiarizationTurn]) -> bool:

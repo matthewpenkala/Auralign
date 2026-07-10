@@ -12,6 +12,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from local_transcript_max.export.csv_export import formula_safe_cell
 from local_transcript_max.schemas import SpeakerTurn, Transcript
 
 from .identity_models import (
@@ -268,6 +269,4 @@ def _markdown_escape(label: str) -> str:
 
 
 def _csv_safe(value: str) -> str:
-    if value.startswith(("=", "+", "-", "@", "\t", "\r")):
-        return "'" + value
-    return value
+    return formula_safe_cell(value)

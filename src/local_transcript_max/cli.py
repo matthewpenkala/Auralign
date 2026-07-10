@@ -257,9 +257,9 @@ def transcribe(
         float | None,
         typer.Option("--asr-mlx-vad-window-padding-seconds", min=0.0),
     ] = None,
-    num_speakers: Annotated[int | None, typer.Option("--num-speakers")] = None,
-    min_speakers: Annotated[int | None, typer.Option("--min-speakers")] = None,
-    max_speakers: Annotated[int | None, typer.Option("--max-speakers")] = None,
+    num_speakers: Annotated[int | None, typer.Option("--num-speakers", min=1, max=128)] = None,
+    min_speakers: Annotated[int | None, typer.Option("--min-speakers", min=1, max=128)] = None,
+    max_speakers: Annotated[int | None, typer.Option("--max-speakers", min=1, max=128)] = None,
     diarization_backend: Annotated[
         str,
         typer.Option("--diarization-backend", help="auto, pyannote, or off"),
@@ -285,7 +285,9 @@ def transcribe(
         str,
         typer.Option("--diarization-candidate-range", help="Inclusive range like 2:8"),
     ] = "2:8",
-    known_speakers: Annotated[int | None, typer.Option("--known-speakers")] = None,
+    known_speakers: Annotated[
+        int | None, typer.Option("--known-speakers", min=1, max=128)
+    ] = None,
     write_diarization_decision_report: Annotated[
         bool,
         typer.Option("--write-diarization-decision-report/--no-write-diarization-decision-report"),
@@ -449,6 +451,12 @@ def transcribe(
             config.diarization.min_speakers = min_speakers
         if use_cli_value("max_speakers"):
             config.diarization.max_speakers = max_speakers
+        if (
+            config.diarization.min_speakers is not None
+            and config.diarization.max_speakers is not None
+            and config.diarization.min_speakers > config.diarization.max_speakers
+        ):
+            raise typer.BadParameter("min-speakers must be less than or equal to max-speakers")
         if known_speakers is not None:
             config.diarization.num_speakers = known_speakers
             config.agentic_diarization.known_speakers = known_speakers
@@ -480,16 +488,33 @@ def transcribe(
         if use_cli_value("agentic_diarization"):
             config.agentic_diarization.enabled = agentic_diarization
         if use_cli_value("diarization_candidate_range"):
+            try:
+                candidate_start_text, candidate_end_text = diarization_candidate_range.split(
+                    ":", maxsplit=1
+                )
+                candidate_start = int(candidate_start_text)
+                candidate_end = int(candidate_end_text)
+            except ValueError as exc:
+                raise typer.BadParameter(
+                    "diarization-candidate-range must be an inclusive range like 2:8"
+                ) from exc
+            if candidate_start < 1 or candidate_end < candidate_start or candidate_end > 128:
+                raise typer.BadParameter(
+                    "diarization-candidate-range must satisfy 1 <= start <= end <= 128"
+                )
             config.agentic_diarization.candidate_range = diarization_candidate_range
         if use_cli_value("write_diarization_decision_report"):
             config.agentic_diarization.write_decision_report = write_diarization_decision_report
         if use_cli_value("diarization_candidates") and diarization_candidates != "auto":
             try:
-                config.agentic_diarization.candidates = int(diarization_candidates)
+                candidate_count = int(diarization_candidates)
             except ValueError as exc:
                 raise typer.BadParameter(
                     "diarization-candidates must be auto or an integer"
                 ) from exc
+            if not 1 <= candidate_count <= 128:
+                raise typer.BadParameter("diarization-candidates must be between 1 and 128")
+            config.agentic_diarization.candidates = candidate_count
         if forced_alignment not in {"auto", "on", "off", "whisper"}:
             raise typer.BadParameter("forced-alignment must be one of: auto, on, off, whisper")
         if use_cli_value("forced_alignment"):
@@ -589,7 +614,7 @@ def transcribe(
             raise typer.BadParameter("cleanup-scope must be punctuation or readability")
         if use_cli_value("cleanup"):
             config.cleanup.mode = cast(Literal["off", "local-llm"], cleanup)
-        if use_cli_value("cleanup_endpoint"):
+        if use_cli_default_or_explicit("cleanup_endpoint", ("LTM_CLEANUP_ENDPOINT",)):
             config.cleanup.endpoint = cleanup_endpoint
         if use_cli_value("cleanup_model"):
             config.cleanup.model = cleanup_model
@@ -1477,7 +1502,9 @@ def inspect(
         except (OSError, ValueError, json.JSONDecodeError):
             qa_invalid = True
             typer.echo("qa_report_parse=invalid")
-    if unsafe_count or qa_invalid:
+    canonical_missing = category_counts["canonical"]["missing"]
+    canonical_unsafe = category_counts["canonical"]["unsafe"]
+    if canonical_missing or canonical_unsafe or unsafe_count or qa_invalid:
         raise typer.Exit(1)
 
 

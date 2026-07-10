@@ -19,6 +19,12 @@ When required models are missing, doctor and transcribe fail fast with the exact
 online pull command. Offline mode does not call Hugging Face metadata endpoints
 or attempt opportunistic downloads.
 
+Doctor evaluates dependencies and models required by the active configuration;
+missing packages for a selected ASR, diarization, forced-alignment, or speaker-ID
+backend are errors rather than optional warnings. When validating a stricter
+lane than the preset default, pass a config that describes that exact lane. For
+example, strict forced-alignment readiness requires `alignment.backend: forced`.
+
 `ltm speakers resolve-identities` is deterministic local post-processing. It
 reads only the selected job, explicitly supplied local inputs, configured local
 speaker-profile/rename stores, and bounded sibling artifacts. It never downloads

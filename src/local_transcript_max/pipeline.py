@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import inspect
+import math
 import os
 import time
 import traceback
@@ -655,6 +656,7 @@ def align_words(
     backend = alignment_backend or WhisperXForcedAlignment()
     try:
         words = backend.align(audio_path, asr_result, config)
+        validate_forced_alignment_words(words)
         return AlignmentOutcome(
             words=words,
             backend=getattr(backend, "name", "forced"),
@@ -680,6 +682,33 @@ def align_words(
                 "requested_backend": config.alignment.backend,
             },
         )
+
+
+def validate_forced_alignment_words(words: list[AlignedWord]) -> None:
+    """Reject incomplete or invalid forced-alignment output before publication."""
+    if not words:
+        raise BackendUnavailableError("Forced alignment returned no word timestamps.")
+    previous_start = -math.inf
+    previous_end = -math.inf
+    for index, word in enumerate(words):
+        start = word.start
+        end = word.end
+        if (
+            word.alignment_source != "forced"
+            or start is None
+            or end is None
+            or not math.isfinite(start)
+            or not math.isfinite(end)
+            or start < 0
+            or end < start
+            or start < previous_start
+            or end < previous_end
+        ):
+            raise BackendUnavailableError(
+                f"Forced alignment returned an invalid timestamp at word index {index}."
+            )
+        previous_start = start
+        previous_end = end
 
 
 class DisabledDiarizationBackend:

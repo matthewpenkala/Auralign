@@ -13,6 +13,7 @@ from local_transcript_max.export import (
     render_txt,
     render_vtt,
     write_segments_csv,
+    write_words_csv,
     write_words_jsonl,
 )
 from local_transcript_max.schemas import AlignedWord, DiarizationTurn, SpeakerTurn, Transcript
@@ -62,3 +63,40 @@ def test_all_exports_are_consistent_and_safe(tmp_path: Path) -> None:
     assert rows[0]["text"] == "Hello,\nworld"
     word_rows = [json.loads(line) for line in jsonl_path.read_text(encoding="utf-8").splitlines()]
     assert word_rows[0]["text"] == "Hello,"
+
+
+def test_canonical_csv_exports_neutralize_formula_capable_cells(tmp_path: Path) -> None:
+    word = AlignedWord(
+        text='=HYPERLINK("synthetic")',
+        start=0.0,
+        end=1.0,
+        speaker="+speaker",
+        alignment_source="forced",
+        assignment_source="@assignment",
+    )
+    transcript = Transcript(
+        input_path="synthetic.wav",
+        words=[word],
+        speaker_turns=[
+            SpeakerTurn(
+                speaker="@speaker",
+                start=0.0,
+                end=1.0,
+                text="-formula",
+                words=[word],
+            )
+        ],
+    )
+    segments_path = tmp_path / "segments.csv"
+    words_path = tmp_path / "words.csv"
+
+    write_segments_csv(segments_path, transcript)
+    write_words_csv(words_path, transcript)
+
+    segment = next(csv.DictReader(segments_path.open(newline="", encoding="utf-8")))
+    word_row = next(csv.DictReader(words_path.open(newline="", encoding="utf-8")))
+    assert segment["speaker"] == "'@speaker"
+    assert segment["text"] == "'-formula"
+    assert word_row["text"] == '\'=HYPERLINK("synthetic")'
+    assert word_row["speaker"] == "'+speaker"
+    assert word_row["assignment_source"] == "'@assignment"

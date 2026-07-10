@@ -42,9 +42,13 @@ record approval of the following declaration in the private publication record:
 > preserved under its applicable terms.
 
 An automated agent cannot execute this declaration, provide a signature, or
-infer assent from a request to edit the repository. Until the owner records a
-dated approval outside generated documentation, chain-of-title clearance is a
-human legal publication gate—not an untracked software TODO.
+infer assent from a request to edit the repository. Matthew Penkala personally
+confirmed the declaration and his controlling licensing authority in the
+private publication record dated 2026-07-10. That user-authored record is
+preserved outside the repository; this document records only that the gate was
+satisfied for the authorized private source remote. It does not clear public
+publication, customer delivery, hosted service use, containers, models,
+datasets, or disputed later evidence.
 
 ## `Adapt whispermlx pipeline improvements`
 

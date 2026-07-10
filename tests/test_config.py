@@ -363,3 +363,23 @@ def test_unsupported_nemo_diarization_config_is_rejected(tmp_path: Path) -> None
 
     with pytest.raises(LTMError, match="Invalid config file"):
         load_config(config_file=config_path, cwd=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "diarization:\n  num_speakers: 0\n",
+        "diarization:\n  min_speakers: 9\n  max_speakers: 2\n",
+        "agentic_diarization:\n  candidates: 0\n",
+        "agentic_diarization:\n  known_speakers: -4\n",
+        "agentic_diarization:\n  candidate_range: 0:3\n",
+        "agentic_diarization:\n  candidate_range: 4:2\n",
+        "agentic_diarization:\n  candidate_range: invalid\n",
+    ],
+)
+def test_invalid_diarization_count_config_is_rejected(tmp_path: Path, payload: str) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(payload, encoding="utf-8")
+
+    with pytest.raises(LTMError, match="Invalid config file"):
+        load_config(config_file=config_path, cwd=tmp_path)

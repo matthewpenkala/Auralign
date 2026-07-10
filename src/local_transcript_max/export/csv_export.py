@@ -13,6 +13,13 @@ from local_transcript_max.schemas import Transcript
 from local_transcript_max.utils import atomic_text_writer
 
 
+def formula_safe_cell(value: str) -> str:
+    """Neutralize text that spreadsheet applications may interpret as a formula."""
+    if value.startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + value
+    return value
+
+
 def write_segments_csv(path: Path, transcript: Transcript) -> None:
     with atomic_text_writer(path, newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=["speaker", "start", "end", "text"])
@@ -20,10 +27,10 @@ def write_segments_csv(path: Path, transcript: Transcript) -> None:
         for turn in transcript.speaker_turns:
             writer.writerow(
                 {
-                    "speaker": turn.speaker,
+                    "speaker": formula_safe_cell(turn.speaker),
                     "start": f"{turn.start:.3f}",
                     "end": f"{turn.end:.3f}",
-                    "text": turn.text,
+                    "text": formula_safe_cell(turn.text),
                 }
             )
 
@@ -45,13 +52,13 @@ def write_words_csv(path: Path, transcript: Transcript) -> None:
         for word in transcript.words:
             writer.writerow(
                 {
-                    "text": word.text,
+                    "text": formula_safe_cell(word.text),
                     "start": "" if word.start is None else f"{word.start:.3f}",
                     "end": "" if word.end is None else f"{word.end:.3f}",
-                    "speaker": word.speaker or "",
+                    "speaker": formula_safe_cell(word.speaker or ""),
                     "uncertain_speaker": str(word.uncertain_speaker).lower(),
-                    "alignment_source": word.alignment_source,
+                    "alignment_source": formula_safe_cell(word.alignment_source),
                     "confidence": "" if word.confidence is None else f"{word.confidence:.6f}",
-                    "assignment_source": word.assignment_source or "",
+                    "assignment_source": formula_safe_cell(word.assignment_source or ""),
                 }
             )

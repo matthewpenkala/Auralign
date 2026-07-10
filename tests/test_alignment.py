@@ -10,7 +10,7 @@ from local_transcript_max.alignment.forced_alignment import WhisperXForcedAlignm
 from local_transcript_max.config import load_config
 from local_transcript_max.errors import BackendUnavailableError
 from local_transcript_max.pipeline import align_words
-from local_transcript_max.schemas import ASRResult, ASRSegment
+from local_transcript_max.schemas import AlignedWord, ASRResult, ASRSegment
 
 
 class MissingForcedAlignment:
@@ -28,7 +28,17 @@ class SuccessfulForcedAlignment:
 
     def align(self, audio_path: Path, asr_result: ASRResult, config):
         self.last_device = config.alignment.device
-        return asr_result.segments[0].words
+        return [AlignedWord(text="hello", start=0.0, end=1.0, alignment_source="forced")]
+
+
+class StaticForcedAlignment:
+    name = "static-forced"
+
+    def __init__(self, words: list[AlignedWord]) -> None:
+        self.words = words
+
+    def align(self, audio_path: Path, asr_result: ASRResult, config):
+        return self.words
 
 
 def test_auto_alignment_falls_back_to_estimated_words(tmp_path: Path) -> None:
@@ -69,6 +79,43 @@ def test_forced_alignment_mode_does_not_fake_success(tmp_path: Path) -> None:
     asr = ASRResult(segments=[ASRSegment(id=0, start=0.0, end=1.0, text="hello")])
     with pytest.raises(BackendUnavailableError):
         align_words(tmp_path / "audio.wav", asr, config, MissingForcedAlignment())
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        [],
+        [AlignedWord(text="missing", start=None, end=None, alignment_source="missing")],
+        [AlignedWord(text="nan", start=float("nan"), end=1.0, alignment_source="forced")],
+        [AlignedWord(text="negative", start=-0.1, end=1.0, alignment_source="forced")],
+        [AlignedWord(text="reverse", start=1.0, end=0.5, alignment_source="forced")],
+        [
+            AlignedWord(text="later", start=1.0, end=2.0, alignment_source="forced"),
+            AlignedWord(text="earlier", start=0.5, end=2.1, alignment_source="forced"),
+        ],
+    ],
+)
+def test_strict_forced_alignment_rejects_incomplete_or_invalid_words(
+    tmp_path: Path, words: list[AlignedWord]
+) -> None:
+    config = load_config(cwd=tmp_path)
+    config.alignment.backend = "forced"
+    asr = ASRResult(segments=[ASRSegment(id=0, start=0.0, end=1.0, text="hello")])
+
+    with pytest.raises(BackendUnavailableError, match="Forced alignment returned"):
+        align_words(tmp_path / "audio.wav", asr, config, StaticForcedAlignment(words))
+
+
+def test_auto_alignment_falls_back_when_forced_output_is_partial(tmp_path: Path) -> None:
+    config = load_config(cwd=tmp_path)
+    config.alignment.backend = "auto"
+    asr = ASRResult(segments=[ASRSegment(id=0, start=0.0, end=1.0, text="hello")])
+    partial = [AlignedWord(text="hello", start=None, end=None, alignment_source="missing")]
+
+    outcome = align_words(tmp_path / "audio.wav", asr, config, StaticForcedAlignment(partial))
+
+    assert outcome.backend == "whisper-word-timestamps"
+    assert outcome.warnings == ["Forced alignment returned an invalid timestamp at word index 0."]
 
 
 def test_whisperx_alignment_requires_local_cache_before_loading(tmp_path: Path) -> None:

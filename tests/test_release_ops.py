@@ -18,6 +18,7 @@ from local_transcript_max.doctor import (
     BASE_DEPENDENCIES,
     _python_package_check,
     _python_supported,
+    required_inference_dependencies,
     run_doctor,
 )
 from local_transcript_max.errors import BackendUnavailableError
@@ -81,6 +82,61 @@ def test_broken_required_dependency_reports_installed_metadata(monkeypatch: Monk
 
     assert check.status == "error"
     assert check.message == "not importable; distribution version=4.0"
+
+
+def test_doctor_requires_packages_for_the_active_runtime_path(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    config = load_config(cwd=tmp_path)
+    unavailable_modules = {
+        "faster_whisper",
+        "ctranslate2",
+        "pyannote.audio",
+        "torch",
+        "torchaudio",
+        "whisperx",
+    }
+    monkeypatch.setattr(
+        "local_transcript_max.doctor._module_available",
+        lambda module: module not in unavailable_modules,
+    )
+    monkeypatch.setattr("local_transcript_max.doctor._version", lambda _package: None)
+
+    report = run_doctor(config, include_docker=False)
+    checks = {check.name: check.status for check in report.checks}
+
+    assert required_inference_dependencies(config) == frozenset(
+        {"faster-whisper", "ctranslate2", "pyannote.audio", "torch", "torchaudio"}
+    )
+    assert checks["python_package:faster-whisper"] == "error"
+    assert checks["python_package:ctranslate2"] == "error"
+    assert checks["python_package:pyannote.audio"] == "error"
+    assert checks["python_package:whisperx"] == "warning"
+    assert report.ok is False
+
+
+def test_doctor_requires_strict_alignment_and_mlx_packages_for_configured_backends(
+    tmp_path: Path,
+) -> None:
+    strict = load_config(cwd=tmp_path)
+    strict.alignment.backend = "forced"
+    assert {"whisperx", "torch", "torchaudio"}.issubset(
+        required_inference_dependencies(strict)
+    )
+
+    mlx = load_config(cwd=tmp_path)
+    mlx.asr.backend = "mlx-whisper"
+    mlx.diarization.enabled = False
+    mlx.alignment.enabled = False
+    assert required_inference_dependencies(mlx) == frozenset({"mlx-whisper", "mlx"})
+
+    speaker_id = load_config(cwd=tmp_path)
+    speaker_id.diarization.enabled = False
+    speaker_id.alignment.enabled = False
+    speaker_id.speaker_id.mode = "auto"
+    assert {"speechbrain", "torch", "torchaudio"}.issubset(
+        required_inference_dependencies(speaker_id)
+    )
 
 
 def test_doctor_marks_strict_forced_alignment_preflight_failure(

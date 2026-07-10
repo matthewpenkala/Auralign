@@ -63,6 +63,22 @@ OPTIONAL_DEPENDENCIES: tuple[tuple[str, str], ...] = (
 )
 
 
+def required_inference_dependencies(config: PipelineConfig) -> frozenset[str]:
+    """Return distributions required by the configured runtime path."""
+    required: set[str] = set()
+    if config.asr.backend == "faster-whisper":
+        required.update({"faster-whisper", "ctranslate2"})
+    elif config.asr.backend == "mlx-whisper":
+        required.update({"mlx-whisper", "mlx"})
+    if config.diarization.enabled and config.diarization.backend in {"auto", "pyannote"}:
+        required.update({"pyannote.audio", "torch", "torchaudio"})
+    if config.alignment.enabled and config.alignment.backend == "forced":
+        required.update({"whisperx", "torch", "torchaudio"})
+    if config.speaker_id.mode == "auto":
+        required.update({"speechbrain", "torch", "torchaudio"})
+    return frozenset(required)
+
+
 class DoctorCheck(BaseModel):
     name: str
     status: str
@@ -174,8 +190,12 @@ def run_doctor(config: PipelineConfig, *, include_docker: bool = True) -> Doctor
         report.checks.append(check)
         if check.status == "error":
             report.ok = False
+    required_inference = required_inference_dependencies(config)
     for package, module in OPTIONAL_DEPENDENCIES:
-        report.checks.append(_python_package_check(package, module, required=False))
+        check = _python_package_check(package, module, required=package in required_inference)
+        report.checks.append(check)
+        if check.status == "error":
+            report.ok = False
 
     cuda_message = "torch not installed"
     if _module_available("torch"):

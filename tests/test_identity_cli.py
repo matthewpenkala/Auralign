@@ -386,7 +386,8 @@ def test_inspect_reports_identity_artifact_names_and_count_without_job_path(
 
     result = CliRunner().invoke(app, ["inspect", str(job)])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
+    assert "canonical_artifact_missing_count=" in result.stdout
     assert "speaker_identity_report.json=present" in result.stdout
     assert "transcript.identity_mapped.srt=present" in result.stdout
     assert "identity_artifact_count=2" in result.stdout

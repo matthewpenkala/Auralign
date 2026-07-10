@@ -46,6 +46,9 @@ transcript*.rttm
 *.rttm
 diarization*.json
 diarization*.rttm
+alignment_report.json
+exclusive_diarization.json
+diarization_candidates/
 speaker*.json
 # Sensitive speaker-identity resolver inputs and generated review artifacts.
 .speaker_identity.lock

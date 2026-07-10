@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from local_transcript_max.benchmark.der import _maximum_weight_assignment
+from local_transcript_max.export.csv_export import formula_safe_cell
 from local_transcript_max.schemas import DiarizationResult, DiarizationTurn
 
 from .identity_exports import (
@@ -2058,9 +2059,7 @@ def _audit_csv(audit: AttributionAudit) -> str:
             elif value is None:
                 value = ""
             text = str(value)
-            serialized[key] = (
-                "'" + text if text.startswith(("=", "+", "-", "@", "\t", "\r")) else text
-            )
+            serialized[key] = formula_safe_cell(text)
         writer.writerow(serialized)
     return output.getvalue()
 

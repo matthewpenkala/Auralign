@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
+import pytest
 from typer.testing import CliRunner
 
 import local_transcript_max.cli as cli_module
@@ -187,6 +188,60 @@ def test_transcribe_config_file_values_survive_cli_defaults(tmp_path, monkeypatc
     assert config.redecode.mode == "hallucination"
     assert config.speaker_id.mode == "auto"
     assert config.cleanup.endpoint == "http://127.0.0.1:9999/v1"
+
+
+def test_transcribe_cleanup_endpoint_env_survives_cli_default_and_explicit_cli_wins(
+    tmp_path, monkeypatch
+) -> None:
+    captured = []
+
+    def fake_transcribe_file(input_file, out_dir, config, debug_report_path=None):
+        captured.append(config.cleanup.endpoint)
+        return Transcript(input_path=str(input_file))
+
+    monkeypatch.setattr("local_transcript_max.cli.transcribe_file", fake_transcribe_file)
+    monkeypatch.setenv("LTM_CLEANUP_ENDPOINT", "http://127.0.0.1:9999/v1")
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    env_result = CliRunner().invoke(app, ["transcribe", str(audio_path)])
+    cli_result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--cleanup-endpoint",
+            "http://127.0.0.1:7777/v1",
+        ],
+    )
+
+    assert env_result.exit_code == 0
+    assert cli_result.exit_code == 0
+    assert captured == ["http://127.0.0.1:9999/v1", "http://127.0.0.1:7777/v1"]
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        ["--num-speakers", "0"],
+        ["--known-speakers", "-1"],
+        ["--min-speakers", "9", "--max-speakers", "2"],
+        ["--diarization-candidates", "0"],
+        ["--diarization-candidate-range", "0:3"],
+        ["--diarization-candidate-range", "4:2"],
+    ],
+)
+def test_transcribe_rejects_invalid_speaker_constraints(tmp_path, monkeypatch, options) -> None:
+    monkeypatch.setattr(
+        "local_transcript_max.cli.transcribe_file",
+        lambda *_args, **_kwargs: Transcript(input_path="unused"),
+    )
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(app, ["transcribe", str(audio_path), *options])
+
+    assert result.exit_code != 0
 
 
 def test_transcribe_explicit_cli_values_override_config_file(tmp_path, monkeypatch) -> None:
@@ -378,13 +433,13 @@ def test_transcribe_verbose_infer_speakers_and_asr_threads(
     assert "asr_start backend=fake" in result.stderr
 
 
-def test_inspect_reports_artifact_presence(tmp_path) -> None:
+def test_inspect_reports_missing_canonical_artifacts_and_fails(tmp_path) -> None:
     write_json(
         tmp_path / "qa_report.json",
         {"summary": {"flag_count": 0, "overall_quality_summary": "ok"}},
     )
     result = CliRunner().invoke(app, ["inspect", str(tmp_path)])
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert str(tmp_path) not in result.stdout
     assert "qa_report.json=present" in result.stdout
     assert "canonical.wav=missing" in result.stdout
@@ -398,6 +453,27 @@ def test_inspect_reports_artifact_presence(tmp_path) -> None:
     assert "artifact_contract_unsafe_count=0" in result.stdout
     assert "qa_report_parse=valid" in result.stdout
     assert "qa_flag_count=0" in result.stdout
+
+
+def test_inspect_accepts_a_complete_canonical_contract(tmp_path) -> None:
+    tmp_path.chmod(0o700)
+    for artifact in cli_module._CANONICAL_JOB_ARTIFACTS:
+        artifact_path = tmp_path / artifact
+        if artifact == "qa_report.json":
+            write_json(
+                artifact_path,
+                {"summary": {"flag_count": 0, "overall_quality_summary": "ok"}},
+            )
+        else:
+            artifact_path.write_bytes(b"artifact")
+            artifact_path.chmod(0o600)
+
+    result = CliRunner().invoke(app, ["inspect", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "canonical_artifact_missing_count=0" in result.stdout
+    assert "canonical_artifact_unsafe_count=0" in result.stdout
+    assert "qa_report_parse=valid" in result.stdout
 
 
 def test_inspect_rejects_symlink_and_non_regular_artifacts_without_following_them(
