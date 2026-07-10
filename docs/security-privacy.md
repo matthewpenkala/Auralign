@@ -56,6 +56,11 @@ export HF_TOKEN="REDACTED_USER_SUPPLIED_TOKEN"
 `LTM_HF_TOKEN` takes precedence over `HF_TOKEN`. Logs and audit reports may
 record token presence, but must never record token values.
 
+The private GitHub repository contains model pointers and metadata only. It
+does not transfer model files, access tokens, gated acceptance, or model rights.
+`models/model_audit.json` is token-redacted but can contain machine-local paths;
+it is ignored and must not be committed or treated as shareable evidence.
+
 ## Access, Retention, And Deletion
 
 - Restrict raw media, transcripts, embeddings, profiles, rosters, approved
@@ -110,11 +115,13 @@ audiovisual, voice, publicity, privacy, or biometric rights.
 After model cache preparation:
 
 ```bash
-LTM_OFFLINE=1 uv run ltm doctor
+LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
 ```
 
 Offline mode should inspect local files only. Missing cache entries must produce
-clear remediation commands rather than opportunistic downloads.
+clear remediation commands rather than opportunistic downloads. Missing or
+mismatched immutable-revision linkage markers are treated as incomplete cache
+state.
 
 Remote cleanup endpoints are also rejected in offline mode. Localhost cleanup
 remains optional local IPC and is disabled by default.

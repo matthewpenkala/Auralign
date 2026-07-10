@@ -47,7 +47,8 @@ reviewed.
 ```bash
 export LTM_MODEL_CACHE="$PWD/models"
 uv run ltm models pull --alignment auto --cache-dir models
-uv run ltm models audit
+uv run ltm models verify --alignment en --cache-dir models
+LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
 ```
 
 Expected cache path:
@@ -55,6 +56,11 @@ Expected cache path:
 ```text
 models/facebook--wav2vec2-base-960h/
 ```
+
+Strict verification also requires the `.ltm-model.json` immutable-revision
+linkage marker written by the pinned Auralign pull. The exact strict doctor
+configuration sets `alignment.backend: forced`; the normal `max` example can
+fall back and therefore does not prove forced-alignment startup readiness.
 
 ## CLI Controls
 

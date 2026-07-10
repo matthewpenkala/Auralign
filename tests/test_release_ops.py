@@ -13,11 +13,13 @@ import yaml
 from pytest import MonkeyPatch
 
 import local_transcript_max
-from local_transcript_max.config import load_config
+from local_transcript_max.config import load_config, resolve_model_entry
 from local_transcript_max.doctor import (
     BASE_DEPENDENCIES,
+    DoctorReport,
     _python_package_check,
     _python_supported,
+    format_doctor,
     required_inference_dependencies,
     run_doctor,
 )
@@ -139,6 +141,37 @@ def test_doctor_requires_strict_alignment_and_mlx_packages_for_configured_backen
     )
 
 
+def test_strict_offline_example_selects_all_three_required_model_lanes() -> None:
+    strict_path = REPO_ROOT / "examples" / "config.strict-offline.yaml"
+    strict = yaml.safe_load(strict_path.read_text(encoding="utf-8"))
+
+    assert strict["offline"] is True
+    assert strict["asr"]["backend"] == "faster-whisper"
+    assert strict["asr"]["model"] == "large-v3"
+    assert strict["diarization"]["backend"] == "pyannote"
+    assert strict["diarization"]["model"] == "community-1"
+    assert strict["diarization"]["enabled"] is True
+    assert strict["alignment"]["backend"] == "forced"
+    assert strict["alignment"]["model"] == "en"
+    assert strict["alignment"]["language"] == "en"
+    assert strict["alignment"]["enabled"] is True
+
+
+def test_model_runbook_contains_exact_strict_manifest_pointers() -> None:
+    runbook = (REPO_ROOT / "docs" / "models.md").read_text(encoding="utf-8")
+    for role, key in (
+        ("asr", "large-v3"),
+        ("diarization", "community-1"),
+        ("alignment", "en"),
+    ):
+        entry = resolve_model_entry(role, key)
+        assert entry is not None
+        assert entry.model_id in runbook
+        assert entry.revision in runbook
+        assert entry.directory_name in runbook
+        assert entry.source_url in runbook
+
+
 def test_doctor_marks_strict_forced_alignment_preflight_failure(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
@@ -155,6 +188,28 @@ def test_doctor_marks_strict_forced_alignment_preflight_failure(
     assert check.status == "error"
     assert check.message == "forced alignment unavailable"
     assert report.ok is False
+
+
+def test_doctor_fails_when_active_model_lanes_are_missing_even_online(tmp_path: Path) -> None:
+    config = load_config(cwd=tmp_path)
+    config.offline = False
+
+    report = run_doctor(config, include_docker=False)
+    checks = {check.name: check.status for check in report.checks}
+
+    assert checks["model:asr:large-v3"] == "error"
+    assert checks["model:diarization:community-1"] == "error"
+    assert report.ok is False
+
+
+def test_formatted_doctor_output_redacts_absolute_local_paths() -> None:
+    report = DoctorReport(ok=False, offline=True)
+    report.add("model:asr:large-v3", "error", "missing at /private/example/models")
+
+    formatted = format_doctor(report)
+
+    assert "/private/example" not in formatted
+    assert "<local-path>" in formatted
 
 
 def test_ci_lint_and_type_checks_reuse_the_matrix_python() -> None:

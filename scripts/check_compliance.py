@@ -115,9 +115,24 @@ def verify_asset_registry() -> None:
             f"model revision not pinned: {key}",
         )
         require(row["revision"] == entry.revision, f"model revision drift: {key}")
+        require(row["identifier"] == entry.model_id, f"model identifier drift: {key}")
         require(
             row["license_expression"] == entry.license_expression,
             f"model license drift: {key}",
+        )
+        require(row["source_url"] == entry.source_url, f"model source URL drift: {key}")
+        require(row["terms_url"] == entry.terms_url, f"model terms URL drift: {key}")
+        require(
+            row["acquisition_status"] == entry.acquisition_status,
+            f"model acquisition status drift: {key}",
+        )
+        require(
+            row["runtime_status"] == entry.runtime_status,
+            f"model runtime status drift: {key}",
+        )
+        require(
+            row["redistribution_status"] == entry.redistribution_status,
+            f"model redistribution status drift: {key}",
         )
         require(row["review_status"] == entry.review_status, f"model review drift: {key}")
         if entry.license_expression == "NOASSERTION":

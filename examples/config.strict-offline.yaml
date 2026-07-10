@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+# Exact CPU configuration for strict local-model and forced-alignment readiness.
+# This intentionally differs from config.max.yaml, whose alignment backend may
+# fall back instead of proving that the forced-alignment lane can start.
+preset: max
+offline: true
+asr:
+  backend: faster-whisper
+  model: large-v3
+  device: cpu
+  compute_type: int8
+  word_timestamps: true
+diarization:
+  backend: pyannote
+  model: community-1
+  device: cpu
+  enabled: true
+  preserve_overlap: true
+  exclusive_diarization: true
+alignment:
+  backend: forced
+  language: en
+  model: en
+  device: cpu
+  enabled: true
+speaker_id:
+  mode: off
+cleanup:
+  mode: off

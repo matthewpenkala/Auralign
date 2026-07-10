@@ -68,6 +68,12 @@ wheel metadata cannot preserve alternate-index routing.
 
 ## Local Cache Setup
 
+The private GitHub repository contains verified pointers, immutable revisions,
+compliance metadata, and setup commands—not model weights or gated-model
+rights. Each authorized operator acquires models separately under upstream
+terms; weights, Hugging Face caches, tokens, and audit output remain local and
+ignored.
+
 Keep model and Hugging Face caches inside ignored project directories:
 
 ```bash
@@ -85,13 +91,18 @@ uv run ltm models pull --asr large-v3 --cache-dir models
 uv run ltm models pull --diarization community-1 --cache-dir models
 uv run ltm models pull --alignment auto --cache-dir models
 uv run ltm models pull --speaker-id ecapa --cache-dir models
-uv run ltm models verify
+uv run ltm models verify \
+  --asr large-v3 --diarization community-1 --alignment en \
+  --cache-dir models
+LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
 ```
 
 Pyannote Community-1 is gated. Accept its Hugging Face terms and supply a
 read-scoped `HF_TOKEN` or `LTM_HF_TOKEN` in the local shell; never commit it.
 The combined model pull checks gated access before downloading unrelated assets
-so it does not leave a half-prepared cache.
+so it does not leave a half-prepared cache. Each pinned pull writes a local
+`.ltm-model.json` linkage marker; verification fails when that marker is absent
+or differs from the manifest revision.
 
 `bootstrap.sh` provides a budget-aware connected-machine setup path. It checks
 disk headroom, pulls selected model assets, records blocked dataset acquisitions,
@@ -102,8 +113,9 @@ until its exact provenance and license are verified:
 ./bootstrap.sh
 ```
 
-See [model management](docs/models.md) and
-[offline operation](docs/offline.md) before preparing a production machine.
+See the exact connected/offline runbook and authorized cache-transfer rules in
+[model management](docs/models.md), plus [offline operation](docs/offline.md),
+before preparing a production machine.
 
 ## Transcription
 

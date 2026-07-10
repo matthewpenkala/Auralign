@@ -63,6 +63,8 @@ def test_runtime_model_manifest_matches_external_asset_registry() -> None:
         assert record["source_url"] == entry.source_url
         assert record["terms_url"] == entry.terms_url
         assert record["attribution"] == entry.attribution
+        assert record["acquisition_status"] == entry.acquisition_status
+        assert record["runtime_status"] == entry.runtime_status
         assert record["redistribution_status"] == entry.redistribution_status
         assert record["review_status"] == entry.review_status
         assert record["reviewed_at"] == entry.reviewed_at
@@ -127,6 +129,8 @@ def test_audit_payloads_expose_compliance_decisions(tmp_path: Path) -> None:
     }
 
     assert model_records["large-v3"]["revision"] == MODEL_MANIFEST["large-v3"].revision
+    assert model_records["large-v3"]["acquisition_status"] == "approved"
+    assert model_records["large-v3"]["runtime_status"] == "approved_local"
     assert model_records["mlx-large-v3-turbo"]["license_expression"] == "NOASSERTION"
     assert model_records["mlx-large-v3-turbo"]["redistribution_status"] == "blocked"
     assert dataset_records["librispeech-dummy"]["acquisition_approved"] is False
@@ -142,7 +146,10 @@ def test_list_commands_expose_revision_license_and_review_status(tmp_path: Path)
     )
 
     assert models.exit_code == 0
-    assert "revision\tlicense\tcompliance_review\tredistribution" in models.stdout
+    assert (
+        "revision\tlicense\tcompliance_review\tacquisition\truntime\tredistribution"
+        in models.stdout
+    )
     assert MODEL_MANIFEST["large-v3"].revision in models.stdout
     assert datasets.exit_code == 0
     assert "revision\tlicense\tacquisition_approved\tmirror_approved" in datasets.stdout

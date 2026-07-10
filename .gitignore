@@ -2,8 +2,11 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
-/models/
-/.hf-cache/
+/models
+/.hf-cache
+/.huggingface
+/huggingface
+/hf-cache
 /.cache/
 /datasets/
 /data/
@@ -68,6 +71,17 @@ redecode_report.json
 transcript.redecode_candidates.json
 speaker_cluster_embeddings.json
 words.csv
+model_audit.json
+.ltm-model.json
+# Supported model weight filenames must never enter the source tree outside an
+# ignored local cache.
+model.bin
+pytorch_model.bin
+model.safetensors
+weights.safetensors
+weights.npz
+plda.npz
+xvec_transform.npz
 *.jsonl
 *token*
 debug_report.json

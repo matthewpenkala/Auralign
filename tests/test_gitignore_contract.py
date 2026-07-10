@@ -4,12 +4,29 @@
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 from pathlib import Path
+from types import ModuleType
+
+import pytest
 
 from local_transcript_max.cli import _CANONICAL_JOB_ARTIFACTS, _STRICT_VALIDATION_ARTIFACTS
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_distribution_verifier() -> ModuleType:
+    script_path = REPO_ROOT / "scripts" / "verify_distribution.py"
+    spec = importlib.util.spec_from_file_location("verify_distribution", script_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("unable to load distribution verifier")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+verify_distribution = _load_distribution_verifier()
 
 
 def test_private_job_artifact_contract_is_git_ignored() -> None:
@@ -25,3 +42,80 @@ def test_private_job_artifact_contract_is_git_ignored() -> None:
             check=False,
         )
         assert completed.returncode == 0, f"private generated artifact is not ignored: {artifact}"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "models/Systran--faster-whisper-large-v3/model.bin",
+        ".hf-cache/hub/models--Systran--faster-whisper-large-v3/snapshots/rev/model.bin",
+        ".huggingface/hub/models--example/snapshots/rev/model.safetensors",
+        "huggingface/hub/models--example/blobs/object",
+        "hf-cache/hub/models--example/refs/main",
+        "stray/model.bin",
+        "stray/pytorch_model.bin",
+        "stray/model.safetensors",
+        "stray/weights.safetensors",
+        "stray/weights.npz",
+        "stray/plda.npz",
+        "stray/xvec_transform.npz",
+        "stray/model_audit.json",
+        "stray/.ltm-model.json",
+    ],
+)
+def test_model_caches_weights_and_audits_are_git_ignored(path: str) -> None:
+    completed = subprocess.run(
+        ["git", "check-ignore", "--no-index", "-q", "--", path],
+        cwd=REPO_ROOT,
+        check=False,
+    )
+    assert completed.returncode == 0, f"model artifact is not ignored: {path}"
+
+
+def test_git_index_has_no_symlinks_or_model_artifacts() -> None:
+    completed = subprocess.run(
+        ["git", "ls-files", "-s"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    prohibited_names = {
+        ".ltm-model.json",
+        "model.bin",
+        "model.safetensors",
+        "model_audit.json",
+        "plda.npz",
+        "pytorch_model.bin",
+        "weights.npz",
+        "weights.safetensors",
+        "xvec_transform.npz",
+    }
+    for line in completed.stdout.splitlines():
+        metadata, path = line.split("\t", maxsplit=1)
+        mode = metadata.split(maxsplit=1)[0]
+        assert mode != "120000", f"tracked symlink is prohibited: {path}"
+        assert Path(path).name not in prohibited_names, f"tracked model artifact: {path}"
+
+
+@pytest.mark.parametrize(
+    "archive_path",
+    [
+        "models/example/model.bin",
+        ".hf-cache/hub/snapshots/rev/model.bin",
+        "private/model.safetensors",
+        "private/weights.npz",
+        "private/model_audit.json",
+        "private/.ltm-model.json",
+        "profiles/speaker.npz",
+        "outputs/job/transcript.json",
+    ],
+)
+def test_distribution_verifier_rejects_model_and_private_artifacts(
+    archive_path: str,
+) -> None:
+    with pytest.raises(RuntimeError):
+        verify_distribution.verify_no_prohibited_content(
+            {archive_path: b"synthetic-placeholder"},
+            "synthetic",
+        )

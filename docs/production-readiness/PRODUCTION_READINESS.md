@@ -333,6 +333,14 @@ real model accuracy is not inferred from synthetic tests.
   resolving or materializing an unbounded candidate set.
 - Public CLI/progress/batch exception text redacts credentials and absolute
   local paths.
+- Pullable model caches require a private local linkage marker matching the
+  exact manifest ID and immutable revision; file presence alone cannot satisfy
+  offline verification. The model CLI can verify only the exact selected
+  strict lane, and active missing model lanes make doctor fail online or
+  offline.
+- Source archives and the Git index reject model weights, Hugging Face caches,
+  model audit output, local linkage markers, tokens, and generated job/profile
+  material.
 - Speaker/resolver artifacts and transaction paths use private permissions.
 - Docker uses a pinned uv image, multi-stage build, non-root runtime, explicit
   `linux/amd64` platform, and least-privilege Compose mounts.

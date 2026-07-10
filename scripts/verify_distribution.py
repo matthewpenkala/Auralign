@@ -33,6 +33,8 @@ PROHIBITED_PARTS = {
     ".cache",
     ".git",
     ".hf-cache",
+    ".huggingface",
+    ".job-store",
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
@@ -41,8 +43,11 @@ PROHIBITED_PARTS = {
     "data",
     "datasets",
     "embeddings",
+    "hf-cache",
+    "huggingface",
     "models",
     "outputs",
+    "profiles",
     "transcripts",
 }
 PROHIBITED_SUFFIXES = {
@@ -63,6 +68,23 @@ PROHIBITED_SUFFIXES = {
     ".wav",
     ".webm",
     ".key",
+    ".bin",
+    ".ckpt",
+    ".npz",
+    ".onnx",
+    ".pt",
+    ".pth",
+    ".safetensors",
+}
+PROHIBITED_BASENAMES = {
+    ".ltm-model.json",
+    "access_token",
+    "access_token.txt",
+    "hf_token",
+    "hf_token.txt",
+    "model_audit.json",
+    "token",
+    "token.txt",
 }
 SENSITIVE_CONTENT = (
     b"BEGIN OPENSSH" + b" PRIVATE KEY",
@@ -144,6 +166,7 @@ def verify_no_prohibited_content(files: Mapping[str, bytes], scope: str) -> None
             basename != ".env" and not basename.startswith(".env."),
             f"{scope} environment file: {name}",
         )
+        require(basename not in PROHIBITED_BASENAMES, f"{scope} private file: {name}")
         require(path.suffix.lower() not in PROHIBITED_SUFFIXES, f"{scope} private file: {name}")
         require(not any(marker in data for marker in SENSITIVE_CONTENT), f"{scope} secret: {name}")
         require(

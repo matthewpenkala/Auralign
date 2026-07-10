@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 
 from local_transcript_max.cli import app
 from local_transcript_max.config import resolve_model_entry
-from local_transcript_max.models import audit_payload, status_for
+from local_transcript_max.models import audit_payload, status_for, write_model_provenance
 from local_transcript_max.utils import read_json
 
 
@@ -71,6 +71,7 @@ def test_models_audit_reports_configured_ids_and_token_state(tmp_path: Path, mon
         if "pyannote/speaker-diarization-community-1" in row
     )
     community_columns = community_row.split("\t")
+    assert community_columns[3].startswith("<model-cache>:")
     assert community_columns[7] == "yes"
     assert community_columns[8] == "yes"
     assert community_columns[9] == "no"
@@ -107,7 +108,8 @@ def test_models_audit_reports_configured_mlx_model_path(tmp_path: Path, monkeypa
     assert result.exit_code == 0
     assert "asr-mlx" in result.stdout
     assert "mlx-community/whisper-large-v3-turbo" in result.stdout
-    assert str(model_dir) in result.stdout
+    assert str(model_dir) not in result.stdout
+    assert "<local-model-path>" in result.stdout
     assert "alignment\ten\tfacebook/wav2vec2-base-960h" in result.stdout
     assert "pytorch_model.bin or model.safetensors" in result.stdout
     audit = audit_payload(tmp_path / "models")
@@ -181,6 +183,45 @@ def test_models_verify_fails_and_writes_audit_for_missing_cache(tmp_path: Path) 
     assert result.exit_code == 1
     assert "Model verification failed" in result.stderr
     assert (tmp_path / "model_audit.json").exists()
+
+
+def test_models_verify_can_target_the_exact_strict_lane(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "models"
+    for role, key in (
+        ("asr", "large-v3"),
+        ("diarization", "community-1"),
+        ("alignment", "en"),
+    ):
+        entry = resolve_model_entry(role, key)
+        assert entry is not None
+        model_dir = cache_dir / entry.directory_name
+        model_dir.mkdir(parents=True)
+        for required in entry.required_files:
+            (model_dir / required).parent.mkdir(parents=True, exist_ok=True)
+            (model_dir / required).write_text("ok", encoding="utf-8")
+        if entry.any_required_files:
+            (model_dir / entry.any_required_files[0]).write_bytes(b"ok")
+        write_model_provenance(entry, model_dir)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "models",
+            "verify",
+            "--asr",
+            "large-v3",
+            "--diarization",
+            "community-1",
+            "--alignment",
+            "en",
+            "--cache-dir",
+            str(cache_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "verified 3 model cache entries with immutable revision linkage" in result.stdout
+    assert str(tmp_path) not in result.stdout
 
 
 def test_models_prune_dry_run_reports_unknown_directory(tmp_path: Path) -> None:

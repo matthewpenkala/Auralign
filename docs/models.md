@@ -11,6 +11,141 @@ explicit acquisition. Every supported acquisition is pinned to an immutable
 publisher revision and carries a reviewed license disposition. `ltm models
 audit` reports that compliance metadata without printing tokens.
 
+## Repository And Asset Boundary
+
+The private GitHub repository contains model identifiers, immutable revisions,
+required-file contracts, compliance metadata, and setup tooling. It does not
+contain or transfer model weights, gated-model acceptance, access tokens, or a
+right to redistribute any model. Dependencies and model assets are separate:
+installing Auralign does not acquire either the models or the rights needed to
+use them.
+
+Every operator must review the applicable upstream source and terms, acquire
+assets on an explicitly connected authorized machine, verify the resulting
+local cache, and then run offline. Pyannote Community-1 requires each operator
+to accept its gated conditions personally and use an appropriately scoped
+token for acquisition. Repository access does not transfer that acceptance.
+
+## Strict Production Pointer Matrix
+
+The checked-in manifest and external-asset registry define this strict CPU
+lane. The revisions below are immutable 40-character upstream commits.
+
+| Role / key | Upstream ID and immutable revision | Expected local directory | License / access review | Acquisition / redistribution |
+| --- | --- | --- | --- | --- |
+| ASR / `large-v3` | [`Systran/faster-whisper-large-v3`](https://huggingface.co/Systran/faster-whisper-large-v3) at `edaa852ec7e145841d8ffdb056a99866b5f0a478` | `models/Systran--faster-whisper-large-v3/` | `MIT`; `verified`; not gated; no token required | `approved`; `permitted_with_license_terms`; never bundled by Auralign |
+| Diarization / `community-1` | [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1) at `3533c8cf8e369892e6b79ff1bf80f7b0286a54ee` | `models/pyannote--speaker-diarization-community-1/` | `CC-BY-4.0`; `verified_gated`; personal terms acceptance and read token required for acquisition | `approved_after_gated_terms`; `permitted_with_attribution_and_gated_terms`; no Auralign mirroring or bundling |
+| English forced alignment / `en` (`auto`) | [`facebook/wav2vec2-base-960h`](https://huggingface.co/facebook/wav2vec2-base-960h) at `22aad52d435eb6dbaf354bdad9b0da84ce7d6156` | `models/facebook--wav2vec2-base-960h/` | `Apache-2.0`; `verified`; not gated; no token required | `approved`; `permitted_with_license_terms`; never bundled by Auralign |
+
+For these entries, the source URL and terms URL are the linked upstream model
+page. Upstream terms control the separately acquired assets. The exact
+machine-readable dispositions remain in
+`compliance/external_assets.toml`; unknown or conflicting metadata fails the
+compliance gate closed.
+
+Required-file contracts:
+
+| Key | Required files | Accepted alternative weight files |
+| --- | --- | --- |
+| `large-v3` | `model.bin`, `config.json`, `tokenizer.json`, `preprocessor_config.json` | none |
+| `community-1` | `config.yaml`, `segmentation/pytorch_model.bin`, `embedding/pytorch_model.bin`, `plda/plda.npz`, `plda/xvec_transform.npz` | none |
+| `en` | `config.json`, `preprocessor_config.json`, `tokenizer_config.json`, `vocab.json` | exactly one usable `pytorch_model.bin` or `model.safetensors` |
+
+An Auralign pull also writes `.ltm-model.json` beside the acquired files. That
+private local marker binds the cache directory to the manifest key, role,
+upstream ID, and immutable revision used by the explicit pull. Pullable models
+are not offline-usable when the marker is missing, malformed, unsafe, or does
+not exactly match the current manifest—even if expected filenames happen to
+exist. Do not hand-author or edit this marker; refresh the cache with the
+documented pinned pull on an authorized connected machine.
+
+## Exact Connected Preparation And Offline Runbook
+
+From a private source clone, first install dependencies and choose ignored
+local caches:
+
+```bash
+uv sync --extra dev --extra asr --extra diarization --extra alignment \
+  --group cpu --no-python-downloads
+export LTM_MODEL_CACHE="$PWD/models"
+export HF_HOME="$PWD/.hf-cache"
+export HF_HUB_CACHE="$HF_HOME/hub"
+uv run ltm models list --cache-dir "$LTM_MODEL_CACHE"
+uv run ltm models audit --config examples/config.strict-offline.yaml
+```
+
+Review the matrix and upstream terms before enabling network access. Then, on
+the authorized connected machine only:
+
+```bash
+# Redacted example only; never save or pass a real token as a CLI argument.
+export LTM_HF_TOKEN="REDACTED_USER_SUPPLIED_READ_TOKEN"
+uv run ltm models pull \
+  --asr large-v3 \
+  --diarization community-1 \
+  --alignment en \
+  --cache-dir "$LTM_MODEL_CACHE"
+unset LTM_HF_TOKEN HF_TOKEN
+```
+
+The pull uses only the manifest's immutable revisions. It is an explicit
+connected setup operation, not runtime auto-download behavior. Verify the exact
+strict selection locally, with no token required:
+
+```bash
+uv run ltm models verify \
+  --asr large-v3 \
+  --diarization community-1 \
+  --alignment en \
+  --cache-dir "$LTM_MODEL_CACHE"
+LTM_OFFLINE=1 uv run ltm models audit \
+  --config examples/config.strict-offline.yaml
+LTM_OFFLINE=1 uv run ltm doctor \
+  --config examples/config.strict-offline.yaml
+```
+
+`examples/config.strict-offline.yaml` explicitly selects faster-whisper
+`large-v3`, pyannote Community-1, and `alignment.backend: forced` with the
+English CTC asset. This is intentionally stricter than `config.max.yaml`, whose
+alignment behavior can fall back. A successful default-preset doctor is not a
+substitute for this exact forced-alignment check.
+
+After doctor succeeds, transcription with that same configuration remains
+local and offline:
+
+```bash
+LTM_OFFLINE=1 uv run ltm transcribe input.wav \
+  --config examples/config.strict-offline.yaml \
+  --num-speakers <N> \
+  --out outputs/job_001
+```
+
+If a reviewed cache must move to another machine, first confirm that the same
+operator/machine is authorized under every upstream term. A different pyannote
+operator must accept the gate and acquire their own authorized copy. When a
+same-operator transfer is permitted, copy the `LTM_MODEL_CACHE` directory with
+metadata and dotfiles intact over an approved encrypted channel; do not copy
+`.env`, tokens, shell history, the Hugging Face token store, media, or output:
+
+```bash
+rsync -a --protect-args "$LTM_MODEL_CACHE/" \
+  authorized-offline-host:/approved/path/models/
+```
+
+Set `LTM_MODEL_CACHE` to the destination and rerun the exact three-entry
+`models verify` and strict offline doctor there. If the transfer method omits
+`.ltm-model.json`, verification must fail and the cache must not be used.
+
+Failure behavior is deliberately actionable and closed:
+
+- missing directory: pull the exact manifest key on an authorized connected machine;
+- missing, empty, or unreadable required file: treat the cache as partial and refresh it;
+- missing or mismatched `.ltm-model.json`: revision linkage is unverified; do not edit the marker;
+- unknown model ID or revision override: acquisition and runtime resolution refuse it;
+- missing gated acceptance/token: Community-1 acquisition stops before unrelated pulls;
+- offline missing or incomplete asset: doctor and transcription fail without network access;
+- missing active backend package or startup preflight: doctor reports an error and cannot pass.
+
 Confirmed manifest entries:
 
 - `large-v3`: `Systran/faster-whisper-large-v3`
@@ -57,11 +192,14 @@ derived from the model ID, for example:
 - `models/facebook--wav2vec2-base-960h`
 - `models/speechbrain--spkrec-ecapa-voxceleb`
 
-`ltm models audit` reports configured model IDs, local paths, accepted aliases,
-accepted directory aliases, whether directories exist, whether required files
-are complete, whether offline mode can use them, and whether gated/token-
-dependent access is required. It also writes a redacted machine-readable audit
-to `models/model_audit.json`.
+`ltm models audit` reports configured model IDs, shareable cache-relative paths,
+accepted aliases, accepted directory aliases, whether directories exist,
+whether required files
+are complete, whether immutable revision linkage is verified, whether offline
+mode can use them, and whether gated/token-dependent access is required. It
+also writes a token-redacted machine-local audit to
+`models/model_audit.json`. That ignored file can contain local paths and should
+not be shared or committed.
 
 Useful model commands:
 
@@ -69,6 +207,7 @@ Useful model commands:
 uv run ltm models list
 uv run ltm models audit
 uv run ltm models verify
+uv run ltm models verify --asr large-v3 --diarization community-1 --alignment en
 uv run ltm models prune --dry-run
 uv run ltm models pull --all
 uv run ltm models pull --all --include-optional
@@ -90,6 +229,7 @@ The cache validator treats a model as not ready when:
 - the model directory is missing
 - required files are missing
 - required files exist but are zero bytes
+- a pullable model lacks the exact Auralign immutable-revision linkage marker
 - offline mode is enabled and the required model is incomplete
 
 For ASR CTranslate2 models, `model.bin` and `config.json` are required. For
@@ -136,7 +276,8 @@ nonzero when required public model pulls fail, or when pyannote fails after a
 token was supplied. Missing pyannote token/terms and optional alignment,
 speaker-ID, audit, or cloud-plan failures are logged as caveats. Dataset sample
 acquisition is skipped while its provenance/license record is blocked. Treat
-`ltm models verify` and `LTM_OFFLINE=1 ltm doctor` as the readiness checks.
+the exact selected `ltm models verify` command and strict configured offline
+doctor above as the production-lane readiness checks.
 
 ## Dataset Policy
 
@@ -165,7 +306,12 @@ directories with `rclone`. LibriSpeech and AMI may appear in a plan; VoxCeleb
 is excluded and reported as blocked. The command never performs transcription,
 inference, telemetry, or runtime uploads.
 
-## Required vs Optional
+## Default Cache-Set Classification
+
+The `Required` column below describes the default full manifest cache set used
+by `models pull --all` and unselected `models verify`. A runtime configuration
+requires only its active ASR choice plus its enabled diarization, alignment,
+and speaker-ID lanes. Use explicit verification selectors for that exact set.
 
 | Key | Model ID | Required | Gated | Cache path |
 | --- | --- | --- | --- | --- |
@@ -186,15 +332,17 @@ command needed to prepare the cache. Optional cleanup may use localhost, but
 offline mode rejects non-local cleanup endpoints:
 
 ```bash
-LTM_OFFLINE=1 uv run ltm doctor
+LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
 ```
 
 After successful model pulls:
 
 ```bash
-uv run ltm models audit
-uv run ltm doctor
-LTM_OFFLINE=1 uv run ltm doctor
+uv run ltm models verify \
+  --asr large-v3 --diarization community-1 --alignment en \
+  --cache-dir models
+LTM_OFFLINE=1 uv run ltm models audit --config examples/config.strict-offline.yaml
+LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
 ```
 
 ## Gated Model Caveats

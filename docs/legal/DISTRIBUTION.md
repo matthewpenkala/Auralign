@@ -27,8 +27,11 @@ SBOM, and vulnerability gates run regardless.
 An authorized source release must contain `LICENSE`, `NOTICE`,
 `THIRD_PARTY_NOTICES.md`, REUSE/SPDX data, and required upstream notices. It
 must exclude secrets, private data, local paths, caches, weights, media,
-generated outputs, internal handoffs, and unreachable historical objects. Only
-the approved sanitized `main` may be pushed; never use `--all` or `--mirror`.
+generated model audits/linkage markers, generated outputs, internal handoffs,
+and unreachable historical objects. Immutable model pointers and acquisition
+recipes may be included, but do not transfer the referenced assets or their
+rights. Only the approved sanitized `main` may be pushed; never use `--all` or
+`--mirror`.
 
 ## Wheel And Source Distribution
 

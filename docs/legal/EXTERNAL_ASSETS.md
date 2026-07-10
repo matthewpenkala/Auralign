@@ -30,6 +30,14 @@ Model weights are separately downloaded runtime assets. They must not enter the
 source repository, wheel, sdist, container publication, SBOM scope by accident,
 or validation evidence committed to Git.
 
+The source repository may carry immutable identifiers, required-file contracts,
+reviewed acquisition commands, and compliance records. An explicit approved
+pull writes a local `.ltm-model.json` linkage marker so offline verification can
+bind the cache to the selected manifest revision. That marker is technical
+cache metadata, not license evidence, gated acceptance, ownership evidence, or
+permission to copy an asset. It and `model_audit.json` remain ignored local
+material and are excluded from source archives.
+
 ## Datasets And Media
 
 | Asset | Repository disposition |

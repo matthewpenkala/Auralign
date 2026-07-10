@@ -26,7 +26,9 @@ from .config import (
 )
 from .errors import ModelCacheError, OfflineModeError
 from .redaction import redact_obj
-from .utils import write_json
+from .utils import read_json, write_json
+
+MODEL_PROVENANCE_FILENAME = ".ltm-model.json"
 
 
 @dataclass(frozen=True)
@@ -34,12 +36,15 @@ class ModelStatus:
     entry: ModelEntry
     path: Path
     exists: bool
+    files_complete: bool
     present: bool
     missing_files: tuple[str, ...]
     zero_size_files: tuple[str, ...]
     inaccessible_files: tuple[str, ...]
     token_required: bool
     token_present: bool
+    revision_verified: bool
+    provenance_problem: str
 
     @property
     def pull_command(self) -> str:
@@ -57,22 +62,28 @@ class ModelStatus:
     def token_dependent_access_required(self) -> bool:
         return self.entry.gated and not self.present
 
-    def problem_summary(self, cache_dir: Path) -> str:
+    def problem_summary(self, cache_dir: Path, *, shareable: bool = False) -> str:
         if self.present:
             return "complete"
         details: list[str] = []
+        displayed_path = (
+            shareable_model_path(self.path, cache_dir) if shareable else str(self.path)
+        )
         if not self.exists:
-            details.append(f"directory missing at {self.path}")
+            details.append(f"directory missing at {displayed_path}")
         if self.missing_files:
             details.append(f"missing files: {', '.join(self.missing_files)}")
         if self.zero_size_files:
             details.append(f"empty files: {', '.join(self.zero_size_files)}")
         if self.inaccessible_files:
             details.append(f"inaccessible files: {', '.join(self.inaccessible_files)}")
+        if self.exists and self.entry.pullable and not self.revision_verified:
+            details.append(self.provenance_problem)
         if self.entry.gated and not self.token_present:
             details.append("HF_TOKEN or LTM_HF_TOKEN is required for gated model access")
         if self.entry.pullable:
-            details.append(f"run: {self.entry.pull_command(str(cache_dir))}")
+            command_cache = "<model-cache>" if shareable else str(cache_dir)
+            details.append(f"run: {self.entry.pull_command(command_cache)}")
         else:
             details.append(
                 "provide an existing local model directory; runtime downloads are disabled"
@@ -87,18 +98,25 @@ class ModelStatus:
             "aliases": list(self.entry.aliases),
             "directory_aliases": list(self.entry.directory_aliases),
             "revision": self.entry.revision,
+            "revision_verified": self.revision_verified,
+            "provenance_file": MODEL_PROVENANCE_FILENAME,
+            "provenance_problem": self.provenance_problem,
             "license_expression": self.entry.license_expression,
             "source_url": self.entry.source_url,
             "terms_url": self.entry.terms_url,
             "attribution": self.entry.attribution,
+            "acquisition_status": self.entry.acquisition_status,
+            "runtime_status": self.entry.runtime_status,
             "redistribution_status": self.entry.redistribution_status,
             "compliance_review_status": self.entry.review_status,
             "compliance_reviewed_at": self.entry.reviewed_at,
             "local_path": str(self.path),
+            "expected_directory": self.entry.directory_name,
             "cache_status": "complete"
             if self.present
             else ("missing" if not self.exists else "partial"),
             "exists": self.exists,
+            "files_complete": self.files_complete,
             "complete": self.present,
             "required_files": list(self.entry.required_files),
             "any_required_files": list(self.entry.any_required_files),
@@ -113,6 +131,7 @@ class ModelStatus:
             "classification": "optional" if self.entry.optional else "required",
             "pullable": self.entry.pullable,
             "pull_command": self.entry.pull_command(str(cache_dir)),
+            "verify_command": self.entry.verify_command(str(cache_dir)),
             "problem": self.problem_summary(cache_dir),
         }
 
@@ -158,21 +177,26 @@ def status_for_path(entry: ModelEntry, path: Path) -> ModelStatus:
             if required and (path / required).exists() and not _can_read(path / required)
         ),
     )
-    present = exists and (
+    files_complete = exists and (
         not entry.required_files or (not missing and not zero_size and not inaccessible)
     )
     if entry.any_required_files:
-        present = present and _any_required_file_present(entry, path)
+        files_complete = files_complete and _any_required_file_present(entry, path)
+    revision_verified, provenance_problem = _provenance_status(entry, path)
+    present = files_complete and (revision_verified if entry.pullable else True)
     return ModelStatus(
         entry=entry,
         path=path,
         exists=exists,
+        files_complete=files_complete,
         present=present,
         missing_files=missing,
         zero_size_files=zero_size,
         inaccessible_files=inaccessible,
         token_required=entry.gated,
         token_present=token_present(),
+        revision_verified=revision_verified,
+        provenance_problem=provenance_problem,
     )
 
 
@@ -228,6 +252,17 @@ def verify_models(cache_dir: Path, *, include_optional: bool = True) -> list[Mod
         for status in all_statuses(cache_dir)
         if status.entry.pullable and (include_optional or not status.entry.optional)
     ]
+    _raise_for_incomplete(statuses, cache_dir)
+    return statuses
+
+
+def verify_entries(entries: list[ModelEntry], cache_dir: Path) -> list[ModelStatus]:
+    statuses = [status_for(entry, cache_dir) for entry in entries]
+    _raise_for_incomplete(statuses, cache_dir)
+    return statuses
+
+
+def _raise_for_incomplete(statuses: list[ModelStatus], cache_dir: Path) -> None:
     incomplete = [status for status in statuses if not status.present]
     if incomplete:
         details = "\n".join(
@@ -235,7 +270,6 @@ def verify_models(cache_dir: Path, *, include_optional: bool = True) -> list[Mod
             for status in incomplete
         )
         raise ModelCacheError(f"Model verification failed:\n{details}")
-    return statuses
 
 
 def prune_plan(cache_dir: Path) -> dict[str, Any]:
@@ -345,6 +379,7 @@ def pull_model(entry: ModelEntry, cache_dir: Path, *, revision: str | None = Non
         )
     except (GatedRepoError, HfHubHTTPError, LocalEntryNotFoundError) as exc:
         raise ModelCacheError(friendly_hf_error(entry, exc, cache_dir)) from exc
+    write_model_provenance(entry, local_dir)
     final_status = status_for(entry, cache_dir)
     if not final_status.present:
         raise ModelCacheError(
@@ -543,6 +578,8 @@ def _model_path_complete(entry: ModelEntry, path: Path) -> bool:
             return False
     if entry.any_required_files and not _any_required_file_present(entry, path):
         return False
+    if entry.pullable and not _provenance_status(entry, path)[0]:
+        return False
     return True
 
 
@@ -559,3 +596,52 @@ def _any_required_file_present(entry: ModelEntry, path: Path) -> bool:
         except OSError:
             return False
     return False
+
+
+def model_provenance_payload(entry: ModelEntry) -> dict[str, str]:
+    if not entry.revision:
+        raise ModelCacheError(f"Cannot record an unpinned model revision for {entry.key}.")
+    return {
+        "schema_version": "1.0",
+        "key": entry.key,
+        "role": entry.role,
+        "model_id": entry.model_id,
+        "revision": entry.revision,
+    }
+
+
+def write_model_provenance(entry: ModelEntry, model_dir: Path) -> Path:
+    if not entry.pullable:
+        raise ModelCacheError(
+            f"Cannot attest an Auralign pull for manual-only model {entry.role}:{entry.key}."
+        )
+    output = model_dir / MODEL_PROVENANCE_FILENAME
+    write_json(output, model_provenance_payload(entry))
+    return output
+
+
+def _provenance_status(entry: ModelEntry, path: Path) -> tuple[bool, str]:
+    if not entry.pullable:
+        return False, "revision linkage not asserted for manual-only local assets"
+    marker = path / MODEL_PROVENANCE_FILENAME
+    if not marker.exists():
+        return False, f"missing immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
+    if not marker.is_file() or marker.is_symlink():
+        return False, f"unsafe immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
+    try:
+        payload = read_json(marker)
+    except (OSError, ValueError):
+        return False, f"unreadable immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
+    if payload != model_provenance_payload(entry):
+        return False, "immutable-revision linkage marker does not match the model manifest"
+    return True, "immutable revision linkage verified"
+
+
+def shareable_model_path(path: Path, cache_dir: Path) -> str:
+    expanded_path = path.expanduser()
+    expanded_cache = cache_dir.expanduser()
+    try:
+        relative = expanded_path.relative_to(expanded_cache)
+    except ValueError:
+        return "<local-model-path>"
+    return f"<model-cache>:{relative.as_posix()}"

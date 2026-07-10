@@ -33,7 +33,8 @@ from .config import (
 )
 from .datasets import DEFAULT_DATASET_PROFILE, dataset_budget_plan, default_dataset_cache
 from .errors import BackendUnavailableError
-from .models import status_for
+from .models import shareable_model_path, status_for
+from .redaction import privacy_safe_text
 from .utils import run_command, which
 
 MIN_SUPPORTED_PYTHON = (3, 11)
@@ -215,7 +216,7 @@ def run_doctor(config: PipelineConfig, *, include_docker: bool = True) -> Doctor
 
     if config.asr.backend == "mlx-whisper":
         model_status = mlx_model_status(config)
-        level = "ok" if model_status.present else ("error" if config.offline else "warning")
+        level = "ok" if model_status.present else "error"
         report.add(
             "asr_device_compute",
             level,
@@ -226,7 +227,7 @@ def run_doctor(config: PipelineConfig, *, include_docker: bool = True) -> Doctor
             f"model_complete={model_status.present} "
             "runtime_downloads_disabled=true",
         )
-        if level == "error":
+        if not model_status.present:
             report.ok = False
     else:
         asr_device = resolve_device(config.asr.device)
@@ -298,16 +299,18 @@ def run_doctor(config: PipelineConfig, *, include_docker: bool = True) -> Doctor
             mlx_model_status(config) if role == "asr-mlx" else status_for(entry, config.model_cache)
         )
         if model_status.present:
-            report.add(f"model:{role}:{entry.key}", "ok", str(model_status.path))
-        else:
-            level = "error" if config.offline else "warning"
             report.add(
                 f"model:{role}:{entry.key}",
-                level,
-                model_status.problem_summary(config.model_cache),
+                "ok",
+                shareable_model_path(model_status.path, config.model_cache),
             )
-            if config.offline:
-                report.ok = False
+        else:
+            report.add(
+                f"model:{role}:{entry.key}",
+                "error",
+                model_status.problem_summary(config.model_cache, shareable=True),
+            )
+            report.ok = False
 
     if include_docker:
         docker_path = which("docker")
@@ -388,7 +391,7 @@ def git_status_path(repo_root: Path, path: str) -> str:
 def format_doctor(report: DoctorReport) -> str:
     lines = [f"offline_mode={report.offline}", ""]
     for check in report.checks:
-        lines.append(f"[{check.status}] {check.name}: {check.message}")
+        lines.append(f"[{check.status}] {check.name}: {privacy_safe_text(check.message)}")
     lines.append("")
     lines.append("doctor_ok=true" if report.ok else "doctor_ok=false")
     return "\n".join(lines)

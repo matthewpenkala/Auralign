@@ -37,6 +37,8 @@ class ModelEntry:
     source_url: str = ""
     terms_url: str = ""
     attribution: str = ""
+    acquisition_status: str = "blocked"
+    runtime_status: str = "blocked"
     redistribution_status: str = "blocked"
     review_status: str = "unverified"
     reviewed_at: str | None = None
@@ -45,20 +47,28 @@ class ModelEntry:
     def directory_name(self) -> str:
         return safe_repo_dir(self.model_id)
 
-    def pull_command(self, cache_dir: str = "models") -> str:
-        if not self.pullable:
-            return (
-                f"place local model files for {self.model_id} under "
-                f"{cache_dir}/{self.directory_name}"
-            )
-        flag = {
+    @property
+    def selection_flag(self) -> str:
+        return {
             "asr": "--asr",
             "asr-mlx": "--asr-mlx",
             "diarization": "--diarization",
             "alignment": "--alignment",
             "speaker-embedding": "--speaker-id",
         }.get(self.role, f"--{self.role}")
-        return f"ltm models pull {flag} {self.key} --cache-dir {cache_dir}"
+
+    def pull_command(self, cache_dir: str = "models") -> str:
+        if not self.pullable:
+            return (
+                f"place local model files for {self.model_id} under "
+                f"{cache_dir}/{self.directory_name}"
+            )
+        return f"ltm models pull {self.selection_flag} {self.key} --cache-dir {cache_dir}"
+
+    def verify_command(self, cache_dir: str = "models") -> str:
+        if not self.pullable:
+            return "ltm models audit --config CONFIG_WITH_REVIEWED_LOCAL_MODEL_PATH"
+        return f"ltm models verify {self.selection_flag} {self.key} --cache-dir {cache_dir}"
 
 
 MLX_REVISIONS = {
@@ -94,6 +104,8 @@ def mlx_model_entry(key: str, model_id: str, aliases: tuple[str, ...] = ()) -> M
         source_url=f"https://huggingface.co/{model_id}",
         terms_url=f"https://huggingface.co/{model_id}",
         attribution="MLX Community model conversion; upstream model terms also apply.",
+        acquisition_status="manual_only",
+        runtime_status="approved_local" if verified else "local_evaluation_only",
         redistribution_status="permitted_with_license_terms" if verified else "blocked",
         review_status="verified" if verified else "blocked_missing_publisher_license",
         reviewed_at="2026-07-10",
@@ -112,6 +124,8 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         source_url="https://huggingface.co/Systran/faster-whisper-large-v3",
         terms_url="https://huggingface.co/Systran/faster-whisper-large-v3",
         attribution="SYSTRAN faster-whisper conversion of OpenAI Whisper large-v3.",
+        acquisition_status="approved",
+        runtime_status="approved_local",
         redistribution_status="permitted_with_license_terms",
         review_status="verified",
         reviewed_at="2026-07-10",
@@ -130,6 +144,8 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         source_url="https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo",
         terms_url="https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo",
         attribution="Mobius Labs faster-whisper conversion; upstream Whisper terms also apply.",
+        acquisition_status="approved",
+        runtime_status="approved_local",
         redistribution_status="permitted_with_license_terms",
         review_status="verified",
         reviewed_at="2026-07-10",
@@ -144,6 +160,8 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         source_url="https://huggingface.co/Systran/faster-distil-whisper-large-v3",
         terms_url="https://huggingface.co/Systran/faster-distil-whisper-large-v3",
         attribution="SYSTRAN CTranslate2 conversion of Distil-Whisper.",
+        acquisition_status="approved",
+        runtime_status="approved_local",
         redistribution_status="permitted_with_license_terms",
         review_status="verified",
         reviewed_at="2026-07-10",
@@ -158,6 +176,8 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         source_url="https://huggingface.co/distil-whisper/distil-large-v3.5-ct2",
         terms_url="https://huggingface.co/distil-whisper/distil-large-v3.5-ct2",
         attribution="Distil-Whisper CTranslate2 conversion.",
+        acquisition_status="approved",
+        runtime_status="approved_local",
         redistribution_status="permitted_with_license_terms",
         review_status="verified",
         reviewed_at="2026-07-10",
@@ -246,6 +266,8 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         source_url="https://huggingface.co/pyannote/speaker-diarization-community-1",
         terms_url="https://huggingface.co/pyannote/speaker-diarization-community-1",
         attribution="pyannote speaker-diarization-community-1; attribution and gated terms apply.",
+        acquisition_status="approved_after_gated_terms",
+        runtime_status="approved_local_after_gated_terms",
         redistribution_status="permitted_with_attribution_and_gated_terms",
         review_status="verified_gated",
         reviewed_at="2026-07-10",
@@ -268,6 +290,8 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         source_url="https://huggingface.co/facebook/wav2vec2-base-960h",
         terms_url="https://huggingface.co/facebook/wav2vec2-base-960h",
         attribution="Meta wav2vec2-base-960h.",
+        acquisition_status="approved",
+        runtime_status="approved_local",
         redistribution_status="permitted_with_license_terms",
         review_status="verified",
         reviewed_at="2026-07-10",
@@ -284,6 +308,8 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         source_url="https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb",
         terms_url="https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb",
         attribution="SpeechBrain ECAPA-TDNN model; upstream VoxCeleb data caveats apply.",
+        acquisition_status="approved",
+        runtime_status="approved_local",
         redistribution_status="permitted_with_license_terms",
         review_status="verified_with_training_data_caveat",
         reviewed_at="2026-07-10",

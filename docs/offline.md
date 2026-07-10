@@ -17,7 +17,9 @@ LTM_OFFLINE=1 ltm doctor
 
 When required models are missing, doctor and transcribe fail fast with the exact
 online pull command. Offline mode does not call Hugging Face metadata endpoints
-or attempt opportunistic downloads.
+or attempt opportunistic downloads. A pullable cache is also rejected when its
+`.ltm-model.json` linkage marker is missing or does not match the manifest's
+immutable model ID and revision.
 
 Doctor evaluates dependencies and models required by the active configuration;
 missing packages for a selected ASR, diarization, forced-alignment, or speaker-ID
@@ -56,7 +58,11 @@ configured model is offline-usable:
 ```bash
 uv run ltm models audit
 uv run ltm models pull --asr large-v3 --diarization community-1 --cache-dir models/
-LTM_OFFLINE=1 uv run ltm doctor
+uv run ltm models pull --alignment en --cache-dir models/
+uv run ltm models verify \
+  --asr large-v3 --diarization community-1 --alignment en \
+  --cache-dir models/
+LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
 ```
 
 If this machine has no Hugging Face token or accepted pyannote terms, real
@@ -68,7 +74,12 @@ export HF_HOME="$PWD/.hf-cache"
 export HF_HUB_CACHE="$HF_HOME/hub"
 export HF_TOKEN="REDACTED_USER_SUPPLIED_TOKEN"
 uv run ltm models pull --asr large-v3 --diarization community-1 --cache-dir models
-LTM_OFFLINE=1 uv run ltm doctor
+uv run ltm models pull --alignment en --cache-dir models
+unset LTM_HF_TOKEN HF_TOKEN
+uv run ltm models verify \
+  --asr large-v3 --diarization community-1 --alignment en \
+  --cache-dir models
+LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
 ```
 
 For a full local procurement pass on a connected staging machine:
@@ -81,10 +92,15 @@ chmod +x bootstrap.sh
 Review `auralign_bootstrap.log`, `models/model_audit.json`, and
 `datasets/dataset_manifest.json`. Bootstrap exits nonzero for failed required
 model pulls, while missing gated pyannote access and optional assets are logged
-as caveats. Copy only the reviewed local model cache and source tree to the
-production air-gapped machine. Dataset sample acquisition is blocked until
-exact provenance and license are verified. Do not copy shell history or token
-files.
+as caveats. `model_audit.json` is ignored and can contain machine-local paths;
+do not commit or share it. Copy only an authorized reviewed model cache and the
+source tree to the production air-gapped machine, preserving hidden
+`.ltm-model.json` linkage files. Do not copy `.hf-cache`, `.env`, shell history,
+token stores, media, or generated output. A different pyannote operator must
+accept the upstream gate and acquire their own copy. See
+[`models.md`](models.md#exact-connected-preparation-and-offline-runbook) for the
+safe transfer sequence. Dataset sample acquisition remains blocked until exact
+provenance and license are verified.
 
 ## Budget-Aware Dataset Handling
 

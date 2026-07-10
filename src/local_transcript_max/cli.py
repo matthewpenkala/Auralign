@@ -42,6 +42,8 @@ from .models import (
     prune_plan,
     pull_model,
     selected_entries,
+    shareable_model_path,
+    verify_entries,
     verify_models,
     write_model_audit,
 )
@@ -661,31 +663,28 @@ def models_list(
     ),
 ) -> None:
     """List known models and local cache readiness."""
-    rows = []
-    for status in all_statuses(cache_dir):
-        rows.append(
-            (
-                status.entry.role,
-                status.entry.key,
-                status.entry.model_id,
-                "yes" if status.present else "no",
-                str(status.path),
-            )
-        )
+    statuses = all_statuses(cache_dir)
     typer.echo(
         "role\tkey\tmodel_id\tpresent\tpath\trevision\tlicense\tcompliance_review\t"
-        "redistribution"
+        "acquisition\truntime\tredistribution\trevision_verified"
     )
-    for row in rows:
-        entry = MODEL_MANIFEST[row[1]]
+    for status in statuses:
+        entry = status.entry
         typer.echo(
             "\t".join(
                 (
-                    *row,
+                    entry.role,
+                    entry.key,
+                    entry.model_id,
+                    _yes(status.present),
+                    shareable_model_path(status.path, cache_dir),
                     entry.revision or "unpinned",
                     entry.license_expression,
                     entry.review_status,
+                    entry.acquisition_status,
+                    entry.runtime_status,
                     entry.redistribution_status,
+                    _yes(status.revision_verified),
                 )
             )
         )
@@ -728,32 +727,44 @@ def models_audit(
         typer.echo(
             "role\tkey\tmodel_id\tlocal_path\texists\tcomplete\toffline_usable\t"
             "gated\ttoken_required\ttoken_present\tproblem\trevision\tlicense\t"
-            "compliance_review\tredistribution"
+            "compliance_review\tredistribution\tacquisition\truntime\t"
+            "revision_verified\tsource_url\tterms_url\trequired_files\t"
+            "accepted_weight_files\tpull_command\tverify_command"
         )
         for status in statuses:
+            entry = status.entry
             typer.echo(
                 "\t".join(
                     [
-                        status.entry.role,
-                        status.entry.key,
-                        status.entry.model_id,
-                        str(status.path),
+                        entry.role,
+                        entry.key,
+                        entry.model_id,
+                        shareable_model_path(status.path, config.model_cache),
                         _yes(status.exists),
                         _yes(status.present),
                         _yes(status.offline_usable),
-                        _yes(status.entry.gated),
+                        _yes(entry.gated),
                         _yes(status.token_required),
                         _yes(status.token_present),
-                        status.problem_summary(config.model_cache),
-                        status.entry.revision or "unpinned",
-                        status.entry.license_expression,
-                        status.entry.review_status,
-                        status.entry.redistribution_status,
+                        status.problem_summary(config.model_cache, shareable=True),
+                        entry.revision or "unpinned",
+                        entry.license_expression,
+                        entry.review_status,
+                        entry.redistribution_status,
+                        entry.acquisition_status,
+                        entry.runtime_status,
+                        _yes(status.revision_verified),
+                        entry.source_url,
+                        entry.terms_url,
+                        ",".join(entry.required_files) or "none",
+                        ",".join(entry.any_required_files) or "none",
+                        entry.pull_command("<model-cache>"),
+                        entry.verify_command("<model-cache>"),
                     ]
                 )
             )
         audit_path = write_model_audit(config.model_cache)
-        typer.echo(f"wrote {audit_path}")
+        typer.echo(f"wrote {shareable_model_path(audit_path, config.model_cache)}")
     except LTMError as exc:
         typer.echo(privacy_safe_text(str(exc)), err=True)
         raise typer.Exit(1) from exc
@@ -788,7 +799,10 @@ def models_import_mlx(
             overwrite=overwrite,
         )
         mode = "symlinked" if symlink else "copied"
-        typer.echo(f"{mode} {status.entry.role}:{status.entry.key} to {status.path}")
+        typer.echo(
+            f"{mode} {status.entry.role}:{status.entry.key} to "
+            f"{shareable_model_path(status.path, cache_dir)}"
+        )
     except LTMError as exc:
         typer.echo(privacy_safe_text(str(exc)), err=True)
         raise typer.Exit(1) from exc
@@ -842,7 +856,10 @@ def models_pull(
         ensure_pull_preconditions(entries, cache_dir)
         for entry in entries:
             path = pull_model(entry, cache_dir)
-            typer.echo(f"pulled {entry.role}:{entry.key} to {path}")
+            typer.echo(
+                f"pulled {entry.role}:{entry.key} to "
+                f"{shareable_model_path(path, cache_dir)}"
+            )
     except LTMError as exc:
         typer.echo(privacy_safe_text(str(exc)), err=True)
         raise typer.Exit(1) from exc
@@ -853,16 +870,45 @@ def models_verify(
     cache_dir: Annotated[Path, typer.Option("--cache-dir", help="Model cache directory.")] = Path(
         "models"
     ),
+    all_models: Annotated[
+        bool,
+        typer.Option("--all", help="Verify every pullable manifest entry."),
+    ] = False,
     include_optional: Annotated[
         bool,
         typer.Option("--include-optional", help="Verify optional alignment and speaker-ID assets."),
     ] = False,
+    asr: Annotated[str | None, typer.Option("--asr")] = None,
+    diarization: Annotated[str | None, typer.Option("--diarization")] = None,
+    alignment: Annotated[str | None, typer.Option("--alignment")] = None,
+    speaker_embedding: Annotated[
+        str | None,
+        typer.Option("--speaker-id", "--speaker-embedding"),
+    ] = None,
 ) -> None:
     """Verify that selected model cache entries are complete and offline-usable."""
     try:
         write_model_audit(cache_dir, include_optional=True)
-        statuses = verify_models(cache_dir, include_optional=include_optional)
-        typer.echo(f"verified {len(statuses)} model cache entries")
+        explicit_selection = all_models or any(
+            (asr, diarization, alignment, speaker_embedding)
+        )
+        if explicit_selection:
+            entries = selected_entries(
+                all_models=all_models,
+                include_optional=include_optional,
+                asr=asr,
+                diarization=diarization,
+                alignment=alignment,
+                speaker_embedding=speaker_embedding,
+            )
+            if not entries:
+                raise LTMError("No models selected for verification.")
+            statuses = verify_entries(entries, cache_dir)
+        else:
+            statuses = verify_models(cache_dir, include_optional=include_optional)
+        typer.echo(
+            f"verified {len(statuses)} model cache entries with immutable revision linkage"
+        )
     except LTMError as exc:
         typer.echo(privacy_safe_text(str(exc)), err=True)
         raise typer.Exit(1) from exc
@@ -881,7 +927,10 @@ def models_prune(
     if dry_run:
         typer.echo(f"dry_run=true candidates={len(candidates)}")
         for candidate in candidates:
-            typer.echo(f"{candidate['path']}\t{candidate['reason']}")
+            typer.echo(
+                f"{shareable_model_path(Path(candidate['path']), cache_dir)}\t"
+                f"{candidate['reason']}"
+            )
         return
     typer.echo("Prune is intentionally conservative. Re-run with --dry-run, then remove manually.")
     raise typer.Exit(1)
