@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auralign.invalid/schemas/validation-capsule-v1.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "canary": {
+      "additionalProperties": false,
+      "properties": {
+        "end_seconds": { "const": 1200.0 },
+        "expected_speaker_count": { "const": 2 },
+        "file": { "const": "canary-10m.mp4" },
+        "media": { "type": "object" },
+        "sha256": { "pattern": "^[0-9a-f]{64}$", "type": "string" },
+        "start_seconds": { "const": 600.0 }
+      },
+      "required": ["file", "start_seconds", "end_seconds", "expected_speaker_count", "sha256", "media"],
+      "type": "object"
+    },
+    "enrollments": { "maxItems": 2, "minItems": 2, "type": "array" },
+    "schema_version": { "const": "auralign-validation-capsule.v1" },
+    "source": {
+      "additionalProperties": false,
+      "properties": {
+        "sha256": { "const": "f34144917f29d8435b4bd34cc5942bb0dd5f58505d4e30c6add6a8cdc372a6ad" },
+        "size_bytes": { "const": 331159995 }
+      },
+      "required": ["sha256", "size_bytes"],
+      "type": "object"
+    },
+    "tooling": { "type": "object" }
+  },
+  "required": ["schema_version", "source", "canary", "enrollments", "tooling"],
+  "title": "Auralign owner-local validation capsule v1",
+  "type": "object"
+}

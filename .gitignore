@@ -15,6 +15,11 @@
 /embeddings/
 /outputs/
 /out/
+/.trusted-validation-work/
+validation-capsule.json
+SHA256SUMS
+canary-10m.mp4
+enrollment-speaker-*.wav
 # Private local benchmark artifacts: reports, excerpts, rough refs, logs, transcripts.
 /benchmark_runs/
 /benchmark_report/
@@ -53,6 +58,7 @@ alignment_report.json
 exclusive_diarization.json
 diarization_candidates/
 speaker*.json
+!docs/schemas/*.schema.json
 # Sensitive speaker-identity resolver inputs and generated review artifacts.
 .speaker_identity.lock
 .speaker_identity.*/

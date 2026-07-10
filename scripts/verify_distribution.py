@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 import tarfile
+import tomllib
 import zipfile
 from collections.abc import Mapping
 from email.parser import BytesParser
@@ -83,6 +84,8 @@ PROHIBITED_BASENAMES = {
     "hf_token",
     "hf_token.txt",
     "model_audit.json",
+    "validation-capsule.json",
+    "sha256sums",
     "token",
     "token.txt",
 }
@@ -232,7 +235,21 @@ def spdx_id(name: str) -> str:
     return f"SPDXRef-File-{digest}"
 
 
-def write_spdx(scope: str, archive: Path, files: Mapping[str, bytes], output: Path) -> None:
+def project_version() -> str:
+    payload = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    version = payload.get("project", {}).get("version")
+    require(isinstance(version, str) and bool(version), "project version is missing")
+    return version
+
+
+def write_spdx(
+    scope: str,
+    archive: Path,
+    files: Mapping[str, bytes],
+    output: Path,
+    *,
+    version: str,
+) -> None:
     archive_digest = sha(archive.read_bytes(), "sha256")
     spdx_files = []
     relationships = []
@@ -295,7 +312,7 @@ def write_spdx(scope: str, archive: Path, files: Mapping[str, bytes], output: Pa
                         "".join(sorted(sha1_values)).encode("ascii"), "sha1"
                     )
                 },
-                "versionInfo": "0.1.0",
+                "versionInfo": version,
             }
         ],
         "relationships": relationships,
@@ -317,10 +334,17 @@ def main() -> int:
 
     wheel_files = read_wheel(wheels[0])
     sdist_files = strip_sdist_root(read_sdist(sdists[0]))
+    version = project_version()
+    require(version in wheels[0].name, "wheel filename does not match the project version")
+    require(version in sdists[0].name, "sdist filename does not match the project version")
     verify_wheel(wheel_files)
     verify_sdist(sdist_files)
-    write_spdx("wheel", wheels[0], wheel_files, args.sbom_dir / "wheel.spdx.json")
-    write_spdx("sdist", sdists[0], sdist_files, args.sbom_dir / "sdist.spdx.json")
+    write_spdx(
+        "wheel", wheels[0], wheel_files, args.sbom_dir / "wheel.spdx.json", version=version
+    )
+    write_spdx(
+        "sdist", sdists[0], sdist_files, args.sbom_dir / "sdist.spdx.json", version=version
+    )
     print(
         "distribution_compliance_ok=true "
         f"wheel_files={len(wheel_files)} sdist_files={len(sdist_files)}"

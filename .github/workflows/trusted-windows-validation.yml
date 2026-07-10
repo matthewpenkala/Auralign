@@ -1,0 +1,87 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+name: trusted Windows model validation
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      approved_sha:
+        description: Exact reviewed 40-character commit on main
+        required: true
+        type: string
+
+concurrency:
+  group: trusted-windows-model-validation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: >-
+      github.event.repository.private == true &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == github.repository_owner
+    runs-on: [self-hosted, Windows, X64, auralign-gpu]
+    timeout-minutes: 240
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        include:
+          - profile: cpu
+            config: examples/config.strict-windows-amd64-cpu.yaml
+          - profile: cu128
+            config: examples/config.strict-windows-amd64-cu128.yaml
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.approved_sha }}
+          persist-credentials: false
+          clean: true
+      - name: Verify trusted immutable main commit
+        shell: pwsh
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+          EXPECTED_MAIN_SHA: ${{ github.sha }}
+        run: |
+          if ($env:APPROVED_SHA -notmatch '^[0-9a-f]{40}$') {
+            throw 'approved_sha must be a full lowercase commit ID'
+          }
+          $head = (git rev-parse HEAD).Trim()
+          if ($head -ne $env:APPROVED_SHA -or $head -ne $env:EXPECTED_MAIN_SHA) {
+            throw 'validation commit is not the exact current private main commit'
+          }
+      - name: Verify runner-local private capsule is configured
+        shell: pwsh
+        run: |
+          if (-not $env:LTM_VALIDATION_CAPSULE_DIR) {
+            throw 'runner-local validation capsule is not configured'
+          }
+          if (-not (Test-Path $env:LTM_VALIDATION_CAPSULE_DIR -PathType Container)) {
+            throw 'runner-local validation capsule is unavailable'
+          }
+      - name: Run offline backend and private-media validation
+        shell: pwsh
+        env:
+          HF_TOKEN: ""
+          HF_HUB_OFFLINE: "1"
+          LTM_HF_TOKEN: ""
+          TRANSFORMERS_OFFLINE: "1"
+          LTM_OFFLINE: "1"
+          PYANNOTE_METRICS_ENABLED: "false"
+          UV_NO_CACHE: "1"
+        run: >-
+          uv run --frozen --no-sync python scripts/run_trusted_platform_validation.py
+          --profile ${{ matrix.profile }}
+          --config ${{ matrix.config }}
+      - name: Remove generated validation outputs
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path .trusted-validation-work) {
+            Remove-Item -Recurse -Force .trusted-validation-work
+          }

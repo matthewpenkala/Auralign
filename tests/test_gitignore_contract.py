@@ -61,6 +61,10 @@ def test_private_job_artifact_contract_is_git_ignored() -> None:
         "stray/xvec_transform.npz",
         "stray/model_audit.json",
         "stray/.ltm-model.json",
+        "private-capsule/canary-10m.mp4",
+        "private-capsule/enrollment-speaker-00.wav",
+        "private-capsule/validation-capsule.json",
+        "private-capsule/SHA256SUMS",
     ],
 )
 def test_model_caches_weights_and_audits_are_git_ignored(path: str) -> None:
@@ -109,6 +113,8 @@ def test_git_index_has_no_symlinks_or_model_artifacts() -> None:
         "private/.ltm-model.json",
         "profiles/speaker.npz",
         "outputs/job/transcript.json",
+        "private/validation-capsule.json",
+        "private/SHA256SUMS",
     ],
 )
 def test_distribution_verifier_rejects_model_and_private_artifacts(

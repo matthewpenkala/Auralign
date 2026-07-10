@@ -33,11 +33,12 @@ jobs:
             Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MIT, PSF-2.0
 
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -48,7 +49,11 @@ jobs:
           version: "0.11.26"
           enable-cache: true
       - name: Install FFmpeg
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Verify hosted Windows FFmpeg
+        if: runner.os == 'Windows'
+        run: ffmpeg -version
       - name: Install Python
         run: uv python install ${{ matrix.python-version }}
       - name: Sync locked environment
@@ -56,10 +61,10 @@ jobs:
       - name: Test on Python ${{ matrix.python-version }}
         run: uv run --python ${{ matrix.python-version }} pytest -q
       - name: Lint (Python 3.11)
-        if: matrix.python-version == '3.11'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: uv run --python ${{ matrix.python-version }} ruff check .
       - name: Type check (Python 3.11)
-        if: matrix.python-version == '3.11'
+        if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: uv run --python ${{ matrix.python-version }} mypy src/local_transcript_max
 
   package:
@@ -152,6 +157,19 @@ jobs:
         run: >-
           uv run --python 3.11 python scripts/validate_dependency_sbom.py
           build/sbom/python-cu126.cdx.json --profile cu126
+      - name: Export locked CUDA 12.8 production dependency set
+        run: >-
+          uv export --locked --extra full --group cu128 --no-dev
+          --no-emit-project -o build/cu128-requirements.txt
+      - name: Generate CUDA 12.8 production dependency CycloneDX SBOM
+        run: >-
+          uv export --locked --extra full --group cu128 --no-dev
+          --format cyclonedx1.5 --preview-features sbom-export
+          -o build/sbom/python-cu128.cdx.json
+      - name: Validate CUDA 12.8 dependency graph SBOM
+        run: >-
+          uv run --python 3.11 python scripts/validate_dependency_sbom.py
+          build/sbom/python-cu128.cdx.json --profile cu128
       - name: Prepare audit-compatible CPU dependency set
         run: >-
           uv run --python 3.11 python scripts/prepare_vulnerability_audit_input.py

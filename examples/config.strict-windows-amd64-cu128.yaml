@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+preset: max
+offline: true
+asr:
+  backend: faster-whisper
+  model: large-v3
+  device: cuda
+  compute_type: float16
+  word_timestamps: true
+diarization:
+  backend: pyannote
+  model: community-1
+  device: cuda
+  enabled: true
+  preserve_overlap: true
+  exclusive_diarization: true
+alignment:
+  backend: forced
+  language: en
+  model: en
+  device: cuda
+  enabled: true
+speaker_id:
+  mode: auto
+  model: ecapa
+  device: cuda
+  minimum_segment_seconds: 1.0
+  maximum_speech_seconds: 60.0
+cleanup:
+  mode: off
