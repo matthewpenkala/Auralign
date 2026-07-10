@@ -15,13 +15,18 @@ import json
 import math
 import os
 import stat
-import tempfile
 import wave
 from pathlib import Path
 from typing import Any
 
 from local_transcript_max.config import default_model_cache, resolve_model_entry
 from local_transcript_max.models import status_for
+from local_transcript_max.platform_security import (
+    UnsafePathError,
+    atomic_write_text,
+    open_regular_nofollow,
+    reject_reparse_or_symlink,
+)
 
 from .matching import validate_embedding
 
@@ -57,32 +62,16 @@ def save_embedding(path: Path, backend: str, vector: list[float]) -> None:
     payload = (
         json.dumps({"backend": backend, "embedding": validated}, indent=2, sort_keys=True) + "\n"
     )
-    descriptor, temporary_name = tempfile.mkstemp(prefix=".embedding.", dir=path.parent)
-    temporary_path = Path(temporary_name)
-    try:
-        os.fchmod(descriptor, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        temporary_path.replace(path)
-        path.chmod(0o600)
-    except Exception:
-        try:
-            os.close(descriptor)
-        except OSError:
-            pass
-        temporary_path.unlink(missing_ok=True)
-        raise
+    atomic_write_text(path, payload)
 
 
 def load_embedding(path: Path) -> tuple[str, list[float]]:
     if path.is_symlink():
         raise ValueError("Embedding path must be a regular file, not a symlink.")
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
-        descriptor = os.open(path, flags)
-    except OSError as exc:
+        reject_reparse_or_symlink(path.parent)
+        descriptor = open_regular_nofollow(path, os.O_RDONLY)
+    except (OSError, UnsafePathError) as exc:
         raise ValueError("Embedding path must be a regular file, not a symlink.") from exc
     try:
         file_stat = os.fstat(descriptor)
@@ -124,6 +113,7 @@ def _speechbrain_embedding(audio_path: Path, *, cache_dir: Path) -> tuple[str, l
     classifier = EncoderClassifier.from_hparams(
         source=str(status.path),
         savedir=str(status.path),
+        overrides={"pretrained_path": str(status.path)},
         fetch_config=FetchConfig(allow_network=False),
     )
     signal = classifier.load_audio(str(audio_path))

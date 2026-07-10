@@ -6,10 +6,8 @@
 
 from __future__ import annotations
 
-import errno
 import json
 import os
-import stat
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -23,6 +21,11 @@ from local_transcript_max.models import (
     selected_entries,
 )
 from local_transcript_max.pipeline import transcribe_file
+from local_transcript_max.platform_security import (
+    UnsafePathError,
+    open_regular_nofollow,
+    reject_reparse_or_symlink,
+)
 from local_transcript_max.redaction import privacy_safe_text
 from local_transcript_max.speaker_id.identity_io import IdentityResolverError, JobIdentityLock
 from local_transcript_max.speaker_id.identity_models import (
@@ -544,23 +547,13 @@ def safe_job_artifact(job_dir: Path, filename: str) -> Path:
 
 def read_job_artifact(job_dir: Path, filename: str, *, missing_detail: str) -> bytes:
     """Open a bounded regular file without following its final symlink."""
-    safe_job_artifact(job_dir, filename)
+    path = safe_job_artifact(job_dir, filename)
     limit = artifact_byte_limit()
-    root_fd: int | None = None
     artifact_fd: int | None = None
     try:
-        root_fd = os.open(
-            job_dir,
-            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
-        )
-        artifact_fd = os.open(
-            filename,
-            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
-            dir_fd=root_fd,
-        )
+        reject_reparse_or_symlink(job_dir)
+        artifact_fd = open_regular_nofollow(path, os.O_RDONLY)
         file_stat = os.fstat(artifact_fd)
-        if not stat.S_ISREG(file_stat.st_mode):
-            raise HTTPException(status_code=400, detail="invalid artifact type")
         if file_stat.st_size > limit:
             raise HTTPException(status_code=413, detail="artifact exceeds response size limit")
         with os.fdopen(artifact_fd, "rb", closefd=True) as handle:
@@ -571,17 +564,13 @@ def read_job_artifact(job_dir: Path, filename: str, *, missing_detail: str) -> b
         return payload
     except HTTPException:
         raise
-    except OSError as exc:
-        if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
-            raise HTTPException(status_code=400, detail="invalid artifact path") from exc
-        if exc.errno in {errno.ENOENT, errno.EACCES}:
-            raise HTTPException(status_code=404, detail=missing_detail) from exc
-        raise HTTPException(status_code=500, detail="artifact read failed") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=missing_detail) from exc
+    except (OSError, UnsafePathError) as exc:
+        raise HTTPException(status_code=400, detail="invalid artifact path") from exc
     finally:
         if artifact_fd is not None:
             os.close(artifact_fd)
-        if root_fd is not None:
-            os.close(root_fd)
 
 
 def artifact_byte_limit() -> int:

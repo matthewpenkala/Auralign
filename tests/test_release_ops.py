@@ -96,6 +96,7 @@ def test_doctor_requires_packages_for_the_active_runtime_path(
         "pyannote.audio",
         "torch",
         "torchaudio",
+        "speechbrain",
         "whisperx",
     }
     monkeypatch.setattr(
@@ -108,11 +109,19 @@ def test_doctor_requires_packages_for_the_active_runtime_path(
     checks = {check.name: check.status for check in report.checks}
 
     assert required_inference_dependencies(config) == frozenset(
-        {"faster-whisper", "ctranslate2", "pyannote.audio", "torch", "torchaudio"}
+        {
+            "faster-whisper",
+            "ctranslate2",
+            "pyannote.audio",
+            "speechbrain",
+            "torch",
+            "torchaudio",
+        }
     )
     assert checks["python_package:faster-whisper"] == "error"
     assert checks["python_package:ctranslate2"] == "error"
     assert checks["python_package:pyannote.audio"] == "error"
+    assert checks["python_package:speechbrain"] == "error"
     assert checks["python_package:whisperx"] == "warning"
     assert report.ok is False
 
@@ -130,6 +139,7 @@ def test_doctor_requires_strict_alignment_and_mlx_packages_for_configured_backen
     mlx.asr.backend = "mlx-whisper"
     mlx.diarization.enabled = False
     mlx.alignment.enabled = False
+    mlx.speaker_id.mode = "off"
     assert required_inference_dependencies(mlx) == frozenset({"mlx-whisper", "mlx"})
 
     speaker_id = load_config(cwd=tmp_path)
@@ -141,7 +151,7 @@ def test_doctor_requires_strict_alignment_and_mlx_packages_for_configured_backen
     )
 
 
-def test_strict_offline_example_selects_all_three_required_model_lanes() -> None:
+def test_strict_offline_example_selects_all_four_required_model_lanes() -> None:
     strict_path = REPO_ROOT / "examples" / "config.strict-offline.yaml"
     strict = yaml.safe_load(strict_path.read_text(encoding="utf-8"))
 
@@ -155,6 +165,8 @@ def test_strict_offline_example_selects_all_three_required_model_lanes() -> None
     assert strict["alignment"]["model"] == "en"
     assert strict["alignment"]["language"] == "en"
     assert strict["alignment"]["enabled"] is True
+    assert strict["speaker_id"]["mode"] == "auto"
+    assert strict["speaker_id"]["model"] == "ecapa"
 
 
 def test_model_runbook_contains_exact_strict_manifest_pointers() -> None:
@@ -190,7 +202,11 @@ def test_model_linkage_is_discoverable_to_humans_and_ai_agents() -> None:
     assert "Do not download models merely" in agent_rules
     assert "Source-repository access is not model acquisition" in agent_rules
     assert "LTM_OFFLINE=1" in agent_rules
-    assert "models verify --asr large-v3" in agent_rules
+    assert "models verify" in agent_rules
+    assert (
+        "--asr large-v3 --diarization community-1 --alignment en --speaker-id ecapa"
+        in agent_rules
+    )
     assert "human and AI-agent runbook" in docs_index
     assert "Canonical Runbook For Humans And AI Agents" in runbook
     assert (

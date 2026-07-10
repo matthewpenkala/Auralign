@@ -66,6 +66,7 @@ from .fusion.turn_builder import (
 )
 from .fusion.word_speaker_assignment import assign_speakers_to_words
 from .models import require_model
+from .platform_security import ensure_private_directory
 from .qa.heuristics import run_qa
 from .qa.redecode import run_targeted_redecode
 from .redaction import privacy_safe_text
@@ -101,6 +102,7 @@ PIPELINE_ARTIFACT_NAMES = frozenset(
         "redecode_report.json",
         "run_metadata.json",
         "speaker_cluster_embeddings.json",
+        "speaker_embedding_report.json",
         "speaker_map.json",
         "speaker_report.json",
         "transcript.redecode_candidates.json",
@@ -134,6 +136,13 @@ def preflight_required_models(config: PipelineConfig) -> None:
         )
     if config.alignment.enabled and config.alignment.backend == "forced":
         preflight_forced_alignment(config)
+    if config.speaker_id.mode == "auto":
+        require_model(
+            "speaker-embedding",
+            config.speaker_id.model,
+            config.model_cache,
+            offline=config.offline,
+        )
 
 
 def transcribe_file(
@@ -170,7 +179,7 @@ def transcribe_file(
             "Output directory must be empty before transcription; choose a fresh output "
             "directory."
         )
-    out_dir.chmod(0o700)
+    ensure_private_directory(out_dir)
     debug_path = debug_report_path or out_dir / "debug_report.json"
     debug_report = base_debug_report(input_file, out_dir, config)
     resource_monitor = ResourceMonitor()
@@ -392,12 +401,28 @@ def transcribe_file(
         write_exports(out_dir, transcript, config)
         emit_progress(progress, "export_done", {})
         if config.speaker_id.mode == "auto":
+            from .speaker_id.cluster_embeddings import build_cluster_embeddings
             from .speaker_id.enrollment import match_job_speakers
 
+            cluster_result = build_cluster_embeddings(
+                canonical_path,
+                diarization_result.exclusive_turns,
+                cache_dir=config.model_cache,
+                device=config.speaker_id.device,
+                minimum_segment_seconds=config.speaker_id.minimum_segment_seconds,
+                maximum_speech_seconds=config.speaker_id.maximum_speech_seconds,
+            )
+            write_json_artifact(
+                out_dir / "speaker_cluster_embeddings.json", cluster_result.embeddings
+            )
+            write_json_artifact(
+                out_dir / "speaker_embedding_report.json", cluster_result.report
+            )
             match_job_speakers(
                 out_dir,
                 threshold=config.speaker_id.threshold,
                 ambiguity_margin=config.speaker_id.ambiguity_margin,
+                profile_dir=config.speaker_id.profile_dir,
             )
         if config.cleanup.mode != "off":
             cleanup_report = run_cleanup(transcript, out_dir, config)

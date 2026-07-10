@@ -11,7 +11,6 @@ import json
 import os
 import shutil
 import stat
-import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
@@ -22,6 +21,13 @@ from typing import Any, TypeVar, cast
 from pydantic import BaseModel
 
 from local_transcript_max.errors import LTMError
+from local_transcript_max.platform_security import (
+    HeldFileLock,
+    LockUnavailableError,
+    UnsafePathError,
+    open_regular_nofollow,
+    reject_reparse_or_symlink,
+)
 from local_transcript_max.schemas import Transcript
 
 from .identity_models import (
@@ -37,7 +43,6 @@ MAX_JSON_BYTES = 64 * 1024 * 1024
 MAX_TEXT_BYTES = 32 * 1024 * 1024
 MAX_JSON_DEPTH = 64
 MAX_JSON_ITEMS = 500_000
-LOCK_STALE_SECONDS = 60 * 60
 
 CANONICAL_ARTIFACTS: tuple[str, ...] = (
     "transcript.json",
@@ -59,6 +64,7 @@ CANONICAL_ARTIFACTS: tuple[str, ...] = (
     "run_metadata.json",
     "speaker_map.json",
     "speaker_cluster_embeddings.json",
+    "speaker_embedding_report.json",
 )
 
 MANAGED_IDENTITY_ARTIFACTS: frozenset[str] = frozenset(
@@ -175,15 +181,18 @@ def _validate_json_shape(value: Any) -> None:
 def _read_regular(path: Path, *, max_bytes: int) -> ReadArtifact:
     if path.is_symlink():
         raise IdentityResolverError("unsafe_symlink", "Resolver inputs cannot be symlinks.")
-    flags = os.O_RDONLY
-    flags |= getattr(os, "O_NOFOLLOW", 0)
+    if path.exists() and not path.is_file():
+        raise IdentityResolverError(
+            "unsafe_artifact_type", "Resolver inputs must be regular files."
+        )
     try:
-        descriptor = os.open(path, flags)
+        reject_reparse_or_symlink(path.parent)
+        descriptor = open_regular_nofollow(path, os.O_RDONLY)
     except FileNotFoundError as exc:
         raise IdentityResolverError(
             "missing_artifact", "A required resolver artifact is missing."
         ) from exc
-    except OSError as exc:
+    except (OSError, UnsafePathError) as exc:
         raise IdentityResolverError(
             "unsafe_artifact", "A resolver artifact could not be opened safely."
         ) from exc
@@ -558,50 +567,26 @@ class JobIdentityLock(AbstractContextManager["JobIdentityLock"]):
         self.job_dir = job_dir
         self.path = job_dir / ".speaker_identity.lock"
         self.acquired = False
+        self._native_lock: HeldFileLock | None = None
 
     def __enter__(self) -> JobIdentityLock:
-        self._clear_stale_lock()
-        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
         try:
-            descriptor = os.open(self.path, flags, 0o600)
-        except FileExistsError as exc:
+            self._native_lock = HeldFileLock(self.path).acquire()
+        except LockUnavailableError as exc:
             raise IdentityResolverError(
                 "resolver_busy",
                 "Another resolver or protected job operation is active.",
                 "Wait for that operation to finish, then retry.",
             ) from exc
-        try:
-            payload = deterministic_json_bytes({"pid": os.getpid(), "created": int(time.time())})
-            os.write(descriptor, payload)
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
         self.acquired = True
         return self
 
-    def _clear_stale_lock(self) -> None:
-        if not self.path.exists() or self.path.is_symlink():
-            return
-        try:
-            artifact = _read_regular(self.path, max_bytes=4096)
-            payload = strict_json_bytes(artifact.data)
-            pid = int(payload.get("pid", -1)) if isinstance(payload, dict) else -1
-            created = int(payload.get("created", 0)) if isinstance(payload, dict) else 0
-        except Exception:
-            return
-        if time.time() - created < LOCK_STALE_SECONDS:
-            return
-        try:
-            os.kill(pid, 0)
-        except PermissionError:
-            return
-        except (ProcessLookupError, ValueError):
-            self.path.unlink(missing_ok=True)
-
     def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
         if self.acquired:
-            self.path.unlink(missing_ok=True)
+            assert self._native_lock is not None
+            self._native_lock.release()
         self.acquired = False
+        self._native_lock = None
 
 
 class IdentityArtifactTransaction(AbstractContextManager["IdentityArtifactTransaction"]):

@@ -46,7 +46,7 @@ inputs and do not download models or private media.
 
 ## Requirements
 
-- Python 3.11 or 3.12
+- Python 3.11 for released runtime environments; Python 3.12 remains a portable-test target
 - [`uv`](https://docs.astral.sh/uv/)
 - FFmpeg and FFprobe on `PATH`
 - enough local disk space for the selected models
@@ -60,11 +60,16 @@ uv run ltm --help
 uv run ltm doctor
 ```
 
-The source workspace uses mutually exclusive `cpu` and `cu126` dependency
-groups so `uv` can route Torch through the correct official index. Use
-`--group cpu` for CPU/server environments or `--group cu126` for CUDA 12.6;
-never select both. These are intentionally not wheel extras because Python
-wheel metadata cannot preserve alternate-index routing.
+The source workspace uses mutually exclusive `cpu`, `cu126`, and `cu128`
+dependency groups so `uv` can route Torch through the reviewed official index.
+Use `cpu` for macOS arm64 and Windows CPU, `cu128` for Windows NVIDIA/Blackwell,
+and retain `cu126` only for the secondary internal Linux lane. Never combine
+accelerator groups.
+
+Native installation entry points are `install-macos.sh` for macOS 14+ arm64
+and `install-windows.ps1` for Windows x64. They consume the release wheel and
+lock-derived, hash-pinned requirements; Python, FFmpeg, CUDA, cuDNN, and the
+Visual C++ runtime are host prerequisites, not bundled payloads.
 
 ## Local Cache Setup
 
@@ -93,21 +98,25 @@ uv run ltm models pull --alignment auto --cache-dir models
 uv run ltm models pull --speaker-id ecapa --cache-dir models
 uv run ltm models verify \
   --asr large-v3 --diarization community-1 --alignment en \
+  --speaker-id ecapa \
   --cache-dir models
-LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
+LTM_OFFLINE=1 uv run ltm doctor --startup \
+  --config examples/config.strict-offline.yaml
 ```
 
 Pyannote Community-1 is gated. Accept its Hugging Face terms and supply a
 read-scoped `HF_TOKEN` or `LTM_HF_TOKEN` in the local shell; never commit it.
 The combined model pull checks gated access before downloading unrelated assets
 so it does not leave a half-prepared cache. Each pinned pull writes a local
-`.ltm-model.json` linkage marker; verification fails when that marker is absent
-or differs from the manifest revision.
+`.ltm-model.json` v2 provenance marker with file hashes; verification rereads
+every allowlisted runtime file and fails when bytes, revision, or repository
+manifest identity differ.
 
-`bootstrap.sh` provides a budget-aware connected-machine setup path. It checks
-disk headroom, pulls selected model assets, records blocked dataset acquisitions,
-and writes a local ignored log. No sample dataset is automatically acquired
-until its exact provenance and license are verified:
+`bootstrap.sh` and `bootstrap.ps1` are thin wrappers around the same
+`ltm prepare-runtime` command. Preparation pulls exactly the four strict models,
+generates corpus-free English Punkt parameters, verifies all file digests,
+removes tokens from the validation environment, and runs heavyweight offline
+backend startup. Alignment and ECAPA failures are fatal:
 
 ```bash
 ./bootstrap.sh

@@ -189,6 +189,19 @@ class SpeakerEnrollment(LTMBaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class SpeakerEmbeddingClusterReport(LTMBaseModel):
+    selected_duration_seconds: float = Field(ge=0.0)
+    embedding_dimensions: int | None = Field(default=None, gt=0)
+    skip_reason: Literal["no_eligible_speech"] | None = None
+
+
+class SpeakerEmbeddingReport(LTMBaseModel):
+    schema_version: Literal["speaker_embedding_report.v1"] = "speaker_embedding_report.v1"
+    model_revision: str
+    device: Literal["cpu", "cuda"]
+    speakers: dict[str, SpeakerEmbeddingClusterReport] = Field(default_factory=dict)
+
+
 class BenchmarkFileMetric(LTMBaseModel):
     input_file: str
     audio_duration_seconds: float | None = None

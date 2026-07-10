@@ -16,7 +16,7 @@ leaving the compatibility matching artifacts unchanged.
 
 | Key | Model ID | Required | Gated | Purpose |
 | --- | --- | --- | --- | --- |
-| `ecapa` | `speechbrain/spkrec-ecapa-voxceleb` | Optional | No | Local ECAPA speaker embeddings |
+| `ecapa` | `speechbrain/spkrec-ecapa-voxceleb` | Required in strict/full mode | No | Local ECAPA speaker embeddings |
 
 The SpeechBrain model card documents ECAPA-TDNN speaker embeddings, VoxCeleb
 training, Apache-2.0 license, 16 kHz audio expectations, CPU use, and optional
@@ -47,6 +47,14 @@ Enrollment resolves `ecapa` under `LTM_MODEL_CACHE` and calls SpeechBrain with
 network fetches disabled. The only fallback embedding path is the explicit
 `--allow-fallback-embedding` degraded mode used for local smoke tests and
 bookkeeping. It must not support identity claims.
+
+`speaker_id.mode` defaults to `auto`; `--speaker-id off` is an explicit degraded
+opt-out. Auralign embeds only exclusive non-overlap turns of at least one second,
+deterministically caps each anonymous cluster at 60 seconds, unit-normalizes
+each segment vector, duration-weights the average, and normalizes the result.
+It writes `speaker_cluster_embeddings.json` plus a private metadata-only
+`speaker_embedding_report.json`. With no enrolled profiles, anonymous labels
+remain unchanged and the map reports `no_enrolled_profiles`.
 
 ## Privacy Boundary
 

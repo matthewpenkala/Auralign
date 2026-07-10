@@ -532,7 +532,7 @@ def test_pipeline_identity_resolver_is_opt_in_and_runs_after_metadata(tmp_path: 
     assert "speaker_identity_start" in events
     assert "speaker_identity_done" in events
     assert not (out_dir / "transcript.identity_mapped.srt").exists()
-    assert not (out_dir / ".speaker_identity.lock").exists()
+    assert (out_dir / ".speaker_identity.lock").exists()
 
 
 def test_strict_alignment_preflight_fails_before_inference(

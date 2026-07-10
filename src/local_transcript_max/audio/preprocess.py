@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 from local_transcript_max.config import AudioConfig
+from local_transcript_max.platform_security import ensure_private_file
 from local_transcript_max.schemas import AudioMetadata
 
 from .inspect import inspect_media
@@ -30,10 +31,10 @@ def prepare_canonical_audio(
     if can_reuse_as_canonical(metadata, config):
         canonical.parent.mkdir(parents=True, exist_ok=True)
         atomic_copy(input_path, canonical)
-        canonical.chmod(0o600)
+        ensure_private_file(canonical)
         return canonical, ["reuse-canonical-wav", str(input_path), str(canonical)]
     command = normalize_audio(input_path, canonical, config)
-    canonical.chmod(0o600)
+    ensure_private_file(canonical)
     return canonical, command
 
 

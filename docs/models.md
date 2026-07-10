@@ -24,8 +24,8 @@ The authoritative records are:
   immutable revisions, cache directories, and required-file contracts;
 - `compliance/external_assets.toml`: license, provenance, access, acquisition,
   and redistribution dispositions;
-- `examples/config.strict-offline.yaml`: the exact ASR, diarization, and forced-
-  alignment selection used for strict offline doctor verification;
+- `examples/config.strict-offline.yaml`: the exact ASR, diarization, forced-
+  alignment, and ECAPA selection used for strict offline startup verification;
 - this document: the canonical operator and agent sequence, safety boundaries,
   and actionable commands.
 
@@ -62,6 +62,7 @@ lane. The revisions below are immutable 40-character upstream commits.
 | ASR / `large-v3` | [`Systran/faster-whisper-large-v3`](https://huggingface.co/Systran/faster-whisper-large-v3) at `edaa852ec7e145841d8ffdb056a99866b5f0a478` | `models/Systran--faster-whisper-large-v3/` | `MIT`; `verified`; not gated; no token required | `approved`; `permitted_with_license_terms`; never bundled by Auralign |
 | Diarization / `community-1` | [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1) at `3533c8cf8e369892e6b79ff1bf80f7b0286a54ee` | `models/pyannote--speaker-diarization-community-1/` | `CC-BY-4.0`; `verified_gated`; personal terms acceptance and read token required for acquisition | `approved_after_gated_terms`; `permitted_with_attribution_and_gated_terms`; no Auralign mirroring or bundling |
 | English forced alignment / `en` (`auto`) | [`facebook/wav2vec2-base-960h`](https://huggingface.co/facebook/wav2vec2-base-960h) at `22aad52d435eb6dbaf354bdad9b0da84ce7d6156` | `models/facebook--wav2vec2-base-960h/` | `Apache-2.0`; `verified`; not gated; no token required | `approved`; `permitted_with_license_terms`; never bundled by Auralign |
+| Speaker embedding / `ecapa` | [`speechbrain/spkrec-ecapa-voxceleb`](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb) at `0f99f2d0ebe89ac095bcc5903c4dd8f72b367286` | `models/speechbrain--spkrec-ecapa-voxceleb/` | `Apache-2.0`; `verified`; not gated | `approved`; installed separately and never bundled by Auralign |
 
 For these entries, the source URL and terms URL are the linked upstream model
 page. Upstream terms control the separately acquired assets. The exact
@@ -73,13 +74,15 @@ Required-file contracts:
 
 | Key | Required files | Accepted alternative weight files |
 | --- | --- | --- |
-| `large-v3` | `model.bin`, `config.json`, `tokenizer.json`, `preprocessor_config.json` | none |
+| `large-v3` | `model.bin`, `config.json`, `tokenizer.json`, `preprocessor_config.json`, `vocabulary.json` | none |
 | `community-1` | `config.yaml`, `segmentation/pytorch_model.bin`, `embedding/pytorch_model.bin`, `plda/plda.npz`, `plda/xvec_transform.npz` | none |
-| `en` | `config.json`, `preprocessor_config.json`, `tokenizer_config.json`, `vocab.json` | exactly one usable `pytorch_model.bin` or `model.safetensors` |
+| `en` | `config.json`, `preprocessor_config.json`, `tokenizer_config.json`, `vocab.json`, `model.safetensors` | none |
+| `ecapa` | `hyperparams.yaml`, `embedding_model.ckpt`, `classifier.ckpt`, `mean_var_norm_emb.ckpt`, `label_encoder.txt`, `config.json` | none |
 
 An Auralign pull also writes `.ltm-model.json` beside the acquired files. That
-private local marker binds the cache directory to the manifest key, role,
-upstream ID, and immutable revision used by the explicit pull. Pullable models
+private local v2 marker binds the cache directory to the manifest key, role,
+upstream ID, immutable revision, repository-manifest digest, acquisition tool,
+timestamp, and runtime-file SHA-256 values. Pullable models
 are not offline-usable when the marker is missing, malformed, unsafe, or does
 not exactly match the current manifest—even if expected filenames happen to
 exist. Do not hand-author or edit this marker; refresh the cache with the
@@ -92,7 +95,7 @@ local caches:
 
 ```bash
 uv sync --extra dev --extra asr --extra diarization --extra alignment \
-  --group cpu --no-python-downloads
+  --extra speaker-id --group cpu --no-python-downloads
 export LTM_MODEL_CACHE="$PWD/models"
 export HF_HOME="$PWD/.hf-cache"
 export HF_HUB_CACHE="$HF_HOME/hub"
@@ -110,6 +113,7 @@ uv run ltm models pull \
   --asr large-v3 \
   --diarization community-1 \
   --alignment en \
+  --speaker-id ecapa \
   --cache-dir "$LTM_MODEL_CACHE"
 unset LTM_HF_TOKEN HF_TOKEN
 ```
@@ -123,18 +127,18 @@ uv run ltm models verify \
   --asr large-v3 \
   --diarization community-1 \
   --alignment en \
+  --speaker-id ecapa \
   --cache-dir "$LTM_MODEL_CACHE"
 LTM_OFFLINE=1 uv run ltm models audit \
   --config examples/config.strict-offline.yaml
-LTM_OFFLINE=1 uv run ltm doctor \
+LTM_OFFLINE=1 uv run ltm doctor --startup \
   --config examples/config.strict-offline.yaml
 ```
 
 `examples/config.strict-offline.yaml` explicitly selects faster-whisper
-`large-v3`, pyannote Community-1, and `alignment.backend: forced` with the
-English CTC asset. This is intentionally stricter than `config.max.yaml`, whose
-alignment behavior can fall back. A successful default-preset doctor is not a
-substitute for this exact forced-alignment check.
+`large-v3`, pyannote Community-1, `alignment.backend: forced` with the English
+CTC asset, and default-on local ECAPA. A successful lightweight/default doctor
+is not a substitute for this exact four-backend startup check.
 
 After doctor succeeds, transcription with that same configuration remains
 local and offline:
@@ -233,7 +237,7 @@ Useful model commands:
 uv run ltm models list
 uv run ltm models audit
 uv run ltm models verify
-uv run ltm models verify --asr large-v3 --diarization community-1 --alignment en
+uv run ltm models verify --asr large-v3 --diarization community-1 --alignment en --speaker-id ecapa
 uv run ltm models prune --dry-run
 uv run ltm models pull --all
 uv run ltm models pull --all --include-optional
@@ -273,37 +277,21 @@ weights; generic Wav2Vec2 pretraining checkpoints are not alignment-ready.
 
 ## Local Bootstrap
 
-`bootstrap.sh` prepares the project-local cache variables, logs only safe status
-messages to `auralign_bootstrap.log`, runs a storage-budget preflight against
-both the model cache and dataset cache, pulls required ASR cache entries, pulls
-pyannote only when `HF_TOKEN` or `LTM_HF_TOKEN` is present, and tries optional
-alignment and speaker-ID assets as best-effort steps. Dataset sample acquisition
-is currently blocked because the configured dummy sample does not publish
-adequate license metadata. The bootstrap never downloads full LibriSpeech, AMI,
-or VoxCeleb corpora to the laptop by default.
+`bootstrap.sh` and `bootstrap.ps1` are thin wrappers around `ltm
+prepare-runtime`. The command performs storage and environment preflight, pulls
+exactly the selected four-model runtime, generates local corpus-free English
+Punkt parameters, verifies immutable revisions and runtime-file hashes, removes
+token variables from the validation environment, and runs strict offline
+backend startup. It never acquires datasets.
 
 ```bash
 chmod +x bootstrap.sh
 ./bootstrap.sh
 ```
 
-Default bootstrap budget knobs:
-
-```bash
-LTM_BOOTSTRAP_PROFILE=runtime-samples
-LTM_BOOTSTRAP_MAX_LOCAL_GB=65
-LTM_BOOTSTRAP_MIN_FREE_GB=100
-LTM_SAMPLE_MAX_GB=1
-LTM_ALLOW_OVER_BUDGET=0
-```
-
-The script does not store tokens and does not print token values. It exits
-nonzero when required public model pulls fail, or when pyannote fails after a
-token was supplied. Missing pyannote token/terms and optional alignment,
-speaker-ID, audit, or cloud-plan failures are logged as caveats. Dataset sample
-acquisition is skipped while its provenance/license record is blocked. Treat
-the exact selected `ltm models verify` command and strict configured offline
-doctor above as the production-lane readiness checks.
+The wrappers do not store or print token values. Missing Community-1 access,
+alignment, ECAPA, digest integrity, generated Punkt, native libraries, or
+backend construction is a fatal preparation failure, never a caveat.
 
 ## Dataset Policy
 
@@ -347,8 +335,8 @@ and speaker-ID lanes. Use explicit verification selectors for that exact set.
 | `distil-large-v3.5` | `distil-whisper/distil-large-v3.5-ct2` | Yes | No | `models/distil-whisper--distil-large-v3.5-ct2` |
 | `mlx-*` | `mlx-community/whisper-*-mlx` or `mlx-community/whisper-large-v3-turbo` | Optional audit-only | No | canonical escaped model-ID path, plus accepted alias directories such as `models/mlx-turbo` |
 | `community-1` | `pyannote/speaker-diarization-community-1` | Yes | Yes | `models/pyannote--speaker-diarization-community-1` |
-| `auto` | `facebook/wav2vec2-base-960h` | Optional | No | `models/facebook--wav2vec2-base-960h` |
-| `ecapa` | `speechbrain/spkrec-ecapa-voxceleb` | Optional | No | `models/speechbrain--spkrec-ecapa-voxceleb` |
+| `auto` | `facebook/wav2vec2-base-960h` | Required in strict/full mode | No | `models/facebook--wav2vec2-base-960h` |
+| `ecapa` | `speechbrain/spkrec-ecapa-voxceleb` | Required in strict/full mode | No | `models/speechbrain--spkrec-ecapa-voxceleb` |
 
 ## Offline Behavior
 
@@ -358,7 +346,7 @@ command needed to prepare the cache. Optional cleanup may use localhost, but
 offline mode rejects non-local cleanup endpoints:
 
 ```bash
-LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
+LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
 ```
 
 After successful model pulls:
@@ -366,9 +354,10 @@ After successful model pulls:
 ```bash
 uv run ltm models verify \
   --asr large-v3 --diarization community-1 --alignment en \
+  --speaker-id ecapa \
   --cache-dir models
 LTM_OFFLINE=1 uv run ltm models audit --config examples/config.strict-offline.yaml
-LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
+LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
 ```
 
 ## Gated Model Caveats

@@ -7,17 +7,18 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import shutil
 import subprocess
-import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TextIO
 
 from .errors import CommandExecutionError
+from .platform_security import atomic_write_text as secure_atomic_write_text
 from .redaction import redact_text
 
 
@@ -45,24 +46,8 @@ def write_json(path: Path, data: Any) -> None:
 
 
 def atomic_write_json(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    tmp = Path(tmp_name)
-    try:
-        os.fchmod(descriptor, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(data, handle, indent=2, sort_keys=True, allow_nan=False)
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        tmp.replace(path)
-    except BaseException:
-        try:
-            os.close(descriptor)
-        except OSError:
-            pass
-        tmp.unlink(missing_ok=True)
-        raise
+    encoded = json.dumps(data, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    secure_atomic_write_text(path, encoded)
 
 
 def read_json(path: Path) -> Any:
@@ -91,27 +76,12 @@ def run_command(args: list[str], *, check: bool = True) -> subprocess.CompletedP
 
 
 def atomic_text_write(path: Path, text: str) -> None:
-    with atomic_text_writer(path) as handle:
-        handle.write(text)
+    secure_atomic_write_text(path, text)
 
 
 @contextmanager
 def atomic_text_writer(path: Path, *, newline: str | None = None) -> Iterator[TextIO]:
     """Yield a private same-directory writer and atomically replace on success."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    tmp = Path(tmp_name)
-    try:
-        os.fchmod(descriptor, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline=newline) as handle:
-            yield handle
-            handle.flush()
-            os.fsync(handle.fileno())
-        tmp.replace(path)
-    except BaseException:
-        try:
-            os.close(descriptor)
-        except OSError:
-            pass
-        tmp.unlink(missing_ok=True)
-        raise
+    handle = io.StringIO(newline=newline)
+    yield handle
+    secure_atomic_write_text(path, handle.getvalue())

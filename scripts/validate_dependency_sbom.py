@@ -53,7 +53,7 @@ def validate(path: Path, profile: str) -> None:
             if CPU_PROHIBITED.match(str(item.get("name", "")))
         )
         require(not prohibited, f"{path}: CPU profile contains {prohibited}")
-    if profile == "cu126":
+    if profile in {"cu126", "cu128"}:
         names = {str(item.get("name", "")) for item in components}
         require("torch" in names and "nvidia-cuda-runtime-cu12" in names, f"{path}: CUDA drift")
     print(f"dependency_sbom_valid=true profile={profile} components={len(components)}")
@@ -62,7 +62,7 @@ def validate(path: Path, profile: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("path", type=Path)
-    parser.add_argument("--profile", choices=("cpu", "cu126"), required=True)
+    parser.add_argument("--profile", choices=("cpu", "cu126", "cu128"), required=True)
     args = parser.parse_args()
     validate(args.path, args.profile)
     return 0

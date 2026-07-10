@@ -962,7 +962,9 @@ def test_identical_repeat_is_byte_idempotent_and_canonical_hashes_do_not_change(
     assert first_bytes == second_bytes
     assert _canonical_snapshot(job_dir) == canonical_before
     assert second.report.validation_summary.canonical_hashes_unchanged is True
-    assert not list(job_dir.glob(".speaker_identity.*"))
+    assert list(job_dir.glob(".speaker_identity.*")) == [
+        job_dir / ".speaker_identity.lock"
+    ]
 
 
 def _write_variant(job_dir: Path, name: str, turns: list[DiarizationTurn]) -> None:

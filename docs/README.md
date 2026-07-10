@@ -36,6 +36,8 @@ canonical sources for implementation details and operational policy.
   offline identity resolution and named-speaker delivery.
 - [Speaker identity resolver specification](design/speaker-identity-resolver.md):
   supported v1 evidence, decision, validation, and artifact contracts.
+- [Auralign 0.2.0 private runbook](release/v0.2.0-private-runbook.md): native
+  installation, model preparation, trusted validation, and owner-only release.
 
 ## Safety
 

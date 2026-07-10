@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import stat
 from pathlib import Path
 
@@ -375,66 +374,16 @@ def test_job_lock_blocks_concurrent_entry_and_uses_private_mode(tmp_path: Path) 
             with JobIdentityLock(tmp_path):
                 pass
         assert busy.value.code == "resolver_busy"
-    assert not lock.path.exists()
+    assert lock.path.exists()
 
 
-def test_stale_lock_owned_by_inaccessible_live_process_is_not_removed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    lock_path = tmp_path / ".speaker_identity.lock"
-    lock_path.write_bytes(deterministic_json_bytes({"pid": 999999, "created": 0}))
-
-    def deny_signal(_pid: int, _signal: int) -> None:
-        raise PermissionError
-
-    monkeypatch.setattr("local_transcript_max.speaker_id.identity_io.os.kill", deny_signal)
-
-    with pytest.raises(IdentityResolverError) as busy:
-        with JobIdentityLock(tmp_path):
-            pass
-
-    assert busy.value.code == "resolver_busy"
-    assert lock_path.exists()
-
-
-def test_job_lock_clears_only_stale_dead_processes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_job_lock_uses_descriptor_ownership_not_pid_file_age(tmp_path: Path) -> None:
     lock_path = tmp_path / ".speaker_identity.lock"
     lock_path.write_bytes(deterministic_json_bytes({"pid": 424242, "created": 1}))
-    monkeypatch.setattr(identity_io.time, "time", lambda: identity_io.LOCK_STALE_SECONDS + 2)
-
-    def dead_process(pid: int, signal: int) -> None:
-        assert (pid, signal) == (424242, 0)
-        raise ProcessLookupError
-
-    monkeypatch.setattr(identity_io.os, "kill", dead_process)
     with JobIdentityLock(tmp_path):
         assert lock_path.exists()
-    assert not lock_path.exists()
-
-
-def test_job_lock_does_not_clear_fresh_or_live_locks(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    lock_path = tmp_path / ".speaker_identity.lock"
-    now = 100_000
-    monkeypatch.setattr(identity_io.time, "time", lambda: now)
-    lock_path.write_bytes(deterministic_json_bytes({"pid": os.getpid(), "created": now}))
-    with pytest.raises(IdentityResolverError) as fresh:
-        with JobIdentityLock(tmp_path):
-            pass
-    assert fresh.value.code == "resolver_busy"
-
-    lock_path.write_bytes(
-        deterministic_json_bytes(
-            {"pid": os.getpid(), "created": now - identity_io.LOCK_STALE_SECONDS - 1}
-        )
-    )
-    with pytest.raises(IdentityResolverError) as live:
-        with JobIdentityLock(tmp_path):
-            pass
-    assert live.value.code == "resolver_busy"
+    with JobIdentityLock(tmp_path):
+        assert lock_path.exists()
 
 
 def stage_complete_family(transaction: IdentityArtifactTransaction, marker: bytes) -> None:

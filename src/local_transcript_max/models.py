@@ -6,12 +6,20 @@
 
 from __future__ import annotations
 
+import hashlib
+import importlib
+import json
 import os
 import shutil
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, cast
+from uuid import uuid4
 
 from huggingface_hub import HfApi, snapshot_download
 from huggingface_hub.errors import GatedRepoError, HfHubHTTPError, LocalEntryNotFoundError
@@ -120,6 +128,8 @@ class ModelStatus:
             "complete": self.present,
             "required_files": list(self.entry.required_files),
             "any_required_files": list(self.entry.any_required_files),
+            "runtime_file_allowlist": list(self.entry.runtime_files),
+            "expected_sha256": self.entry.expected_digest_map,
             "missing_files": list(self.missing_files),
             "suspicious_files": list(self.zero_size_files),
             "zero_size_files": list(self.zero_size_files),
@@ -342,7 +352,13 @@ def audit_selected_models(
     return statuses
 
 
-def pull_model(entry: ModelEntry, cache_dir: Path, *, revision: str | None = None) -> Path:
+def pull_model(
+    entry: ModelEntry,
+    cache_dir: Path,
+    *,
+    revision: str | None = None,
+    repair: bool = False,
+) -> Path:
     if not entry.pullable:
         raise ModelCacheError(
             f"{entry.role}:{entry.key} ({entry.model_id}) is audit-only and cannot be "
@@ -358,36 +374,69 @@ def pull_model(entry: ModelEntry, cache_dir: Path, *, revision: str | None = Non
             f"Refusing unapproved revision override for {entry.role}:{entry.key}. "
             f"Approved revision: {entry.revision}."
         )
-    current_status = status_for(entry, cache_dir)
-    if current_status.present:
-        return current_status.path
-    if entry.gated and not token_present():
-        raise ModelCacheError(
-            f"{entry.model_id} is gated. Accept the Hugging Face terms and export "
-            "HF_TOKEN or LTM_HF_TOKEN before running this pull."
+    root = cache_dir.expanduser()
+    root.mkdir(parents=True, exist_ok=True)
+    local_dir = model_local_path(entry, root)
+    with _model_pull_lock(root, entry):
+        current_status = status_for(entry, root)
+        if current_status.present:
+            return current_status.path
+        if entry.gated and not token_present():
+            raise ModelCacheError(
+                f"{entry.model_id} is gated. Accept the Hugging Face terms and export "
+                "HF_TOKEN or LTM_HF_TOKEN before running this pull."
+            )
+        if current_status.exists and not repair:
+            raise ModelCacheError(
+                f"Refusing to overwrite a partial or corrupted model cache for "
+                f"{entry.model_id}.\nProblem: {current_status.problem_summary(root)}\n"
+                "Re-run the acquisition with explicit repair enabled to quarantine "
+                "and replace it."
+            )
+
+        temporary = Path(
+            tempfile.mkdtemp(prefix=f".{entry.directory_name}.pull-", dir=root)
         )
-    cache_dir.expanduser().mkdir(parents=True, exist_ok=True)
-    local_dir = model_local_path(entry, cache_dir)
-    local_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        snapshot_download(
-            repo_id=entry.model_id,
-            revision=entry.revision,
-            local_dir=local_dir,
-            local_dir_use_symlinks=False,
-            token=hf_token(),
-        )
-    except (GatedRepoError, HfHubHTTPError, LocalEntryNotFoundError) as exc:
-        raise ModelCacheError(friendly_hf_error(entry, exc, cache_dir)) from exc
-    write_model_provenance(entry, local_dir)
-    final_status = status_for(entry, cache_dir)
-    if not final_status.present:
-        raise ModelCacheError(
-            f"Model cache is partial or corrupted for {entry.model_id}.\n"
-            f"Expected: {final_status.path}\n"
-            f"Problem: {final_status.problem_summary(cache_dir)}"
-        )
-    return local_dir
+        try:
+            try:
+                snapshot_download(
+                    repo_id=entry.model_id,
+                    revision=entry.revision,
+                    local_dir=temporary,
+                    local_dir_use_symlinks=False,
+                    allow_patterns=list(entry.runtime_files),
+                    token=hf_token(),
+                )
+            except (GatedRepoError, HfHubHTTPError, LocalEntryNotFoundError) as exc:
+                raise ModelCacheError(friendly_hf_error(entry, exc, root)) from exc
+            shutil.rmtree(temporary / ".cache", ignore_errors=True)
+            write_model_provenance(entry, temporary)
+            downloaded_status = status_for_path(entry, temporary)
+            if not downloaded_status.present:
+                raise ModelCacheError(
+                    f"Downloaded model cache is partial or corrupted for {entry.model_id}.\n"
+                    f"Problem: {downloaded_status.problem_summary(root)}"
+                )
+
+            quarantine: Path | None = None
+            replaced_path = current_status.path if current_status.exists else local_dir
+            if replaced_path.exists() or replaced_path.is_symlink():
+                quarantine = _quarantine_path(replaced_path)
+                os.replace(replaced_path, quarantine)
+            try:
+                if local_dir.exists() or local_dir.is_symlink():
+                    raise ModelCacheError(
+                        f"Refusing to replace an unexpected model path at {local_dir}."
+                    )
+                os.replace(temporary, local_dir)
+            except Exception:
+                if quarantine is not None and not replaced_path.exists():
+                    os.replace(quarantine, replaced_path)
+                raise
+            return local_dir
+        finally:
+            if temporary.exists():
+                shutil.rmtree(temporary)
 
 
 def import_mlx_model(
@@ -598,15 +647,48 @@ def _any_required_file_present(entry: ModelEntry, path: Path) -> bool:
     return False
 
 
-def model_provenance_payload(entry: ModelEntry) -> dict[str, str]:
-    if not entry.revision:
-        raise ModelCacheError(f"Cannot record an unpinned model revision for {entry.key}.")
-    return {
-        "schema_version": "1.0",
+def model_manifest_digest(entry: ModelEntry) -> str:
+    """Digest the reviewed acquisition/runtime contract for one manifest entry."""
+
+    contract = {
         "key": entry.key,
         "role": entry.role,
         "model_id": entry.model_id,
         "revision": entry.revision,
+        "gated": entry.gated,
+        "runtime_files": list(entry.runtime_files),
+        "expected_sha256": entry.expected_digest_map,
+        "license_expression": entry.license_expression,
+        "source_url": entry.source_url,
+        "terms_url": entry.terms_url,
+        "acquisition_status": entry.acquisition_status,
+        "runtime_status": entry.runtime_status,
+        "review_status": entry.review_status,
+    }
+    encoded = json.dumps(contract, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def model_provenance_payload(
+    entry: ModelEntry,
+    model_dir: Path | None = None,
+    *,
+    acquired_at: str | None = None,
+    acquisition_tool_version: str | None = None,
+) -> dict[str, Any]:
+    if not entry.revision:
+        raise ModelCacheError(f"Cannot record an unpinned model revision for {entry.key}.")
+    file_digests = _runtime_file_digests(entry, model_dir) if model_dir is not None else {}
+    return {
+        "schema_version": "2.0",
+        "key": entry.key,
+        "role": entry.role,
+        "model_id": entry.model_id,
+        "revision": entry.revision,
+        "manifest_digest": model_manifest_digest(entry),
+        "file_sha256": file_digests,
+        "acquired_at": acquired_at or datetime.now(UTC).isoformat(),
+        "acquisition_tool_version": acquisition_tool_version or _tool_version(),
     }
 
 
@@ -616,7 +698,7 @@ def write_model_provenance(entry: ModelEntry, model_dir: Path) -> Path:
             f"Cannot attest an Auralign pull for manual-only model {entry.role}:{entry.key}."
         )
     output = model_dir / MODEL_PROVENANCE_FILENAME
-    write_json(output, model_provenance_payload(entry))
+    write_json(output, model_provenance_payload(entry, model_dir))
     return output
 
 
@@ -632,9 +714,94 @@ def _provenance_status(entry: ModelEntry, path: Path) -> tuple[bool, str]:
         payload = read_json(marker)
     except (OSError, ValueError):
         return False, f"unreadable immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
-    if payload != model_provenance_payload(entry):
+    if payload.get("schema_version") != "2.0":
+        return False, "obsolete immutable-revision linkage marker; sanctioned refresh required"
+    expected_identity = {
+        "key": entry.key,
+        "role": entry.role,
+        "model_id": entry.model_id,
+        "revision": entry.revision,
+        "manifest_digest": model_manifest_digest(entry),
+    }
+    if any(payload.get(key) != value for key, value in expected_identity.items()):
         return False, "immutable-revision linkage marker does not match the model manifest"
-    return True, "immutable revision linkage verified"
+    if not isinstance(payload.get("acquired_at"), str) or not isinstance(
+        payload.get("acquisition_tool_version"), str
+    ):
+        return False, "immutable-revision linkage marker is missing acquisition metadata"
+    recorded_digests = payload.get("file_sha256")
+    if not isinstance(recorded_digests, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in recorded_digests.items()
+    ):
+        return False, "immutable-revision linkage marker has an invalid file digest map"
+    try:
+        actual_digests = _runtime_file_digests(entry, path)
+    except OSError:
+        return False, "model runtime files could not be read for digest verification"
+    if recorded_digests != actual_digests:
+        return False, "model file digests do not match immutable-revision linkage marker"
+    expected_digests = entry.expected_digest_map
+    for relative_path, expected_digest in expected_digests.items():
+        if actual_digests.get(relative_path) != expected_digest:
+            return False, f"model file digest does not match manifest: {relative_path}"
+    return True, "immutable revision and file digests verified"
+
+
+def _runtime_file_digests(entry: ModelEntry, model_dir: Path) -> dict[str, str]:
+    digests: dict[str, str] = {}
+    for relative_path in entry.runtime_files:
+        path = model_dir / relative_path
+        if not path.is_file() or path.is_symlink():
+            continue
+        hasher = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                hasher.update(chunk)
+        digests[relative_path] = hasher.hexdigest()
+    return digests
+
+
+def _tool_version() -> str:
+    try:
+        return version("local-transcript-max")
+    except PackageNotFoundError:
+        return "source-tree"
+
+
+def _quarantine_path(path: Path) -> Path:
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return path.with_name(f".{path.name}.quarantine-{timestamp}-{uuid4().hex[:8]}")
+
+
+@contextmanager
+def _model_pull_lock(cache_dir: Path, entry: ModelEntry) -> Iterator[None]:
+    """Serialize acquisition of one model without putting a lock inside its cache."""
+
+    lock_path = cache_dir / f".{entry.directory_name}.pull.lock"
+    with lock_path.open("a+b") as handle:
+        handle.seek(0)
+        if handle.read(1) == b"":
+            handle.write(b"0")
+            handle.flush()
+        if os.name == "nt":
+            msvcrt = cast(Any, importlib.import_module("msvcrt"))
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def shareable_model_path(path: Path, cache_dir: Path) -> str:

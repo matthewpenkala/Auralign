@@ -77,8 +77,9 @@ SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 - For the strict lane, use these exact checks:
 
   ```bash
-  uv run ltm models verify --asr large-v3 --diarization community-1 --alignment en
-  LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
+  uv run ltm models verify \
+    --asr large-v3 --diarization community-1 --alignment en --speaker-id ecapa
+  LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
   ```
 
   Missing packages, absent or incomplete caches, wrong revisions, and gated-

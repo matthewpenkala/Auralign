@@ -49,6 +49,7 @@ from .models import (
 )
 from .pipeline import transcribe_file
 from .redaction import privacy_safe_text
+from .runtime_assets import prepare_generated_punkt
 
 app = typer.Typer(no_args_is_help=True, help="Local speaker-aware transcription.")
 models_app = typer.Typer(no_args_is_help=True, help="Model cache commands.")
@@ -81,6 +82,9 @@ _CANONICAL_JOB_ARTIFACTS = (
     "transcript.segments.csv",
     "words.csv",
     "speaker_report.json",
+    "speaker_cluster_embeddings.json",
+    "speaker_embedding_report.json",
+    "speaker_map.json",
     "qa_report.json",
     "run_metadata.json",
 )
@@ -213,11 +217,93 @@ def _emit_identity_failure(
 def doctor(
     preset: Annotated[str, typer.Option(help="Config preset to inspect.")] = "max",
     config_file: Annotated[Path | None, typer.Option("--config", exists=True)] = None,
+    startup: Annotated[
+        bool,
+        typer.Option(
+            "--startup/--no-startup",
+            help="Actually load every selected local model backend.",
+        ),
+    ] = False,
 ) -> None:
     """Check local dependencies, model cache status, and offline readiness."""
     try:
         config = _config(preset, config_file)
-        report = run_doctor(config)
+        report = run_doctor(config, startup=startup)
+        typer.echo(format_doctor(report))
+        if not report.ok:
+            raise typer.Exit(1)
+    except LTMError as exc:
+        typer.echo(privacy_safe_text(str(exc)), err=True)
+        raise typer.Exit(1) from exc
+
+
+@app.command("prepare-runtime")
+def prepare_runtime(
+    preset: Annotated[str, typer.Option(help="Config preset to prepare.")] = "max",
+    config_file: Annotated[Path | None, typer.Option("--config", exists=True)] = None,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option("--cache-dir", help="Override the configured model cache directory."),
+    ] = None,
+    repair: Annotated[
+        bool,
+        typer.Option(
+            "--repair",
+            help="Quarantine and replace incomplete model cache entries.",
+        ),
+    ] = False,
+) -> None:
+    """Acquire and prove the exact strict four-model runtime while connected."""
+
+    try:
+        config = _config(preset, config_file)
+        if cache_dir is not None:
+            config.model_cache = cache_dir
+        if not config.offline:
+            raise LTMError(
+                "Runtime preparation requires an offline strict config so the final startup "
+                "probe cannot silently use network-backed model resolution."
+            )
+        strict_contract = (
+            config.asr.backend == "faster-whisper"
+            and config.asr.model == "large-v3"
+            and config.diarization.enabled
+            and config.diarization.backend == "pyannote"
+            and config.diarization.model == "community-1"
+            and config.alignment.enabled
+            and config.alignment.backend == "forced"
+            and (config.alignment.model or "en") == "en"
+            and config.speaker_id.mode == "auto"
+            and config.speaker_id.model == "ecapa"
+        )
+        if not strict_contract:
+            raise LTMError(
+                "Runtime preparation config must select faster-whisper large-v3, pyannote "
+                "Community-1, forced English WhisperX alignment, and ECAPA speaker ID."
+            )
+        entries = selected_entries(
+            asr="large-v3",
+            diarization="community-1",
+            alignment="en",
+            speaker_embedding="ecapa",
+        )
+        ensure_pull_preconditions(entries, config.model_cache)
+        for entry in entries:
+            path = pull_model(entry, config.model_cache, repair=repair)
+            typer.echo(
+                f"prepared {entry.role}:{entry.key} at "
+                f"{shareable_model_path(path, config.model_cache)}"
+            )
+        prepare_generated_punkt(config.model_cache)
+        verify_entries(entries, config.model_cache)
+        write_model_audit(config.model_cache, include_optional=True)
+
+        token_names = ("HF_TOKEN", "LTM_HF_TOKEN", "HUGGING_FACE_HUB_TOKEN")
+        saved_tokens = {name: os.environ.pop(name) for name in token_names if name in os.environ}
+        try:
+            report = run_doctor(config, include_docker=False, startup=True)
+        finally:
+            os.environ.update(saved_tokens)
         typer.echo(format_doctor(report))
         if not report.ok:
             raise typer.Exit(1)
@@ -321,7 +407,7 @@ def transcribe(
         typer.Option("--redecode-temperature", min=0.0),
     ] = 0.0,
     write_redecode_report: Annotated[bool, typer.Option("--write-redecode-report")] = False,
-    speaker_id: Annotated[str, typer.Option("--speaker-id", help="off or auto")] = "off",
+    speaker_id: Annotated[str, typer.Option("--speaker-id", help="auto or off")] = "auto",
     speaker_identity_resolver: Annotated[
         str,
         typer.Option(
@@ -829,6 +915,13 @@ def models_pull(
         "models"
     ),
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Show what would be pulled.")] = False,
+    repair: Annotated[
+        bool,
+        typer.Option(
+            "--repair",
+            help="Quarantine and replace an incomplete cache entry; ready entries are preserved.",
+        ),
+    ] = False,
 ) -> None:
     """Explicitly download selected model assets into the local cache."""
     try:
@@ -855,7 +948,7 @@ def models_pull(
             return
         ensure_pull_preconditions(entries, cache_dir)
         for entry in entries:
-            path = pull_model(entry, cache_dir)
+            path = pull_model(entry, cache_dir, repair=repair)
             typer.echo(
                 f"pulled {entry.role}:{entry.key} to "
                 f"{shareable_model_path(path, cache_dir)}"

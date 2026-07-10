@@ -4,7 +4,7 @@
 
 [project]
 name = "local-transcript-max"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local, speaker-aware long-form transcription with diarization, QA, benchmarks, and exports."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
@@ -42,15 +42,19 @@ mlx = [
 ]
 diarization = [
   "pyannote.audio>=4.0.4,<5",
+  "av==15.1.0",
 ]
 alignment = [
   "whisperx>=3.8.6,<4",
+  "av==15.1.0",
 ]
 speaker-embeddings = [
   "speechbrain>=1.1.0,<2",
+  "ruamel-yaml>=0.18.16,<0.19",
 ]
 speaker-id = [
   "speechbrain>=1.1.0,<2",
+  "ruamel-yaml>=0.18.16,<0.19",
 ]
 api = [
   "fastapi>=0.137,<1",
@@ -61,6 +65,8 @@ full = [
   "pyannote.audio>=4.0.4,<5",
   "whisperx>=3.8.6,<4",
   "speechbrain>=1.1.0,<2",
+  "ruamel-yaml>=0.18.16,<0.19",
+  "av==15.1.0",
   "fastapi>=0.137,<1",
   "uvicorn[standard]>=0.30,<1",
 ]
@@ -81,9 +87,14 @@ cpu = [
   "torchvision==0.23.0",
 ]
 cu126 = [
-  "torch==2.8.0",
-  "torchaudio==2.8.0",
-  "torchvision==0.23.0",
+  "torch==2.8.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "torchaudio==2.8.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "torchvision==0.23.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+cu128 = [
+  "torch==2.8.0; sys_platform == 'win32' and platform_machine == 'AMD64'",
+  "torchaudio==2.8.0; sys_platform == 'win32' and platform_machine == 'AMD64'",
+  "torchvision==0.23.0; sys_platform == 'win32' and platform_machine == 'AMD64'",
 ]
 
 [build-system]
@@ -91,10 +102,16 @@ requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
 
 [tool.uv]
+required-environments = [
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "sys_platform == 'win32' and platform_machine == 'AMD64'",
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 conflicts = [
   [
     { group = "cpu" },
     { group = "cu126" },
+    { group = "cu128" },
   ],
 ]
 exclude-dependencies = [
@@ -106,14 +123,17 @@ exclude-dependencies = [
 torch = [
   { index = "pytorch-cpu", group = "cpu" },
   { index = "pytorch-cu126", group = "cu126" },
+  { index = "pytorch-cu128", group = "cu128" },
 ]
 torchaudio = [
   { index = "pytorch-cpu", group = "cpu" },
   { index = "pytorch-cu126", group = "cu126" },
+  { index = "pytorch-cu128", group = "cu128" },
 ]
 torchvision = [
   { index = "pytorch-cpu", group = "cpu" },
   { index = "pytorch-cu126", group = "cu126" },
+  { index = "pytorch-cu128", group = "cu128" },
 ]
 
 [[tool.uv.index]]
@@ -124,6 +144,11 @@ explicit = true
 [[tool.uv.index]]
 name = "pytorch-cu126"
 url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.hatch.build.targets.wheel]
@@ -158,6 +183,8 @@ module = [
   "ctranslate2",
   "faster_whisper",
   "mlx_whisper",
+  "nltk",
+  "nltk.*",
   "pyannote",
   "pyannote.*",
   "speechbrain",
@@ -166,6 +193,8 @@ module = [
   "torch.*",
   "torchaudio",
   "torchaudio.*",
+  "torchcodec",
+  "torchcodec.*",
   "whisperx",
   "whisperx.*",
 ]

@@ -35,6 +35,7 @@ from .datasets import DEFAULT_DATASET_PROFILE, dataset_budget_plan, default_data
 from .errors import BackendUnavailableError
 from .models import shareable_model_path, status_for
 from .redaction import privacy_safe_text
+from .runtime_assets import configure_offline_environment, punkt_data_root
 from .utils import run_command, which
 
 MIN_SUPPORTED_PYTHON = (3, 11)
@@ -128,7 +129,14 @@ def _python_package_check(package: str, module: str, *, required: bool) -> Docto
     return DoctorCheck(name=f"python_package:{package}", status=status, message=message)
 
 
-def run_doctor(config: PipelineConfig, *, include_docker: bool = True) -> DoctorReport:
+def run_doctor(
+    config: PipelineConfig,
+    *,
+    include_docker: bool = True,
+    startup: bool = False,
+) -> DoctorReport:
+    if config.offline:
+        configure_offline_environment(nltk_data=punkt_data_root(config.model_cache))
     report = DoctorReport(ok=True, offline=config.offline)
 
     python_version = (sys.version_info.major, sys.version_info.minor)
@@ -163,6 +171,18 @@ def run_doctor(config: PipelineConfig, *, include_docker: bool = True) -> Doctor
     token_state = "present" if (os.getenv("LTM_HF_TOKEN") or os.getenv("HF_TOKEN")) else "missing"
     report.add("huggingface_token", "ok" if token_state == "present" else "warning", token_state)
     report.add("offline_mode", "ok" if config.offline else "info", str(config.offline))
+    if config.offline:
+        expected_offline = {
+            "HF_HUB_OFFLINE": "1",
+            "TRANSFORMERS_OFFLINE": "1",
+            "PYANNOTE_METRICS_ENABLED": "false",
+            "NLTK_DATA": str(punkt_data_root(config.model_cache)),
+        }
+        for name, expected in expected_offline.items():
+            matched = os.environ.get(name) == expected
+            report.add(f"offline_environment:{name}", "ok" if matched else "error", "set")
+            if not matched:
+                report.ok = False
     report.add(
         "host",
         "info",
@@ -287,6 +307,8 @@ def run_doctor(config: PipelineConfig, *, include_docker: bool = True) -> Doctor
     )
     if config.alignment.enabled and config.alignment.backend == "forced":
         model_checks.append(("alignment", config.alignment.model or "auto"))
+    if config.speaker_id.mode == "auto":
+        model_checks.append(("speaker-embedding", getattr(config.speaker_id, "model", "ecapa")))
     for role, model_value in model_checks:
         if not model_value:
             continue
@@ -311,6 +333,14 @@ def run_doctor(config: PipelineConfig, *, include_docker: bool = True) -> Doctor
                 model_status.problem_summary(config.model_cache, shareable=True),
             )
             report.ok = False
+
+    if startup:
+        from .startup import run_startup_probes
+
+        for probe in run_startup_probes(config):
+            report.add(probe.name, "ok" if probe.ok else "error", probe.message)
+            if not probe.ok:
+                report.ok = False
 
     if include_docker:
         docker_path = which("docker")

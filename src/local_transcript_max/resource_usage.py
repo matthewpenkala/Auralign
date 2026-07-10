@@ -7,11 +7,11 @@
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
 import threading
 import time
 from typing import Any
+
+from .platform_security import current_process_usage
 
 
 class ResourceMonitor:
@@ -55,18 +55,20 @@ class ResourceMonitor:
             "pid": self.pid,
             "sample_interval_seconds": self.interval_seconds,
             "sample_count": self._sample_count,
-            "rss_sampling_source": "ps" if self._sample_count else "unavailable",
+            "rss_sampling_source": "native_process_api" if self._sample_count else "unavailable",
             "rss_start_bytes": self._rss_start_bytes,
             "rss_end_bytes": self._rss_end_bytes,
             "rss_peak_sampled_bytes": self._rss_peak_bytes,
-            "rss_peak_sampled_source": "ps" if self._sample_count else "unavailable",
+            "rss_peak_sampled_source": (
+                "native_process_api" if self._sample_count else "unavailable"
+            ),
             "rss_peak_process_lifetime_bytes": peak_ru,
             "rss_peak_process_lifetime_source": (
-                "resource.getrusage" if peak_ru is not None else "unavailable"
+                "native_process_api" if peak_ru is not None else "unavailable"
             ),
             "user_cpu_seconds": user_cpu_seconds,
             "system_cpu_seconds": system_cpu_seconds,
-            "cpu_seconds_source": "resource.getrusage" if cpu_available else "unavailable",
+            "cpu_seconds_source": "native_process_api" if cpu_available else "unavailable",
             "monitor_duration_seconds": (
                 round(self._ended_at - self._started_at, 6)
                 if self._started_at is not None and self._ended_at is not None
@@ -93,39 +95,29 @@ class ResourceMonitor:
 
 
 def current_rss_bytes(pid: int | None = None) -> int | None:
-    pid = pid or os.getpid()
+    if pid is not None and pid != os.getpid():
+        return None
     try:
-        completed = subprocess.run(
-            ["ps", "-o", "rss=", "-p", str(pid)],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        value = completed.stdout.strip().split()[0]
-        return int(value) * 1024
-    except (IndexError, OSError, ValueError):
+        return current_process_usage().resident_bytes
+    except OSError:
         return None
 
 
 def process_lifetime_peak_rss_bytes() -> int | None:
     try:
-        import resource
-
-        value = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
-    except Exception:
+        value = current_process_usage().resident_bytes
+    except OSError:
         return None
     if value <= 0:
         return None
-    return value if sys.platform == "darwin" else value * 1024
+    return value
 
 
 def process_cpu_seconds() -> tuple[float | None, float | None]:
     try:
-        import resource
-
-        usage = resource.getrusage(resource.RUSAGE_SELF)
-        return float(usage.ru_utime), float(usage.ru_stime)
-    except Exception:
+        usage = current_process_usage()
+        return usage.user_seconds, usage.system_seconds
+    except OSError:
         return None, None
 
 
@@ -136,9 +128,9 @@ def resource_measurement_notes(
 ) -> list[str]:
     notes: list[str] = []
     if not rss_values:
-        notes.append("sampled RSS unavailable; install/provide ps-compatible process tools")
+        notes.append("sampled RSS unavailable from the native process API")
     if peak_ru is None:
-        notes.append("process lifetime peak RSS unavailable from resource.getrusage")
+        notes.append("process resident memory unavailable from the native process API")
     if not cpu_available:
-        notes.append("process CPU seconds unavailable from resource.getrusage")
+        notes.append("process CPU seconds unavailable from the native process API")
     return notes

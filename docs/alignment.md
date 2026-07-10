@@ -48,7 +48,7 @@ reviewed.
 export LTM_MODEL_CACHE="$PWD/models"
 uv run ltm models pull --alignment auto --cache-dir models
 uv run ltm models verify --alignment en --cache-dir models
-LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
+LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
 ```
 
 Expected cache path:

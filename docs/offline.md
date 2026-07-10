@@ -61,8 +61,9 @@ uv run ltm models pull --asr large-v3 --diarization community-1 --cache-dir mode
 uv run ltm models pull --alignment en --cache-dir models/
 uv run ltm models verify \
   --asr large-v3 --diarization community-1 --alignment en \
+  --speaker-id ecapa \
   --cache-dir models/
-LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
+LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
 ```
 
 If this machine has no Hugging Face token or accepted pyannote terms, real
@@ -78,8 +79,9 @@ uv run ltm models pull --alignment en --cache-dir models
 unset LTM_HF_TOKEN HF_TOKEN
 uv run ltm models verify \
   --asr large-v3 --diarization community-1 --alignment en \
+  --speaker-id ecapa \
   --cache-dir models
-LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
+LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
 ```
 
 For a full local procurement pass on a connected staging machine:
@@ -89,12 +91,11 @@ chmod +x bootstrap.sh
 ./bootstrap.sh
 ```
 
-Review `auralign_bootstrap.log`, `models/model_audit.json`, and
-`datasets/dataset_manifest.json`. Bootstrap exits nonzero for failed required
-model pulls, while missing gated pyannote access and optional assets are logged
-as caveats. `model_audit.json` is ignored and can contain machine-local paths;
-do not commit or share it. Copy only an authorized reviewed model cache and the
-source tree to the production air-gapped machine, preserving hidden
+Bootstrap exits nonzero for any missing model, generated asset, digest, native
+dependency, or backend startup failure. `model_audit.json` is ignored and can
+contain machine-local paths; do not commit or share it. Copy only an authorized
+reviewed model cache and the source tree to the production air-gapped machine,
+preserving hidden
 `.ltm-model.json` linkage files. Do not copy `.hf-cache`, `.env`, shell history,
 token stores, media, or generated output. A different pyannote operator must
 accept the upstream gate and acquire their own copy. See

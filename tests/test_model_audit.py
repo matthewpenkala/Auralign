@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
+from dataclasses import replace
 from pathlib import Path
 
 from typer.testing import CliRunner
 
 from local_transcript_max.cli import app
-from local_transcript_max.config import resolve_model_entry
+from local_transcript_max.config import MODEL_MANIFEST, resolve_model_entry
 from local_transcript_max.models import audit_payload, status_for, write_model_provenance
 from local_transcript_max.utils import read_json
 
@@ -111,7 +112,7 @@ def test_models_audit_reports_configured_mlx_model_path(tmp_path: Path, monkeypa
     assert str(model_dir) not in result.stdout
     assert "<local-model-path>" in result.stdout
     assert "alignment\ten\tfacebook/wav2vec2-base-960h" in result.stdout
-    assert "pytorch_model.bin or model.safetensors" in result.stdout
+    assert "model.safetensors" in result.stdout
     audit = audit_payload(tmp_path / "models")
     mlx_row = next(row for row in audit["models"] if row["key"] == "mlx-large-v3-turbo")
     assert "mlx-turbo" in mlx_row["aliases"]
@@ -165,11 +166,20 @@ def test_model_audit_payload_includes_optional_classification(tmp_path: Path) ->
     records = {(row["role"], row["key"]): row for row in payload["models"]}
     assert records[("alignment", "en")]["classification"] == "optional"
     assert records[("alignment", "en")]["model_id"] == "facebook/wav2vec2-base-960h"
-    assert records[("alignment", "en")]["any_required_files"] == [
-        "pytorch_model.bin",
-        "model.safetensors",
-    ]
+    assert records[("alignment", "en")]["any_required_files"] == []
+    assert records[("alignment", "en")]["runtime_file_allowlist"][-1] == "model.safetensors"
     assert records[("speaker-embedding", "ecapa")]["classification"] == "optional"
+    assert records[("speaker-embedding", "ecapa")]["runtime_file_allowlist"] == [
+        "hyperparams.yaml",
+        "embedding_model.ckpt",
+        "classifier.ckpt",
+        "mean_var_norm_emb.ckpt",
+        "label_encoder.txt",
+        "config.json",
+    ]
+    assert set(records[("speaker-embedding", "ecapa")]["expected_sha256"]) == set(
+        records[("speaker-embedding", "ecapa")]["runtime_file_allowlist"]
+    )
     assert records[("asr-mlx", "mlx-large-v3-turbo")]["classification"] == "optional"
     assert records[("asr-mlx", "mlx-large-v3-turbo")]["pullable"] is False
     assert records[("asr-mlx", "mlx-large-v3-turbo")]["any_required_files"] == [
@@ -185,7 +195,9 @@ def test_models_verify_fails_and_writes_audit_for_missing_cache(tmp_path: Path) 
     assert (tmp_path / "model_audit.json").exists()
 
 
-def test_models_verify_can_target_the_exact_strict_lane(tmp_path: Path) -> None:
+def test_models_verify_can_target_the_exact_strict_lane(
+    tmp_path: Path, monkeypatch
+) -> None:
     cache_dir = tmp_path / "models"
     for role, key in (
         ("asr", "large-v3"),
@@ -194,6 +206,8 @@ def test_models_verify_can_target_the_exact_strict_lane(tmp_path: Path) -> None:
     ):
         entry = resolve_model_entry(role, key)
         assert entry is not None
+        entry = replace(entry, expected_sha256=())
+        monkeypatch.setitem(MODEL_MANIFEST, key, entry)
         model_dir = cache_dir / entry.directory_name
         model_dir.mkdir(parents=True)
         for required in entry.required_files:

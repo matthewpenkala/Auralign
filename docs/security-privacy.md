@@ -115,7 +115,7 @@ audiovisual, voice, publicity, privacy, or biometric rights.
 After model cache preparation:
 
 ```bash
-LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
+LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
 ```
 
 Offline mode should inspect local files only. Missing cache entries must produce

@@ -14,10 +14,10 @@ def test_resource_monitor_records_measurement_sources(monkeypatch) -> None:
     monitor.start()
     summary = monitor.stop()
 
-    assert summary["rss_sampling_source"] == "ps"
-    assert summary["rss_peak_sampled_source"] == "ps"
-    assert summary["rss_peak_process_lifetime_source"] == "resource.getrusage"
-    assert summary["cpu_seconds_source"] == "resource.getrusage"
+    assert summary["rss_sampling_source"] == "native_process_api"
+    assert summary["rss_peak_sampled_source"] == "native_process_api"
+    assert summary["rss_peak_process_lifetime_source"] == "native_process_api"
+    assert summary["cpu_seconds_source"] == "native_process_api"
     assert summary["measurement_notes"] == []
 
 

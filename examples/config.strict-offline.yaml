@@ -27,6 +27,10 @@ alignment:
   device: cpu
   enabled: true
 speaker_id:
-  mode: off
+  mode: auto
+  model: ecapa
+  device: cpu
+  minimum_segment_seconds: 1.0
+  maximum_speech_seconds: 60.0
 cleanup:
   mode: off

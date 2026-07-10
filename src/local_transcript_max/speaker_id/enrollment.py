@@ -11,13 +11,13 @@ import math
 import os
 import re
 import shutil
-import tempfile
 import unicodedata
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from local_transcript_max.platform_security import atomic_write_text, ensure_private_directory
 from local_transcript_max.redaction import redact_obj
 from local_transcript_max.schemas import SpeakerEnrollment, SpeakerMap, Transcript
 from local_transcript_max.utils import read_json, sha256_file, write_json
@@ -87,11 +87,10 @@ def _slug(value: str) -> str:
 def _ensure_private_dir(path: Path) -> Path:
     if path.is_symlink():
         raise ValueError("Private speaker storage cannot use symlink directories.")
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if path.is_symlink() or not path.is_dir():
-        raise ValueError("Private speaker storage must be a regular directory.")
-    path.chmod(0o700)
-    return path
+    try:
+        return ensure_private_directory(path)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("Private speaker storage must be a regular directory.") from exc
 
 
 def _assert_contained(path: Path, root: Path, *, label: str) -> Path:
@@ -127,23 +126,10 @@ def _private_write_json(path: Path, payload: Any) -> None:
     if path.is_symlink():
         raise ValueError("Private speaker files cannot be symlinks.")
     encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary = Path(temporary_name)
     try:
-        os.fchmod(descriptor, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(encoded)
-            handle.flush()
-            os.fsync(handle.fileno())
-        temporary.replace(path)
-        path.chmod(0o600)
-    except Exception:
-        try:
-            os.close(descriptor)
-        except OSError:
-            pass
-        temporary.unlink(missing_ok=True)
-        raise
+        atomic_write_text(path, encoded)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("Private speaker file publication failed.") from exc
 
 
 def _profile_backend_reason(backend: str) -> LegacyProfileReason:
@@ -230,8 +216,12 @@ def enrollment_samples(audio_path: Path | None, audio_dir: Path | None) -> list[
     return samples
 
 
-def list_enrollments() -> list[SpeakerEnrollment]:
-    root = speaker_home()
+def list_enrollments(profile_dir: Path | None = None) -> list[SpeakerEnrollment]:
+    root = profile_dir.expanduser() if profile_dir is not None else speaker_home()
+    if not root.is_absolute():
+        root = Path.cwd() / root
+    if root.is_symlink():
+        raise ValueError("Speaker profile root cannot be a symlink.")
     if not root.exists():
         return []
     _ensure_private_dir(root)
@@ -645,10 +635,11 @@ def match_job_speakers(
     *,
     threshold: float = 0.75,
     ambiguity_margin: float = 0.05,
+    profile_dir: Path | None = None,
 ) -> dict[str, Any]:
     threshold = _unit_interval(threshold, label="Speaker match threshold")
     ambiguity_margin = _unit_interval(ambiguity_margin, label="Speaker ambiguity margin")
-    profiles = load_profile_embeddings()
+    profiles = load_profile_embeddings(profile_dir)
     transcript_path = job_dir / "transcript.json"
     transcript = (
         Transcript.model_validate(read_json(transcript_path))
@@ -743,9 +734,9 @@ def match_job_speakers(
     return payload
 
 
-def load_profile_embeddings() -> dict[str, dict[str, Any]]:
+def load_profile_embeddings(profile_dir: Path | None = None) -> dict[str, dict[str, Any]]:
     profiles: dict[str, dict[str, Any]] = {}
-    for profile in list_enrollments():
+    for profile in list_enrollments(profile_dir):
         backend, vector = _load_profile_embedding(profile)
         profile_id = _slug(profile.name)
         eligible = (

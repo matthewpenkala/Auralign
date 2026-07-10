@@ -109,6 +109,16 @@ license_expression = "BSD-2-Clause"
 usage = "optional forced-alignment dependency; direct Triton edge excluded"
 
 [[components]]
+id = "pypi:av"
+category = "python-runtime-optional"
+identifier = "av"
+versions = ["15.1.0"]
+source_url = "https://pypi.org/project/av/15.1.0/"
+terms_url = "https://github.com/PyAV-Org/PyAV/blob/v15.1.0/LICENSE.txt"
+license_expression = "BSD-3-Clause"
+usage = "PyAV FFmpeg 7 ABI pin for macOS TorchCodec compatibility"
+
+[[components]]
 id = "pypi:speechbrain"
 category = "python-runtime-optional"
 identifier = "speechbrain"
@@ -117,6 +127,16 @@ source_url = "https://pypi.org/project/speechbrain/1.1.0/"
 terms_url = "https://github.com/speechbrain/speechbrain/blob/v1.1.0/LICENSE"
 license_expression = "Apache-2.0"
 usage = "optional speaker-embedding dependency"
+
+[[components]]
+id = "pypi:ruamel-yaml"
+category = "python-runtime-optional"
+identifier = "ruamel-yaml"
+versions = ["0.18.17"]
+source_url = "https://pypi.org/project/ruamel.yaml/0.18.17/"
+terms_url = "https://sourceforge.net/p/ruamel-yaml/code/ci/0.18.17/tree/LICENSE"
+license_expression = "MIT"
+usage = "SpeechBrain HyperPyYAML compatibility pin"
 
 [[components]]
 id = "pypi:fastapi"
@@ -142,33 +162,33 @@ usage = "optional local API dependency"
 id = "pypi:torch-family"
 category = "python-acceleration-profile"
 identifier = "torch"
-versions = ["2.8.0", "2.8.0+cpu", "2.8.0+cu126"]
+versions = ["2.8.0", "2.8.0+cpu", "2.8.0+cu126", "2.8.0+cu128"]
 source_url = "https://download.pytorch.org/whl/"
 terms_url = "https://github.com/pytorch/pytorch/blob/v2.8.0/LICENSE"
 license_expression = "BSD-3-Clause"
-usage = "mutually exclusive CPU/CUDA 12.6 source-workspace groups"
+usage = "mutually exclusive CPU/CUDA 12.6/CUDA 12.8 source-workspace groups"
 redistribution_status = "not bundled; wheel/native obligations require artifact-specific review"
 
 [[components]]
 id = "pypi:torchaudio"
 category = "python-acceleration-profile"
 identifier = "torchaudio"
-versions = ["2.8.0", "2.8.0+cpu", "2.8.0+cu126"]
+versions = ["2.8.0", "2.8.0+cpu", "2.8.0+cu126", "2.8.0+cu128"]
 source_url = "https://download.pytorch.org/whl/"
 terms_url = "https://github.com/pytorch/audio/blob/v2.8.0/LICENSE"
 license_expression = "BSD-2-Clause"
-usage = "mutually exclusive CPU/CUDA 12.6 source-workspace groups"
+usage = "mutually exclusive CPU/CUDA 12.6/CUDA 12.8 source-workspace groups"
 redistribution_status = "not bundled; wheel/native obligations require artifact-specific review"
 
 [[components]]
 id = "pypi:torchvision"
 category = "python-acceleration-profile"
 identifier = "torchvision"
-versions = ["0.23.0", "0.23.0+cpu", "0.23.0+cu126"]
+versions = ["0.23.0", "0.23.0+cpu", "0.23.0+cu126", "0.23.0+cu128"]
 source_url = "https://download.pytorch.org/whl/"
 terms_url = "https://github.com/pytorch/vision/blob/v0.23.0/LICENSE"
 license_expression = "BSD-3-Clause"
-usage = "mutually exclusive CPU/CUDA 12.6 source-workspace groups"
+usage = "mutually exclusive CPU/CUDA 12.6/CUDA 12.8 source-workspace groups"
 redistribution_status = "not bundled; wheel/native obligations require artifact-specific review"
 
 [[components]]

@@ -28,6 +28,7 @@ class ModelEntry:
     gated: bool = False
     required_files: tuple[str, ...] = ()
     any_required_files: tuple[str, ...] = ()
+    expected_sha256: tuple[tuple[str, str], ...] = ()
     aliases: tuple[str, ...] = ()
     revision: str | None = None
     optional: bool = False
@@ -56,6 +57,18 @@ class ModelEntry:
             "alignment": "--alignment",
             "speaker-embedding": "--speaker-id",
         }.get(self.role, f"--{self.role}")
+
+    @property
+    def runtime_files(self) -> tuple[str, ...]:
+        """Return the reviewed files that acquisition is allowed to download."""
+
+        return tuple(dict.fromkeys((*self.required_files, *self.any_required_files)))
+
+    @property
+    def expected_digest_map(self) -> dict[str, str]:
+        """Return repository-reviewed file digests when they are available."""
+
+        return dict(self.expected_sha256)
 
     def pull_command(self, cache_dir: str = "models") -> str:
         if not self.pullable:
@@ -117,7 +130,26 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         key="large-v3",
         role="asr",
         model_id="Systran/faster-whisper-large-v3",
-        required_files=("model.bin", "config.json", "tokenizer.json", "preprocessor_config.json"),
+        required_files=(
+            "model.bin",
+            "config.json",
+            "tokenizer.json",
+            "preprocessor_config.json",
+            "vocabulary.json",
+        ),
+        expected_sha256=(
+            ("model.bin", "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1"),
+            ("config.json", "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9"),
+            ("tokenizer.json", "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca"),
+            (
+                "preprocessor_config.json",
+                "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            ),
+            (
+                "vocabulary.json",
+                "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            ),
+        ),
         aliases=("max", "whisper-large-v3"),
         revision="edaa852ec7e145841d8ffdb056a99866b5f0a478",
         license_expression="MIT",
@@ -260,6 +292,21 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
             "plda/plda.npz",
             "plda/xvec_transform.npz",
         ),
+        expected_sha256=(
+            (
+                "segmentation/pytorch_model.bin",
+                "7ad24338d844fb95985486eb1a464e32d229f6d7a03c9abe60f978bacf3f816e",
+            ),
+            (
+                "embedding/pytorch_model.bin",
+                "6f10ff60898a1d185fa22e1d11e0bfa8a92efec811f11bca48cb8cafebefd929",
+            ),
+            ("plda/plda.npz", "9b77bcd840692710dd3496f62ecfeed8d8e5f002fd991b785079b244eab7d255"),
+            (
+                "plda/xvec_transform.npz",
+                "325f1ce8e48f7e55e9c8aa47e05d2766b7c48c4b25b8de8dd751e7a4cc5fbe8f",
+            ),
+        ),
         aliases=("pyannote-community-1",),
         revision="3533c8cf8e369892e6b79ff1bf80f7b0286a54ee",
         license_expression="CC-BY-4.0",
@@ -281,8 +328,24 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
             "preprocessor_config.json",
             "tokenizer_config.json",
             "vocab.json",
+            "model.safetensors",
         ),
-        any_required_files=("pytorch_model.bin", "model.safetensors"),
+        expected_sha256=(
+            ("config.json", "d3ec255c063d9f95057b553b19c20135b259875834a4fe9deb218a6be25b4cf3"),
+            (
+                "preprocessor_config.json",
+                "b225d617c025463b9e157e06afea8b90dc7078fc70b013c533328423e0486b4a",
+            ),
+            (
+                "tokenizer_config.json",
+                "dc790594f5bc351a4311c6624f40acd95850d4aaf2a5cb3c656c9b610720b608",
+            ),
+            ("vocab.json", "19727f8944fe6459fc3f240ae2c198395b740f6a029bd23e06656266b83bcf64"),
+            (
+                "model.safetensors",
+                "8aa76ab2243c81747a1f832954586bc566090c83a0ac167df6f31f0fa917d74a",
+            ),
+        ),
         aliases=("auto", "english"),
         optional=True,
         revision="22aad52d435eb6dbaf354bdad9b0da84ce7d6156",
@@ -300,7 +363,37 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         key="ecapa",
         role="speaker-embedding",
         model_id="speechbrain/spkrec-ecapa-voxceleb",
-        required_files=("hyperparams.yaml",),
+        required_files=(
+            "hyperparams.yaml",
+            "embedding_model.ckpt",
+            "classifier.ckpt",
+            "mean_var_norm_emb.ckpt",
+            "label_encoder.txt",
+            "config.json",
+        ),
+        expected_sha256=(
+            (
+                "hyperparams.yaml",
+                "6f78854fa04ba59e761437b76a2575d3aba5e5016de3e9b69f0c9a5077fb1a41",
+            ),
+            (
+                "embedding_model.ckpt",
+                "0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2",
+            ),
+            (
+                "classifier.ckpt",
+                "fd9e3634fe68bd0a427c95e354c0c677374f62b3f434e45b78599950d860d535",
+            ),
+            (
+                "mean_var_norm_emb.ckpt",
+                "cd70225b05b37be64fc5a95e24395d804231d43f74b2e1e5a513db7b69b34c33",
+            ),
+            (
+                "label_encoder.txt",
+                "e13c3a167bb4112685670ee896d20e2b565af16b3a4ceeaa8689fa4d22adb8b9",
+            ),
+            ("config.json", "15ff7afad09adec0936c31493a7397c13f855914f4579a8393fe82649778a664"),
+        ),
         aliases=("speechbrain-ecapa",),
         optional=True,
         revision="0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
@@ -448,10 +541,14 @@ class RedecodeConfig(BaseModel):
 
 
 class SpeakerIDConfig(BaseModel):
-    mode: Literal["off", "auto"] = "off"
+    mode: Literal["off", "auto"] = "auto"
+    model: str = "ecapa"
+    device: Literal["auto", "cpu", "cuda"] = "auto"
+    minimum_segment_seconds: float = Field(default=1.0, ge=1.0, le=60.0)
+    maximum_speech_seconds: float = Field(default=60.0, ge=1.0, le=600.0)
     profile_dir: Path | None = None
-    threshold: float = 0.75
-    ambiguity_margin: float = 0.05
+    threshold: float = Field(default=0.75, ge=0.0, le=1.0)
+    ambiguity_margin: float = Field(default=0.05, ge=0.0, le=1.0)
     allow_fallback_embeddings: bool = False
 
 

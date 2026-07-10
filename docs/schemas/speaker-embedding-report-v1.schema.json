@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auralign.invalid/schemas/speaker-embedding-report-v1.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "device": { "enum": ["cpu", "cuda"] },
+    "model_revision": { "minLength": 40, "type": "string" },
+    "schema_version": { "const": "speaker_embedding_report.v1" },
+    "speakers": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "embedding_dimensions": { "minimum": 1, "type": ["integer", "null"] },
+          "selected_duration_seconds": { "minimum": 0, "type": "number" },
+          "skip_reason": { "enum": ["no_eligible_speech", null] }
+        },
+        "required": ["selected_duration_seconds", "embedding_dimensions", "skip_reason"],
+        "type": "object"
+      },
+      "type": "object"
+    }
+  },
+  "required": ["schema_version", "model_revision", "device", "speakers"],
+  "title": "Auralign private speaker embedding report v1",
+  "type": "object"
+}
