@@ -172,6 +172,33 @@ def test_model_runbook_contains_exact_strict_manifest_pointers() -> None:
         assert entry.source_url in runbook
 
 
+def test_model_linkage_is_discoverable_to_humans_and_ai_agents() -> None:
+    agent_rules = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    docs_index = (REPO_ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+    runbook = (REPO_ROOT / "docs" / "models.md").read_text(encoding="utf-8")
+    normalized_runbook = " ".join(runbook.split())
+
+    for authority in (
+        "docs/models.md",
+        "src/local_transcript_max/config.py",
+        "compliance/external_assets.toml",
+        "examples/config.strict-offline.yaml",
+    ):
+        assert authority in agent_rules
+
+    assert "Human And AI-Agent Entry Point" in agent_rules
+    assert "Do not download models merely" in agent_rules
+    assert "Source-repository access is not model acquisition" in agent_rules
+    assert "LTM_OFFLINE=1" in agent_rules
+    assert "models verify --asr large-v3" in agent_rules
+    assert "human and AI-agent runbook" in docs_index
+    assert "Canonical Runbook For Humans And AI Agents" in runbook
+    assert (
+        "synthetic tests prove the contract, not real transcription readiness"
+        in normalized_runbook
+    )
+
+
 def test_doctor_marks_strict_forced_alignment_preflight_failure(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:

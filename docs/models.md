@@ -11,6 +11,32 @@ explicit acquisition. Every supported acquisition is pinned to an immutable
 publisher revision and carries a reviewed license disposition. `ltm models
 audit` reports that compliance metadata without printing tokens.
 
+## Canonical Runbook For Humans And AI Agents
+
+This document is the first stop for both authorized operators and AI agents
+working on model setup, inspection, troubleshooting, or code changes. Follow it
+in order; do not substitute remembered model names, mutable upstream defaults,
+or a successful default-preset doctor for the checked-in contract.
+
+The authoritative records are:
+
+- `src/local_transcript_max/config.py`: `MODEL_MANIFEST`, including exact IDs,
+  immutable revisions, cache directories, and required-file contracts;
+- `compliance/external_assets.toml`: license, provenance, access, acquisition,
+  and redistribution dispositions;
+- `examples/config.strict-offline.yaml`: the exact ASR, diarization, and forced-
+  alignment selection used for strict offline doctor verification;
+- this document: the canonical operator and agent sequence, safety boundaries,
+  and actionable commands.
+
+An agent must inspect those records before proposing or executing model work.
+It must not download an asset simply to complete development, testing,
+documentation, or repository validation. Connected acquisition requires an
+explicit user instruction for that machine plus the operator's separate review
+and acceptance of applicable upstream terms. When real packages or caches are
+absent, report the strict offline doctor as blocked; synthetic tests prove the
+contract, not real transcription readiness.
+
 ## Repository And Asset Boundary
 
 The private GitHub repository contains model identifiers, immutable revisions,

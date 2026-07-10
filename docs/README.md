@@ -18,7 +18,8 @@ canonical sources for implementation details and operational policy.
 
 ## Operations
 
-- [Models](models.md): manifest, acquisition, audit, and verification.
+- [Models](models.md): canonical human and AI-agent runbook for the manifest,
+  connected acquisition, exact verification, and strict offline use.
 - [Offline mode](offline.md): local cache requirements and failure behavior.
 - [Docker](docker.md): container build and Compose profiles.
 - [Troubleshooting](troubleshooting.md): common runtime and setup failures.

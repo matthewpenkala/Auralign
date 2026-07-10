@@ -50,6 +50,45 @@ SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 - Do not commit model weights, local Hugging Face caches, virtual environments, raw media, generated transcripts, or secrets.
 - Keep sample secrets redacted and use `.env.example` for documented environment variables.
 
+## Model Linkage: Human And AI-Agent Entry Point
+
+- Treat `docs/models.md` as the canonical, human-readable and AI-agent-readable
+  model-linkage runbook. It defines the reviewed sequence from source clone,
+  through explicit connected acquisition, to exact local verification and
+  strict offline operation.
+- Before any model-related change or setup action, read the manifest in
+  `src/local_transcript_max/config.py`, the compliance authority in
+  `compliance/external_assets.toml`, and the exact production-lane example in
+  `examples/config.strict-offline.yaml`. Do not infer model IDs, revisions,
+  licenses, gated status, file contracts, or readiness from prose alone.
+- Source-repository access is not model acquisition, gated-model acceptance,
+  or permission to redistribute an external asset. Each operator must review
+  upstream terms and separately satisfy gated access requirements.
+- Do not download models merely to develop, test, document, or inspect this
+  repository. A connected `ltm models pull` is allowed only when the user has
+  explicitly authorized acquisition for that machine and the operator has
+  satisfied applicable upstream terms. Runtime auto-download remains
+  prohibited.
+- Never put a token in a CLI argument, report, committed file, or documentation
+  except as a clearly redacted example. Never hand-author `.ltm-model.json`.
+- Never commit, upload, mirror, or package model weights or caches. Do not use
+  Git LFS, GitHub Releases or Packages, submodules, or machine-local symlinks
+  for model assets.
+- For the strict lane, use these exact checks:
+
+  ```bash
+  uv run ltm models verify --asr large-v3 --diarization community-1 --alignment en
+  LTM_OFFLINE=1 uv run ltm doctor --config examples/config.strict-offline.yaml
+  ```
+
+  Missing packages, absent or incomplete caches, wrong revisions, and gated-
+  access failures are blockers; report them honestly and do not claim real
+  transcription readiness.
+- Any model ID, revision, file contract, URL, license, access, acquisition, or
+  redistribution change must update the manifest, external-asset registry,
+  canonical model documentation, focused tests, and generated notices where
+  applicable. Unknown or conflicting provenance fails closed.
+
 ## Standard Checks
 
 Run these before committing code changes when relevant:
