@@ -163,6 +163,8 @@ def test_ci_lint_and_type_checks_reuse_the_matrix_python() -> None:
     )
 
     assert not re.search(r"\buv run(?! --python)", workflow)
+    assert "scripts/prepare_vulnerability_audit_input.py" in workflow
+    assert "pip-audit -r build/cpu-audit-requirements.txt" in workflow
 
 
 def test_container_contract_is_pinned_non_root_and_uses_installed_cli() -> None:

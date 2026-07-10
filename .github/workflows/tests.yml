@@ -152,10 +152,14 @@ jobs:
         run: >-
           uv run --python 3.11 python scripts/validate_dependency_sbom.py
           build/sbom/python-cu126.cdx.json --profile cu126
+      - name: Prepare audit-compatible CPU dependency set
+        run: >-
+          uv run --python 3.11 python scripts/prepare_vulnerability_audit_input.py
+          build/cpu-requirements.txt build/cpu-audit-requirements.txt
       - name: Audit locked CPU production dependencies
         run: |
           set +e
-          uv run --python 3.11 pip-audit -r build/cpu-requirements.txt --disable-pip --no-deps \
+          uv run --python 3.11 pip-audit -r build/cpu-audit-requirements.txt --disable-pip --no-deps \
             --strict --progress-spinner off -f json -o build/pip-audit.json
           status="$?"
           set -e
