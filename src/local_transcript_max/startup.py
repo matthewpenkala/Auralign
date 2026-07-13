@@ -25,6 +25,7 @@ from .diarization.pyannote_backend import (
     resolve_diarization_device,
 )
 from .models import require_model
+from .native_runtime import probe_torchcodec
 from .redaction import privacy_safe_text
 from .runtime_assets import configure_offline_environment, verify_generated_punkt
 
@@ -87,9 +88,7 @@ def _probe_faster_whisper(config: PipelineConfig) -> str:
 
 
 def _probe_torchcodec() -> str:
-    import torchcodec
-
-    version = getattr(torchcodec, "__version__", "installed")
+    version = probe_torchcodec()
     return f"loaded native TorchCodec/FFmpeg boundary version={version}"
 
 
@@ -137,7 +136,7 @@ def _probe_whisperx(config: PipelineConfig) -> str:
 
 def _probe_ecapa(config: PipelineConfig) -> str:
     from speechbrain.inference.speaker import EncoderClassifier
-    from speechbrain.utils.fetching import FetchConfig
+    from speechbrain.utils.fetching import FetchConfig, LocalStrategy
 
     model_name = getattr(config.speaker_id, "model", "ecapa")
     path = require_model(
@@ -146,9 +145,10 @@ def _probe_ecapa(config: PipelineConfig) -> str:
     device = _speaker_device(getattr(config.speaker_id, "device", "auto"))
     classifier = EncoderClassifier.from_hparams(
         source=str(path),
-        savedir=str(path),
+        savedir=None,
         overrides={"pretrained_path": str(path)},
         run_opts={"device": device},
+        local_strategy=LocalStrategy.NO_LINK,
         fetch_config=FetchConfig(allow_network=False),
     )
     del classifier

@@ -63,6 +63,11 @@ def test_private_job_artifact_contract_is_git_ignored() -> None:
         "stray/.ltm-model.json",
         "private-capsule/canary-10m.mp4",
         "private-capsule/enrollment-speaker-00.wav",
+        "private-capsule/private-source.aiff",
+        "private-capsule/private-source.avi",
+        "private-capsule/private-source.m4v",
+        "private-capsule/private-source.mxf",
+        "private-capsule/private-source.wma",
         "private-capsule/validation-capsule.json",
         "private-capsule/SHA256SUMS",
     ],
@@ -115,6 +120,11 @@ def test_git_index_has_no_symlinks_or_model_artifacts() -> None:
         "outputs/job/transcript.json",
         "private/validation-capsule.json",
         "private/SHA256SUMS",
+        "private/source.aiff",
+        "private/source.avi",
+        "private/source.m4v",
+        "private/source.mxf",
+        "private/source.wma",
     ],
 )
 def test_distribution_verifier_rejects_model_and_private_artifacts(

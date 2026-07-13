@@ -43,10 +43,12 @@ mlx = [
 diarization = [
   "pyannote.audio>=4.0.4,<5",
   "av==15.1.0",
+  "torchcodec==0.7.0",
 ]
 alignment = [
   "whisperx>=3.8.6,<4",
   "av==15.1.0",
+  "torchcodec==0.7.0",
 ]
 speaker-embeddings = [
   "speechbrain>=1.1.0,<2",
@@ -67,6 +69,8 @@ full = [
   "speechbrain>=1.1.0,<2",
   "ruamel-yaml>=0.18.16,<0.19",
   "av==15.1.0",
+  "pillow==12.3.0",
+  "torchcodec==0.7.0",
   "fastapi>=0.137,<1",
   "uvicorn[standard]>=0.30,<1",
 ]

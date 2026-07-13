@@ -258,13 +258,14 @@ def _load_classifier(model_path: str, device: Literal["cpu", "cuda"]) -> Any:
     os.environ.setdefault("HF_HUB_OFFLINE", "1")
     os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
     from speechbrain.inference.speaker import EncoderClassifier
-    from speechbrain.utils.fetching import FetchConfig
+    from speechbrain.utils.fetching import FetchConfig, LocalStrategy
 
     return EncoderClassifier.from_hparams(
         source=model_path,
-        savedir=model_path,
+        savedir=None,
         overrides={"pretrained_path": model_path},
         run_opts={"device": device},
+        local_strategy=LocalStrategy.NO_LINK,
         fetch_config=FetchConfig(allow_network=False),
     )
 

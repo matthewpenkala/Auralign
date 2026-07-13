@@ -105,15 +105,13 @@ provenance and license are verified.
 
 ## Budget-Aware Dataset Handling
 
-The default bootstrap profile is `runtime-samples`, capped by:
+Dataset planning is separate from strict runtime preparation. Use the explicit
+planner to inspect optional dataset storage without implying that datasets are
+runtime dependencies:
 
 ```bash
-LTM_BOOTSTRAP_MAX_LOCAL_GB=65
-LTM_BOOTSTRAP_MIN_FREE_GB=100
+uv run ltm datasets plan --profile runtime-samples --max-local-gb 65 --min-free-gb 100
 ```
-
-The budget preflight checks both `LTM_MODEL_CACHE` and `LTM_DATASET_CACHE` so
-split-volume setups cannot pass based only on dataset-cache free space.
 
 Full LibriSpeech, AMI, and VoxCeleb are optional research corpora, not runtime
 dependencies. They are recorded as cloud-only in `datasets/dataset_manifest.json`

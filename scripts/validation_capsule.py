@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -31,6 +32,72 @@ CAPSULE_FILES = (
     "enrollment-speaker-01.wav",
     "validation-capsule.json",
 )
+EXPECTED_FILE_SHA256 = {
+    "canary-10m.mp4": "2548fbdf27053f38950553745e74e060d2560e6ed90f60d1739174c71999bd0a",
+    "enrollment-speaker-00.wav": (
+        "aca11e7f86bae81889d5bce4f6320ed5b7d18d6e6b33fd3409c8ab62bbc86b73"
+    ),
+    "enrollment-speaker-01.wav": (
+        "1bdb9ffbcd0870e8a4b009837fd75e1d10dc21e88818e4ec209de9454a6f9db7"
+    ),
+    "validation-capsule.json": (
+        "5a652951669ce3993a6dfb2c1d0102967515430beaf54ba73bf4ae6e9db237f4"
+    ),
+}
+EXPECTED_MEDIA = {
+    "canary-10m.mp4": {
+        "duration_seconds": 600.013008,
+        "size_bytes": 141_995_238,
+        "streams": [
+            {
+                "codec_name": "h264",
+                "codec_type": "video",
+                "height": 2234,
+                "index": 0,
+                "width": 3456,
+            },
+            {
+                "channels": 2,
+                "codec_name": "aac",
+                "codec_type": "audio",
+                "index": 1,
+                "sample_rate": "48000",
+            },
+        ],
+    },
+    "enrollment-speaker-00.wav": {
+        "duration_seconds": 39.824,
+        "size_bytes": 1_274_446,
+        "streams": [
+            {
+                "channels": 1,
+                "codec_name": "pcm_s16le",
+                "codec_type": "audio",
+                "index": 0,
+                "sample_rate": "16000",
+            }
+        ],
+    },
+    "enrollment-speaker-01.wav": {
+        "duration_seconds": 51.351,
+        "size_bytes": 1_643_310,
+        "streams": [
+            {
+                "channels": 1,
+                "codec_name": "pcm_s16le",
+                "codec_type": "audio",
+                "index": 0,
+                "sample_rate": "16000",
+            }
+        ],
+    },
+}
+EXPECTED_CANARY_COMMAND = (
+    "ffmpeg -hide_banner -loglevel error -i {SOURCE} -ss 00:10:00.000 "
+    "-t 600.000 -map 0:v:0 -map 0:a:0 -c copy -avoid_negative_ts "
+    "make_zero -fflags +genpts -movflags +faststart canary-10m.mp4"
+)
+SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 def sha256_file(path: Path) -> str:
@@ -166,11 +233,7 @@ def build(source: Path, destination: Path) -> None:
         "tooling": {
             "ffmpeg_version": ffmpeg_version[0] if ffmpeg_version else "unknown",
             "ffmpeg_build": ffmpeg_version[1] if len(ffmpeg_version) > 1 else "unknown",
-            "canary_command": (
-                "ffmpeg -hide_banner -loglevel error -i {SOURCE} -ss 00:10:00.000 "
-                "-t 600.000 -map 0:v:0 -map 0:a:0 -c copy -avoid_negative_ts "
-                "make_zero -fflags +genpts -movflags +faststart canary-10m.mp4"
-            ),
+            "canary_command": EXPECTED_CANARY_COMMAND,
         },
     }
     manifest_path = destination / "validation-capsule.json"
@@ -191,26 +254,87 @@ def verify(destination: Path) -> None:
     if actual != allowed or any(path.is_symlink() for path in destination.iterdir()):
         raise RuntimeError("capsule file allowlist or link policy failed")
     sums: dict[str, str] = {}
-    for line in (destination / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
-        digest, filename = line.split("  ", maxsplit=1)
-        if filename in sums or filename not in CAPSULE_FILES:
+    sums_text = (destination / "SHA256SUMS").read_text(encoding="utf-8")
+    expected_sums_text = "".join(
+        f"{digest}  {filename}\n" for filename, digest in EXPECTED_FILE_SHA256.items()
+    )
+    if sums_text != expected_sums_text:
+        raise RuntimeError("SHA256SUMS does not exactly identify the fixed approved capsule")
+    for line in sums_text.splitlines():
+        try:
+            digest, filename = line.split("  ", maxsplit=1)
+        except ValueError as exc:
+            raise RuntimeError("SHA256SUMS contains a malformed entry") from exc
+        if (
+            filename in sums
+            or filename not in CAPSULE_FILES
+            or SHA256_PATTERN.fullmatch(digest) is None
+        ):
             raise RuntimeError("SHA256SUMS contains an unexpected or duplicate entry")
         sums[filename] = digest
-    if set(sums) != set(CAPSULE_FILES):
-        raise RuntimeError("SHA256SUMS is incomplete")
+    if sums != EXPECTED_FILE_SHA256:
+        raise RuntimeError("SHA256SUMS does not identify the fixed approved capsule")
     for filename, expected in sums.items():
         if sha256_file(destination / filename) != expected:
             raise RuntimeError("capsule SHA-256 verification failed")
     manifest = json.loads((destination / "validation-capsule.json").read_text(encoding="utf-8"))
-    if manifest.get("schema_version") != "auralign-validation-capsule.v1":
+    _validate_manifest(manifest)
+    for filename in ("canary-10m.mp4", *ENROLLMENT_INTERVALS):
+        if normalized_media_metadata(destination / filename) != EXPECTED_MEDIA[filename]:
+            raise RuntimeError("capsule ffprobe media contract failed")
+
+
+def _validate_manifest(manifest: object) -> None:
+    if not isinstance(manifest, dict) or set(manifest) != {
+        "schema_version",
+        "source",
+        "canary",
+        "enrollments",
+        "tooling",
+    }:
+        raise RuntimeError("capsule manifest shape is invalid")
+    if manifest["schema_version"] != "auralign-validation-capsule.v1":
         raise RuntimeError("capsule manifest schema is unsupported")
-    if manifest.get("source", {}).get("sha256") != SOURCE_SHA256:
+    if manifest["source"] != {"size_bytes": SOURCE_SIZE, "sha256": SOURCE_SHA256}:
         raise RuntimeError("capsule source identity is invalid")
-    if manifest.get("canary", {}).get("expected_speaker_count") != EXPECTED_SPEAKERS:
-        raise RuntimeError("capsule speaker-count contract is invalid")
-    duration = float(manifest.get("canary", {}).get("media", {}).get("duration_seconds", 0))
-    if not 599.9 <= duration <= 600.1:
-        raise RuntimeError("capsule duration is outside the fixed ten-minute tolerance")
+    canary = manifest["canary"]
+    expected_canary = {
+        "file": "canary-10m.mp4",
+        "start_seconds": CANARY_START,
+        "end_seconds": CANARY_START + CANARY_DURATION,
+        "expected_speaker_count": EXPECTED_SPEAKERS,
+        "sha256": EXPECTED_FILE_SHA256["canary-10m.mp4"],
+        "media": EXPECTED_MEDIA["canary-10m.mp4"],
+    }
+    if canary != expected_canary:
+        raise RuntimeError("capsule canary contract is invalid")
+    enrollments = manifest["enrollments"]
+    expected_enrollments = [
+        {
+            "file": filename,
+            "intervals_seconds": [[start, end] for start, end in intervals],
+            "sha256": EXPECTED_FILE_SHA256[filename],
+            "media": EXPECTED_MEDIA[filename],
+        }
+        for filename, intervals in ENROLLMENT_INTERVALS.items()
+    ]
+    if enrollments != expected_enrollments:
+        raise RuntimeError("capsule enrollment contract is invalid")
+    tooling = manifest["tooling"]
+    if not isinstance(tooling, dict) or set(tooling) != {
+        "ffmpeg_version",
+        "ffmpeg_build",
+        "canary_command",
+    }:
+        raise RuntimeError("capsule tooling contract is invalid")
+    if (
+        not isinstance(tooling["ffmpeg_version"], str)
+        or not tooling["ffmpeg_version"].startswith("ffmpeg version ")
+        or not isinstance(tooling["ffmpeg_build"], str)
+        or not tooling["ffmpeg_build"].startswith("built with ")
+        or tooling["canary_command"] != EXPECTED_CANARY_COMMAND
+    ):
+        raise RuntimeError("capsule tooling contract is invalid")
 
 
 def main() -> int:

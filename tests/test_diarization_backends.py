@@ -7,6 +7,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 from local_transcript_max.config import load_config
 from local_transcript_max.diarization.pyannote_backend import (
     PYANNOTE_MPS_EXPERIMENTAL_WARNING,
@@ -15,6 +17,7 @@ from local_transcript_max.diarization.pyannote_backend import (
     ensure_pyannote_privacy_defaults,
     resolve_diarization_device,
 )
+from local_transcript_max.errors import BackendUnavailableError
 from local_transcript_max.pipeline import DisabledDiarizationBackend, select_diarization_backend
 
 
@@ -88,6 +91,37 @@ def test_pyannote_explicit_mps_attempts_device_and_warns(monkeypatch, tmp_path: 
     assert actual_device == "mps"
     assert pipeline.requested_devices == ["mps"]
     assert PYANNOTE_MPS_EXPERIMENTAL_WARNING in warnings
+
+
+def test_pyannote_explicit_cuda_device_failure_does_not_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setitem(
+        sys.modules,
+        "torch",
+        fake_torch_module(cuda_available=True, mps_available=False),
+    )
+
+    class FailingPipeline(FakePyannotePipeline):
+        def to(self, device: str) -> None:
+            super().to(device)
+            raise RuntimeError("native CUDA boundary failed")
+
+    pipeline = FailingPipeline()
+
+    class FakePipelineFactory:
+        @staticmethod
+        def from_pretrained(_model_path: str) -> FailingPipeline:
+            return pipeline
+
+    with pytest.raises(BackendUnavailableError, match="required cuda device"):
+        PyannoteDiarizationBackend()._pipeline(
+            model_path=tmp_path,
+            requested_device="cuda",
+            pipeline_factory=FakePipelineFactory,
+        )
+
+    assert pipeline.requested_devices == ["cuda"]
 
 
 def test_pyannote_progress_hook_emits_monotonic_local_payloads() -> None:

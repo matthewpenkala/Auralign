@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import stat
@@ -32,15 +34,17 @@ from .datasets import (
     status_for_dataset,
     write_dataset_manifest,
 )
-from .doctor import format_doctor, run_doctor
+from .doctor import DoctorReport, format_doctor, run_doctor
 from .errors import LTMError
 from .models import (
     all_statuses,
     audit_selected_models,
     ensure_pull_preconditions,
     import_mlx_model,
+    preflight_runtime_preparation,
     prune_plan,
     pull_model,
+    review_model_digests,
     selected_entries,
     shareable_model_path,
     verify_entries,
@@ -213,6 +217,18 @@ def _emit_identity_failure(
     typer.echo(f"Remediation: {remediation}", err=True)
 
 
+def _run_doctor_without_upstream_stderr(
+    config: PipelineConfig,
+    *,
+    include_docker: bool = True,
+    startup: bool = False,
+) -> DoctorReport:
+    """Keep dependency warnings and native loader paths out of shareable doctor output."""
+
+    with contextlib.redirect_stderr(io.StringIO()):
+        return run_doctor(config, include_docker=include_docker, startup=startup)
+
+
 @app.command()
 def doctor(
     preset: Annotated[str, typer.Option(help="Config preset to inspect.")] = "max",
@@ -228,7 +244,7 @@ def doctor(
     """Check local dependencies, model cache status, and offline readiness."""
     try:
         config = _config(preset, config_file)
-        report = run_doctor(config, startup=startup)
+        report = _run_doctor_without_upstream_stderr(config, startup=startup)
         typer.echo(format_doctor(report))
         if not report.ok:
             raise typer.Exit(1)
@@ -287,6 +303,7 @@ def prepare_runtime(
             alignment="en",
             speaker_embedding="ecapa",
         )
+        preflight_runtime_preparation(entries, config.model_cache, repair=repair)
         ensure_pull_preconditions(entries, config.model_cache)
         for entry in entries:
             path = pull_model(entry, config.model_cache, repair=repair)
@@ -301,7 +318,9 @@ def prepare_runtime(
         token_names = ("HF_TOKEN", "LTM_HF_TOKEN", "HUGGING_FACE_HUB_TOKEN")
         saved_tokens = {name: os.environ.pop(name) for name in token_names if name in os.environ}
         try:
-            report = run_doctor(config, include_docker=False, startup=True)
+            report = _run_doctor_without_upstream_stderr(
+                config, include_docker=False, startup=True
+            )
         finally:
             os.environ.update(saved_tokens)
         typer.echo(format_doctor(report))
@@ -1007,6 +1026,49 @@ def models_verify(
         raise typer.Exit(1) from exc
 
 
+@models_app.command("review-digests")
+def models_review_digests(
+    asr: Annotated[str | None, typer.Option("--asr")] = None,
+    diarization: Annotated[str | None, typer.Option("--diarization")] = None,
+    alignment: Annotated[str | None, typer.Option("--alignment")] = None,
+    speaker_embedding: Annotated[
+        str | None,
+        typer.Option("--speaker-id", "--speaker-embedding"),
+    ] = None,
+    cache_dir: Annotated[Path, typer.Option("--cache-dir")] = Path("models"),
+) -> None:
+    """Ephemerally acquire one authorized revision for manifest hash review."""
+
+    try:
+        entries = selected_entries(
+            asr=asr,
+            diarization=diarization,
+            alignment=alignment,
+            speaker_embedding=speaker_embedding,
+        )
+        if len(entries) != 1:
+            raise LTMError("Digest review requires exactly one explicit model selection.")
+        entry = entries[0]
+        digests = review_model_digests(entry, cache_dir)
+        typer.echo(
+            json.dumps(
+                {
+                    "schema_version": "auralign-model-digest-review.v1",
+                    "role": entry.role,
+                    "key": entry.key,
+                    "model_id": entry.model_id,
+                    "revision": entry.revision,
+                    "runtime_files": digests,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    except LTMError as exc:
+        typer.echo(privacy_safe_text(str(exc)), err=True)
+        raise typer.Exit(1) from exc
+
+
 @models_app.command("prune")
 def models_prune(
     cache_dir: Annotated[Path, typer.Option("--cache-dir", help="Model cache directory.")] = Path(
@@ -1202,10 +1264,6 @@ def speakers_enroll(
         Path | None,
         typer.Option("--audio-dir", exists=True, file_okay=False),
     ] = None,
-    allow_fallback: Annotated[
-        bool,
-        typer.Option("--allow-fallback-embedding", help="Use deterministic test fallback."),
-    ] = False,
 ) -> None:
     """Enroll a local speaker profile."""
     from .speaker_id.enrollment import enroll_speaker
@@ -1214,7 +1272,6 @@ def speakers_enroll(
         name=name,
         audio_path=audio,
         audio_dir=audio_dir,
-        allow_fallback=allow_fallback,
     )
     typer.echo(f"enrolled {enrollment.name}: {enrollment.embedding_path}")
 

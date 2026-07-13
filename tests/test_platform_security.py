@@ -5,7 +5,10 @@
 from __future__ import annotations
 
 import os
+import shutil
 import stat
+import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -76,6 +79,17 @@ def test_private_directory_rejects_linked_ancestor(tmp_path: Path) -> None:
     assert not (outside / "private").exists()
 
 
+def test_macos_standard_tmp_alias_is_canonicalized() -> None:
+    if sys.platform != "darwin":
+        pytest.skip("macOS standard alias contract")
+    root = Path(tempfile.mkdtemp(prefix="auralign-platform-security-"))
+    try:
+        private = ensure_private_directory(root / "private")
+        assert str(private).startswith("/private/")
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 def test_no_follow_open_rejects_directory(tmp_path: Path) -> None:
     with pytest.raises(UnsafePathError, match="not a regular file"):
         descriptor = open_regular_nofollow(tmp_path, os.O_RDONLY)
@@ -102,6 +116,7 @@ def test_process_usage_is_non_negative() -> None:
     assert usage.user_seconds >= 0
     assert usage.system_seconds >= 0
     assert usage.resident_bytes > 0
+    assert usage.peak_resident_bytes >= usage.resident_bytes
 
 
 def test_release_accelerator_profiles_are_native_and_mutually_exclusive() -> None:

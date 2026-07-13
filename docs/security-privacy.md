@@ -44,8 +44,9 @@ speaker labels meet the purpose.
 
 ## Token Handling
 
-Use environment variables or the standard Hugging Face token store. Do not write
-tokens into committed files.
+Use only ephemeral environment variables for Hugging Face model acquisition.
+Do not use a persisted token store for Auralign preparation, and never write a
+token into a committed file, report, command argument, or bootstrap log.
 
 ```bash
 export LTM_HF_TOKEN="REDACTED_USER_SUPPLIED_TOKEN"
@@ -78,18 +79,14 @@ it is ignored and must not be committed or treated as shareable evidence.
 - Hashes and artifact IDs can still be sensitive identifiers. Share only the
   minimum redacted evidence necessary for an approved purpose.
 
-## Bootstrap Logs
+## Bootstrap Output
 
-`bootstrap.sh` writes `auralign_bootstrap.log`. It logs repo IDs and statuses
-only, plus budget and local path summaries:
-
-```text
-OK asr large-v3 Systran/faster-whisper-large-v3
-SKIP diarization pyannote/speaker-diarization-community-1 requires HF_TOKEN or LTM_HF_TOKEN
-```
-
-Do not paste logs into public systems without reviewing local paths and model
-access details.
+`bootstrap.sh` and `bootstrap.ps1` are thin wrappers around `ltm
+prepare-runtime`. They do not create a persistent bootstrap log. Console output
+uses model roles and cache-relative paths and never prints token values, but it
+is still operator-local diagnostic material. Do not copy it to public systems.
+Missing gated access or any strict backend is a fatal preparation error; the
+bootstrap never skips a required strict model.
 
 ## Dataset Mirrors
 

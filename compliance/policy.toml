@@ -22,6 +22,7 @@ automatically_allowed = [
   "CC-BY-4.0",
   "ISC",
   "MIT",
+  "MIT-CMU",
   "PSF-2.0",
 ]
 conditionally_allowed = [

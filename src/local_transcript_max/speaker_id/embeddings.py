@@ -4,9 +4,9 @@
 
 """Local speaker embedding extraction.
 
-SpeechBrain is used when installed. The deterministic waveform-stat fallback is
-only for local smoke tests and low-confidence bookkeeping; it is not marketed as
-production-grade identity matching.
+SpeechBrain is used for every production call. The deterministic waveform-stat
+fallback is reachable only by direct test-suite calls and is never exposed as a
+degraded production mode.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def extract_embedding(
             raise RuntimeError(
                 "SpeechBrain ECAPA speaker embedding is unavailable. "
                 "Run: uv sync --extra speaker-id and pull speechbrain/spkrec-ecapa-voxceleb, "
-                "or use explicit degraded fallback mode for tests. "
+                "then retry. The waveform-stat fallback is test-only. "
                 f"Reason: {exc}"
             ) from exc
         return "waveform-stats", _waveform_stats_embedding(audio_path)
@@ -108,12 +108,13 @@ def _speechbrain_embedding(audio_path: Path, *, cache_dir: Path) -> tuple[str, l
         raise RuntimeError(status.problem_summary(cache_dir))
 
     from speechbrain.inference.speaker import EncoderClassifier
-    from speechbrain.utils.fetching import FetchConfig
+    from speechbrain.utils.fetching import FetchConfig, LocalStrategy
 
     classifier = EncoderClassifier.from_hparams(
         source=str(status.path),
-        savedir=str(status.path),
+        savedir=None,
         overrides={"pretrained_path": str(status.path)},
+        local_strategy=LocalStrategy.NO_LINK,
         fetch_config=FetchConfig(allow_network=False),
     )
     signal = classifier.load_audio(str(audio_path))

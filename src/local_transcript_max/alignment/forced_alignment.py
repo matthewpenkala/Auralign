@@ -13,6 +13,7 @@ from typing import Any, Literal
 from local_transcript_max.config import PipelineConfig, resolve_model_entry
 from local_transcript_max.errors import BackendUnavailableError
 from local_transcript_max.models import status_for
+from local_transcript_max.runtime_assets import verify_generated_punkt
 from local_transcript_max.schemas import AlignedWord, ASRResult
 
 
@@ -32,7 +33,7 @@ class WhisperXForcedAlignment:
             raise BackendUnavailableError(
                 "Forced alignment requires an alignment language. Pass --alignment-language LANG."
             )
-        model_name = _local_alignment_model_name(config)
+        model_name = preflight_forced_alignment(config)
         self.last_model_name = model_name
         self.last_model_path = model_name if Path(model_name).expanduser().exists() else None
         if importlib.util.find_spec("whisperx") is None:
@@ -79,6 +80,7 @@ class WhisperXForcedAlignment:
 
 def preflight_forced_alignment(config: PipelineConfig) -> str:
     """Fail before ASR when strict forced alignment is not locally runnable."""
+    verify_generated_punkt(config.model_cache)
     if importlib.util.find_spec("whisperx") is None:
         raise BackendUnavailableError(
             "WhisperX forced alignment is unavailable. Run: uv sync --extra alignment"

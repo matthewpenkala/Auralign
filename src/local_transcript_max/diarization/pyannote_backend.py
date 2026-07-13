@@ -151,6 +151,11 @@ class PyannoteDiarizationBackend:
 
                 pipeline.to(torch.device(requested_device))
             except Exception as exc:
+                if requested_device in {"cpu", "cuda"}:
+                    raise BackendUnavailableError(
+                        "pyannote could not move the pinned local pipeline to the required "
+                        f"{requested_device} device: {exc.__class__.__name__}"
+                    ) from exc
                 actual_device = "cpu"
                 warnings.append(
                     "pyannote_device_fallback:"

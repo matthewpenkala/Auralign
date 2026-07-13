@@ -11,7 +11,9 @@ import importlib
 import json
 import os
 import shutil
+import sys
 import tempfile
+import warnings
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -33,10 +35,23 @@ from .config import (
     token_present,
 )
 from .errors import ModelCacheError, OfflineModeError
+from .native_runtime import probe_torchcodec
+from .platform_security import ensure_private_directory
 from .redaction import redact_obj
 from .utils import read_json, write_json
 
 MODEL_PROVENANCE_FILENAME = ".ltm-model.json"
+MIN_RUNTIME_PREPARATION_FREE_BYTES = 8 * 1024**3
+RUNTIME_PREPARATION_IMPORTS = (
+    "faster_whisper",
+    "pyannote.audio",
+    "whisperx",
+    "speechbrain",
+    "torch",
+    "torchaudio",
+    "transformers",
+    "nltk",
+)
 
 
 @dataclass(frozen=True)
@@ -49,6 +64,7 @@ class ModelStatus:
     missing_files: tuple[str, ...]
     zero_size_files: tuple[str, ...]
     inaccessible_files: tuple[str, ...]
+    unexpected_files: tuple[str, ...]
     token_required: bool
     token_present: bool
     revision_verified: bool
@@ -85,11 +101,23 @@ class ModelStatus:
             details.append(f"empty files: {', '.join(self.zero_size_files)}")
         if self.inaccessible_files:
             details.append(f"inaccessible files: {', '.join(self.inaccessible_files)}")
-        if self.exists and self.entry.pullable and not self.revision_verified:
+        if self.unexpected_files:
+            details.append(
+                "unexpected non-allowlisted files or links: "
+                f"{', '.join(self.unexpected_files)}"
+            )
+        digest_contract_incomplete = self.provenance_problem.startswith(
+            "repository digest contract incomplete"
+        )
+        if (
+            self.entry.pullable
+            and not self.revision_verified
+            and (self.exists or digest_contract_incomplete)
+        ):
             details.append(self.provenance_problem)
         if self.entry.gated and not self.token_present:
             details.append("HF_TOKEN or LTM_HF_TOKEN is required for gated model access")
-        if self.entry.pullable:
+        if self.entry.pullable and not digest_contract_incomplete:
             command_cache = "<model-cache>" if shareable else str(cache_dir)
             details.append(f"run: {self.entry.pull_command(command_cache)}")
         else:
@@ -134,6 +162,7 @@ class ModelStatus:
             "suspicious_files": list(self.zero_size_files),
             "zero_size_files": list(self.zero_size_files),
             "inaccessible_files": list(self.inaccessible_files),
+            "unexpected_files": list(self.unexpected_files),
             "gated": self.entry.gated,
             "token_required": self.entry.gated,
             "token_present": self.token_present,
@@ -187,11 +216,13 @@ def status_for_path(entry: ModelEntry, path: Path) -> ModelStatus:
             if required and (path / required).exists() and not _can_read(path / required)
         ),
     )
+    unexpected = _unexpected_runtime_assets(entry, path)
     files_complete = exists and (
         not entry.required_files or (not missing and not zero_size and not inaccessible)
     )
     if entry.any_required_files:
         files_complete = files_complete and _any_required_file_present(entry, path)
+    files_complete = files_complete and not unexpected
     revision_verified, provenance_problem = _provenance_status(entry, path)
     present = files_complete and (revision_verified if entry.pullable else True)
     return ModelStatus(
@@ -203,6 +234,7 @@ def status_for_path(entry: ModelEntry, path: Path) -> ModelStatus:
         missing_files=missing,
         zero_size_files=zero_size,
         inaccessible_files=inaccessible,
+        unexpected_files=unexpected,
         token_required=entry.gated,
         token_present=token_present(),
         revision_verified=revision_verified,
@@ -369,6 +401,9 @@ def pull_model(
             f"{entry.role}:{entry.key} is not approved for acquisition: "
             f"compliance_status={entry.review_status}."
         )
+    digest_problem = _repository_digest_contract_problem(entry)
+    if digest_problem:
+        raise ModelCacheError(digest_problem)
     if revision is not None and revision != entry.revision:
         raise ModelCacheError(
             f"Refusing unapproved revision override for {entry.role}:{entry.key}. "
@@ -437,6 +472,54 @@ def pull_model(
         finally:
             if temporary.exists():
                 shutil.rmtree(temporary)
+
+
+def review_model_digests(entry: ModelEntry, cache_dir: Path) -> dict[str, str]:
+    """Acquire one authorized revision ephemerally for manifest digest review only."""
+
+    if not entry.pullable or not entry.revision or not entry.review_status.startswith("verified"):
+        raise ModelCacheError(
+            f"{entry.role}:{entry.key} is not approved for connected digest review."
+        )
+    if entry.gated and not token_present():
+        raise ModelCacheError(
+            f"{entry.model_id} is gated. Accept its terms and export HF_TOKEN or "
+            "LTM_HF_TOKEN before explicit digest review."
+        )
+    root = ensure_private_directory(cache_dir.expanduser())
+    with _model_pull_lock(root, entry):
+        temporary = Path(tempfile.mkdtemp(prefix=f".{entry.directory_name}.review-", dir=root))
+        try:
+            try:
+                snapshot_download(
+                    repo_id=entry.model_id,
+                    revision=entry.revision,
+                    local_dir=temporary,
+                    local_dir_use_symlinks=False,
+                    allow_patterns=list(entry.runtime_files),
+                    token=hf_token(),
+                )
+            except (GatedRepoError, HfHubHTTPError, LocalEntryNotFoundError) as exc:
+                raise ModelCacheError(friendly_hf_error(entry, exc, root)) from exc
+            shutil.rmtree(temporary / ".cache", ignore_errors=True)
+            unexpected = _unexpected_runtime_assets(entry, temporary)
+            if unexpected:
+                raise ModelCacheError(
+                    "Digest-review download contained non-allowlisted files or links."
+                )
+            digests = _runtime_file_digests(entry, temporary)
+            missing = set(entry.runtime_files) - set(digests)
+            if missing:
+                raise ModelCacheError(
+                    "Digest-review download is incomplete for: " + ", ".join(sorted(missing))
+                )
+            return digests
+        finally:
+            shutil.rmtree(temporary)
+            if temporary.exists() or temporary.is_symlink():
+                raise ModelCacheError(
+                    "Digest-review temporary model bytes could not be removed."
+                )
 
 
 def import_mlx_model(
@@ -509,6 +592,10 @@ def ensure_pull_preconditions(entries: list[ModelEntry], cache_dir: Path) -> Non
                 f"for acquisition: {entry.review_status}."
             )
             continue
+        digest_problem = _repository_digest_contract_problem(entry)
+        if digest_problem:
+            blocked.append(digest_problem)
+            continue
         if not entry.pullable:
             blocked.append(
                 f"{entry.role}:{entry.key} ({entry.model_id}) is audit-only and cannot be "
@@ -525,6 +612,58 @@ def ensure_pull_preconditions(entries: list[ModelEntry], cache_dir: Path) -> Non
             )
     if blocked:
         raise ModelCacheError("\n".join(blocked))
+
+
+def preflight_runtime_preparation(
+    entries: list[ModelEntry], cache_dir: Path, *, repair: bool = False
+) -> None:
+    """Validate release runtime prerequisites before any model network access."""
+
+    if (sys.version_info.major, sys.version_info.minor) != (3, 11):
+        raise ModelCacheError("Runtime preparation for release requires Python 3.11 exactly.")
+    missing_binaries = [name for name in ("ffmpeg", "ffprobe") if shutil.which(name) is None]
+    if missing_binaries:
+        raise ModelCacheError(
+            "Runtime preparation is missing required native commands: "
+            f"{', '.join(missing_binaries)}."
+        )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for module_name in RUNTIME_PREPARATION_IMPORTS:
+            try:
+                importlib.import_module(module_name)
+            except Exception as exc:
+                raise ModelCacheError(
+                    f"Runtime preparation dependency import failed: {module_name} "
+                    f"({exc.__class__.__name__}). Install the locked full dependency profile."
+                ) from exc
+    try:
+        probe_torchcodec()
+    except Exception as exc:
+        raise ModelCacheError(
+            "Runtime preparation native TorchCodec/FFmpeg probe failed. Install the locked "
+            "native dependency profile."
+        ) from exc
+
+    root = cache_dir.expanduser()
+    try:
+        ensure_private_directory(root)
+        with tempfile.NamedTemporaryFile(
+            prefix=".ltm-write-test-", dir=root, delete=False
+        ) as handle:
+            probe = Path(handle.name)
+        probe.unlink()
+    except Exception as exc:
+        raise ModelCacheError(
+            "Runtime preparation model cache must be a private writable local directory."
+        ) from exc
+
+    needs_storage = repair or any(not status_for(entry, root).present for entry in entries)
+    if needs_storage and shutil.disk_usage(root).free < MIN_RUNTIME_PREPARATION_FREE_BYTES:
+        raise ModelCacheError(
+            "Runtime preparation requires at least 8 GiB free on the model-cache volume "
+            "before acquiring or repairing strict models."
+        )
 
 
 def selected_entries(
@@ -610,7 +749,7 @@ def best_existing_model_path(entry: ModelEntry, cache_dir: Path) -> Path:
 
 
 def _model_path_complete(entry: ModelEntry, path: Path) -> bool:
-    if not path.exists():
+    if not path.exists() or path.is_symlink() or _unexpected_runtime_assets(entry, path):
         return False
     for required in entry.required_files:
         if not required:
@@ -705,6 +844,9 @@ def write_model_provenance(entry: ModelEntry, model_dir: Path) -> Path:
 def _provenance_status(entry: ModelEntry, path: Path) -> tuple[bool, str]:
     if not entry.pullable:
         return False, "revision linkage not asserted for manual-only local assets"
+    digest_problem = _repository_digest_contract_problem(entry)
+    if digest_problem:
+        return False, digest_problem
     marker = path / MODEL_PROVENANCE_FILENAME
     if not marker.exists():
         return False, f"missing immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
@@ -760,6 +902,52 @@ def _runtime_file_digests(entry: ModelEntry, model_dir: Path) -> dict[str, str]:
                 hasher.update(chunk)
         digests[relative_path] = hasher.hexdigest()
     return digests
+
+
+def _unexpected_runtime_assets(entry: ModelEntry, model_dir: Path) -> tuple[str, ...]:
+    """Return files and links outside the reviewed local runtime contract."""
+
+    if model_dir.is_symlink():
+        return (".",)
+    if not model_dir.exists() or not model_dir.is_dir():
+        return ()
+    allowed_files = {*entry.runtime_files, MODEL_PROVENANCE_FILENAME}
+    unexpected: list[str] = []
+    try:
+        children = sorted(model_dir.rglob("*"), key=lambda child: child.as_posix())
+    except OSError:
+        return ("<unreadable-model-tree>",)
+    for child in children:
+        relative = child.relative_to(model_dir).as_posix()
+        try:
+            if child.is_symlink():
+                unexpected.append(relative)
+            elif child.is_file():
+                if relative not in allowed_files:
+                    unexpected.append(relative)
+            elif not child.is_dir():
+                unexpected.append(relative)
+        except OSError:
+            unexpected.append(relative)
+    return tuple(unexpected)
+
+
+def _repository_digest_contract_problem(entry: ModelEntry) -> str | None:
+    """Require repository-reviewed hashes for every pullable runtime file."""
+
+    if not entry.pullable:
+        return None
+    runtime_files = set(entry.runtime_files)
+    expected_files = set(entry.expected_digest_map)
+    if runtime_files == expected_files:
+        return None
+    missing = ", ".join(sorted(runtime_files - expected_files)) or "none"
+    unexpected = ", ".join(sorted(expected_files - runtime_files)) or "none"
+    return (
+        f"repository digest contract incomplete for {entry.role}:{entry.key}; "
+        f"missing expected SHA-256 files: {missing}; unexpected digest entries: {unexpected}. "
+        "A human-reviewed manifest update is required before acquisition or verification."
+    )
 
 
 def _tool_version() -> str:

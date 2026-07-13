@@ -29,6 +29,17 @@ _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 _INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
 
 
+def _windows_extended_path(path: Path) -> str:
+    """Return an absolute Win32 extended path for UNC and long-path safety."""
+
+    absolute = os.path.abspath(path)
+    if absolute.startswith("\\\\?\\"):
+        return absolute
+    if absolute.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + absolute.lstrip("\\")
+    return "\\\\?\\" + absolute
+
+
 def _windows_dll(name: str) -> Any:
     constructor_name = "".join(("Win", "DLL"))
     constructor = getattr(ctypes, constructor_name)
@@ -61,7 +72,7 @@ def _windows_file_attributes(path: Path) -> int:
     get_attributes = kernel32.GetFileAttributesW
     get_attributes.argtypes = [ctypes.c_wchar_p]
     get_attributes.restype = ctypes.c_uint32
-    attributes = int(get_attributes(str(path)))
+    attributes = int(get_attributes(_windows_extended_path(path)))
     if attributes == _INVALID_FILE_ATTRIBUTES:
         error = _windows_last_error()
         raise OSError(error, os.strerror(error), str(path))
@@ -78,6 +89,24 @@ def reject_reparse_or_symlink(path: Path) -> None:
         return
     if candidate.is_symlink():
         raise UnsafePathError(f"private path must not be a symbolic link: {candidate.name}")
+
+
+def _normalize_platform_alias(path: Path) -> Path:
+    """Canonicalize only Apple's root-owned standard temporary aliases."""
+
+    candidate = Path(path)
+    if sys.platform != "darwin":
+        return candidate
+    absolute = candidate.absolute()
+    parts = absolute.parts
+    if len(parts) < 2 or parts[1] not in {"tmp", "var"}:
+        return candidate
+    root = Path("/") / parts[1]
+    resolved_root = root.resolve(strict=True)
+    expected_root = Path("/private") / parts[1]
+    if resolved_root != expected_root:
+        raise UnsafePathError(f"unexpected macOS filesystem alias: {root.name}")
+    return resolved_root.joinpath(*parts[2:])
 
 
 def _reject_existing_ancestor_indirection(path: Path) -> None:
@@ -105,6 +134,8 @@ def _protect_windows_path(path: Path) -> None:
     set_security.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_void_p]
     set_security.restype = ctypes.c_int
     descriptor = ctypes.c_void_p()
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
     # D:P blocks inherited access. OW is the object's owner; local system and
     # administrators retain recovery access on an owner-controlled workstation.
     sddl = "D:P(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)"
@@ -115,7 +146,7 @@ def _protect_windows_path(path: Path) -> None:
         dacl_security_information = 0x00000004
         protected_dacl_security_information = 0x80000000
         if not set_security(
-            str(path),
+            _windows_extended_path(path),
             dacl_security_information | protected_dacl_security_information,
             descriptor,
         ):
@@ -123,12 +154,118 @@ def _protect_windows_path(path: Path) -> None:
             raise OSError(error, "could not apply private Windows DACL", str(path))
     finally:
         kernel32.LocalFree(descriptor)
+    _verify_windows_private_dacl(path)
+
+
+def _verify_windows_private_dacl(path: Path) -> None:
+    """Read back the protected owner/system/admin DACL after publication."""
+
+    advapi32 = _windows_dll("advapi32")
+    kernel32 = _windows_dll("kernel32")
+    descriptor = ctypes.c_void_p()
+    owner = ctypes.c_void_p()
+    dacl = ctypes.c_void_p()
+    get_security = advapi32.GetNamedSecurityInfoW
+    get_security.argtypes = [
+        ctypes.c_wchar_p,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    get_security.restype = ctypes.c_uint32
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+    result = int(
+        get_security(
+            _windows_extended_path(path),
+            1,
+            0x00000001 | 0x00000004,
+            ctypes.byref(owner),
+            None,
+            ctypes.byref(dacl),
+            None,
+            ctypes.byref(descriptor),
+        )
+    )
+    if result:
+        raise OSError(result, "could not read back private Windows DACL", path.name)
+    try:
+        control = ctypes.c_uint16()
+        revision = ctypes.c_uint32()
+        get_control = advapi32.GetSecurityDescriptorControl
+        get_control.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_uint16),
+            ctypes.POINTER(ctypes.c_uint32),
+        ]
+        get_control.restype = ctypes.c_int
+        if not get_control(descriptor, ctypes.byref(control), ctypes.byref(revision)):
+            error = _windows_last_error()
+            raise OSError(error, "could not verify private Windows DACL", path.name)
+        if not control.value & 0x1000 or not owner.value or not dacl.value:
+            raise UnsafePathError(f"private Windows DACL is not protected: {path.name}")
+    finally:
+        kernel32.LocalFree(descriptor)
+
+
+def _normalize_windows_final_path(value: str) -> str:
+    if value.startswith("\\\\?\\UNC\\"):
+        value = "\\\\" + value[8:]
+    elif value.startswith("\\\\?\\"):
+        value = value[4:]
+    return os.path.normcase(os.path.normpath(value))
+
+
+def _validate_windows_descriptor_path(descriptor: int, candidate: Path) -> None:
+    """Validate reparse attributes and the final path through the opened handle."""
+
+    msvcrt = importlib.import_module("msvcrt")
+    handle = msvcrt.get_osfhandle(descriptor)
+    kernel32 = _windows_dll("kernel32")
+
+    class FileAttributeTagInfo(ctypes.Structure):
+        _fields_ = [("file_attributes", ctypes.c_uint32), ("reparse_tag", ctypes.c_uint32)]
+
+    attributes = FileAttributeTagInfo()
+    get_info = kernel32.GetFileInformationByHandleEx
+    get_info.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+    get_info.restype = ctypes.c_int
+    if not get_info(
+        ctypes.c_void_p(handle),
+        9,
+        ctypes.byref(attributes),
+        ctypes.sizeof(attributes),
+    ):
+        error = _windows_last_error()
+        raise OSError(error, "could not validate private Windows handle", candidate.name)
+    if attributes.file_attributes & _FILE_ATTRIBUTE_REPARSE_POINT:
+        raise UnsafePathError(f"private path must not be a reparse point: {candidate.name}")
+
+    get_final = kernel32.GetFinalPathNameByHandleW
+    get_final.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32]
+    get_final.restype = ctypes.c_uint32
+    size = int(get_final(ctypes.c_void_p(handle), None, 0, 0))
+    if size <= 0:
+        error = _windows_last_error()
+        raise OSError(error, "could not resolve private Windows handle", candidate.name)
+    buffer = ctypes.create_unicode_buffer(size + 1)
+    if not get_final(ctypes.c_void_p(handle), buffer, len(buffer), 0):
+        error = _windows_last_error()
+        raise OSError(error, "could not resolve private Windows handle", candidate.name)
+    expected = _normalize_windows_final_path(os.path.abspath(candidate))
+    actual = _normalize_windows_final_path(buffer.value)
+    if actual != expected:
+        raise UnsafePathError(f"private path changed while opening: {candidate.name}")
 
 
 def ensure_private_directory(path: Path) -> Path:
     """Create or validate an owner-private, non-linked directory."""
 
-    directory = Path(path)
+    directory = _normalize_platform_alias(Path(path))
     _reject_existing_ancestor_indirection(directory)
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     _reject_existing_ancestor_indirection(directory)
@@ -144,7 +281,7 @@ def ensure_private_directory(path: Path) -> Path:
 def open_regular_nofollow(path: Path, flags: int, mode: int = 0o600) -> int:
     """Open a regular file without following its final path component."""
 
-    candidate = Path(path)
+    candidate = _normalize_platform_alias(Path(path))
     _reject_existing_ancestor_indirection(candidate.parent)
     if _WINDOWS:
         # Python's Windows open ultimately uses CreateFile. Validate the path
@@ -166,7 +303,7 @@ def open_regular_nofollow(path: Path, flags: int, mode: int = 0o600) -> int:
         if not stat.S_ISREG(metadata.st_mode):
             raise UnsafePathError(f"private path is not a regular file: {candidate.name}")
         if _WINDOWS:
-            reject_reparse_or_symlink(candidate)
+            _validate_windows_descriptor_path(descriptor, candidate)
             path_metadata = candidate.lstat()
             if (metadata.st_dev, metadata.st_ino) != (path_metadata.st_dev, path_metadata.st_ino):
                 raise UnsafePathError(f"private path changed while opening: {candidate.name}")
@@ -182,7 +319,7 @@ def open_regular_nofollow(path: Path, flags: int, mode: int = 0o600) -> int:
 def fsync_directory(path: Path) -> None:
     """Flush directory metadata where the native platform supports it."""
 
-    directory = Path(path)
+    directory = _normalize_platform_alias(Path(path))
     reject_reparse_or_symlink(directory)
     if _WINDOWS:
         kernel32 = _windows_dll("kernel32")
@@ -198,7 +335,7 @@ def fsync_directory(path: Path) -> None:
         ]
         create_file.restype = ctypes.c_void_p
         handle = create_file(
-            str(directory),
+            _windows_extended_path(directory),
             0x80000000,
             0x1 | 0x2 | 0x4,
             None,
@@ -230,7 +367,7 @@ def fsync_directory(path: Path) -> None:
 def atomic_write_bytes(path: Path, payload: bytes) -> None:
     """Durably publish private bytes with same-directory atomic replacement."""
 
-    target = Path(path)
+    target = _normalize_platform_alias(Path(path))
     ensure_private_directory(target.parent)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
     temporary = Path(temporary_name)
@@ -265,7 +402,7 @@ def ensure_private_file(path: Path) -> Path:
 
     descriptor = open_regular_nofollow(path, os.O_RDONLY, 0o600)
     os.close(descriptor)
-    return Path(path)
+    return _normalize_platform_alias(Path(path))
 
 
 class HeldFileLock:
@@ -344,6 +481,7 @@ class ProcessUsage:
     user_seconds: float
     system_seconds: float
     resident_bytes: int
+    peak_resident_bytes: int
 
 
 def current_process_usage() -> ProcessUsage:
@@ -354,7 +492,9 @@ def current_process_usage() -> ProcessUsage:
 
         usage = resource.getrusage(resource.RUSAGE_SELF)
         scale = 1 if sys.platform == "darwin" else 1024
-        return ProcessUsage(usage.ru_utime, usage.ru_stime, int(usage.ru_maxrss) * scale)
+        peak = int(usage.ru_maxrss) * scale
+        resident = _posix_current_resident_bytes() or peak
+        return ProcessUsage(usage.ru_utime, usage.ru_stime, resident, peak)
 
     kernel32 = _windows_dll("kernel32")
     psapi = _windows_dll("psapi")
@@ -379,8 +519,17 @@ def current_process_usage() -> ProcessUsage:
             ("peak_pagefile_usage", ctypes.c_size_t),
         ]
 
+    kernel32.GetCurrentProcess.restype = ctypes.c_void_p
     process = kernel32.GetCurrentProcess()
     created, exited, kernel, user = FileTime(), FileTime(), FileTime(), FileTime()
+    kernel32.GetProcessTimes.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(FileTime),
+        ctypes.POINTER(FileTime),
+        ctypes.POINTER(FileTime),
+        ctypes.POINTER(FileTime),
+    ]
+    kernel32.GetProcessTimes.restype = ctypes.c_int
     if not kernel32.GetProcessTimes(
         process,
         ctypes.byref(created),
@@ -392,7 +541,58 @@ def current_process_usage() -> ProcessUsage:
         raise OSError(error, "could not read Windows process times")
     memory = ProcessMemoryCounters()
     memory.cb = ctypes.sizeof(memory)
+    psapi.GetProcessMemoryInfo.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ProcessMemoryCounters),
+        ctypes.c_uint32,
+    ]
+    psapi.GetProcessMemoryInfo.restype = ctypes.c_int
     if not psapi.GetProcessMemoryInfo(process, ctypes.byref(memory), memory.cb):
         error = _windows_last_error()
         raise OSError(error, "could not read Windows process memory")
-    return ProcessUsage(user.seconds(), kernel.seconds(), int(memory.working_set_size))
+    return ProcessUsage(
+        user.seconds(),
+        kernel.seconds(),
+        int(memory.working_set_size),
+        int(memory.peak_working_set_size),
+    )
+
+
+def _posix_current_resident_bytes() -> int | None:
+    if sys.platform.startswith("linux"):
+        try:
+            fields = Path("/proc/self/statm").read_text(encoding="ascii").split()
+            return int(fields[1]) * int(os.sysconf("SC_PAGE_SIZE"))
+        except (OSError, ValueError, IndexError):
+            return None
+    if sys.platform == "darwin":
+        try:
+            libsystem = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
+
+            class TimeValue(ctypes.Structure):
+                _fields_ = [("seconds", ctypes.c_int32), ("microseconds", ctypes.c_int32)]
+
+            class MachTaskBasicInfo(ctypes.Structure):
+                _fields_ = [
+                    ("virtual_size", ctypes.c_uint64),
+                    ("resident_size", ctypes.c_uint64),
+                    ("resident_size_max", ctypes.c_uint64),
+                    ("user_time", TimeValue),
+                    ("system_time", TimeValue),
+                    ("policy", ctypes.c_int32),
+                    ("suspend_count", ctypes.c_int32),
+                ]
+
+            info = MachTaskBasicInfo()
+            count = ctypes.c_uint32(ctypes.sizeof(info) // ctypes.sizeof(ctypes.c_int32))
+            task = libsystem.mach_task_self()
+            result = libsystem.task_info(
+                task,
+                20,
+                ctypes.byref(info),
+                ctypes.byref(count),
+            )
+            return int(info.resident_size) if result == 0 and info.resident_size > 0 else None
+        except (AttributeError, OSError):
+            return None
+    return None

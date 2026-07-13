@@ -5,34 +5,45 @@
 [CmdletBinding()]
 param(
     [string]$Config = "examples/config.strict-windows-amd64-cpu.yaml",
-    [string]$CacheDir = "models",
-    [switch]$Repair
+    [string]$CacheDir,
+    [string]$RuntimeDir,
+    [switch]$Repair,
+    [switch]$SourceCheckout
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$arguments = @(
-    "prepare-runtime",
-    "--config", $Config,
-    "--cache-dir", $CacheDir
-)
+if (-not $RuntimeDir) { $RuntimeDir = Join-Path $PSScriptRoot ".auralign-runtime" }
+if (-not $CacheDir) { $CacheDir = Join-Path $PSScriptRoot "models" }
+if (-not [IO.Path]::IsPathRooted($Config)) { $Config = Join-Path $PSScriptRoot $Config }
+$RuntimeDir = [IO.Path]::GetFullPath($RuntimeDir)
+$CacheDir = [IO.Path]::GetFullPath($CacheDir)
+$Config = [IO.Path]::GetFullPath($Config)
+
+$arguments = @("prepare-runtime", "--config", $Config, "--cache-dir", $CacheDir)
 if ($Repair) { $arguments += "--repair" }
 
-$installedLtm = Join-Path $PSScriptRoot ".auralign-runtime\.venv\Scripts\ltm.exe"
-if (Test-Path $installedLtm) {
-    $command = $installedLtm
-} elseif (Get-Command "ltm" -ErrorAction SilentlyContinue) {
-    $command = "ltm"
-} elseif ((Get-Command "uv" -ErrorAction SilentlyContinue) -and (Test-Path "pyproject.toml")) {
-    $command = "uv"
-    $arguments = @("run", "ltm") + $arguments
-} else {
-    throw "Install Auralign first, then run bootstrap.ps1 from its bundle or source root."
+if ($SourceCheckout) {
+    if (-not (Test-Path (Join-Path $PSScriptRoot "pyproject.toml"))) {
+        throw "-SourceCheckout requires pyproject.toml beside bootstrap.ps1."
+    }
+    Push-Location $PSScriptRoot
+    try {
+        & uv run ltm @arguments
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } finally {
+        Pop-Location
+    }
+    exit 0
+}
+
+$installedLtm = Join-Path $RuntimeDir ".venv\Scripts\ltm.exe"
+if (-not (Test-Path $installedLtm -PathType Leaf)) {
+    throw "Install Auralign first or pass -SourceCheckout explicitly."
 }
 
 # The Python command owns acquisition, redaction, token removal, immutable-file
-# verification, Punkt preparation, and strict offline backend startup. Keeping
-# those controls in one implementation prevents PowerShell/Bash policy drift.
-& $command @arguments
+# verification, Punkt preparation, and strict offline backend startup.
+& $installedLtm @arguments
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

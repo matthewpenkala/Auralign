@@ -1,6 +1,85 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://auralign.invalid/schemas/validation-capsule-v1.schema.json",
+  "$defs": {
+    "canaryMedia": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_seconds": { "const": 600.013008 },
+        "size_bytes": { "const": 141995238 },
+        "streams": {
+          "items": false,
+          "prefixItems": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "codec_name": { "const": "h264" },
+                "codec_type": { "const": "video" },
+                "height": { "const": 2234 },
+                "index": { "const": 0 },
+                "width": { "const": 3456 }
+              },
+              "required": ["codec_name", "codec_type", "height", "index", "width"],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "channels": { "const": 2 },
+                "codec_name": { "const": "aac" },
+                "codec_type": { "const": "audio" },
+                "index": { "const": 1 },
+                "sample_rate": { "const": "48000" }
+              },
+              "required": ["channels", "codec_name", "codec_type", "index", "sample_rate"],
+              "type": "object"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": ["duration_seconds", "size_bytes", "streams"],
+      "type": "object"
+    },
+    "enrollmentMedia00": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_seconds": { "const": 39.824 },
+        "size_bytes": { "const": 1274446 },
+        "streams": { "$ref": "#/$defs/pcmStream" }
+      },
+      "required": ["duration_seconds", "size_bytes", "streams"],
+      "type": "object"
+    },
+    "enrollmentMedia01": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_seconds": { "const": 51.351 },
+        "size_bytes": { "const": 1643310 },
+        "streams": { "$ref": "#/$defs/pcmStream" }
+      },
+      "required": ["duration_seconds", "size_bytes", "streams"],
+      "type": "object"
+    },
+    "pcmStream": {
+      "items": false,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "channels": { "const": 1 },
+            "codec_name": { "const": "pcm_s16le" },
+            "codec_type": { "const": "audio" },
+            "index": { "const": 0 },
+            "sample_rate": { "const": "16000" }
+          },
+          "required": ["channels", "codec_name", "codec_type", "index", "sample_rate"],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    }
+  },
   "additionalProperties": false,
   "properties": {
     "canary": {
@@ -9,14 +88,41 @@
         "end_seconds": { "const": 1200.0 },
         "expected_speaker_count": { "const": 2 },
         "file": { "const": "canary-10m.mp4" },
-        "media": { "type": "object" },
-        "sha256": { "pattern": "^[0-9a-f]{64}$", "type": "string" },
+        "media": { "$ref": "#/$defs/canaryMedia" },
+        "sha256": { "const": "2548fbdf27053f38950553745e74e060d2560e6ed90f60d1739174c71999bd0a" },
         "start_seconds": { "const": 600.0 }
       },
       "required": ["file", "start_seconds", "end_seconds", "expected_speaker_count", "sha256", "media"],
       "type": "object"
     },
-    "enrollments": { "maxItems": 2, "minItems": 2, "type": "array" },
+    "enrollments": {
+      "items": false,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "file": { "const": "enrollment-speaker-00.wav" },
+            "intervals_seconds": { "const": [[1205.21, 1221.612], [363.08, 375.601], [0.031, 10.932]] },
+            "media": { "$ref": "#/$defs/enrollmentMedia00" },
+            "sha256": { "const": "aca11e7f86bae81889d5bce4f6320ed5b7d18d6e6b33fd3409c8ab62bbc86b73" }
+          },
+          "required": ["file", "intervals_seconds", "media", "sha256"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "file": { "const": "enrollment-speaker-01.wav" },
+            "intervals_seconds": { "const": [[133.259, 161.643], [1238.251, 1261.218]] },
+            "media": { "$ref": "#/$defs/enrollmentMedia01" },
+            "sha256": { "const": "1bdb9ffbcd0870e8a4b009837fd75e1d10dc21e88818e4ec209de9454a6f9db7" }
+          },
+          "required": ["file", "intervals_seconds", "media", "sha256"],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
     "schema_version": { "const": "auralign-validation-capsule.v1" },
     "source": {
       "additionalProperties": false,
@@ -27,7 +133,18 @@
       "required": ["sha256", "size_bytes"],
       "type": "object"
     },
-    "tooling": { "type": "object" }
+    "tooling": {
+      "additionalProperties": false,
+      "properties": {
+        "canary_command": {
+          "const": "ffmpeg -hide_banner -loglevel error -i {SOURCE} -ss 00:10:00.000 -t 600.000 -map 0:v:0 -map 0:a:0 -c copy -avoid_negative_ts make_zero -fflags +genpts -movflags +faststart canary-10m.mp4"
+        },
+        "ffmpeg_build": { "minLength": 1, "type": "string" },
+        "ffmpeg_version": { "minLength": 1, "type": "string" }
+      },
+      "required": ["canary_command", "ffmpeg_build", "ffmpeg_version"],
+      "type": "object"
+    }
   },
   "required": ["schema_version", "source", "canary", "enrollments", "tooling"],
   "title": "Auralign owner-local validation capsule v1",

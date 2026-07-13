@@ -13,12 +13,14 @@ import email.policy
 import hashlib
 import json
 import re
+import stat
 import tarfile
 import tomllib
 import zipfile
 from collections.abc import Mapping
 from email.parser import BytesParser
 from pathlib import Path, PurePosixPath
+from typing import cast
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_LICENSE = "LicenseRef-PolyForm-Internal-Use-1.0.0"
@@ -53,12 +55,17 @@ PROHIBITED_PARTS = {
 }
 PROHIBITED_SUFFIXES = {
     ".aac",
+    ".aif",
+    ".aiff",
+    ".avi",
     ".flac",
     ".m4a",
+    ".m4v",
     ".mkv",
     ".mov",
     ".mp3",
     ".mp4",
+    ".mxf",
     ".ogg",
     ".p12",
     ".pem",
@@ -68,6 +75,7 @@ PROHIBITED_SUFFIXES = {
     ".vtt",
     ".wav",
     ".webm",
+    ".wma",
     ".key",
     ".bin",
     ".ckpt",
@@ -134,6 +142,12 @@ def read_wheel(path: Path) -> dict[str, bytes]:
         for info in archive.infolist():
             safe_path(info.filename)
             require(not info.is_dir(), f"unexpected wheel directory entry: {info.filename}")
+            unix_mode = info.external_attr >> 16
+            require(
+                stat.S_IFMT(unix_mode) in {0, stat.S_IFREG},
+                f"non-regular wheel member: {info.filename}",
+            )
+            require(info.filename not in files, f"duplicate wheel member: {info.filename}")
             files[info.filename] = archive.read(info)
     return files
 
@@ -143,11 +157,52 @@ def read_sdist(path: Path) -> dict[str, bytes]:
         files: dict[str, bytes] = {}
         for member in archive.getmembers():
             safe_path(member.name)
-            require(not member.issym() and not member.islnk(), f"archive link: {member.name}")
-            if not member.isfile():
+            require(
+                member.isfile() or member.isdir(),
+                f"non-file sdist member: {member.name}",
+            )
+            if member.isdir():
                 continue
+            require(member.name not in files, f"duplicate sdist member: {member.name}")
             handle = archive.extractfile(member)
-            require(handle is not None, f"unreadable sdist member: {member.name}")
+            if handle is None:
+                raise RuntimeError(f"unreadable sdist member: {member.name}")
+            files[member.name] = handle.read()
+    return files
+
+
+def read_zip(path: Path) -> dict[str, bytes]:
+    with zipfile.ZipFile(path) as archive:
+        files: dict[str, bytes] = {}
+        for info in archive.infolist():
+            safe_path(info.filename)
+            if info.is_dir():
+                continue
+            unix_mode = info.external_attr >> 16
+            require(
+                stat.S_IFMT(unix_mode) in {0, stat.S_IFREG},
+                f"non-regular ZIP member: {info.filename}",
+            )
+            require(info.filename not in files, f"duplicate ZIP member: {info.filename}")
+            files[info.filename] = archive.read(info)
+    return files
+
+
+def read_tar(path: Path) -> dict[str, bytes]:
+    with tarfile.open(path, mode="r:gz") as archive:
+        files: dict[str, bytes] = {}
+        for member in archive.getmembers():
+            safe_path(member.name)
+            require(
+                member.isfile() or member.isdir(),
+                f"non-file tar member: {member.name}",
+            )
+            if member.isdir():
+                continue
+            require(member.name not in files, f"duplicate tar member: {member.name}")
+            handle = archive.extractfile(member)
+            if handle is None:
+                raise RuntimeError(f"unreadable tar member: {member.name}")
             files[member.name] = handle.read()
     return files
 
@@ -230,6 +285,201 @@ def verify_sdist(files: Mapping[str, bytes]) -> None:
     verify_no_prohibited_content(files, "sdist")
 
 
+def verify_native_bundle(
+    archive: Path,
+    *,
+    root_name: str,
+    expected_relative_content: Mapping[str, bytes],
+) -> None:
+    files = read_zip(archive) if archive.suffix == ".zip" else read_tar(archive)
+    expected = {f"{root_name}/{name}": data for name, data in expected_relative_content.items()}
+    require(set(files) == set(expected), f"{archive.name} member allowlist drift")
+    for name, data in expected.items():
+        require(files[name] == data, f"{archive.name} changed bundled file: {name}")
+    verify_no_prohibited_content(files, archive.name)
+    verify_legal_payload(files, f"{root_name}/")
+
+
+def verify_sbom_bundle(archive: Path, expected_names: set[str]) -> None:
+    files = read_zip(archive)
+    require(set(files) == expected_names, "release SBOM member allowlist drift")
+    verify_no_prohibited_content(files, "release SBOM")
+    source = files["source.spdx"]
+    require(b"SPDXVersion: SPDX-2." in source, "source SPDX is missing or malformed")
+    require(b"DocumentName: Auralign" in source, "source SPDX document is missing")
+    require(b"Creator: Tool: reuse-" in source, "source SPDX creator is missing")
+    for name, data in files.items():
+        if not name.endswith(".json"):
+            continue
+        try:
+            payload = json.loads(data)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"invalid JSON SBOM: {name}") from exc
+        require(isinstance(payload, dict), f"invalid JSON SBOM shape: {name}")
+        if name.endswith(".spdx.json"):
+            require(payload.get("spdxVersion") == "SPDX-2.3", f"invalid SPDX version: {name}")
+            require(isinstance(payload.get("packages"), list), f"missing SPDX packages: {name}")
+            require(isinstance(payload.get("files"), list), f"missing SPDX files: {name}")
+        else:
+            require(payload.get("bomFormat") == "CycloneDX", f"invalid CycloneDX BOM: {name}")
+            require(isinstance(payload.get("specVersion"), str), f"missing BOM version: {name}")
+            require(isinstance(payload.get("components"), list), f"missing BOM components: {name}")
+
+
+def verify_sha256sums(path: Path, expected_names: set[str]) -> dict[str, str]:
+    sums: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = re.fullmatch(r"([0-9a-f]{64})  ([^/\\]+)", line)
+        if match is None:
+            raise RuntimeError("malformed SHA256SUMS entry")
+        digest, name = match.groups()
+        require(name not in sums, f"duplicate SHA256SUMS entry: {name}")
+        sums[name] = digest
+    require(set(sums) == expected_names, "SHA256SUMS artifact allowlist drift")
+    for name, digest in sums.items():
+        require(
+            sha((path.parent / name).read_bytes(), "sha256") == digest,
+            f"hash mismatch: {name}",
+        )
+    return sums
+
+
+def verify_private_release(
+    release_dir: Path,
+    *,
+    version: str,
+    commit: str,
+    native_common_files: set[str],
+) -> None:
+    wheel_name = f"local_transcript_max-{version}-py3-none-any.whl"
+    sdist_name = f"local_transcript_max-{version}.tar.gz"
+    windows_name = f"Auralign-{version}-windows-amd64.zip"
+    macos_name = f"Auralign-{version}-darwin-arm64.tar.gz"
+    sbom_name = f"Auralign-{version}-sboms.zip"
+    artifact_names = {
+        wheel_name,
+        sdist_name,
+        windows_name,
+        macos_name,
+        "model-manifest.json",
+        sbom_name,
+        "release-manifest.json",
+        "SHA256SUMS",
+    }
+    actual = {path.name for path in release_dir.iterdir() if path.is_file()}
+    require(actual == artifact_names, "private release top-level artifact allowlist drift")
+    require(
+        not any(path.is_symlink() for path in release_dir.iterdir()),
+        "private release must not contain links",
+    )
+    checksum_names = artifact_names - {"SHA256SUMS"}
+    sums = verify_sha256sums(release_dir / "SHA256SUMS", checksum_names)
+
+    manifest = json.loads((release_dir / "release-manifest.json").read_text(encoding="utf-8"))
+    require(manifest.get("schema_version") == "auralign-private-release.v1", "release schema")
+    require(manifest.get("version") == version, "release version drift")
+    require(manifest.get("commit") == commit, "release commit drift")
+    require(manifest.get("repository_visibility") == "private", "release visibility drift")
+    rows = manifest.get("artifacts")
+    require(isinstance(rows, list), "release artifact manifest is malformed")
+    payload_names = artifact_names - {"release-manifest.json", "SHA256SUMS"}
+    require(
+        {row.get("name") for row in rows if isinstance(row, dict)} == payload_names,
+        "release payload allowlist drift",
+    )
+    for row in rows:
+        require(isinstance(row, dict), "release artifact row is malformed")
+        name = row.get("name")
+        require(isinstance(name, str) and name in payload_names, "release artifact name invalid")
+        target = release_dir / name
+        require(row.get("size") == target.stat().st_size, f"release size mismatch: {name}")
+        require(row.get("sha256") == sums[name], f"release digest mismatch: {name}")
+
+    model_manifest = json.loads((release_dir / "model-manifest.json").read_text(encoding="utf-8"))
+    require(
+        model_manifest.get("schema_version") == "auralign-release-model-manifest.v1",
+        "release model manifest schema drift",
+    )
+    models = model_manifest.get("models")
+    require(isinstance(models, list) and len(models) == 4, "release model manifest is incomplete")
+    expected_roles = {"asr", "diarization", "alignment", "speaker-embedding"}
+    require(
+        {row.get("role") for row in models if isinstance(row, dict)} == expected_roles,
+        "release model roles drifted",
+    )
+    for row in models:
+        require(isinstance(row, dict), "release model row is malformed")
+        require(isinstance(row.get("key"), str), "release model key is missing")
+        require(isinstance(row.get("model_id"), str), "release model ID is missing")
+        require(re.fullmatch(r"[0-9a-f]{40}", str(row.get("revision"))) is not None, "revision")
+        require(
+            re.fullmatch(r"[0-9a-f]{64}", str(row.get("repository_manifest_digest")))
+            is not None,
+            "repository model digest is invalid",
+        )
+        runtime_files = row.get("runtime_files")
+        require(isinstance(runtime_files, dict) and bool(runtime_files), "runtime files missing")
+        require(
+            all(
+                isinstance(name, str)
+                and re.fullmatch(r"[0-9a-f]{64}", str(digest)) is not None
+                for name, digest in runtime_files.items()
+            ),
+            "runtime file digest is invalid",
+        )
+
+    verify_wheel(read_wheel(release_dir / wheel_name))
+    verify_sdist(strip_sdist_root(read_sdist(release_dir / sdist_name)))
+
+    common_content = {
+        name: (release_dir / name).read_bytes()
+        if name in {wheel_name, "model-manifest.json"}
+        else (ROOT / name).read_bytes()
+        for name in native_common_files
+    }
+
+    windows_files = {
+        "install-windows.ps1",
+        "bootstrap.ps1",
+        "examples/config.strict-windows-amd64-cpu.yaml",
+        "examples/config.strict-windows-amd64-cu128.yaml",
+        "requirements/windows-cpu-py311.txt",
+        "requirements/windows-cu128-py311.txt",
+    }
+    macos_files = {
+        "install-macos.sh",
+        "bootstrap.sh",
+        "examples/config.strict-macos-arm64-cpu.yaml",
+        "requirements/macos-arm64-cpu-py311.txt",
+    }
+    windows_content = common_content | {
+        name: (ROOT / name).read_bytes() for name in windows_files
+    }
+    macos_content = common_content | {name: (ROOT / name).read_bytes() for name in macos_files}
+    verify_native_bundle(
+        release_dir / windows_name,
+        root_name=f"Auralign-{version}-windows-amd64",
+        expected_relative_content=windows_content,
+    )
+    verify_native_bundle(
+        release_dir / macos_name,
+        root_name=f"Auralign-{version}-darwin-arm64",
+        expected_relative_content=macos_content,
+    )
+    verify_sbom_bundle(
+        release_dir / sbom_name,
+        {
+            "source.spdx",
+            "wheel.spdx.json",
+            "sdist.spdx.json",
+            "macos-arm64-cpu.cdx.json",
+            "windows-amd64-cpu.cdx.json",
+            "windows-amd64-cu128.cdx.json",
+            "linux-amd64-cu126.cdx.json",
+        },
+    )
+
+
 def spdx_id(name: str) -> str:
     digest = hashlib.sha1(name.encode("utf-8"), usedforsecurity=False).hexdigest()
     return f"SPDXRef-File-{digest}"
@@ -239,7 +489,7 @@ def project_version() -> str:
     payload = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     version = payload.get("project", {}).get("version")
     require(isinstance(version, str) and bool(version), "project version is missing")
-    return version
+    return cast(str, version)
 
 
 def write_spdx(

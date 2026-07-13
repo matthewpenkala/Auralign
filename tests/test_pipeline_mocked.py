@@ -23,6 +23,12 @@ from local_transcript_max.schemas import (
 from local_transcript_max.utils import read_json, sha256_file
 
 
+def mocked_config(tmp_path: Path):
+    config = load_config(cwd=tmp_path)
+    config.speaker_id.mode = "off"
+    return config
+
+
 class MockASR:
     name = "mock-asr"
 
@@ -83,6 +89,78 @@ class SourceMutatingASR(MockASR):
         with self.source_path.open("ab") as handle:
             handle.write(b"changed-during-run")
         return super().transcribe(audio_path, config)
+
+
+def test_offline_transcribe_configures_fail_closed_environment_before_preflight(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_path = tmp_path / "input.wav"
+    input_path.write_bytes(b"placeholder")
+    config = mocked_config(tmp_path)
+    config.offline = True
+    observed: list[Path] = []
+
+    def configure(*, nltk_data: Path | None = None) -> None:
+        assert nltk_data is not None
+        observed.append(nltk_data)
+
+    def stop_after_environment(_config) -> None:
+        raise LTMError("stop after environment")
+
+    monkeypatch.setattr(pipeline_module, "configure_offline_environment", configure)
+    monkeypatch.setattr(pipeline_module, "preflight_required_models", stop_after_environment)
+
+    with pytest.raises(LTMError, match="stop after environment"):
+        transcribe_file(input_path, tmp_path / "out", config)
+
+    assert observed == [config.model_cache / "runtime-assets" / "nltk_data"]
+
+
+def test_ecapa_classifier_is_loaded_during_model_preflight(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from local_transcript_max.speaker_id import cluster_embeddings
+
+    config = mocked_config(tmp_path)
+    config.diarization.enabled = False
+    config.alignment.enabled = False
+    config.speaker_id.mode = "auto"
+    config.speaker_id.device = "cpu"
+    model_path = tmp_path / "models" / "ecapa"
+    loaded: list[tuple[str, str]] = []
+    monkeypatch.setattr(pipeline_module, "require_model", lambda *_args, **_kwargs: model_path)
+    monkeypatch.setattr(cluster_embeddings, "_resolve_device", lambda requested: "cpu")
+    monkeypatch.setattr(
+        cluster_embeddings,
+        "_load_classifier",
+        lambda path, device: loaded.append((path, device)),
+    )
+
+    preflight_required_models(config)
+
+    assert loaded == [(str(model_path), "cpu")]
+
+
+def test_ecapa_classifier_startup_failure_is_a_preflight_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from local_transcript_max.speaker_id import cluster_embeddings
+
+    config = mocked_config(tmp_path)
+    config.diarization.enabled = False
+    config.alignment.enabled = False
+    config.speaker_id.mode = "auto"
+    model_path = tmp_path / "models" / "ecapa"
+    monkeypatch.setattr(pipeline_module, "require_model", lambda *_args, **_kwargs: model_path)
+    monkeypatch.setattr(cluster_embeddings, "_resolve_device", lambda requested: "cpu")
+    monkeypatch.setattr(
+        cluster_embeddings,
+        "_load_classifier",
+        lambda _path, _device: (_ for _ in ()).throw(RuntimeError("HyperPyYAML failed")),
+    )
+
+    with pytest.raises(BackendUnavailableError, match="ECAPA speaker-ID preflight failed"):
+        preflight_required_models(config)
 
 
 class MockMlxASR(MockASR):
@@ -159,7 +237,7 @@ def test_mocked_pipeline_writes_phase1_artifacts(tmp_path: Path) -> None:
     input_path = tmp_path / "sample.wav"
     out_dir = tmp_path / "out"
     write_tiny_wav(input_path)
-    config = load_config(cwd=tmp_path)
+    config = mocked_config(tmp_path)
     config.asr.cpu_threads = 8
     config.asr.num_workers = 2
     transcript = transcribe_file(
@@ -226,7 +304,7 @@ def test_pipeline_fails_closed_when_input_changes_during_processing(tmp_path: Pa
     out_dir = tmp_path / "out"
     write_tiny_wav(input_path)
     initial_hash = sha256_file(input_path)
-    config = load_config(cwd=tmp_path)
+    config = mocked_config(tmp_path)
 
     with pytest.raises(LTMError, match="Input media changed while processing"):
         transcribe_file(
@@ -247,7 +325,7 @@ def test_pipeline_honors_disabled_diarization_decision_report(tmp_path: Path) ->
     input_path = tmp_path / "sample.wav"
     out_dir = tmp_path / "out"
     write_tiny_wav(input_path)
-    config = load_config(cwd=tmp_path)
+    config = mocked_config(tmp_path)
     config.agentic_diarization.enabled = True
     config.agentic_diarization.known_speakers = 1
     config.agentic_diarization.write_decision_report = False
@@ -275,7 +353,7 @@ def test_pipeline_accepts_an_empty_precreated_job_directory(tmp_path: Path) -> N
     transcript = transcribe_file(
         input_path,
         out_dir,
-        load_config(cwd=tmp_path),
+        mocked_config(tmp_path),
         asr_backend=MockASR(),
         diarization_backend=MockDiarization(),
         precheck_models=False,
@@ -301,7 +379,7 @@ def test_pipeline_rejects_existing_job_artifacts_without_overwriting(
         transcribe_file(
             input_path,
             out_dir,
-            load_config(cwd=tmp_path),
+            mocked_config(tmp_path),
             asr_backend=MockASR(),
             diarization_backend=MockDiarization(),
             precheck_models=False,
@@ -323,7 +401,7 @@ def test_pipeline_rejects_nonempty_unrelated_output_directory(tmp_path: Path) ->
         transcribe_file(
             input_path,
             out_dir,
-            load_config(cwd=tmp_path),
+            mocked_config(tmp_path),
             asr_backend=MockASR(),
             diarization_backend=MockDiarization(),
             precheck_models=False,
@@ -347,7 +425,7 @@ def test_pipeline_rejects_existing_candidate_directory_symlink(tmp_path: Path) -
         transcribe_file(
             input_path,
             out_dir,
-            load_config(cwd=tmp_path),
+            mocked_config(tmp_path),
             asr_backend=MockASR(),
             diarization_backend=MockDiarization(),
             precheck_models=False,
@@ -373,7 +451,7 @@ def test_pipeline_rejects_resolved_input_alias_of_canonical_destination(
         transcribe_file(
             alias,
             out_dir,
-            load_config(cwd=tmp_path),
+            mocked_config(tmp_path),
             asr_backend=MockASR(),
             diarization_backend=MockDiarization(),
             precheck_models=False,
@@ -394,7 +472,7 @@ def test_vad_is_metadata_and_asr_uses_canonical_audio(tmp_path: Path) -> None:
     input_path = tmp_path / "sample.wav"
     out_dir = tmp_path / "out"
     write_tiny_wav(input_path)
-    config = load_config(cwd=tmp_path)
+    config = mocked_config(tmp_path)
     asr = RecordingASR()
 
     transcript = transcribe_file(
@@ -431,7 +509,7 @@ def test_pipeline_repairs_sandwiched_unknown_fragment_labels(tmp_path: Path) -> 
     input_path = tmp_path / "sample.wav"
     out_dir = tmp_path / "out"
     write_tiny_wav(input_path)
-    config = load_config(cwd=tmp_path)
+    config = mocked_config(tmp_path)
 
     transcript = transcribe_file(
         input_path,
@@ -462,7 +540,7 @@ def test_mocked_pipeline_records_mlx_runtime_metadata(tmp_path: Path) -> None:
     input_path = tmp_path / "sample.wav"
     out_dir = tmp_path / "out"
     write_tiny_wav(input_path)
-    config = load_config(cwd=tmp_path)
+    config = mocked_config(tmp_path)
     config.asr.backend = "mlx-whisper"
 
     transcribe_file(
@@ -489,7 +567,7 @@ def test_pipeline_emits_diarization_subprogress_when_backend_supports_it(tmp_pat
     input_path = tmp_path / "sample.wav"
     out_dir = tmp_path / "out"
     write_tiny_wav(input_path)
-    config = load_config(cwd=tmp_path)
+    config = mocked_config(tmp_path)
     events: list[tuple[str, dict[str, object]]] = []
 
     transcribe_file(
@@ -512,7 +590,7 @@ def test_pipeline_identity_resolver_is_opt_in_and_runs_after_metadata(tmp_path: 
     input_path = tmp_path / "sample.wav"
     out_dir = tmp_path / "out"
     write_tiny_wav(input_path)
-    config = load_config(cwd=tmp_path)
+    config = mocked_config(tmp_path)
     config.speaker_identity.mode = "review"
     events: list[str] = []
 
@@ -538,7 +616,7 @@ def test_pipeline_identity_resolver_is_opt_in_and_runs_after_metadata(tmp_path: 
 def test_strict_alignment_preflight_fails_before_inference(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = load_config(cwd=tmp_path)
+    config = mocked_config(tmp_path)
     config.alignment.backend = "forced"
     monkeypatch.setattr(pipeline_module, "require_model", lambda *_args, **_kwargs: tmp_path)
     monkeypatch.setattr(pipeline_module, "validate_requested_device", lambda _config: None)

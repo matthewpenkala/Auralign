@@ -15,6 +15,9 @@ from .errors import BackendUnavailableError
 from .utils import read_json, sha256_file, write_json
 
 PUNKT_MARKER = ".ltm-generated-punkt.json"
+PUNKT_GENERATOR = "nltk.tokenize.punkt.save_punkt_params"
+PUNKT_TRAINING_DATA = "none"
+EMPTY_FILE_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 PUNKT_FILES = (
     "abbrev_types.txt",
     "collocations.tab",
@@ -76,12 +79,17 @@ def prepare_generated_punkt(model_cache: Path) -> dict[str, Any]:
             path.chmod(0o600)
         except OSError:
             pass
+    generated_digests = {name: sha256_file(language_dir / name) for name in PUNKT_FILES}
+    if any(digest != EMPTY_FILE_SHA256 for digest in generated_digests.values()):
+        raise BackendUnavailableError(
+            "Installed NLTK did not generate the reviewed corpus-free English Punkt contract."
+        )
     payload: dict[str, Any] = {
         "schema_version": "ltm-generated-punkt.v1",
-        "generator": "nltk.tokenize.punkt.save_punkt_params",
+        "generator": PUNKT_GENERATOR,
         "nltk_version": importlib.metadata.version("nltk"),
-        "training_data": "none",
-        "files": {name: sha256_file(language_dir / name) for name in PUNKT_FILES},
+        "training_data": PUNKT_TRAINING_DATA,
+        "files": generated_digests,
     }
     write_json(root / PUNKT_MARKER, payload)
     configure_offline_environment(nltk_data=root)
@@ -102,8 +110,22 @@ def verify_generated_punkt(model_cache: Path) -> dict[str, Any]:
     payload = read_json(marker)
     if not isinstance(payload, dict) or payload.get("schema_version") != "ltm-generated-punkt.v1":
         raise BackendUnavailableError("Generated Punkt provenance marker is invalid.")
+    installed_nltk = importlib.metadata.version("nltk")
+    expected_metadata = {
+        "generator": PUNKT_GENERATOR,
+        "nltk_version": installed_nltk,
+        "training_data": PUNKT_TRAINING_DATA,
+    }
+    if any(payload.get(key) != value for key, value in expected_metadata.items()):
+        raise BackendUnavailableError(
+            "Generated Punkt provenance does not match the locked local generator."
+        )
     files = payload.get("files")
-    if not isinstance(files, dict) or set(files) != set(PUNKT_FILES):
+    if (
+        not isinstance(files, dict)
+        or set(files) != set(PUNKT_FILES)
+        or any(files.get(name) != EMPTY_FILE_SHA256 for name in PUNKT_FILES)
+    ):
         raise BackendUnavailableError("Generated Punkt file manifest is invalid.")
     language_dir = punkt_language_dir(model_cache)
     for name in PUNKT_FILES:
@@ -123,5 +145,5 @@ def _add_nltk_search_path(root: Path) -> None:
     except Exception as exc:  # pragma: no cover - optional dependency boundary
         raise BackendUnavailableError("NLTK is not importable for WhisperX alignment.") from exc
     encoded = str(root)
-    if encoded not in nltk.data.path:
-        nltk.data.path.insert(0, encoded)
+    nltk.data.path[:] = [candidate for candidate in nltk.data.path if candidate != encoded]
+    nltk.data.path.insert(0, encoded)

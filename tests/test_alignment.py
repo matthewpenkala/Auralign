@@ -118,7 +118,14 @@ def test_auto_alignment_falls_back_when_forced_output_is_partial(tmp_path: Path)
     assert outcome.warnings == ["Forced alignment returned an invalid timestamp at word index 0."]
 
 
-def test_whisperx_alignment_requires_local_cache_before_loading(tmp_path: Path) -> None:
+def test_whisperx_alignment_requires_local_cache_before_loading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    verified: list[Path] = []
+    monkeypatch.setattr(
+        "local_transcript_max.alignment.forced_alignment.verify_generated_punkt",
+        lambda cache: verified.append(cache),
+    )
     config = load_config(cwd=tmp_path)
     config.offline = True
     config.alignment.backend = "forced"
@@ -129,9 +136,16 @@ def test_whisperx_alignment_requires_local_cache_before_loading(tmp_path: Path) 
 
     with pytest.raises(BackendUnavailableError, match="ltm models pull --alignment en"):
         WhisperXForcedAlignment().align(tmp_path / "audio.wav", asr, config)
+    assert verified == [config.model_cache]
 
 
-def test_whisperx_alignment_rejects_non_ctc_local_path(tmp_path: Path) -> None:
+def test_whisperx_alignment_rejects_non_ctc_local_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "local_transcript_max.alignment.forced_alignment.verify_generated_punkt",
+        lambda _cache: None,
+    )
     model_dir = tmp_path / "facebook--wav2vec2-large-xlsr-53"
     model_dir.mkdir()
     (model_dir / "config.json").write_text("{}", encoding="utf-8")

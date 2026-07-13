@@ -2,12 +2,15 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
+from pathlib import Path
+
 import pytest
 from typer.testing import CliRunner
 
 import local_transcript_max.cli as cli_module
 from local_transcript_max.benchmark.corpus import MediaProbe
 from local_transcript_max.cli import app
+from local_transcript_max.doctor import DoctorReport
 from local_transcript_max.schemas import Transcript
 from local_transcript_max.utils import write_json
 
@@ -16,6 +19,20 @@ def test_cli_help() -> None:
     result = CliRunner().invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "doctor" in result.stdout
+
+
+def test_doctor_suppresses_unredacted_dependency_stderr(monkeypatch) -> None:
+    private_path = Path.home() / "private" / "models"
+
+    def fake_doctor(*_args, **_kwargs):
+        print(f"native loader failed at {private_path}", file=__import__("sys").stderr)
+        return DoctorReport(ok=True, offline=True)
+
+    monkeypatch.setattr("local_transcript_max.cli.run_doctor", fake_doctor)
+    result = CliRunner().invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert str(private_path) not in result.output
 
 
 def test_models_dry_run() -> None:
@@ -188,6 +205,13 @@ def test_transcribe_config_file_values_survive_cli_defaults(tmp_path, monkeypatc
     assert config.redecode.mode == "hallucination"
     assert config.speaker_id.mode == "auto"
     assert config.cleanup.endpoint == "http://127.0.0.1:9999/v1"
+
+
+def test_speaker_enrollment_does_not_expose_test_fallback_option() -> None:
+    result = CliRunner().invoke(app, ["speakers", "enroll", "--help"])
+
+    assert result.exit_code == 0
+    assert "allow-fallback-embedding" not in result.stdout
 
 
 def test_transcribe_cleanup_endpoint_env_survives_cli_default_and_explicit_cli_wins(

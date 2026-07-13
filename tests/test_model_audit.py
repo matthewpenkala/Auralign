@@ -5,11 +5,18 @@
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from local_transcript_max.cli import app
 from local_transcript_max.config import MODEL_MANIFEST, resolve_model_entry
-from local_transcript_max.models import audit_payload, status_for, write_model_provenance
+from local_transcript_max.errors import ModelCacheError
+from local_transcript_max.models import (
+    audit_payload,
+    pull_model,
+    status_for,
+    write_model_provenance,
+)
 from local_transcript_max.utils import read_json
 
 
@@ -137,7 +144,7 @@ def test_models_import_mlx_cli_copies_valid_local_directory(tmp_path: Path) -> N
     assert (cache_dir / "mlx-community--whisper-large-v3-turbo" / "weights.safetensors").exists()
 
 
-def test_pull_preconditions_block_gated_model_before_asr_download(
+def test_pull_preconditions_block_incomplete_gated_digest_before_asr_download(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -157,7 +164,7 @@ def test_pull_preconditions_block_gated_model_before_asr_download(
         ],
     )
     assert result.exit_code == 1
-    assert "requires HF_TOKEN or LTM_HF_TOKEN" in result.stderr
+    assert "repository digest contract incomplete" in result.stderr
     assert not any(tmp_path.iterdir())
 
 
@@ -198,11 +205,16 @@ def test_models_verify_fails_and_writes_audit_for_missing_cache(tmp_path: Path) 
 def test_models_verify_can_target_the_exact_strict_lane(
     tmp_path: Path, monkeypatch
 ) -> None:
+    monkeypatch.setattr(
+        "local_transcript_max.models._repository_digest_contract_problem",
+        lambda _entry: None,
+    )
     cache_dir = tmp_path / "models"
     for role, key in (
         ("asr", "large-v3"),
         ("diarization", "community-1"),
         ("alignment", "en"),
+        ("speaker-embedding", "ecapa"),
     ):
         entry = resolve_model_entry(role, key)
         assert entry is not None
@@ -228,13 +240,15 @@ def test_models_verify_can_target_the_exact_strict_lane(
             "community-1",
             "--alignment",
             "en",
+            "--speaker-id",
+            "ecapa",
             "--cache-dir",
             str(cache_dir),
         ],
     )
 
     assert result.exit_code == 0
-    assert "verified 3 model cache entries with immutable revision linkage" in result.stdout
+    assert "verified 4 model cache entries with immutable revision linkage" in result.stdout
     assert str(tmp_path) not in result.stdout
 
 
@@ -255,6 +269,36 @@ def test_speaker_id_pull_alias_is_supported() -> None:
     )
     assert result.exit_code == 0
     assert "speechbrain/spkrec-ecapa-voxceleb" in result.stdout
+
+
+def test_pull_refuses_manifest_entry_with_incomplete_repository_digest_contract(
+    tmp_path: Path, monkeypatch
+) -> None:
+    entry = resolve_model_entry("asr", "turbo")
+    assert entry is not None
+    monkeypatch.setattr(
+        "local_transcript_max.models.snapshot_download",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("network must not be used")),
+    )
+
+    with pytest.raises(ModelCacheError, match="repository digest contract incomplete"):
+        pull_model(entry, tmp_path)
+
+
+def test_strict_community_cache_cannot_verify_without_config_digest(tmp_path: Path) -> None:
+    entry = resolve_model_entry("diarization", "community-1")
+    assert entry is not None
+    model_dir = tmp_path / entry.directory_name
+    model_dir.mkdir()
+    for required in entry.required_files:
+        target = model_dir / required
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"present")
+
+    status = status_for(entry, tmp_path)
+
+    assert status.present is False
+    assert "repository digest contract incomplete" in status.provenance_problem
 
 
 def test_gated_model_dry_run_does_not_require_token(tmp_path: Path, monkeypatch) -> None:

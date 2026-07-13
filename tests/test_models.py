@@ -4,21 +4,26 @@
 
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from local_transcript_max import models as models_module
 from local_transcript_max.config import MODEL_MANIFEST, ModelEntry, resolve_model_entry
 from local_transcript_max.errors import ModelCacheError, OfflineModeError
 from local_transcript_max.models import (
+    MIN_RUNTIME_PREPARATION_FREE_BYTES,
     MODEL_PROVENANCE_FILENAME,
     audit_payload,
     ensure_pull_preconditions,
     import_mlx_model,
     model_manifest_digest,
     model_provenance_payload,
+    preflight_runtime_preparation,
     prune_plan,
     pull_model,
     require_model,
+    review_model_digests,
     selected_entries,
     status_for,
     verify_models,
@@ -34,6 +39,7 @@ def synthetic_manifest_digests(monkeypatch: pytest.MonkeyPatch) -> None:
 
     for key, entry in tuple(MODEL_MANIFEST.items()):
         monkeypatch.setitem(MODEL_MANIFEST, key, replace(entry, expected_sha256=()))
+    monkeypatch.setattr(models_module, "_repository_digest_contract_problem", lambda _entry: None)
 
 
 def write_complete_model(model_dir: Path, entry: ModelEntry) -> None:
@@ -168,6 +174,41 @@ def test_runtime_file_tampering_fails_digest_verification(tmp_path: Path) -> Non
     assert "digests do not match" in status.provenance_problem
 
 
+def test_non_allowlisted_file_fails_model_verification(tmp_path: Path) -> None:
+    entry = resolve_model_entry("asr", "large-v3")
+    assert entry is not None
+    model_dir = tmp_path / entry.directory_name
+    model_dir.mkdir()
+    write_complete_model(model_dir, entry)
+    (model_dir / "example-audio.wav").write_bytes(b"private")
+
+    status = status_for(entry, tmp_path)
+
+    assert status.present is False
+    assert status.unexpected_files == ("example-audio.wav",)
+    assert "non-allowlisted" in status.problem_summary(tmp_path)
+
+
+def test_symlinked_runtime_asset_fails_model_verification(tmp_path: Path) -> None:
+    entry = resolve_model_entry("asr", "large-v3")
+    assert entry is not None
+    model_dir = tmp_path / entry.directory_name
+    model_dir.mkdir()
+    write_complete_model(model_dir, entry)
+    target = tmp_path / "outside.bin"
+    target.write_bytes(b"outside")
+    linked = model_dir / "unexpected-link"
+    try:
+        linked.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks are unavailable on this test host")
+
+    status = status_for(entry, tmp_path)
+
+    assert status.present is False
+    assert status.unexpected_files == ("unexpected-link",)
+
+
 def test_obsolete_provenance_marker_fails_with_refresh_instruction(tmp_path: Path) -> None:
     entry = resolve_model_entry("asr", "large-v3")
     assert entry is not None
@@ -209,6 +250,30 @@ def test_pull_refuses_partial_cache_without_explicit_repair(
 
     with pytest.raises(ModelCacheError, match="explicit repair enabled"):
         pull_model(entry, tmp_path)
+
+
+def test_digest_review_is_ephemeral_allowlisted_and_does_not_install(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    entry = resolve_model_entry("asr", "turbo")
+    assert entry is not None
+
+    def fake_snapshot_download(**kwargs: object) -> str:
+        temporary = Path(str(kwargs["local_dir"]))
+        assert kwargs["allow_patterns"] == list(entry.runtime_files)
+        for relative in entry.runtime_files:
+            target = temporary / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(relative.encode("utf-8"))
+        return str(temporary)
+
+    monkeypatch.setattr("local_transcript_max.models.snapshot_download", fake_snapshot_download)
+
+    digests = review_model_digests(entry, tmp_path)
+
+    assert set(digests) == set(entry.runtime_files)
+    assert not (tmp_path / entry.directory_name).exists()
+    assert not list(tmp_path.glob(f".{entry.directory_name}.review-*"))
 
 
 def test_pull_repair_quarantines_partial_cache_and_installs_atomically(
@@ -283,21 +348,53 @@ def test_gated_precondition_allows_present_token(tmp_path: Path, monkeypatch) ->
     ensure_pull_preconditions([entry], tmp_path)
 
 
+def test_runtime_preparation_preflight_rejects_low_cache_volume_space(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    entry = resolve_model_entry("asr", "large-v3")
+    assert entry is not None
+    monkeypatch.setattr(models_module.shutil, "which", lambda _name: "/approved/command")
+    monkeypatch.setattr(models_module.importlib, "import_module", lambda _name: object())
+    monkeypatch.setattr(
+        models_module.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(free=MIN_RUNTIME_PREPARATION_FREE_BYTES - 1),
+    )
+
+    with pytest.raises(ModelCacheError, match="at least 8 GiB free"):
+        preflight_runtime_preparation([entry], tmp_path / "models")
+
+
+def test_runtime_preparation_preflight_rejects_backend_import_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    entry = resolve_model_entry("asr", "large-v3")
+    assert entry is not None
+    monkeypatch.setattr(models_module.shutil, "which", lambda _name: "/approved/command")
+
+    def import_module(name: str) -> object:
+        if name == "whisperx":
+            raise OSError("native dependency unavailable")
+        return object()
+
+    monkeypatch.setattr(models_module.importlib, "import_module", import_module)
+
+    with pytest.raises(ModelCacheError, match="dependency import failed: whisperx"):
+        preflight_runtime_preparation([entry], tmp_path / "models")
+
+
 def test_combined_pull_selection_excludes_optional_by_default() -> None:
     entries = selected_entries(all_models=True, include_optional=False)
     assert all(not entry.optional for entry in entries)
-    assert {entry.key for entry in entries} >= {
-        "large-v3",
-        "turbo",
-        "distil-large-v3",
-        "distil-large-v3.5",
-        "community-1",
-    }
+    assert {entry.key for entry in entries} == {"large-v3", "community-1"}
 
 
 def test_combined_pull_selection_includes_optional_when_requested() -> None:
     entries = selected_entries(all_models=True, include_optional=True)
     roles = {(entry.role, entry.key) for entry in entries}
+    assert ("asr", "turbo") in roles
+    assert ("asr", "distil-large-v3") in roles
+    assert ("asr", "distil-large-v3.5") in roles
     assert ("alignment", "en") in roles
     assert ("speaker-embedding", "ecapa") in roles
     assert ("asr-mlx", "mlx-large-v3-turbo") not in roles

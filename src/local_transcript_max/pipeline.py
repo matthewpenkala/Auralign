@@ -71,6 +71,7 @@ from .qa.heuristics import run_qa
 from .qa.redecode import run_targeted_redecode
 from .redaction import privacy_safe_text
 from .resource_usage import ResourceMonitor
+from .runtime_assets import configure_offline_environment, punkt_data_root
 from .schemas import (
     AlignedWord,
     ASRResult,
@@ -137,12 +138,19 @@ def preflight_required_models(config: PipelineConfig) -> None:
     if config.alignment.enabled and config.alignment.backend == "forced":
         preflight_forced_alignment(config)
     if config.speaker_id.mode == "auto":
-        require_model(
+        model_path = require_model(
             "speaker-embedding",
             config.speaker_id.model,
             config.model_cache,
             offline=config.offline,
         )
+        try:
+            from .speaker_id.cluster_embeddings import _load_classifier, _resolve_device
+
+            device = _resolve_device(config.speaker_id.device)
+            _load_classifier(str(model_path), device)
+        except Exception as exc:
+            raise BackendUnavailableError(f"ECAPA speaker-ID preflight failed: {exc}") from exc
 
 
 def transcribe_file(
@@ -157,6 +165,8 @@ def transcribe_file(
     debug_report_path: Path | None = None,
     progress: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> Transcript:
+    if config.offline:
+        configure_offline_environment(nltk_data=punkt_data_root(config.model_cache))
     input_file = input_file.expanduser().resolve()
     out_dir = out_dir.expanduser().resolve()
     canonical_destination = (out_dir / "canonical.wav").resolve()

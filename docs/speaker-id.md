@@ -44,9 +44,9 @@ matching should fail with an actionable remediation command rather than falling
 back to any cloud service.
 
 Enrollment resolves `ecapa` under `LTM_MODEL_CACHE` and calls SpeechBrain with
-network fetches disabled. The only fallback embedding path is the explicit
-`--allow-fallback-embedding` degraded mode used for local smoke tests and
-bookkeeping. It must not support identity claims.
+network fetches disabled. The deterministic waveform-stat fallback is available
+only to the test suite and must not support identity claims. The production CLI
+fails closed when the pinned local ECAPA runtime is unavailable.
 
 `speaker_id.mode` defaults to `auto`; `--speaker-id off` is an explicit degraded
 opt-out. Auralign embeds only exclusive non-overlap turns of at least one second,

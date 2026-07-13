@@ -13,7 +13,6 @@ import json
 import math
 import os
 import platform
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -97,10 +96,27 @@ assert ctranslate2.get_supported_compute_types("cuda")
     checked("CUDA 12.8 native probe", [sys.executable, "-c", code], environment=environment)
 
 
-def assert_real_outputs(job: Path) -> None:
+def _expected_device(profile: str) -> str:
+    return "cuda" if profile == "cu128" else "cpu"
+
+
+def assert_real_outputs(job: Path, *, profile: str) -> None:
+    expected_device = _expected_device(profile)
     metadata = load_json(job / "run_metadata.json")
     if metadata.get("alignment_backend") != "whisperx-forced":
         raise RuntimeError("real forced alignment backend was not used")
+    if metadata.get("device") != expected_device:
+        raise RuntimeError("ASR did not execute on the required profile device")
+    expected_compute = "float16" if profile == "cu128" else "int8"
+    if metadata.get("compute_type") != expected_compute:
+        raise RuntimeError("ASR did not execute with the required compute type")
+    if metadata.get("alignment_device") != expected_device:
+        raise RuntimeError("WhisperX did not execute on the required profile device")
+    if (
+        metadata.get("diarization_resolved_device") != expected_device
+        or metadata.get("diarization_device_fallback") is not False
+    ):
+        raise RuntimeError("pyannote did not execute on the required device without fallback")
     transcript = load_json(job / "transcript.json")
     words = transcript.get("words")
     if not isinstance(words, list) or not words:
@@ -116,17 +132,40 @@ def assert_real_outputs(job: Path) -> None:
     speakers = {str(turn.get("speaker")) for turn in exclusive if isinstance(turn, dict)}
     if len(speakers) != EXPECTED_SPEAKERS:
         raise RuntimeError("real-media structural speaker count did not match the capsule contract")
+    regular_diarization = load_json(job / "diarization.json").get("turns")
+    exclusive_diarization = load_json(job / "exclusive_diarization.json").get("turns")
+    if not isinstance(regular_diarization, list) or not regular_diarization:
+        raise RuntimeError("regular pyannote diarization output is missing")
+    if not isinstance(exclusive_diarization, list) or not exclusive_diarization:
+        raise RuntimeError("exclusive pyannote diarization artifact is missing")
     embedding_report = load_json(job / "speaker_embedding_report.json")
+    if embedding_report.get("device") != expected_device:
+        raise RuntimeError("ECAPA did not execute on the required profile device")
     for row in embedding_report.get("speakers", {}).values():
         if not isinstance(row, dict) or not row.get("embedding_dimensions"):
             raise RuntimeError("ECAPA did not produce a usable embedding for each cluster")
+    embeddings = load_json(job / "speaker_cluster_embeddings.json")
+    if set(embeddings) != speakers:
+        raise RuntimeError("ECAPA cluster embeddings do not cover the diarized speakers")
+    for vector in embeddings.values():
+        if not isinstance(vector, list) or not vector:
+            raise RuntimeError("ECAPA returned an empty cluster vector")
+        try:
+            numeric = [float(value) for value in vector]
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("ECAPA returned a non-numeric cluster vector") from exc
+        if not all(math.isfinite(value) for value in numeric):
+            raise RuntimeError("ECAPA returned a non-finite cluster vector")
+        norm = math.sqrt(math.fsum(value * value for value in numeric))
+        if not math.isclose(norm, 1.0, abs_tol=1e-5):
+            raise RuntimeError("ECAPA cluster vector is not unit-normalized")
     speaker_map = load_json(job / "speaker_map.json")
-    labels = {
+    labels = [
         row.get("label")
         for row in speaker_map.get("mappings", [])
         if isinstance(row, dict) and row.get("label") != "UNKNOWN"
-    }
-    if labels != {"canary-speaker-00", "canary-speaker-01"}:
+    ]
+    if sorted(labels) != ["canary-speaker-00", "canary-speaker-01"]:
         raise RuntimeError("held-out ECAPA identities did not both match their neutral enrollments")
 
 
@@ -172,14 +211,14 @@ def main() -> int:
         }
     )
     try:
-        ltm = shutil.which("ltm")
-        if ltm is None:
+        ltm = Path(sys.executable).with_name("ltm.exe" if os.name == "nt" else "ltm")
+        if not ltm.is_file():
             raise RuntimeError("the locked Auralign CLI is not installed")
         if args.profile == "cu128":
             validate_cuda(environment)
         checked(
             "strict backend startup",
-            [ltm, "doctor", "--startup", "--config", str(args.config)],
+            [str(ltm), "doctor", "--startup", "--config", str(args.config)],
             environment=environment,
         )
         tts = work / "local-tts.wav"
@@ -187,7 +226,7 @@ def main() -> int:
         checked(
             "local TTS real pipeline",
             [
-                ltm,
+                str(ltm),
                 "transcribe",
                 str(tts),
                 "--config",
@@ -206,7 +245,7 @@ def main() -> int:
             checked(
                 "local ECAPA enrollment",
                 [
-                    ltm,
+                    str(ltm),
                     "speakers",
                     "enroll",
                     "--name",
@@ -220,7 +259,7 @@ def main() -> int:
         checked(
             "fixed real-media pipeline",
             [
-                ltm,
+                str(ltm),
                 "transcribe",
                 str(capsule / "canary-10m.mp4"),
                 "--config",
@@ -232,9 +271,13 @@ def main() -> int:
             ],
             environment=environment,
         )
-        assert_real_outputs(canary_job)
+        assert_real_outputs(canary_job, profile=args.profile)
     finally:
-        shutil.rmtree(work, ignore_errors=True)
+        import shutil
+
+        shutil.rmtree(work)
+        if work.exists() or work.is_symlink():
+            raise RuntimeError("private validation outputs could not be removed")
     print(f"trusted_platform_validation_ok=true profile={args.profile}")
     return 0
 

@@ -57,24 +57,25 @@ The old NeMo placeholder was never operational and is no longer a supported
 CLI/config extra. Select `pyannote`, `auto`, or `off`. Reintroducing Sortformer
 requires a separately implemented and tested local-assets contract.
 
-## Bootstrap skipped a gated model
+## Bootstrap stops at the gated model preflight
 
-This is expected when a token lacks access or pyannote terms are not accepted.
-The bootstrap script records the skip in `auralign_bootstrap.log`. Accept the
-required terms, refresh the token outside the repo, and rerun `./bootstrap.sh`.
+This is expected when a token lacks access or Community-1 terms are not
+accepted. Strict preparation fails before pulling unrelated assets; it never
+skips the required model. Each operator must accept the upstream terms, expose a
+read-scoped token only through `HF_TOKEN` or `LTM_HF_TOKEN`, rerun the bootstrap,
+and unset both variables afterward. No persistent bootstrap log is written.
 
-## Bootstrap refuses because of the storage budget
+## Dataset planning reports a storage-budget blocker
 
-The default budget is intentionally laptop-safe:
+The separate optional dataset planner uses laptop-safe defaults:
 
 ```bash
-LTM_BOOTSTRAP_MAX_LOCAL_GB=65
-LTM_BOOTSTRAP_MIN_FREE_GB=100
+uv run ltm datasets plan --profile runtime-samples --max-local-gb 65 --min-free-gb 100
 ```
 
-Run `uv run ltm datasets plan --profile runtime-samples --max-local-gb 65` to
-inspect the projected footprint. Only set `LTM_ALLOW_OVER_BUDGET=1` after
-confirming the machine has enough free space.
+This dataset budget does not authorize model acquisition and is not a bootstrap
+override. Resolve any model-cache storage preflight failure on the target volume
+before rerunning `prepare-runtime`.
 
 ## Full datasets were not downloaded
 

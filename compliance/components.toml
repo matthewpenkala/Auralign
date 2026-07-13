@@ -119,6 +119,26 @@ license_expression = "BSD-3-Clause"
 usage = "PyAV FFmpeg 7 ABI pin for macOS TorchCodec compatibility"
 
 [[components]]
+id = "pypi:torchcodec"
+category = "python-runtime-optional"
+identifier = "torchcodec"
+versions = ["0.7.0"]
+source_url = "https://pypi.org/project/torchcodec/0.7.0/"
+terms_url = "https://github.com/pytorch/torchcodec/blob/v0.7.0/LICENSE"
+license_expression = "BSD-3-Clause"
+usage = "direct native FFmpeg decoding boundary for pyannote and WhisperX startup"
+
+[[components]]
+id = "pypi:pillow"
+category = "python-runtime-optional"
+identifier = "pillow"
+versions = ["12.3.0"]
+source_url = "https://pypi.org/project/pillow/12.3.0/"
+terms_url = "https://github.com/python-pillow/Pillow/blob/12.3.0/LICENSE"
+license_expression = "MIT-CMU"
+usage = "security-pinned image dependency for the full inference environment"
+
+[[components]]
 id = "pypi:speechbrain"
 category = "python-runtime-optional"
 identifier = "speechbrain"

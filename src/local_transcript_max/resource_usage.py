@@ -105,7 +105,7 @@ def current_rss_bytes(pid: int | None = None) -> int | None:
 
 def process_lifetime_peak_rss_bytes() -> int | None:
     try:
-        value = current_process_usage().resident_bytes
+        value = current_process_usage().peak_resident_bytes
     except OSError:
         return None
     if value <= 0:

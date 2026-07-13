@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 import math
+import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -101,3 +102,39 @@ def test_build_cluster_embeddings_loads_backend_once_and_reports_no_eligible_spe
     assert "canonical.wav" not in str(result.report)
     assert "transcript" not in str(result.report).lower()
     assert result.embeddings["SPEAKER_00"] not in result.report["speakers"].values()
+
+
+def test_classifier_loader_disables_network_and_model_directory_links(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+    speaker_module = ModuleType("speechbrain.inference.speaker")
+    fetching_module = ModuleType("speechbrain.utils.fetching")
+    no_link = object()
+
+    class FetchConfig:
+        def __init__(self, *, allow_network: bool) -> None:
+            self.allow_network = allow_network
+
+    class EncoderClassifier:
+        @staticmethod
+        def from_hparams(**kwargs: object) -> object:
+            calls.append(kwargs)
+            return object()
+
+    speaker_module.EncoderClassifier = EncoderClassifier  # type: ignore[attr-defined]
+    fetching_module.FetchConfig = FetchConfig  # type: ignore[attr-defined]
+    fetching_module.LocalStrategy = SimpleNamespace(NO_LINK=no_link)  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "speechbrain.inference.speaker", speaker_module)
+    monkeypatch.setitem(sys.modules, "speechbrain.utils.fetching", fetching_module)
+    module._load_classifier.cache_clear()
+
+    module._load_classifier("/reviewed/model", "cpu")
+
+    assert len(calls) == 1
+    assert calls[0]["savedir"] is None
+    assert calls[0]["local_strategy"] is no_link
+    fetch_config = calls[0]["fetch_config"]
+    assert isinstance(fetch_config, FetchConfig)
+    assert fetch_config.allow_network is False
+    module._load_classifier.cache_clear()

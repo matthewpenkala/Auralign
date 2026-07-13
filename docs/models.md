@@ -109,6 +109,27 @@ the authorized connected machine only:
 ```bash
 # Redacted example only; never save or pass a real token as a CLI argument.
 export LTM_HF_TOKEN="REDACTED_USER_SUPPLIED_READ_TOKEN"
+```
+
+If an approved immutable pointer is intentionally awaiting its first committed
+file hash, an authorized maintainer reviews exactly one revision before pull:
+
+```bash
+uv run ltm models review-digests \
+  --diarization community-1 \
+  --cache-dir "$LTM_MODEL_CACHE"
+```
+
+This command is permitted only after explicit acquisition authorization and
+applicable gated acceptance. It downloads only allowlisted files into a locked
+sibling temporary directory, returns their SHA-256 map, installs nothing, and
+deletes the temporary bytes. Review and commit the missing hash before normal
+acquisition; never use digest review to bypass provenance review or redistribute
+model files.
+
+After every selected entry has a complete committed digest contract:
+
+```bash
 uv run ltm models pull \
   --asr large-v3 \
   --diarization community-1 \
@@ -162,7 +183,7 @@ rsync -a --protect-args "$LTM_MODEL_CACHE/" \
   authorized-offline-host:/approved/path/models/
 ```
 
-Set `LTM_MODEL_CACHE` to the destination and rerun the exact three-entry
+Set `LTM_MODEL_CACHE` to the destination and rerun the exact four-entry
 `models verify` and strict offline doctor there. If the transfer method omits
 `.ltm-model.json`, verification must fail and the cache must not be used.
 
@@ -176,7 +197,7 @@ Failure behavior is deliberately actionable and closed:
 - offline missing or incomplete asset: doctor and transcription fail without network access;
 - missing active backend package or startup preflight: doctor reports an error and cannot pass.
 
-Confirmed manifest entries:
+Configured manifest pointers:
 
 - `large-v3`: `Systran/faster-whisper-large-v3`
 - `turbo`: `mobiuslabsgmbh/faster-whisper-large-v3-turbo` with `dropbox-dash/faster-whisper-large-v3-turbo` accepted as a redirect/alias
@@ -195,6 +216,11 @@ Confirmed manifest entries:
   - `mlx-large-v2`: `mlx-community/whisper-large-v2-mlx`
   - `mlx-large-v3`: `mlx-community/whisper-large-v3-mlx`
   - `mlx-large-v3-turbo`: `mlx-community/whisper-large-v3-turbo`
+
+This list records identities and immutable revisions, not runtime readiness.
+Only entries with a complete committed digest map can be pulled or verified.
+The turbo and Distil faster-whisper alternatives above are therefore
+pointer-only/hash-review-blocked in 0.2.0.
 - `community-1`: `pyannote/speaker-diarization-community-1`
 - `en` / `auto`: `facebook/wav2vec2-base-960h`
 - `ecapa`: `speechbrain/spkrec-ecapa-voxceleb`
@@ -231,7 +257,7 @@ also writes a token-redacted machine-local audit to
 `models/model_audit.json`. That ignored file can contain local paths and should
 not be shared or committed.
 
-Useful model commands:
+Useful strict model commands:
 
 ```bash
 uv run ltm models list
@@ -239,20 +265,19 @@ uv run ltm models audit
 uv run ltm models verify
 uv run ltm models verify --asr large-v3 --diarization community-1 --alignment en --speaker-id ecapa
 uv run ltm models prune --dry-run
-uv run ltm models pull --all
-uv run ltm models pull --all --include-optional
 uv run ltm models pull --asr large-v3
-uv run ltm models pull --asr large-v3-turbo
-uv run ltm models pull --asr distil-large-v3
-uv run ltm models pull --asr distil-large-v3.5
 uv run ltm models pull --diarization community-1
 uv run ltm models pull --speaker-id ecapa
 uv run ltm models pull --alignment auto
+uv run ltm models review-digests --diarization community-1
 uv run ltm models import-mlx /path/to/converted-mlx-whisper --cache-dir models
 ```
 
 `--all` includes required ASR and diarization entries. Add
-`--include-optional` for alignment and speaker-ID entries.
+`--include-optional` for alternative ASR, alignment, and speaker-ID entries.
+Pullable entries whose repository digest contract is incomplete fail before
+network access; an immutable revision and a self-written marker are not a
+substitute for reviewed SHA-256 values.
 
 The cache validator treats a model as not ready when:
 
@@ -261,8 +286,16 @@ The cache validator treats a model as not ready when:
 - required files exist but are zero bytes
 - a pullable model lacks the exact Auralign immutable-revision linkage marker
 - offline mode is enabled and the required model is incomplete
+- any allowlisted runtime file lacks a committed repository-reviewed SHA-256
 
-For ASR CTranslate2 models, `model.bin` and `config.json` are required. For
+The strict four-model lane has a complete reviewed digest contract only after
+Community-1's gated `config.yaml` digest is acquired and committed by the owner.
+Other configured faster-whisper alternatives remain pointer-only until their
+complete runtime-file hashes are independently acquired and reviewed. They must
+not be represented as operational pulls merely because an ID and immutable
+revision are present.
+
+For ASR CTranslate2 models, every allowlisted runtime file is required. For
 MLX ASR models, `config.json` and either `weights.safetensors` or `weights.npz`
 are required. MLX entries are audit-only: `ltm models pull` does not download
 them, and transcription refuses to pass remote repo IDs to `mlx-whisper`.
@@ -270,8 +303,8 @@ Short aliases like `turbo`, `large-v3`, and `small` resolve only within the
 `asr-mlx` manifest role and still require a complete local cache directory. Use
 `ltm models import-mlx` to copy or symlink an already converted local MLX
 directory into the canonical cache path after validating those files. For
-pyannote community diarization, `config.yaml` is required, along with the rest
-of the snapshot downloaded by Hugging Face. For English forced alignment, Auralign
+pyannote community diarization, exactly the allowlisted `config.yaml`,
+segmentation, embedding, and PLDA runtime files are required. For English forced alignment, Auralign
 requires a CTC Wav2Vec2 ASR checkpoint with tokenizer/vocabulary files and
 weights; generic Wav2Vec2 pretraining checkpoints are not alignment-ready.
 
@@ -322,17 +355,18 @@ inference, telemetry, or runtime uploads.
 
 ## Default Cache-Set Classification
 
-The `Required` column below describes the default full manifest cache set used
-by `models pull --all` and unselected `models verify`. A runtime configuration
-requires only its active ASR choice plus its enabled diarization, alignment,
-and speaker-ID lanes. Use explicit verification selectors for that exact set.
+The `Status` column distinguishes the exact strict runtime from configured
+pointers that intentionally fail closed until a complete digest review. A
+runtime configuration requires its active ASR choice plus enabled diarization,
+alignment, and speaker-ID lanes. Use explicit verification selectors for that
+exact set.
 
-| Key | Model ID | Required | Gated | Cache path |
+| Key | Model ID | Status | Gated | Cache path |
 | --- | --- | --- | --- | --- |
-| `large-v3` | `Systran/faster-whisper-large-v3` | Yes | No | `models/Systran--faster-whisper-large-v3` |
-| `turbo` | `mobiuslabsgmbh/faster-whisper-large-v3-turbo` | Yes | No | `models/mobiuslabsgmbh--faster-whisper-large-v3-turbo` or accepted alias cache `models/dropbox-dash--faster-whisper-large-v3-turbo` |
-| `distil-large-v3` | `Systran/faster-distil-whisper-large-v3` | Yes | No | `models/Systran--faster-distil-whisper-large-v3` |
-| `distil-large-v3.5` | `distil-whisper/distil-large-v3.5-ct2` | Yes | No | `models/distil-whisper--distil-large-v3.5-ct2` |
+| `large-v3` | `Systran/faster-whisper-large-v3` | Strict ASR; digest-complete | No | `models/Systran--faster-whisper-large-v3` |
+| `turbo` | `mobiuslabsgmbh/faster-whisper-large-v3-turbo` | Pointer-only; hash review blocked | No | `models/mobiuslabsgmbh--faster-whisper-large-v3-turbo` or accepted alias cache `models/dropbox-dash--faster-whisper-large-v3-turbo` |
+| `distil-large-v3` | `Systran/faster-distil-whisper-large-v3` | Pointer-only; hash review blocked | No | `models/Systran--faster-distil-whisper-large-v3` |
+| `distil-large-v3.5` | `distil-whisper/distil-large-v3.5-ct2` | Pointer-only; hash review blocked | No | `models/distil-whisper--distil-large-v3.5-ct2` |
 | `mlx-*` | `mlx-community/whisper-*-mlx` or `mlx-community/whisper-large-v3-turbo` | Optional audit-only | No | canonical escaped model-ID path, plus accepted alias directories such as `models/mlx-turbo` |
 | `community-1` | `pyannote/speaker-diarization-community-1` | Yes | Yes | `models/pyannote--speaker-diarization-community-1` |
 | `auto` | `facebook/wav2vec2-base-960h` | Required in strict/full mode | No | `models/facebook--wav2vec2-base-960h` |

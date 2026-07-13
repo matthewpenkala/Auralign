@@ -64,6 +64,33 @@ jobs:
           if (-not (Test-Path $env:LTM_VALIDATION_CAPSULE_DIR -PathType Container)) {
             throw 'runner-local validation capsule is unavailable'
           }
+          if (-not $env:LTM_MODEL_CACHE) {
+            throw 'runner-local external model cache is not configured'
+          }
+          if (-not (Test-Path $env:LTM_MODEL_CACHE -PathType Container)) {
+            throw 'runner-local external model cache is unavailable'
+          }
+          $workspaceRoot = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd('\')
+          $workspacePrefix = $workspaceRoot + '\'
+          $capsule = [IO.Path]::GetFullPath($env:LTM_VALIDATION_CAPSULE_DIR)
+          $models = [IO.Path]::GetFullPath($env:LTM_MODEL_CACHE)
+          if ($capsule.Equals($workspaceRoot, [StringComparison]::OrdinalIgnoreCase) -or
+              $models.Equals($workspaceRoot, [StringComparison]::OrdinalIgnoreCase) -or
+              $capsule.StartsWith($workspacePrefix, [StringComparison]::OrdinalIgnoreCase) -or
+              $models.StartsWith($workspacePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'private capsule and model cache must remain outside the Actions checkout'
+          }
+      - name: Provision exact locked profile outside checkout
+        shell: pwsh
+        run: |
+          $runtime = Join-Path $env:RUNNER_TEMP "auralign-${{ inputs.approved_sha }}-${{ matrix.profile }}"
+          if (Test-Path $runtime) { Remove-Item -Recurse -Force $runtime }
+          $installerProfile = if ('${{ matrix.profile }}' -eq 'cu128') { 'Cuda128' } else { 'Cpu' }
+          & "$env:GITHUB_WORKSPACE\install-windows.ps1" `
+            -Profile $installerProfile `
+            -Destination $runtime `
+            -SourceCheckout
+          if ($LASTEXITCODE -ne 0) { throw 'locked profile provisioning failed' }
       - name: Run offline backend and private-media validation
         shell: pwsh
         env:
@@ -74,14 +101,21 @@ jobs:
           LTM_OFFLINE: "1"
           PYANNOTE_METRICS_ENABLED: "false"
           UV_NO_CACHE: "1"
-        run: >-
-          uv run --frozen --no-sync python scripts/run_trusted_platform_validation.py
-          --profile ${{ matrix.profile }}
-          --config ${{ matrix.config }}
+        run: |
+          $runtime = Join-Path $env:RUNNER_TEMP "auralign-${{ inputs.approved_sha }}-${{ matrix.profile }}"
+          $python = Join-Path $runtime '.venv\Scripts\python.exe'
+          & $python scripts/run_trusted_platform_validation.py `
+            --profile '${{ matrix.profile }}' `
+            --config '${{ matrix.config }}'
+          if ($LASTEXITCODE -ne 0) { throw 'trusted model validation failed' }
       - name: Remove generated validation outputs
         if: always()
         shell: pwsh
         run: |
           if (Test-Path .trusted-validation-work) {
             Remove-Item -Recurse -Force .trusted-validation-work
+          }
+          $runtime = Join-Path $env:RUNNER_TEMP "auralign-${{ inputs.approved_sha }}-${{ matrix.profile }}"
+          if (Test-Path $runtime) {
+            Remove-Item -Recurse -Force $runtime
           }

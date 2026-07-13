@@ -172,6 +172,7 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
             "dropbox-dash/faster-whisper-large-v3-turbo",
         ),
         revision="0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+        optional=True,
         license_expression="MIT",
         source_url="https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo",
         terms_url="https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo",
@@ -188,6 +189,7 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         model_id="Systran/faster-distil-whisper-large-v3",
         required_files=("model.bin", "config.json", "tokenizer.json", "preprocessor_config.json"),
         revision="c3058b475261292e64a0412df1d2681c06260fab",
+        optional=True,
         license_expression="MIT",
         source_url="https://huggingface.co/Systran/faster-distil-whisper-large-v3",
         terms_url="https://huggingface.co/Systran/faster-distil-whisper-large-v3",
@@ -204,6 +206,7 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         model_id="distil-whisper/distil-large-v3.5-ct2",
         required_files=("model.bin", "config.json", "tokenizer.json", "preprocessor_config.json"),
         revision="9793ccc07920e0f830e1dba0343efcdf0ef8c903",
+        optional=True,
         license_expression="MIT",
         source_url="https://huggingface.co/distil-whisper/distil-large-v3.5-ct2",
         terms_url="https://huggingface.co/distil-whisper/distil-large-v3.5-ct2",
@@ -549,7 +552,6 @@ class SpeakerIDConfig(BaseModel):
     profile_dir: Path | None = None
     threshold: float = Field(default=0.75, ge=0.0, le=1.0)
     ambiguity_margin: float = Field(default=0.05, ge=0.0, le=1.0)
-    allow_fallback_embeddings: bool = False
 
 
 class IdentityResolverConfig(BaseModel):

@@ -216,7 +216,6 @@ def base_debug_report(input_file: Path, out_dir: Path, config: PipelineConfig) -
             else None,
             "threshold": config.speaker_id.threshold,
             "ambiguity_margin": config.speaker_id.ambiguity_margin,
-            "allow_fallback_embeddings": config.speaker_id.allow_fallback_embeddings,
         },
         "cleanup_config": {
             "enabled": config.cleanup.mode != "off",
