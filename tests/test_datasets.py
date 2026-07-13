@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -114,7 +115,7 @@ def test_dataset_plan_cli_uses_ltm_model_cache_by_default(
         ],
     )
     assert result.exit_code == 0
-    assert f'"model_cache": "{model_cache}"' in result.stdout
+    assert json.loads(result.stdout)["model_cache"] == str(model_cache)
 
 
 def test_pull_samples_blocks_unverified_dummy_without_network_and_writes_manifest(

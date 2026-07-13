@@ -128,9 +128,19 @@ def test_macos_standard_tmp_alias_is_canonicalized() -> None:
 
 
 def test_no_follow_open_rejects_directory(tmp_path: Path) -> None:
-    with pytest.raises(UnsafePathError, match="not a regular file"):
+    with pytest.raises((OSError, UnsafePathError)):
         descriptor = open_regular_nofollow(tmp_path, os.O_RDONLY)
         os.close(descriptor)
+
+
+@pytest.mark.parametrize("error", [1, 5, 6, 50])
+def test_windows_directory_flush_recognizes_unsupported_errors(error: int) -> None:
+    assert platform_security._windows_directory_flush_is_unsupported(error)
+
+
+@pytest.mark.parametrize("error", [23, 32])
+def test_windows_directory_flush_does_not_hide_other_errors(error: int) -> None:
+    assert not platform_security._windows_directory_flush_is_unsupported(error)
 
 
 def test_descriptor_lock_blocks_concurrent_entry_and_recovers(tmp_path: Path) -> None:

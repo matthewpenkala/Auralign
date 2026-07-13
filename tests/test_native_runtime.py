@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -35,7 +36,7 @@ def test_macos_torchcodec_probe_uses_process_start_dyld_environment(
     monkeypatch.setattr("local_transcript_max.native_runtime.subprocess.run", completed)
 
     assert probe_torchcodec() == "0.7.0"
-    assert observed["DYLD_LIBRARY_PATH"].split(":", maxsplit=1)[0] == str(dylibs)
+    assert observed["DYLD_LIBRARY_PATH"].split(os.pathsep, maxsplit=1)[0] == str(dylibs)
 
 
 def test_macos_torchcodec_probe_fails_closed_on_missing_alias(

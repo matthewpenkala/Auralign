@@ -12,7 +12,11 @@ import tempfile
 from pathlib import Path
 
 from local_transcript_max.config import AudioConfig
-from local_transcript_max.platform_security import ensure_private_file
+from local_transcript_max.platform_security import (
+    ensure_private_directory,
+    ensure_private_file,
+    fsync_directory,
+)
 from local_transcript_max.schemas import AudioMetadata
 
 from .inspect import inspect_media
@@ -84,18 +88,24 @@ def canonical_reuse_blocker(metadata: AudioMetadata, config: AudioConfig) -> str
 def atomic_copy(source: Path, destination: Path) -> None:
     """Copy ``source`` to an independent file and atomically publish it."""
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    parent = ensure_private_directory(destination.parent)
     file_descriptor, temp_name = tempfile.mkstemp(
-        dir=destination.parent,
+        dir=parent,
         prefix=f".{destination.name}.",
         suffix=".tmp",
     )
     os.close(file_descriptor)
     temp_path = Path(temp_name)
     try:
-        shutil.copy2(source, temp_path)
-        with temp_path.open("rb") as handle:
+        # Canonical audio needs independent bytes, not input timestamps, modes,
+        # ACL-adjacent metadata, or extended attributes.
+        shutil.copyfile(source, temp_path)
+        ensure_private_file(temp_path)
+        # Windows requires a writable descriptor for fsync/FlushFileBuffers.
+        with temp_path.open("rb+") as handle:
             os.fsync(handle.fileno())
         os.replace(temp_path, destination)
+        ensure_private_file(destination)
+        fsync_directory(parent)
     finally:
         temp_path.unlink(missing_ok=True)

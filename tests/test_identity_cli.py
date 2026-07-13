@@ -11,6 +11,7 @@ from typer.main import get_command
 from typer.testing import CliRunner
 
 from local_transcript_max.cli import app
+from local_transcript_max.platform_security import ensure_private_directory, ensure_private_file
 from local_transcript_max.schemas import Transcript
 from local_transcript_max.speaker_id.identity_io import IdentityResolverError
 from local_transcript_max.speaker_id.identity_models import ResolverMode
@@ -375,14 +376,14 @@ def test_inspect_reports_identity_artifact_names_and_count_without_job_path(
     tmp_path: Path,
 ) -> None:
     job = tmp_path / "private-name" / "job"
-    job.mkdir(parents=True, mode=0o700)
+    ensure_private_directory(job)
     for artifact, content in (
         ("speaker_identity_report.json", "{}"),
         ("transcript.identity_mapped.srt", "synthetic"),
     ):
         path = job / artifact
         path.write_text(content, encoding="utf-8")
-        path.chmod(0o600)
+        ensure_private_file(path)
 
     result = CliRunner().invoke(app, ["inspect", str(job)])
 

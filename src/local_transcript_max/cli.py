@@ -1699,7 +1699,7 @@ def inspect(
             typer.echo("qa_report_parse=valid")
             typer.echo(f"qa_flag_count={flag_count}")
             typer.echo(f"qa_overall={overall}")
-        except (OSError, ValueError, json.JSONDecodeError):
+        except (OSError, UnsafePathError, ValueError, json.JSONDecodeError):
             qa_invalid = True
             typer.echo("qa_report_parse=invalid")
     canonical_missing = category_counts["canonical"]["missing"]

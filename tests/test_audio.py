@@ -123,6 +123,31 @@ def test_prepare_canonical_audio_reuses_already_canonical_wav(tmp_path: Path, mo
     assert decision["input_matched_canonical_requirements"] is True
 
 
+def test_prepare_canonical_audio_reuses_read_only_source(tmp_path: Path, monkeypatch) -> None:
+    input_path = tmp_path / "input.wav"
+    write_tiny_wav(input_path)
+    metadata = inspect_media(input_path)
+
+    def fail_normalize(*_args, **_kwargs):
+        raise AssertionError("ffmpeg normalization should be skipped")
+
+    monkeypatch.setattr("local_transcript_max.audio.preprocess.normalize_audio", fail_normalize)
+    input_path.chmod(0o400)
+    try:
+        canonical, command = prepare_canonical_audio(
+            input_path,
+            tmp_path / "out",
+            AudioConfig(),
+            input_metadata=metadata,
+        )
+    finally:
+        input_path.chmod(0o600)
+
+    assert command[0] == "reuse-canonical-wav"
+    assert canonical.read_bytes() == input_path.read_bytes()
+    assert private_path_is_secure(canonical)
+
+
 def test_prepare_canonical_audio_makes_normalized_output_private(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -209,7 +234,7 @@ def test_prepare_canonical_audio_preserves_existing_copy_when_copy_fails(
         destination.write_bytes(b"partial copy")
         raise OSError("synthetic copy failure")
 
-    monkeypatch.setattr("local_transcript_max.audio.preprocess.shutil.copy2", fail_copy)
+    monkeypatch.setattr("local_transcript_max.audio.preprocess.shutil.copyfile", fail_copy)
 
     with pytest.raises(OSError, match="synthetic copy failure"):
         prepare_canonical_audio(

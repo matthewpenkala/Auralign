@@ -184,6 +184,7 @@ disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]
 module = [
+  "av",
   "ctranslate2",
   "faster_whisper",
   "mlx_whisper",

@@ -547,6 +547,12 @@ def open_regular_nofollow(path: Path, flags: int, mode: int = 0o600) -> int:
         raise
 
 
+def _windows_directory_flush_is_unsupported(error: int) -> bool:
+    """Return whether a write-capable directory handle cannot be flushed."""
+
+    return error in {1, 5, 6, 50}
+
+
 def fsync_directory(path: Path) -> None:
     """Flush directory metadata where the native platform supports it."""
 
@@ -565,9 +571,15 @@ def fsync_directory(path: Path) -> None:
             ctypes.c_void_p,
         ]
         create_file.restype = ctypes.c_void_p
+        flush_file_buffers = kernel32.FlushFileBuffers
+        flush_file_buffers.argtypes = [ctypes.c_void_p]
+        flush_file_buffers.restype = ctypes.c_int
+        close_handle = kernel32.CloseHandle
+        close_handle.argtypes = [ctypes.c_void_p]
+        close_handle.restype = ctypes.c_int
         handle = create_file(
             _windows_extended_path(directory),
-            0x80000000,
+            0x80000000 | 0x40000000,
             0x1 | 0x2 | 0x4,
             None,
             3,
@@ -579,13 +591,17 @@ def fsync_directory(path: Path) -> None:
             error = _windows_last_error()
             raise OSError(error, "could not open directory for flush", directory.name)
         try:
-            if not kernel32.FlushFileBuffers(handle):
+            if not flush_file_buffers(handle):
                 error = _windows_last_error()
-                # Some Windows filesystems do not implement directory flush.
-                if error not in {1, 50}:
+                # Windows does not document directory handles as valid inputs
+                # to FlushFileBuffers. Because CreateFileW already succeeded
+                # with GENERIC_WRITE, access-denied/invalid-handle here describe
+                # that directory-only limitation; open and real I/O errors
+                # remain fatal.
+                if not _windows_directory_flush_is_unsupported(error):
                     raise OSError(error, "could not flush directory", directory.name)
         finally:
-            kernel32.CloseHandle(handle)
+            close_handle(handle)
         return
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(directory, flags)

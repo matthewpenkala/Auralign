@@ -16,6 +16,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from local_transcript_max.errors import LTMError
+from local_transcript_max.platform_security import UnsafePathError, open_regular_nofollow
 from local_transcript_max.schemas import AlignedWord, DiarizationTurn, Transcript
 from local_transcript_max.utils import write_json
 
@@ -145,12 +146,11 @@ def load_rttm(path: Path) -> list[DiarizationTurn]:
 
 def _read_regular_bytes(path: Path, *, max_bytes: int) -> bytes | None:
     """Read a bounded regular artifact without following the final symlink."""
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
-        descriptor = os.open(path, flags)
+        descriptor = open_regular_nofollow(path, os.O_RDONLY)
     except FileNotFoundError:
         return None
-    except OSError as exc:
+    except (OSError, UnsafePathError) as exc:
         raise LTMError("Speaker validation could not safely open an artifact.") from exc
     try:
         metadata = os.fstat(descriptor)

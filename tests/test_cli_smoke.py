@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -11,6 +13,7 @@ import local_transcript_max.cli as cli_module
 from local_transcript_max.benchmark.corpus import MediaProbe
 from local_transcript_max.cli import app
 from local_transcript_max.doctor import DoctorReport
+from local_transcript_max.platform_security import ensure_private_directory, ensure_private_file
 from local_transcript_max.schemas import Transcript
 from local_transcript_max.utils import write_json
 
@@ -480,7 +483,7 @@ def test_inspect_reports_missing_canonical_artifacts_and_fails(tmp_path) -> None
 
 
 def test_inspect_accepts_a_complete_canonical_contract(tmp_path) -> None:
-    tmp_path.chmod(0o700)
+    ensure_private_directory(tmp_path)
     for artifact in cli_module._CANONICAL_JOB_ARTIFACTS:
         artifact_path = tmp_path / artifact
         if artifact == "qa_report.json":
@@ -490,7 +493,7 @@ def test_inspect_accepts_a_complete_canonical_contract(tmp_path) -> None:
             )
         else:
             artifact_path.write_bytes(b"artifact")
-            artifact_path.chmod(0o600)
+            ensure_private_file(artifact_path)
 
     result = CliRunner().invoke(app, ["inspect", str(tmp_path)])
 
@@ -503,6 +506,7 @@ def test_inspect_accepts_a_complete_canonical_contract(tmp_path) -> None:
 def test_inspect_rejects_symlink_and_non_regular_artifacts_without_following_them(
     tmp_path,
 ) -> None:
+    ensure_private_directory(tmp_path)
     private_target = tmp_path / "private-target.json"
     private_target.write_text('{"summary":{"flag_count":99}}', encoding="utf-8")
     (tmp_path / "qa_report.json").symlink_to(private_target)
@@ -520,10 +524,11 @@ def test_inspect_rejects_symlink_and_non_regular_artifacts_without_following_the
 
 
 def test_inspect_rejects_invalid_qa_report_without_exposing_contents(tmp_path) -> None:
+    ensure_private_directory(tmp_path)
     private_marker = "PRIVATE_TRANSCRIPT_MARKER"
     qa_path = tmp_path / "qa_report.json"
     qa_path.write_text(private_marker, encoding="utf-8")
-    qa_path.chmod(0o600)
+    ensure_private_file(qa_path)
 
     result = CliRunner().invoke(app, ["inspect", str(tmp_path)])
 
@@ -598,8 +603,19 @@ def test_inspect_rejects_overpermissive_job_and_artifact_modes(tmp_path) -> None
         tmp_path / "qa_report.json",
         {"summary": {"flag_count": 0, "overall_quality_summary": "ok"}},
     )
-    tmp_path.chmod(0o755)
-    (tmp_path / "qa_report.json").chmod(0o644)
+    if os.name == "nt":
+        for candidate in (tmp_path, tmp_path / "qa_report.json"):
+            completed = subprocess.run(
+                ["icacls", str(candidate), "/grant", "*S-1-1-0:(F)"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            assert completed.returncode == 0
+    else:
+        tmp_path.chmod(0o755)
+        (tmp_path / "qa_report.json").chmod(0o644)
 
     result = CliRunner().invoke(app, ["inspect", str(tmp_path)])
 
@@ -610,7 +626,7 @@ def test_inspect_rejects_overpermissive_job_and_artifact_modes(tmp_path) -> None
 
 def test_inspect_rejects_unsafe_candidate_directory_children(tmp_path) -> None:
     candidates = tmp_path / "diarization_candidates"
-    candidates.mkdir(mode=0o700)
+    ensure_private_directory(candidates)
     target = tmp_path / "target.json"
     write_json(target, {"private": True})
     (candidates / "candidate_001.json").symlink_to(target)
@@ -622,6 +638,7 @@ def test_inspect_rejects_unsafe_candidate_directory_children(tmp_path) -> None:
 
 
 def test_inspect_stops_candidate_iteration_at_entry_limit(tmp_path, monkeypatch) -> None:
+    ensure_private_directory(tmp_path)
     candidates = tmp_path / "diarization_candidates"
     candidates.mkdir(mode=0o700)
     monkeypatch.setattr(cli_module, "_MAX_INSPECT_CANDIDATE_ENTRIES", 2)
