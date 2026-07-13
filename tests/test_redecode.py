@@ -8,6 +8,7 @@ import pytest
 
 from local_transcript_max.config import load_config
 from local_transcript_max.errors import LTMError
+from local_transcript_max.platform_security import private_path_is_secure
 from local_transcript_max.qa.heuristics import run_qa
 from local_transcript_max.qa.redecode import (
     merge_spans,
@@ -190,11 +191,13 @@ def test_candidate_preservation_and_raw_asr_not_overwritten(tmp_path: Path, monk
     config.redecode.mode = "low-confidence"
     config.redecode.write_report = True
     temporary_dirs: list[Path] = []
-    temporary_permission_bits: list[int] = []
+    temporary_directory_security: list[bool] = []
 
     def fake_extract(source: Path, output: Path, *, start: float, end: float) -> None:
         temporary_dirs.append(output.parent)
-        temporary_permission_bits.append(output.parent.stat().st_mode & 0o077)
+        temporary_directory_security.append(
+            private_path_is_secure(output.parent, directory=True)
+        )
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_bytes(b"fake-wav")
 
@@ -214,7 +217,7 @@ def test_candidate_preservation_and_raw_asr_not_overwritten(tmp_path: Path, monk
     assert not (tmp_path / "redecode_windows").exists()
     assert temporary_dirs
     assert all(not path.exists() for path in temporary_dirs)
-    assert temporary_permission_bits == [0]
+    assert temporary_directory_security == [True]
 
 
 def test_candidate_timestamps_include_window_and_canonical_coordinates() -> None:

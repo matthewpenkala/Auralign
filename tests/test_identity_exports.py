@@ -231,6 +231,32 @@ def test_srt_export_changes_only_the_label_prefix() -> None:
     assert rendered.count("-->") == canonical.count("-->")
 
 
+@pytest.mark.parametrize("terminal_newline", [False, True])
+def test_srt_export_preserves_crlf_without_treating_it_as_content(
+    terminal_newline: bool,
+) -> None:
+    transcript = synthetic_transcript()
+    canonical = (
+        "1\r\n"
+        "00:00:00,000 --> 00:00:01,000\r\n"
+        "SPEAKER_00: Synthetic line.\r\n"
+        "continued payload\r\n\r\n"
+        "2\r\n"
+        "00:00:01,500 --> 00:00:02,500\r\n"
+        "SPEAKER_01: Generic response."
+    )
+    if terminal_newline:
+        canonical += "\r\n"
+
+    rendered = render_identity_srt(canonical, transcript, complete_decisions())
+
+    assert "\r\n\r\n" in rendered
+    assert rendered == canonical.replace("SPEAKER_00:", "Participant Alpha:").replace(
+        "SPEAKER_01:", "Unattributed:"
+    )
+    assert validate_srt_label_only(canonical, rendered) == (True, 2)
+
+
 def test_srt_validation_detects_text_or_timing_changes() -> None:
     canonical = "1\n00:00:00,000 --> 00:00:01,000\nSPEAKER_00: Synthetic line.\n"
     assert validate_srt_label_only(

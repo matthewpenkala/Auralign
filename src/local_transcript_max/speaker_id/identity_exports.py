@@ -9,7 +9,7 @@ from __future__ import annotations
 import csv
 import io
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from local_transcript_max.export.csv_export import formula_safe_cell
@@ -72,23 +72,22 @@ def render_identity_srt(
     decisions: list[IdentityDecision],
 ) -> str:
     labels = _decision_labels(transcript, decisions)
-    blocks = canonical_srt.rstrip("\n").split("\n\n") if canonical_srt.strip() else []
-    rendered: list[str] = []
-    for block in blocks:
-        lines = block.splitlines()
-        if len(lines) < 3:
+    lines = canonical_srt.splitlines(keepends=True)
+    for block in _subtitle_block_indexes(lines):
+        if len(block) < 3:
             raise ValueError("canonical SRT contains a malformed cue")
-        timing = SRT_TIMING_RE.fullmatch(lines[1])
+        timing = SRT_TIMING_RE.fullmatch(_line_content(lines[block[1]]))
         if timing is None:
             raise ValueError("canonical SRT contains an invalid timing line")
         start = _timestamp_seconds(timing, prefix="s")
         turn_index = _turn_at_time(transcript, start)
         if turn_index is not None:
-            lines[2] = _replace_label_prefix(
-                lines[2], transcript.speaker_turns[turn_index].speaker, labels[turn_index]
+            lines[block[2]] = _replace_label_line(
+                lines[block[2]],
+                transcript.speaker_turns[turn_index].speaker,
+                labels[turn_index],
             )
-        rendered.append("\n".join(lines))
-    return "\n\n".join(rendered) + ("\n" if rendered else "")
+    return "".join(lines)
 
 
 def render_identity_vtt(
@@ -97,20 +96,20 @@ def render_identity_vtt(
     decisions: list[IdentityDecision],
 ) -> str:
     labels = _decision_labels(transcript, decisions)
-    lines = canonical_vtt.splitlines()
+    lines = canonical_vtt.splitlines(keepends=True)
     for index, line in enumerate(lines):
-        timing = VTT_TIMING_RE.fullmatch(line)
+        timing = VTT_TIMING_RE.fullmatch(_line_content(line))
         if timing is None or index + 1 >= len(lines):
             continue
         start = _timestamp_seconds(timing, prefix="s")
         turn_index = _turn_at_time(transcript, start)
         if turn_index is not None:
-            lines[index + 1] = _replace_label_prefix(
+            lines[index + 1] = _replace_label_line(
                 lines[index + 1],
                 transcript.speaker_turns[turn_index].speaker,
                 labels[turn_index],
             )
-    return "\n".join(lines) + ("\n" if canonical_vtt.endswith("\n") else "")
+    return "".join(lines)
 
 
 def render_identity_markdown(
@@ -119,15 +118,18 @@ def render_identity_markdown(
     decisions: list[IdentityDecision],
 ) -> str:
     labels = _decision_labels(transcript, decisions)
-    lines = canonical_markdown.splitlines()
+    lines = canonical_markdown.splitlines(keepends=True)
     label_indexes = [
-        index for index, line in enumerate(lines) if re.fullmatch(r"\*\*(.+?)\*\*\s{0,2}", line)
+        index
+        for index, line in enumerate(lines)
+        if re.fullmatch(r"\*\*(.+?)\*\*\s{0,2}", _line_content(line))
     ]
     if len(label_indexes) != len(transcript.speaker_turns):
         raise ValueError("canonical Markdown turn count does not match transcript.json")
     for turn_index, line_index in enumerate(label_indexes):
-        lines[line_index] = f"**{_markdown_escape(labels[turn_index])}**  "
-    return "\n".join(lines) + ("\n" if canonical_markdown.endswith("\n") else "")
+        ending = lines[line_index][len(_line_content(lines[line_index])) :]
+        lines[line_index] = f"**{_markdown_escape(labels[turn_index])}**  {ending}"
+    return "".join(lines)
 
 
 def render_identity_text(
@@ -185,17 +187,42 @@ def validate_srt_label_only(canonical_srt: str, identity_srt: str) -> tuple[bool
     return canonical == identity, len(canonical)
 
 
-def _normalized_srt_payload(value: str) -> list[tuple[str, str]]:
-    blocks = value.rstrip("\n").split("\n\n") if value.strip() else []
-    payload: list[tuple[str, str]] = []
-    for block in blocks:
-        lines = block.splitlines()
-        if len(lines) < 3:
+def _normalized_srt_payload(value: str) -> list[tuple[str, str, str]]:
+    lines = value.splitlines(keepends=True)
+    payload: list[tuple[str, str, str]] = []
+    for block in _subtitle_block_indexes(lines):
+        if len(block) < 3:
             raise ValueError("malformed SRT")
-        text_lines = list(lines[2:])
+        cue_lines = [_line_content(lines[index]) for index in block]
+        text_lines = cue_lines[2:]
         text_lines[0] = text_lines[0].split(": ", 1)[1] if ": " in text_lines[0] else text_lines[0]
-        payload.append((lines[1], "\n".join(text_lines)))
+        payload.append((cue_lines[0], cue_lines[1], "\n".join(text_lines)))
     return payload
+
+
+def _subtitle_block_indexes(lines: Sequence[str]) -> list[list[int]]:
+    """Return non-empty subtitle blocks without normalizing source newlines."""
+
+    blocks: list[list[int]] = []
+    current: list[int] = []
+    for index, line in enumerate(lines):
+        if _line_content(line):
+            current.append(index)
+        elif current:
+            blocks.append(current)
+            current = []
+    if current:
+        blocks.append(current)
+    return blocks
+
+
+def _line_content(line: str) -> str:
+    return line.rstrip("\r\n")
+
+
+def _replace_label_line(line: str, original_label: str, display_label: str) -> str:
+    content = _line_content(line)
+    return _replace_label_prefix(content, original_label, display_label) + line[len(content) :]
 
 
 def _decision_labels(

@@ -15,6 +15,7 @@ from local_transcript_max.asr.base import ASRBackend
 from local_transcript_max.config import PipelineConfig
 from local_transcript_max.errors import LTMError
 from local_transcript_max.export.json_export import write_json_artifact
+from local_transcript_max.platform_security import ensure_private_directory
 from local_transcript_max.qa.heuristics import count_non_monotonic_words
 from local_transcript_max.redaction import redact_obj
 from local_transcript_max.schemas import ASRResult, QAFlag, QAReport, Transcript
@@ -73,7 +74,7 @@ def run_targeted_redecode(
     )
     candidates: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="ltm-redecode-") as window_dir_name:
-        window_dir = Path(window_dir_name)
+        window_dir = ensure_private_directory(Path(window_dir_name))
         for index, span in enumerate(spans, start=1):
             window = window_dir / f"span_{index:03d}.wav"
             try:
