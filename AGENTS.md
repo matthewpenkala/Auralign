@@ -22,8 +22,12 @@ SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
   provenance, privacy, security, and test review. AI systems are not authors,
   licensors, owners, signatories, or legal approvers.
 - Never send private source or sensitive runtime content to an unapproved
-  service. Never publish, push, release, upload, or distribute source, packages,
-  containers, models, datasets, or validation evidence.
+  service. A standard non-force push of reviewed source commits to the existing
+  private GitHub repository is allowed only when explicitly requested and
+  `scripts/check_private_push_authorization.py` dynamically confirms that the
+  authenticated collaborator has current write access. This never authorizes
+  public publication, visibility changes, tags, releases, assets, models,
+  datasets, validation evidence, force-pushes, or history rewrites.
 - Do not weaken compliance or release gates. Container images remain
   internal-only and non-distributable until exact-image clearance is recorded.
 
@@ -105,6 +109,9 @@ uv run mypy src/local_transcript_max
 - Keep `main` as the default branch.
 - Use small, intentional commits with clear messages.
 - Before staging broad changes, check ignored and untracked files so local caches or generated artifacts do not slip into version control.
+- Before an explicitly requested private `main` push, fetch the remote, run
+  `uv run python scripts/check_private_push_authorization.py`, and use a normal
+  `git push origin main`. Never use `--force`, `--all`, or `--mirror`.
 
 ## Optional Codex Source Hydration
 

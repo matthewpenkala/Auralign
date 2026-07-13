@@ -14,9 +14,14 @@ controlling license or a separate written agreement; a recipient may not
 redistribute that copy merely because it was available from a private remote or
 installed from an archive.
 
-No automated agent, CI job, contributor, or collaborator may publish source,
-packages, containers, releases, or model/data artifacts without an explicit
-owner-authorized release action and completion of the applicable gates below.
+An explicitly requested, standard non-force source push to the existing private
+repository is an authorized internal synchronization when the authenticated
+collaborator's current write permission passes the dynamic private-push
+preflight. It is not a release or redistribution authorization. No automated
+agent, CI job, contributor, or collaborator may publish publicly, change
+visibility, create releases, upload assets, or distribute packages, containers,
+or model/data artifacts without an explicit owner-authorized release action and
+completion of the applicable gates below.
 Private-repository dependency review uses GitHub's pinned official action only
 when the repository has the required GitHub security entitlement and the owner
 sets `AURALIGN_ENABLE_DEPENDENCY_REVIEW=true`; the portable locked dependency,
@@ -30,8 +35,9 @@ must exclude secrets, private data, local paths, caches, weights, media,
 generated model audits/linkage markers, generated outputs, internal handoffs,
 and unreachable historical objects. Immutable model pointers and acquisition
 recipes may be included, but do not transfer the referenced assets or their
-rights. Only the approved sanitized `main` may be pushed; never use `--all` or
-`--mirror`.
+rights. Only the approved sanitized `main` may be pushed after
+`scripts/check_private_push_authorization.py` passes; never force-push or use
+`--all` or `--mirror`.
 
 ## Wheel And Source Distribution
 

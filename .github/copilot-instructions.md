@@ -11,5 +11,7 @@ content. The canonical legal index is `docs/legal/README.md`.
 
 Preserve all SPDX, copyright, license, attribution, provenance, privacy, and
 release controls. Never invent a legal conclusion or human approval, expose
-private content to an unapproved service, or publish/push/upload any artifact.
-Unknown provenance or licensing must fail closed and be escalated to the owner.
+private content to an unapproved service, or publish/upload any artifact. A
+normal source push is allowed only when explicitly requested and the dynamic
+private-collaborator preflight required by `AGENTS.md` passes. Unknown
+provenance or licensing must fail closed and be escalated to the owner.

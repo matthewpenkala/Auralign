@@ -36,7 +36,11 @@ Agents must:
 - keep runtime local/offline-first and avoid adding telemetry, uploads, or
   network behavior without explicit approval;
 - preserve archive and container publication blocks unless the exact artifact
-  has completed its release gates.
+  has completed its release gates;
+- before an explicitly requested source push, dynamically verify that the
+  existing GitHub repository is private, the authenticated collaborator has
+  `WRITE`, `MAINTAIN`, or `ADMIN` permission, the checked-out default branch is
+  clean and not behind, and the push URL matches that repository.
 
 ## Prohibited Conduct
 
@@ -47,8 +51,11 @@ Agents must never:
 - fabricate a human attestation, legal approval, review date, evidence URL, or
   license conclusion;
 - expose private repository content or operational data to unapproved services;
-- publish, push, release, upload, mirror, or distribute repository content,
-  packages, containers, models, datasets, or validation evidence;
+- make a repository public, change its visibility, force-push, rewrite remote
+  history, push tags, create a release, upload assets, mirror content, or
+  distribute packages, containers, models, datasets, or validation evidence;
+- push source unless the user explicitly requests it and the dynamic private-
+  collaborator preflight in `scripts/check_private_push_authorization.py` passes;
 - weaken a compliance, security, privacy, provenance, or release gate to obtain
   a passing result.
 
