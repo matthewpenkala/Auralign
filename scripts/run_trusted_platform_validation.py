@@ -20,7 +20,13 @@ from typing import Any
 
 from validation_capsule import EXPECTED_SPEAKERS, verify
 
+from local_transcript_max.config import resolve_model_entry
 from local_transcript_max.platform_security import ensure_private_directory
+from local_transcript_max.speaker_id.enrollment import (
+    PRODUCTION_EMBEDDING_BACKEND,
+    load_profile_embeddings,
+)
+from local_transcript_max.speaker_id.matching import cosine_similarity
 
 
 def checked(label: str, command: list[str], *, environment: dict[str, str]) -> None:
@@ -100,7 +106,81 @@ def _expected_device(profile: str) -> str:
     return "cuda" if profile == "cu128" else "cpu"
 
 
-def assert_real_outputs(job: Path, *, profile: str) -> None:
+def _acceptance_profiles(profile_dir: Path) -> dict[str, tuple[str, list[float]]]:
+    loaded = load_profile_embeddings(profile_dir)
+    profiles = {
+        str(row["name"]): (str(row["backend"]), list(row["embedding"])) for row in loaded.values()
+    }
+    if set(profiles) != {"canary-speaker-00", "canary-speaker-01"}:
+        raise RuntimeError("held-out enrollment profile set is incomplete")
+    return profiles
+
+
+def _assert_identity_mapping(
+    embeddings: dict[str, Any],
+    speaker_map: dict[str, Any],
+    *,
+    enrolled_profiles: dict[str, tuple[str, list[float]]],
+) -> None:
+    threshold = speaker_map.get("threshold")
+    margin = speaker_map.get("ambiguity_margin")
+    if threshold != 0.75 or margin != 0.05:
+        raise RuntimeError("held-out ECAPA acceptance thresholds drifted")
+    if any(backend != PRODUCTION_EMBEDDING_BACKEND for backend, _ in enrolled_profiles.values()):
+        raise RuntimeError("held-out enrollment did not use the production ECAPA backend")
+    rows = speaker_map.get("mappings")
+    if not isinstance(rows, list) or len(rows) != len(embeddings):
+        raise RuntimeError("held-out ECAPA speaker map is incomplete")
+    by_speaker: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("speaker"), str):
+            raise RuntimeError("held-out ECAPA speaker map is malformed")
+        speaker = str(row["speaker"])
+        if speaker in by_speaker:
+            raise RuntimeError("held-out ECAPA speaker map contains a duplicate cluster")
+        by_speaker[speaker] = row
+    if set(by_speaker) != set(embeddings):
+        raise RuntimeError("held-out ECAPA speaker map does not cover every cluster")
+
+    expected_labels: dict[str, str] = {}
+    for speaker, raw_vector in embeddings.items():
+        vector = [float(value) for value in raw_vector]
+        ranked = sorted(
+            (
+                (max(0.0, cosine_similarity(vector, profile_vector)), label)
+                for label, (_backend, profile_vector) in enrolled_profiles.items()
+            ),
+            reverse=True,
+        )
+        best_score, best_label = ranked[0]
+        second_score = ranked[1][0]
+        if best_score < threshold or best_score - second_score < margin:
+            raise RuntimeError("held-out ECAPA identity is below threshold or ambiguous")
+        expected_labels[speaker] = best_label
+        row = by_speaker[speaker]
+        confidence = row.get("confidence")
+        if (
+            row.get("label") != best_label
+            or row.get("source_profile_id") != best_label
+            or row.get("profile_backend") != PRODUCTION_EMBEDDING_BACKEND
+            or row.get("ambiguous") is not False
+            or row.get("reason") != "conservative_embedding_match"
+            or isinstance(confidence, bool)
+            or not isinstance(confidence, (int, float))
+            or not math.isclose(float(confidence), round(best_score, 6), abs_tol=1e-6)
+        ):
+            raise RuntimeError("speaker map disagrees with independent held-out ECAPA matching")
+    if set(expected_labels.values()) != set(enrolled_profiles):
+        raise RuntimeError("held-out ECAPA identities are not a one-to-one match")
+
+
+def assert_real_outputs(
+    job: Path,
+    *,
+    profile: str,
+    enrolled_profiles: dict[str, tuple[str, list[float]]] | None = None,
+    profile_dir: Path | None = None,
+) -> None:
     expected_device = _expected_device(profile)
     metadata = load_json(job / "run_metadata.json")
     if metadata.get("alignment_backend") != "whisperx-forced":
@@ -141,6 +221,9 @@ def assert_real_outputs(job: Path, *, profile: str) -> None:
     embedding_report = load_json(job / "speaker_embedding_report.json")
     if embedding_report.get("device") != expected_device:
         raise RuntimeError("ECAPA did not execute on the required profile device")
+    ecapa = resolve_model_entry("speaker-embedding", "ecapa")
+    if ecapa is None or embedding_report.get("model_revision") != ecapa.revision:
+        raise RuntimeError("ECAPA report does not identify the pinned model revision")
     for row in embedding_report.get("speakers", {}).values():
         if not isinstance(row, dict) or not row.get("embedding_dimensions"):
             raise RuntimeError("ECAPA did not produce a usable embedding for each cluster")
@@ -160,13 +243,15 @@ def assert_real_outputs(job: Path, *, profile: str) -> None:
         if not math.isclose(norm, 1.0, abs_tol=1e-5):
             raise RuntimeError("ECAPA cluster vector is not unit-normalized")
     speaker_map = load_json(job / "speaker_map.json")
-    labels = [
-        row.get("label")
-        for row in speaker_map.get("mappings", [])
-        if isinstance(row, dict) and row.get("label") != "UNKNOWN"
-    ]
-    if sorted(labels) != ["canary-speaker-00", "canary-speaker-01"]:
-        raise RuntimeError("held-out ECAPA identities did not both match their neutral enrollments")
+    if enrolled_profiles is None:
+        if profile_dir is None:
+            raise RuntimeError("speaker profile directory is not configured")
+        enrolled_profiles = _acceptance_profiles(profile_dir)
+    _assert_identity_mapping(
+        embeddings,
+        speaker_map,
+        enrolled_profiles=enrolled_profiles,
+    )
 
 
 def assert_tts_outputs(job: Path) -> None:
@@ -176,8 +261,7 @@ def assert_tts_outputs(job: Path) -> None:
     if metadata.get("alignment_backend") != "whisperx-forced" or not isinstance(words, list):
         raise RuntimeError("local TTS did not exercise real ASR and forced alignment")
     if not words or any(
-        not isinstance(word, dict) or word.get("alignment_source") != "forced"
-        for word in words
+        not isinstance(word, dict) or word.get("alignment_source") != "forced" for word in words
     ):
         raise RuntimeError("local TTS forced-alignment output is incomplete")
 
@@ -197,7 +281,7 @@ def main() -> int:
     work = Path(".trusted-validation-work").resolve()
     if work.exists() or work.is_symlink():
         raise RuntimeError("trusted validation work directory must not preexist")
-    work.mkdir(mode=0o700)
+    work = ensure_private_directory(work)
     environment = os.environ.copy()
     for name in ("HF_TOKEN", "LTM_HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
         environment.pop(name, None)
@@ -271,7 +355,11 @@ def main() -> int:
             ],
             environment=environment,
         )
-        assert_real_outputs(canary_job, profile=args.profile)
+        assert_real_outputs(
+            canary_job,
+            profile=args.profile,
+            profile_dir=work / "profiles",
+        )
     finally:
         import shutil
 

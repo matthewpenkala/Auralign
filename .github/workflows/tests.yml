@@ -51,9 +51,43 @@ jobs:
       - name: Install FFmpeg
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - name: Verify hosted Windows FFmpeg
+      - name: Install pinned Windows FFmpeg
         if: runner.os == 'Windows'
-        run: ffmpeg -version
+        shell: pwsh
+        env:
+          FFMPEG_VERSION: "8.1.2"
+          FFMPEG_SHA256: "db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec"
+        run: |
+          $ErrorActionPreference = "Stop"
+          $archive = Join-Path $env:RUNNER_TEMP "ffmpeg-$env:FFMPEG_VERSION.zip"
+          $extractRoot = Join-Path $env:RUNNER_TEMP "ffmpeg-$env:FFMPEG_VERSION"
+          $url = "https://github.com/GyanD/codexffmpeg/releases/download/$env:FFMPEG_VERSION/ffmpeg-$env:FFMPEG_VERSION-essentials_build.zip"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $env:FFMPEG_SHA256) {
+            throw "Pinned Windows FFmpeg archive digest mismatch."
+          }
+          Expand-Archive -Path $archive -DestinationPath $extractRoot
+          $ffmpeg = Get-ChildItem -Path $extractRoot -Filter ffmpeg.exe -File -Recurse |
+            Select-Object -First 1
+          if ($null -eq $ffmpeg) {
+            throw "Pinned Windows FFmpeg archive did not contain ffmpeg.exe."
+          }
+          $ffprobe = Join-Path $ffmpeg.Directory.FullName "ffprobe.exe"
+          if (-not (Test-Path -LiteralPath $ffprobe -PathType Leaf)) {
+            throw "Pinned Windows FFmpeg archive did not contain ffprobe.exe."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $ffmpeg.Directory.FullName
+      - name: Verify Windows FFmpeg
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = ffmpeg -version
+          if ($version[0] -notmatch '^ffmpeg version 8\.1\.2-essentials_build-www\.gyan\.dev') {
+            throw "Pinned Windows FFmpeg is shadowed or reported an unexpected version."
+          }
+          $version
+          ffprobe -version
       - name: Install Python
         run: uv python install ${{ matrix.python-version }}
       - name: Sync locked environment

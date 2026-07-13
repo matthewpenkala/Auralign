@@ -52,6 +52,12 @@ from .models import (
     write_model_audit,
 )
 from .pipeline import transcribe_file
+from .platform_security import (
+    UnsafePathError,
+    open_regular_nofollow,
+    private_path_is_secure,
+    reject_reparse_or_symlink,
+)
 from .redaction import privacy_safe_text
 from .runtime_assets import prepare_generated_punkt
 
@@ -135,13 +141,17 @@ def _artifact_status(path: Path, *, expected_kind: Literal["file", "directory"] 
         return "unsafe_inaccessible"
     if stat.S_ISLNK(mode):
         return "unsafe_symlink"
+    try:
+        reject_reparse_or_symlink(path)
+    except (OSError, UnsafePathError):
+        return "unsafe_symlink"
     if expected_kind == "directory":
         if not stat.S_ISDIR(mode):
             return "unsafe_non_directory"
-        return "present" if stat.S_IMODE(mode) == 0o700 else "unsafe_permissions"
+        return "present" if private_path_is_secure(path, directory=True) else "unsafe_permissions"
     if not stat.S_ISREG(mode):
         return "unsafe_non_regular"
-    return "present" if stat.S_IMODE(mode) == 0o600 else "unsafe_permissions"
+    return "present" if private_path_is_secure(path) else "unsafe_permissions"
 
 
 def _candidate_directory_status(path: Path) -> str:
@@ -160,8 +170,7 @@ def _candidate_directory_status(path: Path) -> str:
 
 def _read_bounded_regular(path: Path, *, max_bytes: int) -> bytes:
     """Read one regular file through a bounded no-follow descriptor."""
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, flags)
+    descriptor = open_regular_nofollow(path, os.O_RDONLY)
     try:
         metadata = os.fstat(descriptor)
         if not stat.S_ISREG(metadata.st_mode):
@@ -318,9 +327,7 @@ def prepare_runtime(
         token_names = ("HF_TOKEN", "LTM_HF_TOKEN", "HUGGING_FACE_HUB_TOKEN")
         saved_tokens = {name: os.environ.pop(name) for name in token_names if name in os.environ}
         try:
-            report = _run_doctor_without_upstream_stderr(
-                config, include_docker=False, startup=True
-            )
+            report = _run_doctor_without_upstream_stderr(config, include_docker=False, startup=True)
         finally:
             os.environ.update(saved_tokens)
         typer.echo(format_doctor(report))
@@ -392,9 +399,7 @@ def transcribe(
         str,
         typer.Option("--diarization-candidate-range", help="Inclusive range like 2:8"),
     ] = "2:8",
-    known_speakers: Annotated[
-        int | None, typer.Option("--known-speakers", min=1, max=128)
-    ] = None,
+    known_speakers: Annotated[int | None, typer.Option("--known-speakers", min=1, max=128)] = None,
     write_diarization_decision_report: Annotated[
         bool,
         typer.Option("--write-diarization-decision-report/--no-write-diarization-decision-report"),
@@ -887,7 +892,10 @@ def models_import_mlx(
     ),
     symlink: Annotated[
         bool,
-        typer.Option("--symlink/--copy", help="Symlink instead of copying the local MLX model."),
+        typer.Option(
+            "--symlink/--copy",
+            help="Legacy symlink mode is prohibited; verified caches must use --copy.",
+        ),
     ] = False,
     overwrite: Annotated[
         bool,
@@ -903,9 +911,8 @@ def models_import_mlx(
             symlink=symlink,
             overwrite=overwrite,
         )
-        mode = "symlinked" if symlink else "copied"
         typer.echo(
-            f"{mode} {status.entry.role}:{status.entry.key} to "
+            f"copied {status.entry.role}:{status.entry.key} to "
             f"{shareable_model_path(status.path, cache_dir)}"
         )
     except LTMError as exc:
@@ -969,8 +976,7 @@ def models_pull(
         for entry in entries:
             path = pull_model(entry, cache_dir, repair=repair)
             typer.echo(
-                f"pulled {entry.role}:{entry.key} to "
-                f"{shareable_model_path(path, cache_dir)}"
+                f"pulled {entry.role}:{entry.key} to {shareable_model_path(path, cache_dir)}"
             )
     except LTMError as exc:
         typer.echo(privacy_safe_text(str(exc)), err=True)
@@ -1001,9 +1007,7 @@ def models_verify(
     """Verify that selected model cache entries are complete and offline-usable."""
     try:
         write_model_audit(cache_dir, include_optional=True)
-        explicit_selection = all_models or any(
-            (asr, diarization, alignment, speaker_embedding)
-        )
+        explicit_selection = all_models or any((asr, diarization, alignment, speaker_embedding))
         if explicit_selection:
             entries = selected_entries(
                 all_models=all_models,
@@ -1018,9 +1022,7 @@ def models_verify(
             statuses = verify_entries(entries, cache_dir)
         else:
             statuses = verify_models(cache_dir, include_optional=include_optional)
-        typer.echo(
-            f"verified {len(statuses)} model cache entries with immutable revision linkage"
-        )
+        typer.echo(f"verified {len(statuses)} model cache entries with immutable revision linkage")
     except LTMError as exc:
         typer.echo(privacy_safe_text(str(exc)), err=True)
         raise typer.Exit(1) from exc
@@ -1083,8 +1085,7 @@ def models_prune(
         typer.echo(f"dry_run=true candidates={len(candidates)}")
         for candidate in candidates:
             typer.echo(
-                f"{shareable_model_path(Path(candidate['path']), cache_dir)}\t"
-                f"{candidate['reason']}"
+                f"{shareable_model_path(Path(candidate['path']), cache_dir)}\t{candidate['reason']}"
             )
         return
     typer.echo("Prune is intentionally conservative. Re-run with --dry-run, then remove manually.")

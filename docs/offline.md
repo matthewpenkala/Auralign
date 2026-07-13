@@ -57,30 +57,41 @@ configured model is offline-usable:
 
 ```bash
 uv run ltm models audit
-uv run ltm models pull --asr large-v3 --diarization community-1 --cache-dir models/
-uv run ltm models pull --alignment en --cache-dir models/
-uv run ltm models verify \
-  --asr large-v3 --diarization community-1 --alignment en \
-  --speaker-id ecapa \
-  --cache-dir models/
-LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
 ```
 
-If this machine has no Hugging Face token or accepted pyannote terms, real
-diarization remains blocked. Resume after terms/token setup with:
+The current source intentionally lacks Community-1's reviewed `config.yaml`
+SHA-256. Therefore Community-1 pull, bootstrap, verification, and strict
+startup must fail closed even after gated access is accepted. An authorized
+operator must first accept the terms personally, expose a read-scoped token
+only through the local environment, and run the ephemeral digest review:
 
 ```bash
 export LTM_MODEL_CACHE="$PWD/models"
 export HF_HOME="$PWD/.hf-cache"
 export HF_HUB_CACHE="$HF_HOME/hub"
-export HF_TOKEN="REDACTED_USER_SUPPLIED_TOKEN"
-uv run ltm models pull --asr large-v3 --diarization community-1 --cache-dir models
-uv run ltm models pull --alignment en --cache-dir models
-unset LTM_HF_TOKEN HF_TOKEN
+export LTM_HF_TOKEN="REDACTED_USER_SUPPLIED_READ_TOKEN"
+uv run ltm models review-digests \
+  --diarization community-1 \
+  --cache-dir "$LTM_MODEL_CACHE"
+```
+
+The review command installs nothing and deletes its temporary model bytes. A
+maintainer must review and commit the exact returned `config.yaml` digest; do
+not edit the local provenance marker. Only from source containing that complete
+contract should the operator perform normal acquisition:
+
+```bash
+uv run ltm models pull \
+  --asr large-v3 \
+  --diarization community-1 \
+  --alignment en \
+  --speaker-id ecapa \
+  --cache-dir "$LTM_MODEL_CACHE"
+unset LTM_HF_TOKEN HF_TOKEN HUGGING_FACE_HUB_TOKEN
 uv run ltm models verify \
   --asr large-v3 --diarization community-1 --alignment en \
   --speaker-id ecapa \
-  --cache-dir models
+  --cache-dir "$LTM_MODEL_CACHE"
 LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
 ```
 

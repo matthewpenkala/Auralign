@@ -187,6 +187,17 @@ def test_validate_compute_type_rejects_unsupported_apple_cpu_combo(monkeypatch) 
         validate_compute_type("int8_float16", "cpu")
 
 
+def test_validate_compute_type_requires_usable_ctranslate2(monkeypatch) -> None:
+    monkeypatch.setattr(
+        faster_whisper_backend,
+        "supported_compute_types",
+        lambda device: None,
+    )
+
+    with pytest.raises(BackendUnavailableError, match="compatible ctranslate2 wheel"):
+        validate_compute_type("int8", "cpu")
+
+
 def test_resolve_asr_threading_preserves_unset_and_positive_values() -> None:
     assert resolve_cpu_threads(None, "cpu") is None
     assert resolve_cpu_threads(8, "cpu") == 8

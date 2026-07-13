@@ -131,9 +131,7 @@ def test_doctor_requires_strict_alignment_and_mlx_packages_for_configured_backen
 ) -> None:
     strict = load_config(cwd=tmp_path)
     strict.alignment.backend = "forced"
-    assert {"whisperx", "torch", "torchaudio"}.issubset(
-        required_inference_dependencies(strict)
-    )
+    assert {"whisperx", "torch", "torchaudio"}.issubset(required_inference_dependencies(strict))
 
     mlx = load_config(cwd=tmp_path)
     mlx.asr.backend = "mlx-whisper"
@@ -204,14 +202,12 @@ def test_model_linkage_is_discoverable_to_humans_and_ai_agents() -> None:
     assert "LTM_OFFLINE=1" in agent_rules
     assert "models verify" in agent_rules
     assert (
-        "--asr large-v3 --diarization community-1 --alignment en --speaker-id ecapa"
-        in agent_rules
+        "--asr large-v3 --diarization community-1 --alignment en --speaker-id ecapa" in agent_rules
     )
     assert "human and AI-agent runbook" in docs_index
     assert "Canonical Runbook For Humans And AI Agents" in runbook
     assert (
-        "synthetic tests prove the contract, not real transcription readiness"
-        in normalized_runbook
+        "synthetic tests prove the contract, not real transcription readiness" in normalized_runbook
     )
 
 
@@ -256,11 +252,18 @@ def test_formatted_doctor_output_redacts_absolute_local_paths() -> None:
 
 
 def test_ci_lint_and_type_checks_reuse_the_matrix_python() -> None:
-    workflow = (REPO_ROOT / ".github" / "workflows" / "tests.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (REPO_ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
 
     assert not re.search(r"\buv run(?! --python)", workflow)
+    assert (
+        "GyanD/codexffmpeg/releases/download/$env:FFMPEG_VERSION/"
+        "ffmpeg-$env:FFMPEG_VERSION-essentials_build.zip"
+    ) in workflow
+    assert "db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec" in workflow
+    assert "Get-FileHash" in workflow
+    assert "Expand-Archive" in workflow
+    assert "8\\.1\\.2-essentials_build-www\\.gyan\\.dev" in workflow
+    assert "ffprobe -version" in workflow
     assert "scripts/prepare_vulnerability_audit_input.py" in workflow
     assert "pip-audit -r build/cpu-audit-requirements.txt" in workflow
 
@@ -296,10 +299,7 @@ def test_compose_server_has_healthcheck_and_private_writable_storage() -> None:
     assert gpu_args["FFMPEG_VERSION"] == "7:6.1.1-3ubuntu5"
     assert server["build"]["args"]["ACCELERATOR_GROUP"] == "cpu"
 
-    assert all(
-        service["platform"] == "linux/amd64"
-        for service in compose["services"].values()
-    )
+    assert all(service["platform"] == "linux/amd64" for service in compose["services"].values())
     assert server["ports"] == ["127.0.0.1:8765:8765"]
     assert server["healthcheck"]["test"][:3] == [
         "CMD",

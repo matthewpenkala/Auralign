@@ -25,6 +25,9 @@ from local_transcript_max.platform_security import (
     HeldFileLock,
     LockUnavailableError,
     UnsafePathError,
+    ensure_private_directory,
+    ensure_private_file,
+    fsync_directory,
     open_regular_nofollow,
     reject_reparse_or_symlink,
 )
@@ -464,9 +467,7 @@ def load_identity_job(
     job_fingerprint = stable_digest(fingerprint_payload, prefix="job")
     run_payload = {
         "job_fingerprint": job_fingerprint,
-        "artifact_hashes": {
-            name: artifact.sha256 for name, artifact in sorted(artifacts.items())
-        },
+        "artifact_hashes": {name: artifact.sha256 for name, artifact in sorted(artifacts.items())},
         "policy": policy.model_dump(mode="json"),
         "known_speakers": known_speakers,
         "external_hash": None if external_context is None else external_context.artifact.sha256,
@@ -593,14 +594,17 @@ class IdentityArtifactTransaction(AbstractContextManager["IdentityArtifactTransa
     """Publish a complete derived family or preserve the last complete family."""
 
     def __init__(self, job_dir: Path, run_id: str) -> None:
-        self.job_dir = job_dir
+        self.job_dir = ensure_private_directory(job_dir)
         self.run_id = run_id
-        self.stage = Path(
-            mkdtemp(prefix=f".speaker_identity.{run_id.replace(':', '-')}.", dir=job_dir)
+        self.stage = ensure_private_directory(
+            Path(
+                mkdtemp(
+                    prefix=f".speaker_identity.{run_id.replace(':', '-')}.",
+                    dir=self.job_dir,
+                )
+            )
         )
-        os.chmod(self.stage, 0o700)
-        self.backup = self.stage / "backup"
-        self.backup.mkdir(mode=0o700)
+        self.backup = ensure_private_directory(self.stage / "backup")
         self.closed = False
 
     def __enter__(self) -> IdentityArtifactTransaction:
@@ -612,12 +616,19 @@ class IdentityArtifactTransaction(AbstractContextManager["IdentityArtifactTransa
                 "artifact_not_allowed", "Resolver output is not allowlisted."
             )
         destination = self.job_dir / name
-        if destination.is_symlink():
-            raise IdentityResolverError(
-                "unsafe_output_symlink", "Resolver outputs cannot be symlinks."
-            )
+        if os.path.lexists(destination):
+            try:
+                reject_reparse_or_symlink(destination)
+            except (OSError, UnsafePathError) as exc:
+                raise IdentityResolverError(
+                    "unsafe_output_symlink", "Resolver outputs cannot be symlinks."
+                ) from exc
         path = self.stage / name
-        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        descriptor = open_regular_nofollow(
+            path,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+            0o600,
+        )
         try:
             view = memoryview(data)
             while view:
@@ -636,32 +647,44 @@ class IdentityArtifactTransaction(AbstractContextManager["IdentityArtifactTransa
         try:
             for name in sorted(MANAGED_IDENTITY_ARTIFACTS - {report_name}):
                 destination = self.job_dir / name
-                if destination.exists():
-                    if destination.is_symlink() or not destination.is_file():
+                if os.path.lexists(destination):
+                    try:
+                        reject_reparse_or_symlink(destination)
+                    except (OSError, UnsafePathError) as exc:
+                        raise IdentityResolverError(
+                            "unsafe_existing_output", "An existing resolver output is unsafe."
+                        ) from exc
+                    if not destination.is_file():
                         raise IdentityResolverError(
                             "unsafe_existing_output", "An existing resolver output is unsafe."
                         )
+                    ensure_private_file(destination)
                     os.replace(destination, self.backup / name)
                     backed_up.append(name)
                 source = self.stage / name
                 if source.exists():
                     os.replace(source, destination)
+                    ensure_private_file(destination)
                     published.append(name)
             report_destination = self.job_dir / report_name
-            if report_destination.exists():
-                if report_destination.is_symlink() or not report_destination.is_file():
+            if os.path.lexists(report_destination):
+                try:
+                    reject_reparse_or_symlink(report_destination)
+                except (OSError, UnsafePathError) as exc:
+                    raise IdentityResolverError(
+                        "unsafe_existing_output", "The existing resolver report is unsafe."
+                    ) from exc
+                if not report_destination.is_file():
                     raise IdentityResolverError(
                         "unsafe_existing_output", "The existing resolver report is unsafe."
                     )
+                ensure_private_file(report_destination)
                 os.replace(report_destination, self.backup / report_name)
                 backed_up.append(report_name)
             os.replace(self.stage / report_name, report_destination)
+            ensure_private_file(report_destination)
             published.append(report_name)
-            directory_descriptor = os.open(self.job_dir, os.O_RDONLY)
-            try:
-                os.fsync(directory_descriptor)
-            finally:
-                os.close(directory_descriptor)
+            fsync_directory(self.job_dir)
         except Exception:
             for name in reversed(published):
                 (self.job_dir / name).unlink(missing_ok=True)
@@ -669,6 +692,8 @@ class IdentityArtifactTransaction(AbstractContextManager["IdentityArtifactTransa
                 backup = self.backup / name
                 if backup.exists():
                     os.replace(backup, self.job_dir / name)
+                    ensure_private_file(self.job_dir / name)
+            fsync_directory(self.job_dir)
             raise
 
     def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
-"""Optional WhisperX-style forced alignment adapter."""
+"""Adapter for actual local WhisperX forced alignment."""
 
 from __future__ import annotations
 
@@ -135,9 +135,7 @@ def _validate_local_alignment_path(path: Path) -> None:
     ):
         if not (path / required).exists():
             missing.append(required)
-    if not any(
-        (path / name).exists() for name in ("pytorch_model.bin", "model.safetensors")
-    ):
+    if not any((path / name).exists() for name in ("pytorch_model.bin", "model.safetensors")):
         missing.append("pytorch_model.bin or model.safetensors")
     if missing:
         raise BackendUnavailableError(

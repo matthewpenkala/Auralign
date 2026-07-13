@@ -15,6 +15,7 @@ import ctypes
 import errno
 import importlib
 import os
+import re
 import stat
 import sys
 import tempfile
@@ -27,6 +28,9 @@ from typing import Any, BinaryIO
 _WINDOWS = os.name == "nt"
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 _INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
+_SYSTEM_SID = "S-1-5-18"
+_ADMINISTRATORS_SID = "S-1-5-32-544"
+_SID_PATTERN = re.compile(r"^S-\d+(?:-\d+)+$")
 
 
 def _windows_extended_path(path: Path) -> str:
@@ -49,6 +53,145 @@ def _windows_dll(name: str) -> Any:
 def _windows_last_error() -> int:
     attribute = "_".join(("get", "last", "error"))
     return int(getattr(ctypes, attribute)())
+
+
+def _windows_current_user_sid() -> str:
+    """Return the SID of the account backing the current Windows process."""
+
+    advapi32 = _windows_dll("advapi32")
+    kernel32 = _windows_dll("kernel32")
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    kernel32.CloseHandle.restype = ctypes.c_int
+    token = ctypes.c_void_p()
+    get_current_process = kernel32.GetCurrentProcess
+    get_current_process.restype = ctypes.c_void_p
+    open_process_token = advapi32.OpenProcessToken
+    open_process_token.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    open_process_token.restype = ctypes.c_int
+    if not open_process_token(get_current_process(), 0x0008, ctypes.byref(token)):
+        error = _windows_last_error()
+        raise OSError(error, "could not open the current Windows process token")
+
+    class SidAndAttributes(ctypes.Structure):
+        _fields_ = [("sid", ctypes.c_void_p), ("attributes", ctypes.c_uint32)]
+
+    try:
+        get_token_information = advapi32.GetTokenInformation
+        get_token_information.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.POINTER(ctypes.c_uint32),
+        ]
+        get_token_information.restype = ctypes.c_int
+        required = ctypes.c_uint32()
+        get_token_information(token, 1, None, 0, ctypes.byref(required))
+        error = _windows_last_error()
+        if error != 122 or required.value == 0:
+            raise OSError(error, "could not size the current Windows token user")
+        buffer = ctypes.create_string_buffer(required.value)
+        if not get_token_information(
+            token,
+            1,
+            buffer,
+            required.value,
+            ctypes.byref(required),
+        ):
+            error = _windows_last_error()
+            raise OSError(error, "could not read the current Windows token user")
+        token_user = ctypes.cast(buffer, ctypes.POINTER(SidAndAttributes)).contents
+        convert = advapi32.ConvertSidToStringSidW
+        convert.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_wchar_p)]
+        convert.restype = ctypes.c_int
+        sid_pointer = ctypes.c_wchar_p()
+        if not convert(token_user.sid, ctypes.byref(sid_pointer)):
+            error = _windows_last_error()
+            raise OSError(error, "could not render the current Windows token user SID")
+        try:
+            sid = sid_pointer.value or ""
+        finally:
+            kernel32.LocalFree(ctypes.cast(sid_pointer, ctypes.c_void_p))
+    finally:
+        kernel32.CloseHandle(token)
+    if _SID_PATTERN.fullmatch(sid) is None:
+        raise UnsafePathError("current Windows token returned an invalid SID")
+    return sid
+
+
+def _windows_private_trustees(current_sid: str) -> tuple[str, ...]:
+    """Return the exact current-user/system/admin trustee set without duplicates."""
+
+    if _SID_PATTERN.fullmatch(current_sid) is None:
+        raise ValueError("invalid Windows current-user SID")
+    return tuple(dict.fromkeys((current_sid, _SYSTEM_SID, _ADMINISTRATORS_SID)))
+
+
+def _windows_private_sddl(current_sid: str, *, directory: bool) -> str:
+    ace_flags = "OICI" if directory else ""
+    return "D:P" + "".join(
+        f"(A;{ace_flags};FA;;;{trustee})" for trustee in _windows_private_trustees(current_sid)
+    )
+
+
+def _windows_sddl_trustee_spelling(sid: str) -> str:
+    """Return Win32's canonical SDDL spelling for one concrete SID."""
+
+    if _SID_PATTERN.fullmatch(sid) is None:
+        raise ValueError("invalid Windows SID")
+    advapi32 = _windows_dll("advapi32")
+    kernel32 = _windows_dll("kernel32")
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+    parse = advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW
+    parse.argtypes = [
+        ctypes.c_wchar_p,
+        ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_void_p,
+    ]
+    parse.restype = ctypes.c_int
+    descriptor = ctypes.c_void_p()
+    if not parse(f"D:(A;;FA;;;{sid})", 1, ctypes.byref(descriptor), None):
+        error = _windows_last_error()
+        raise OSError(error, "could not canonicalize Windows SID")
+    try:
+        render = advapi32.ConvertSecurityDescriptorToStringSecurityDescriptorW
+        render.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.POINTER(ctypes.c_wchar_p),
+            ctypes.POINTER(ctypes.c_uint32),
+        ]
+        render.restype = ctypes.c_int
+        rendered = ctypes.c_wchar_p()
+        rendered_length = ctypes.c_uint32()
+        if not render(
+            descriptor,
+            1,
+            0x00000004,
+            ctypes.byref(rendered),
+            ctypes.byref(rendered_length),
+        ):
+            error = _windows_last_error()
+            raise OSError(error, "could not render canonical Windows SID")
+        try:
+            canonical = str(rendered.value or "")
+        finally:
+            kernel32.LocalFree(ctypes.cast(rendered, ctypes.c_void_p))
+    finally:
+        kernel32.LocalFree(descriptor)
+    aces = re.findall(r"\(([^()]*)\)", canonical)
+    if len(aces) != 1 or len(aces[0].split(";")) != 6:
+        raise UnsafePathError("Windows returned malformed canonical SDDL")
+    return str(aces[0].split(";")[5])
 
 
 def _windows_lock(descriptor: int, *, unlock: bool) -> None:
@@ -117,8 +260,16 @@ def _reject_existing_ancestor_indirection(path: Path) -> None:
             reject_reparse_or_symlink(candidate)
 
 
+def reject_path_indirection(path: Path) -> Path:
+    """Return a platform-normalized path after rejecting linked existing ancestors."""
+
+    candidate = _normalize_platform_alias(Path(path).absolute())
+    _reject_existing_ancestor_indirection(candidate)
+    return candidate
+
+
 def _protect_windows_path(path: Path) -> None:
-    """Install an inherited-access-blocking owner/system/admin DACL."""
+    """Install a protected current-user/system/admin DACL."""
 
     advapi32 = _windows_dll("advapi32")
     kernel32 = _windows_dll("kernel32")
@@ -136,9 +287,11 @@ def _protect_windows_path(path: Path) -> None:
     descriptor = ctypes.c_void_p()
     kernel32.LocalFree.argtypes = [ctypes.c_void_p]
     kernel32.LocalFree.restype = ctypes.c_void_p
-    # D:P blocks inherited access. OW is the object's owner; local system and
-    # administrators retain recovery access on an owner-controlled workstation.
-    sddl = "D:P(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)"
+    # D:P blocks inherited access. Bind access to the account actually running
+    # Auralign, not to an unrelated owner of a pre-provisioned runner path.
+    directory = path.is_dir()
+    current_sid = _windows_current_user_sid()
+    sddl = _windows_private_sddl(current_sid, directory=directory)
     if not convert(sddl, 1, ctypes.byref(descriptor), None):
         error = _windows_last_error()
         raise OSError(error, "could not construct private Windows DACL", str(path))
@@ -154,11 +307,16 @@ def _protect_windows_path(path: Path) -> None:
             raise OSError(error, "could not apply private Windows DACL", str(path))
     finally:
         kernel32.LocalFree(descriptor)
-    _verify_windows_private_dacl(path)
+    _verify_windows_private_dacl(path, directory=directory, current_sid=current_sid)
 
 
-def _verify_windows_private_dacl(path: Path) -> None:
-    """Read back the protected owner/system/admin DACL after publication."""
+def _verify_windows_private_dacl(
+    path: Path,
+    *,
+    directory: bool,
+    current_sid: str | None = None,
+) -> None:
+    """Read back the protected current-user/system/admin DACL after publication."""
 
     advapi32 = _windows_dll("advapi32")
     kernel32 = _windows_dll("kernel32")
@@ -208,6 +366,56 @@ def _verify_windows_private_dacl(path: Path) -> None:
             raise OSError(error, "could not verify private Windows DACL", path.name)
         if not control.value & 0x1000 or not owner.value or not dacl.value:
             raise UnsafePathError(f"private Windows DACL is not protected: {path.name}")
+        convert = advapi32.ConvertSecurityDescriptorToStringSecurityDescriptorW
+        convert.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.POINTER(ctypes.c_wchar_p),
+            ctypes.POINTER(ctypes.c_uint32),
+        ]
+        convert.restype = ctypes.c_int
+        sddl_pointer = ctypes.c_wchar_p()
+        sddl_length = ctypes.c_uint32()
+        if not convert(
+            descriptor,
+            1,
+            0x00000004,
+            ctypes.byref(sddl_pointer),
+            ctypes.byref(sddl_length),
+        ):
+            error = _windows_last_error()
+            raise OSError(error, "could not inspect private Windows DACL", path.name)
+        try:
+            sddl = sddl_pointer.value or ""
+        finally:
+            kernel32.LocalFree(ctypes.cast(sddl_pointer, ctypes.c_void_p))
+        expected_current_sid = current_sid or _windows_current_user_sid()
+        expected = set(_windows_private_trustees(expected_current_sid))
+        trustee_aliases = {sid: sid for sid in expected}
+        trustee_aliases.update({_windows_sddl_trustee_spelling(sid): sid for sid in expected})
+        observed: list[str] = []
+        for ace in re.findall(r"\(([^()]*)\)", sddl):
+            fields = ace.split(";")
+            if len(fields) != 6:
+                raise UnsafePathError(f"private Windows DACL is malformed: {path.name}")
+            ace_type, ace_flags, rights, object_guid, inherit_guid, trustee = fields
+            normalized = trustee_aliases.get(trustee, trustee)
+            parsed_flags = {ace_flags[index : index + 2] for index in range(0, len(ace_flags), 2)}
+            expected_flags = {"OI", "CI"} if directory else set()
+            if (
+                ace_type != "A"
+                or len(ace_flags) % 2
+                or parsed_flags != expected_flags
+                or rights != "FA"
+                or object_guid
+                or inherit_guid
+                or normalized not in expected
+            ):
+                raise UnsafePathError(f"private Windows DACL grants unexpected access: {path.name}")
+            observed.append(normalized)
+        if len(observed) != len(expected) or set(observed) != expected:
+            raise UnsafePathError(f"private Windows DACL is incomplete: {path.name}")
     finally:
         kernel32.LocalFree(descriptor)
 
@@ -276,6 +484,29 @@ def ensure_private_directory(path: Path) -> Path:
     else:
         directory.chmod(0o700)
     return directory
+
+
+def private_path_is_secure(path: Path, *, directory: bool = False) -> bool:
+    """Return whether an existing path has the native owner-private contract."""
+
+    try:
+        candidate = _normalize_platform_alias(Path(path))
+        _reject_existing_ancestor_indirection(candidate)
+        metadata = candidate.lstat()
+        expected_type = (
+            stat.S_ISDIR(metadata.st_mode) if directory else stat.S_ISREG(metadata.st_mode)
+        )
+        if not expected_type:
+            return False
+        if _WINDOWS:
+            _verify_windows_private_dacl(candidate, directory=directory)
+        else:
+            expected_mode = 0o700 if directory else 0o600
+            if stat.S_IMODE(metadata.st_mode) != expected_mode:
+                return False
+    except (OSError, UnsafePathError):
+        return False
+    return True
 
 
 def open_regular_nofollow(path: Path, flags: int, mode: int = 0o600) -> int:

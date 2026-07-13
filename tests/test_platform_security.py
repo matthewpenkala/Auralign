@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 import shutil
-import stat
+import subprocess
 import sys
 import tempfile
 import tomllib
@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+import local_transcript_max.platform_security as platform_security
 from local_transcript_max.platform_security import (
     HeldFileLock,
     LockUnavailableError,
@@ -23,6 +24,7 @@ from local_transcript_max.platform_security import (
     current_process_usage,
     ensure_private_directory,
     open_regular_nofollow,
+    private_path_is_secure,
     reject_reparse_or_symlink,
 )
 
@@ -35,9 +37,25 @@ def test_private_directory_and_atomic_publication_are_owner_only(tmp_path: Path)
     atomic_write_text(target, "complete\n")
 
     assert target.read_text(encoding="utf-8") == "complete\n"
-    if os.name != "nt":
-        assert stat.S_IMODE(private.stat().st_mode) == 0o700
-        assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert private_path_is_secure(private, directory=True)
+    assert private_path_is_secure(target)
+
+
+def test_private_path_security_treats_alias_normalization_failure_as_unsafe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_alias(_path: Path) -> Path:
+        raise UnsafePathError("unexpected platform alias")
+
+    monkeypatch.setattr(platform_security, "_normalize_platform_alias", fail_alias)
+    assert not private_path_is_secure(Path("untrusted"))
+
+
+def test_reject_path_indirection_returns_the_absolute_checked_path(tmp_path: Path) -> None:
+    checked = platform_security.reject_path_indirection(tmp_path)
+
+    assert checked.is_absolute()
+    assert checked == platform_security._normalize_platform_alias(tmp_path.absolute())
 
 
 def test_atomic_publication_replaces_complete_file_and_removes_temporary(
@@ -79,6 +97,25 @@ def test_private_directory_rejects_linked_ancestor(tmp_path: Path) -> None:
     assert not (outside / "private").exists()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows junction contract")
+def test_private_directory_rejects_windows_junction(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    junction = tmp_path / "junction"
+    result = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(junction), str(outside)],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if result.returncode != 0:
+        pytest.skip("host did not permit creation of a test junction")
+
+    with pytest.raises(UnsafePathError, match="reparse point"):
+        ensure_private_directory(junction / "private")
+    assert not (outside / "private").exists()
+
+
 def test_macos_standard_tmp_alias_is_canonicalized() -> None:
     if sys.platform != "darwin":
         pytest.skip("macOS standard alias contract")
@@ -108,6 +145,62 @@ def test_descriptor_lock_blocks_concurrent_entry_and_recovers(tmp_path: Path) ->
 
     with HeldFileLock(lock_path):
         assert lock_path.exists()
+
+
+def test_descriptor_lock_recovers_after_process_exit(tmp_path: Path) -> None:
+    lock_path = tmp_path / "private" / ".crash.lock"
+    code = (
+        "import os, sys; "
+        "from pathlib import Path; "
+        "from local_transcript_max.platform_security import HeldFileLock; "
+        "HeldFileLock(Path(sys.argv[1])).acquire(); os._exit(0)"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", code, str(lock_path)],
+        check=False,
+    )
+    assert completed.returncode == 0
+    with HeldFileLock(lock_path):
+        assert lock_path.exists()
+
+
+def test_windows_private_sddl_binds_current_account_not_unrelated_owner() -> None:
+    current_sid = "S-1-5-21-100-200-300-400"
+
+    directory = platform_security._windows_private_sddl(current_sid, directory=True)
+    regular_file = platform_security._windows_private_sddl(current_sid, directory=False)
+
+    assert current_sid in directory and current_sid in regular_file
+    assert ";;;OW)" not in directory and ";;;OW)" not in regular_file
+    assert "OICI" in directory and "OICI" not in regular_file
+    assert platform_security._SYSTEM_SID in directory
+    assert platform_security._ADMINISTRATORS_SID in directory
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows SDDL canonicalization contract")
+def test_windows_sddl_aliases_are_derived_from_concrete_sids() -> None:
+    assert platform_security._windows_sddl_trustee_spelling("S-1-5-19") in {
+        "LS",
+        "S-1-5-19",
+    }
+    assert platform_security._windows_sddl_trustee_spelling("S-1-5-20") in {
+        "NS",
+        "S-1-5-20",
+    }
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows path normalization contract")
+def test_windows_extended_paths_cover_drive_unc_long_and_case_normalization() -> None:
+    drive = Path("C:/Auralign/Models")
+    unc = Path("//server/share/Auralign/Models")
+    long_child = drive / ("a" * 280)
+
+    assert platform_security._windows_extended_path(drive).startswith("\\\\?\\C:\\")
+    assert platform_security._windows_extended_path(unc).startswith("\\\\?\\UNC\\")
+    assert len(platform_security._windows_extended_path(long_child)) > 260
+    assert platform_security._normalize_windows_final_path("C:\\AURALIGN\\MODELS") == (
+        platform_security._normalize_windows_final_path("c:\\auralign\\models")
+    )
 
 
 def test_process_usage_is_non_negative() -> None:
@@ -157,6 +250,11 @@ def test_trusted_windows_workflow_cannot_upload_or_cache_private_evidence() -> N
     assert "[self-hosted, Windows, X64, auralign-gpu]" in workflow
     assert "github.actor == github.repository_owner" in workflow
     assert "LTM_VALIDATION_CAPSULE_DIR" in workflow
+    assert "LTM_ACCEPTANCE_EVIDENCE_DIR" in workflow
+    assert "scripts/generate_environment_sbom.py" in workflow
+    assert workflow.index("Protect runner-local paths before checkout cleanup") < workflow.index(
+        "actions/checkout@"
+    )
     assert "actions/upload-artifact" not in workflow
     assert "actions/cache" not in workflow
     assert "setup-uv" not in workflow

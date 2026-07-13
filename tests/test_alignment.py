@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from local_transcript_max.alignment.forced_alignment import WhisperXForcedAlignment
+from local_transcript_max.alignment.forced_alignment import (
+    WhisperXForcedAlignment,
+    preflight_forced_alignment,
+)
 from local_transcript_max.config import load_config
 from local_transcript_max.errors import BackendUnavailableError
 from local_transcript_max.pipeline import align_words
@@ -126,6 +129,10 @@ def test_whisperx_alignment_requires_local_cache_before_loading(
         "local_transcript_max.alignment.forced_alignment.verify_generated_punkt",
         lambda cache: verified.append(cache),
     )
+    monkeypatch.setattr(
+        "local_transcript_max.alignment.forced_alignment.importlib.util.find_spec",
+        lambda _name: object(),
+    )
     config = load_config(cwd=tmp_path)
     config.offline = True
     config.alignment.backend = "forced"
@@ -139,12 +146,34 @@ def test_whisperx_alignment_requires_local_cache_before_loading(
     assert verified == [config.model_cache]
 
 
+def test_whisperx_preflight_requires_installed_dependency(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "local_transcript_max.alignment.forced_alignment.verify_generated_punkt",
+        lambda _cache: None,
+    )
+    monkeypatch.setattr(
+        "local_transcript_max.alignment.forced_alignment.importlib.util.find_spec",
+        lambda _name: None,
+    )
+    config = load_config(cwd=tmp_path)
+    config.alignment.backend = "forced"
+
+    with pytest.raises(BackendUnavailableError, match="uv sync --extra alignment"):
+        preflight_forced_alignment(config)
+
+
 def test_whisperx_alignment_rejects_non_ctc_local_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
         "local_transcript_max.alignment.forced_alignment.verify_generated_punkt",
         lambda _cache: None,
+    )
+    monkeypatch.setattr(
+        "local_transcript_max.alignment.forced_alignment.importlib.util.find_spec",
+        lambda _name: object(),
     )
     model_dir = tmp_path / "facebook--wav2vec2-large-xlsr-53"
     model_dir.mkdir()

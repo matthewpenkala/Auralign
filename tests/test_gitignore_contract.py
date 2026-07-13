@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import importlib.util
 import subprocess
+import sys
 from pathlib import Path
 from types import ModuleType
 
@@ -14,16 +15,25 @@ import pytest
 from local_transcript_max.cli import _CANONICAL_JOB_ARTIFACTS, _STRICT_VALIDATION_ARTIFACTS
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = REPO_ROOT / "scripts"
 
 
 def _load_distribution_verifier() -> ModuleType:
-    script_path = REPO_ROOT / "scripts" / "verify_distribution.py"
-    spec = importlib.util.spec_from_file_location("verify_distribution", script_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("unable to load distribution verifier")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    script_path = SCRIPTS / "verify_distribution.py"
+    scripts_path = str(SCRIPTS)
+    inserted = scripts_path not in sys.path
+    if inserted:
+        sys.path.insert(0, scripts_path)
+    try:
+        spec = importlib.util.spec_from_file_location("verify_distribution", script_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("unable to load distribution verifier")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        if inserted:
+            sys.path.remove(scripts_path)
 
 
 verify_distribution = _load_distribution_verifier()

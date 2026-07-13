@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 import math
+import os
 import stat
 import wave
 from pathlib import Path
@@ -13,6 +14,7 @@ from local_transcript_max import pipeline as pipeline_module
 from local_transcript_max.config import load_config
 from local_transcript_max.errors import BackendUnavailableError, LTMError
 from local_transcript_max.pipeline import preflight_required_models, transcribe_file
+from local_transcript_max.platform_security import private_path_is_secure
 from local_transcript_max.schemas import (
     AlignedWord,
     ASRResult,
@@ -128,6 +130,7 @@ def test_ecapa_classifier_is_loaded_during_model_preflight(
     config.speaker_id.device = "cpu"
     model_path = tmp_path / "models" / "ecapa"
     loaded: list[tuple[str, str]] = []
+    monkeypatch.setattr(pipeline_module, "validate_compute_type", lambda *_args: None)
     monkeypatch.setattr(pipeline_module, "require_model", lambda *_args, **_kwargs: model_path)
     monkeypatch.setattr(cluster_embeddings, "_resolve_device", lambda requested: "cpu")
     monkeypatch.setattr(
@@ -151,6 +154,7 @@ def test_ecapa_classifier_startup_failure_is_a_preflight_error(
     config.alignment.enabled = False
     config.speaker_id.mode = "auto"
     model_path = tmp_path / "models" / "ecapa"
+    monkeypatch.setattr(pipeline_module, "validate_compute_type", lambda *_args: None)
     monkeypatch.setattr(pipeline_module, "require_model", lambda *_args, **_kwargs: model_path)
     monkeypatch.setattr(cluster_embeddings, "_resolve_device", lambda requested: "cpu")
     monkeypatch.setattr(
@@ -361,8 +365,8 @@ def test_pipeline_accepts_an_empty_precreated_job_directory(tmp_path: Path) -> N
 
     assert transcript.speaker_turns[0].speaker == "SPEAKER_00"
     assert (out_dir / "run_metadata.json").is_file()
-    assert stat.S_IMODE(out_dir.stat().st_mode) == 0o700
-    assert stat.S_IMODE((out_dir / "canonical.wav").stat().st_mode) == 0o600
+    assert private_path_is_secure(out_dir, directory=True)
+    assert private_path_is_secure(out_dir / "canonical.wav")
 
 
 def test_pipeline_rejects_existing_job_artifacts_without_overwriting(
@@ -408,7 +412,8 @@ def test_pipeline_rejects_nonempty_unrelated_output_directory(tmp_path: Path) ->
         )
 
     assert unrelated.read_bytes() == b"preserve"
-    assert stat.S_IMODE(out_dir.stat().st_mode) == 0o755
+    if os.name != "nt":
+        assert stat.S_IMODE(out_dir.stat().st_mode) == 0o755
 
 
 def test_pipeline_rejects_existing_candidate_directory_symlink(tmp_path: Path) -> None:
@@ -431,7 +436,8 @@ def test_pipeline_rejects_existing_candidate_directory_symlink(tmp_path: Path) -
             precheck_models=False,
         )
 
-    assert stat.S_IMODE(external.stat().st_mode) == original_mode
+    if os.name != "nt":
+        assert stat.S_IMODE(external.stat().st_mode) == original_mode
     assert not list(external.iterdir())
 
 

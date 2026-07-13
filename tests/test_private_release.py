@@ -4,8 +4,10 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import importlib
+import io
 import json
 import sys
 import tarfile
@@ -19,24 +21,33 @@ SCRIPTS = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 assemble = importlib.import_module("assemble_private_release")
 verify = importlib.import_module("verify_distribution")
+dependency_sbom = importlib.import_module("validate_dependency_sbom")
 
 
 def _write_zip(path: Path, files: dict[str, bytes]) -> None:
     with zipfile.ZipFile(path, "w") as archive:
         for name, data in files.items():
-            archive.writestr(name, data)
+            info = zipfile.ZipInfo(name, verify.DETERMINISTIC_ZIP_TIMESTAMP)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.create_system = 3
+            info.external_attr = (0o100000 | 0o644) << 16
+            archive.writestr(info, data)
 
 
-def _write_tar(path: Path, files: dict[str, bytes], staging: Path) -> None:
-    root = staging / "tar-files"
-    for name, data in files.items():
-        target = root / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
-    with tarfile.open(path, "w:gz") as archive:
-        for target in sorted(root.rglob("*")):
-            if target.is_file():
-                archive.add(target, arcname=target.relative_to(root))
+def _write_tar(path: Path, files: dict[str, bytes], _staging: Path) -> None:
+    with path.open("wb") as raw:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+            with tarfile.open(fileobj=compressed, mode="w") as archive:
+                for name, data in sorted(files.items()):
+                    info = tarfile.TarInfo(name)
+                    info.size = len(data)
+                    info.mode = 0o755 if name.endswith((".sh", "install-macos.sh")) else 0o644
+                    info.mtime = 0
+                    info.uid = 0
+                    info.gid = 0
+                    info.uname = ""
+                    info.gname = ""
+                    archive.addfile(info, io.BytesIO(data))
 
 
 def _native_common(wheel_name: str, model_manifest: bytes) -> tuple[set[str], dict[str, bytes]]:
@@ -53,6 +64,35 @@ def _native_common(wheel_name: str, model_manifest: bytes) -> tuple[set[str], di
         for name in names
     }
     return names, files
+
+
+def _native_environment_sbom(platform: str, profile: str, commit: str) -> bytes:
+    versions = dependency_sbom.NATIVE_PACKAGE_VERSIONS[platform]
+    components = [
+        {
+            "bom-ref": f"{name}=={versions[name]}",
+            "name": name,
+            "version": versions[name],
+        }
+        for name in sorted(versions)
+    ]
+    payload = {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "version": 1,
+        "metadata": {
+            "properties": [
+                {"name": "auralign:commit", "value": commit},
+                {"name": "auralign:platform", "value": platform},
+                {"name": "auralign:profile", "value": profile},
+                {"name": "auralign:python-version", "value": "3.11.13"},
+                {"name": "auralign:sbom-kind", "value": "installed-environment"},
+            ]
+        },
+        "components": components,
+        "dependencies": [{"ref": item["bom-ref"], "dependsOn": []} for item in components],
+    }
+    return json.dumps(payload, sort_keys=True).encode()
 
 
 def _build_synthetic_release(directory: Path, commit: str) -> None:
@@ -110,17 +150,20 @@ def _build_synthetic_release(directory: Path, commit: str) -> None:
         },
         directory,
     )
-    cdx = b'{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}'
     sboms = {
         "source.spdx": (
             b"SPDXVersion: SPDX-2.1\nDocumentName: Auralign\nCreator: Tool: reuse-6.2.0\n"
         ),
         "wheel.spdx.json": b'{"spdxVersion":"SPDX-2.3","packages":[],"files":[]}',
         "sdist.spdx.json": b'{"spdxVersion":"SPDX-2.3","packages":[],"files":[]}',
-        "macos-arm64-cpu.cdx.json": cdx,
-        "windows-amd64-cpu.cdx.json": cdx,
-        "windows-amd64-cu128.cdx.json": cdx,
-        "linux-amd64-cu126.cdx.json": cdx,
+        "darwin-arm64-cpu.cdx.json": _native_environment_sbom("darwin-arm64-cpu", "cpu", commit),
+        "windows-amd64-cpu.cdx.json": _native_environment_sbom("windows-amd64-cpu", "cpu", commit),
+        "windows-amd64-cu128.cdx.json": _native_environment_sbom(
+            "windows-amd64-cu128", "cu128", commit
+        ),
+        "linux-amd64-cu126.cdx.json": _native_environment_sbom(
+            "linux-amd64-cu126", "cu126", commit
+        ),
     }
     _write_zip(directory / f"Auralign-{version}-sboms.zip", sboms)
     (directory / wheel_name).write_bytes(b"synthetic wheel")
@@ -159,6 +202,42 @@ def _build_synthetic_release(directory: Path, commit: str) -> None:
     )
 
 
+def _build_synthetic_acceptance(directory: Path, commit: str, contract_digest: str) -> None:
+    directory.mkdir(mode=0o700)
+    validator_digest = assemble.sha256_file(
+        REPO_ROOT / "scripts/run_trusted_platform_validation.py"
+    )
+    for platform_name, (profile, config) in assemble.ACCEPTANCE_CONFIGS.items():
+        sbom_name = f"{platform_name}.cdx.json"
+        sbom_path = directory / sbom_name
+        sbom_path.write_bytes(_native_environment_sbom(platform_name, profile, commit))
+        sbom_path.chmod(0o600)
+        payload = {
+            "schema_version": "auralign-platform-acceptance.v2",
+            "platform": platform_name,
+            "profile": profile,
+            "commit": commit,
+            "passed": True,
+            "owner_attested": True,
+            "completed_at": "2026-07-13T12:00:00Z",
+            "python_version": "3.11",
+            "validator": "scripts/run_trusted_platform_validation.py",
+            "validator_sha256": validator_digest,
+            "config": config,
+            "config_sha256": assemble.sha256_file(REPO_ROOT / config),
+            "model_contract_sha256": contract_digest,
+            "capsule_id": assemble.CAPSULE_ID,
+            "dependency_sbom": sbom_name,
+            "dependency_sbom_sha256": assemble.sha256_file(sbom_path),
+        }
+        record = directory / f"{platform_name}.json"
+        record.write_text(json.dumps(payload), encoding="utf-8")
+        record.chmod(0o600)
+    linux = directory / "linux-amd64-cu126.cdx.json"
+    linux.write_bytes(_native_environment_sbom("linux-amd64-cu126", "cu126", commit))
+    linux.chmod(0o600)
+
+
 def test_private_release_recursive_closed_allowlist_and_hashes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -168,11 +247,19 @@ def test_private_release_recursive_closed_allowlist_and_hashes(
     common_names, _files = _native_common(
         wheel_name, (tmp_path / "model-manifest.json").read_bytes()
     )
+    expected_model_manifest = json.loads(
+        (tmp_path / "model-manifest.json").read_text(encoding="utf-8")
+    )
 
     monkeypatch.setattr(verify, "read_wheel", lambda _path: {})
     monkeypatch.setattr(verify, "verify_wheel", lambda _files: None)
     monkeypatch.setattr(verify, "read_sdist", lambda _path: {"root/file": b"x"})
     monkeypatch.setattr(verify, "verify_sdist", lambda _files: None)
+    monkeypatch.setattr(
+        verify,
+        "expected_release_model_manifest",
+        lambda: expected_model_manifest,
+    )
     verify.verify_private_release(
         tmp_path,
         version="0.2.0",
@@ -200,6 +287,90 @@ def test_native_archive_rejects_unexpected_private_member(tmp_path: Path) -> Non
             root_name="Auralign",
             expected_relative_content={},
         )
+
+
+@pytest.mark.parametrize(
+    "private_path",
+    [
+        b"/" + b"Users/privateowner",
+        b"/" + b"home/privateowner",
+        b"C:" + b"\\Users\\privateowner",
+        b"c:" + b"\\USERS\\privateowner\\secret",
+    ],
+)
+def test_distribution_scan_rejects_terminal_and_case_varied_home_paths(
+    private_path: bytes,
+) -> None:
+    with pytest.raises(RuntimeError, match="private home path"):
+        verify.verify_no_prohibited_content({"payload.json": private_path}, "synthetic")
+
+
+@pytest.mark.parametrize(
+    ("name", "payload"),
+    [
+        ("history.bundle", b"ordinary"),
+        ("history.dat", b"# v2 git bundle\n"),
+        ("objects.dat", b"PACK\x00\x00\x00\x02"),
+    ],
+)
+def test_distribution_scan_rejects_archived_git_history(name: str, payload: bytes) -> None:
+    with pytest.raises(RuntimeError, match="private file|archived Git history"):
+        verify.verify_no_prohibited_content({name: payload}, "synthetic")
+
+
+def test_native_archive_writers_are_reproducible_and_metadata_normalized(
+    tmp_path: Path,
+) -> None:
+    stage = tmp_path / "Auralign-test"
+    stage.mkdir()
+    regular = stage / "README.md"
+    regular.write_text("private release\n", encoding="utf-8")
+    executable = stage / "install-macos.sh"
+    executable.write_text("#!/bin/sh\n", encoding="utf-8")
+    executable.chmod(0o755)
+
+    first_zip = tmp_path / "first.zip"
+    second_zip = tmp_path / "second.zip"
+    zip_files = [
+        (path, f"{stage.name}/{path.relative_to(stage).as_posix()}") for path in stage.iterdir()
+    ]
+    assemble.write_deterministic_zip(first_zip, zip_files)
+    assemble.write_deterministic_zip(second_zip, zip_files)
+    assert first_zip.read_bytes() == second_zip.read_bytes()
+    assert set(verify.read_zip(first_zip)) == {
+        "Auralign-test/README.md",
+        "Auralign-test/install-macos.sh",
+    }
+
+    first_tar = tmp_path / "first.tar.gz"
+    second_tar = tmp_path / "second.tar.gz"
+    assemble.write_deterministic_tar_gz(first_tar, stage)
+    assemble.write_deterministic_tar_gz(second_tar, stage)
+    assert first_tar.read_bytes() == second_tar.read_bytes()
+    assert set(verify.read_tar(first_tar)) == {
+        "Auralign-test/README.md",
+        "Auralign-test/install-macos.sh",
+    }
+
+
+def test_platform_acceptance_binds_exact_native_environment_sboms(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    commit = "a" * 40
+    contract_digest = "b" * 64
+    monkeypatch.setattr(assemble, "repository_model_contract_digest", lambda: contract_digest)
+    acceptance = tmp_path / "acceptance"
+    _build_synthetic_acceptance(acceptance, commit, contract_digest)
+
+    assemble.verify_acceptance(acceptance, commit)
+
+    sbom = acceptance / "windows-amd64-cpu.cdx.json"
+    payload = json.loads(sbom.read_text(encoding="utf-8"))
+    properties = payload["metadata"]["properties"]
+    next(row for row in properties if row["name"] == "auralign:commit")["value"] = "b" * 40
+    sbom.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="binding drift"):
+        assemble.verify_acceptance(acceptance, commit)
 
 
 def test_release_requirements_match_lock() -> None:

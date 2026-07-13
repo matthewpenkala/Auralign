@@ -36,9 +36,15 @@ from .config import (
 )
 from .errors import ModelCacheError, OfflineModeError
 from .native_runtime import probe_torchcodec
-from .platform_security import ensure_private_directory
+from .platform_security import (
+    HeldFileLock,
+    LockUnavailableError,
+    ensure_private_directory,
+    open_regular_nofollow,
+    reject_path_indirection,
+)
 from .redaction import redact_obj
-from .utils import read_json, write_json
+from .utils import write_json
 
 MODEL_PROVENANCE_FILENAME = ".ltm-model.json"
 MIN_RUNTIME_PREPARATION_FREE_BYTES = 8 * 1024**3
@@ -90,9 +96,7 @@ class ModelStatus:
         if self.present:
             return "complete"
         details: list[str] = []
-        displayed_path = (
-            shareable_model_path(self.path, cache_dir) if shareable else str(self.path)
-        )
+        displayed_path = shareable_model_path(self.path, cache_dir) if shareable else str(self.path)
         if not self.exists:
             details.append(f"directory missing at {displayed_path}")
         if self.missing_files:
@@ -103,8 +107,7 @@ class ModelStatus:
             details.append(f"inaccessible files: {', '.join(self.inaccessible_files)}")
         if self.unexpected_files:
             details.append(
-                "unexpected non-allowlisted files or links: "
-                f"{', '.join(self.unexpected_files)}"
+                f"unexpected non-allowlisted files or links: {', '.join(self.unexpected_files)}"
             )
         digest_contract_incomplete = self.provenance_problem.startswith(
             "repository digest contract incomplete"
@@ -182,7 +185,24 @@ def status_for(entry: ModelEntry, cache_dir: Path) -> ModelStatus:
 
 def status_for_path(entry: ModelEntry, path: Path) -> ModelStatus:
     path = path.expanduser()
-    exists = path.exists()
+    exists = os.path.lexists(path)
+    unexpected = _unexpected_runtime_assets(entry, path)
+    if unexpected:
+        return ModelStatus(
+            entry=entry,
+            path=path,
+            exists=exists,
+            files_complete=False,
+            present=False,
+            missing_files=(),
+            zero_size_files=(),
+            inaccessible_files=(),
+            unexpected_files=unexpected,
+            token_required=entry.gated,
+            token_present=token_present(),
+            revision_verified=False,
+            provenance_problem="model cache contains linked or non-allowlisted content",
+        )
     missing = tuple(
         required for required in entry.required_files if required and not (path / required).exists()
     )
@@ -216,7 +236,6 @@ def status_for_path(entry: ModelEntry, path: Path) -> ModelStatus:
             if required and (path / required).exists() and not _can_read(path / required)
         ),
     )
-    unexpected = _unexpected_runtime_assets(entry, path)
     files_complete = exists and (
         not entry.required_files or (not missing and not zero_size and not inaccessible)
     )
@@ -409,8 +428,7 @@ def pull_model(
             f"Refusing unapproved revision override for {entry.role}:{entry.key}. "
             f"Approved revision: {entry.revision}."
         )
-    root = cache_dir.expanduser()
-    root.mkdir(parents=True, exist_ok=True)
+    root = ensure_private_directory(cache_dir.expanduser())
     local_dir = model_local_path(entry, root)
     with _model_pull_lock(root, entry):
         current_status = status_for(entry, root)
@@ -429,9 +447,7 @@ def pull_model(
                 "and replace it."
             )
 
-        temporary = Path(
-            tempfile.mkdtemp(prefix=f".{entry.directory_name}.pull-", dir=root)
-        )
+        temporary = Path(tempfile.mkdtemp(prefix=f".{entry.directory_name}.pull-", dir=root))
         try:
             try:
                 snapshot_download(
@@ -517,9 +533,7 @@ def review_model_digests(entry: ModelEntry, cache_dir: Path) -> dict[str, str]:
         finally:
             shutil.rmtree(temporary)
             if temporary.exists() or temporary.is_symlink():
-                raise ModelCacheError(
-                    "Digest-review temporary model bytes could not be removed."
-                )
+                raise ModelCacheError("Digest-review temporary model bytes could not be removed.")
 
 
 def import_mlx_model(
@@ -533,6 +547,11 @@ def import_mlx_model(
     entry = resolve_model_entry("asr-mlx", model)
     if entry is None:
         raise ModelCacheError(f"Unknown MLX ASR model '{model}'.")
+    if symlink:
+        raise ModelCacheError(
+            "MLX model symlink imports are prohibited. Re-run with --copy so the "
+            "verified cache contains only regular local files."
+        )
     source = source_dir.expanduser()
     source_status = status_for_path(entry, source)
     if not source_status.present:
@@ -541,18 +560,18 @@ def import_mlx_model(
             f"Problem: {source_status.problem_summary(cache_dir)}"
         )
     destination = model_local_path(entry, cache_dir)
-    if destination.exists() or destination.is_symlink():
+    if os.path.lexists(destination):
         if not overwrite:
             raise ModelCacheError(
-                f"Destination already exists: {destination}. "
-                "Re-run with --overwrite to replace it."
+                f"Destination already exists: {destination}. Re-run with --overwrite to replace it."
             )
+        try:
+            reject_path_indirection(destination)
+        except (OSError, RuntimeError) as exc:
+            raise ModelCacheError("Refusing to overwrite a linked MLX cache path.") from exc
         _remove_cache_path(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if symlink:
-        destination.symlink_to(source.resolve(), target_is_directory=True)
-    else:
-        shutil.copytree(source, destination)
+    ensure_private_directory(destination.parent)
+    shutil.copytree(source, destination)
     imported_status = status_for_path(entry, destination)
     if not imported_status.present:
         raise ModelCacheError(
@@ -619,7 +638,7 @@ def preflight_runtime_preparation(
 ) -> None:
     """Validate release runtime prerequisites before any model network access."""
 
-    if (sys.version_info.major, sys.version_info.minor) != (3, 11):
+    if not _release_python_is_311():
         raise ModelCacheError("Runtime preparation for release requires Python 3.11 exactly.")
     missing_binaries = [name for name in ("ffmpeg", "ffprobe") if shutil.which(name) is None]
     if missing_binaries:
@@ -664,6 +683,12 @@ def preflight_runtime_preparation(
             "Runtime preparation requires at least 8 GiB free on the model-cache volume "
             "before acquiring or repairing strict models."
         )
+
+
+def _release_python_is_311() -> bool:
+    """Return whether this interpreter is the supported release-preparation Python."""
+
+    return (sys.version_info.major, sys.version_info.minor) == (3, 11)
 
 
 def selected_entries(
@@ -777,8 +802,10 @@ def _any_required_file_present(entry: ModelEntry, path: Path) -> bool:
             continue
         required_path = path / required
         try:
-            if required_path.exists() and required_path.stat().st_size > 0 and _can_read(
-                required_path
+            if (
+                required_path.exists()
+                and required_path.stat().st_size > 0
+                and _can_read(required_path)
             ):
                 return True
         except OSError:
@@ -850,11 +877,23 @@ def _provenance_status(entry: ModelEntry, path: Path) -> tuple[bool, str]:
     marker = path / MODEL_PROVENANCE_FILENAME
     if not marker.exists():
         return False, f"missing immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
-    if not marker.is_file() or marker.is_symlink():
-        return False, f"unsafe immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
     try:
-        payload = read_json(marker)
+        descriptor = open_regular_nofollow(marker, os.O_RDONLY)
+        try:
+            if os.fstat(descriptor).st_nlink != 1:
+                return (
+                    False,
+                    f"unsafe immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}",
+                )
+            with os.fdopen(descriptor, "r", encoding="utf-8", closefd=True) as handle:
+                descriptor = -1
+                payload = json.load(handle)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
     except (OSError, ValueError):
+        return False, f"unreadable immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
+    if not isinstance(payload, dict):
         return False, f"unreadable immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
     if payload.get("schema_version") != "2.0":
         return False, "obsolete immutable-revision linkage marker; sanctioned refresh required"
@@ -873,8 +912,7 @@ def _provenance_status(entry: ModelEntry, path: Path) -> tuple[bool, str]:
         return False, "immutable-revision linkage marker is missing acquisition metadata"
     recorded_digests = payload.get("file_sha256")
     if not isinstance(recorded_digests, dict) or not all(
-        isinstance(key, str) and isinstance(value, str)
-        for key, value in recorded_digests.items()
+        isinstance(key, str) and isinstance(value, str) for key, value in recorded_digests.items()
     ):
         return False, "immutable-revision linkage marker has an invalid file digest map"
     try:
@@ -894,12 +932,22 @@ def _runtime_file_digests(entry: ModelEntry, model_dir: Path) -> dict[str, str]:
     digests: dict[str, str] = {}
     for relative_path in entry.runtime_files:
         path = model_dir / relative_path
-        if not path.is_file() or path.is_symlink():
+        try:
+            reject_path_indirection(path)
+            descriptor = open_regular_nofollow(path, os.O_RDONLY)
+        except (OSError, RuntimeError):
             continue
         hasher = hashlib.sha256()
-        with path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                hasher.update(chunk)
+        try:
+            if os.fstat(descriptor).st_nlink != 1:
+                continue
+            with os.fdopen(descriptor, "rb", closefd=True) as handle:
+                descriptor = -1
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    hasher.update(chunk)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
         digests[relative_path] = hasher.hexdigest()
     return digests
 
@@ -907,11 +955,19 @@ def _runtime_file_digests(entry: ModelEntry, model_dir: Path) -> dict[str, str]:
 def _unexpected_runtime_assets(entry: ModelEntry, model_dir: Path) -> tuple[str, ...]:
     """Return files and links outside the reviewed local runtime contract."""
 
-    if model_dir.is_symlink():
+    try:
+        reject_path_indirection(model_dir)
+    except (OSError, RuntimeError):
         return (".",)
     if not model_dir.exists() or not model_dir.is_dir():
         return ()
     allowed_files = {*entry.runtime_files, MODEL_PROVENANCE_FILENAME}
+    allowed_directories = {
+        parent.as_posix()
+        for relative in allowed_files
+        for parent in Path(relative).parents
+        if parent != Path(".")
+    }
     unexpected: list[str] = []
     try:
         children = sorted(model_dir.rglob("*"), key=lambda child: child.as_posix())
@@ -920,14 +976,17 @@ def _unexpected_runtime_assets(entry: ModelEntry, model_dir: Path) -> tuple[str,
     for child in children:
         relative = child.relative_to(model_dir).as_posix()
         try:
-            if child.is_symlink():
-                unexpected.append(relative)
-            elif child.is_file():
-                if relative not in allowed_files:
+            reject_path_indirection(child)
+            metadata = child.stat(follow_symlinks=False)
+            if child.is_file():
+                if relative not in allowed_files or metadata.st_nlink != 1:
                     unexpected.append(relative)
-            elif not child.is_dir():
+            elif child.is_dir():
+                if relative not in allowed_directories:
+                    unexpected.append(relative)
+            else:
                 unexpected.append(relative)
-        except OSError:
+        except (OSError, RuntimeError):
             unexpected.append(relative)
     return tuple(unexpected)
 
@@ -967,29 +1026,13 @@ def _model_pull_lock(cache_dir: Path, entry: ModelEntry) -> Iterator[None]:
     """Serialize acquisition of one model without putting a lock inside its cache."""
 
     lock_path = cache_dir / f".{entry.directory_name}.pull.lock"
-    with lock_path.open("a+b") as handle:
-        handle.seek(0)
-        if handle.read(1) == b"":
-            handle.write(b"0")
-            handle.flush()
-        if os.name == "nt":
-            msvcrt = cast(Any, importlib.import_module("msvcrt"))
-
-            handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
-            try:
-                yield
-            finally:
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    try:
+        with HeldFileLock(lock_path):
+            yield
+    except LockUnavailableError as exc:
+        raise ModelCacheError(
+            f"Model acquisition is already active for {entry.role}:{entry.key}."
+        ) from exc
 
 
 def shareable_model_path(path: Path, cache_dir: Path) -> str:

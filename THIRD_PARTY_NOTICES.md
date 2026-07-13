@@ -83,6 +83,11 @@ Torch/TorchCodec, CUDA, cuDNN, NCCL, NVIDIA components, and native libraries
 retain their own terms. Container SBOMs are evidence inventories, not release
 authorization. Codec availability does not establish patent clearance.
 
+Portable Windows CI downloads the checksum-pinned Gyan FFmpeg 8.1.2 essentials
+build (GPL-3.0-or-later) into ephemeral job storage. Auralign verifies the exact
+archive and executable version, uses `ffmpeg`/`ffprobe` only for tests, and never
+includes that native build in source, wheel, sdist, native bundles, or releases.
+
 ## Notice Maintenance
 
 Generated notices must be reproducible from immutable component records. A

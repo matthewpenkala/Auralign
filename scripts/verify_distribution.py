@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 import stat
+import subprocess
 import tarfile
 import tomllib
 import zipfile
@@ -21,6 +22,11 @@ from collections.abc import Mapping
 from email.parser import BytesParser
 from pathlib import Path, PurePosixPath
 from typing import cast
+
+from validate_dependency_sbom import validate_payload as validate_dependency_sbom_payload
+
+from local_transcript_max.config import resolve_model_entry
+from local_transcript_max.models import model_manifest_digest
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_LICENSE = "LicenseRef-PolyForm-Internal-Use-1.0.0"
@@ -84,6 +90,11 @@ PROHIBITED_SUFFIXES = {
     ".pt",
     ".pth",
     ".safetensors",
+    ".bundle",
+    ".gitbundle",
+    ".pack",
+    ".idx",
+    ".rev",
 }
 PROHIBITED_BASENAMES = {
     ".ltm-model.json",
@@ -103,10 +114,19 @@ SENSITIVE_CONTENT = (
     b"BEGIN EC" + b" PRIVATE KEY",
 )
 PRIVATE_HOME_PREFIXES = (b"/" + b"Users/", b"/" + b"home/")
+PRIVATE_HOME_SEGMENT = rb"[^/\\\s\"',;:)}\]]+"
+PRIVATE_HOME_BOUNDARY = rb"(?:[/\\]|(?=[\s\"',;:)}\]]|$))"
 PRIVATE_HOME_PATTERNS = tuple(
-    re.compile(re.escape(prefix) + rb"[^/\s]+/") for prefix in PRIVATE_HOME_PREFIXES
+    re.compile(
+        re.escape(prefix) + PRIVATE_HOME_SEGMENT + PRIVATE_HOME_BOUNDARY,
+        re.IGNORECASE,
+    )
+    for prefix in PRIVATE_HOME_PREFIXES
 ) + (
-    re.compile(rb"[A-Za-z]:[\\/]" + re.escape(b"Users") + rb"[\\/][^\\/\s]+[\\/]"),
+    re.compile(
+        rb"[A-Za-z]:[\\/]Users[\\/]" + PRIVATE_HOME_SEGMENT + PRIVATE_HOME_BOUNDARY,
+        re.IGNORECASE,
+    ),
 )
 TOKEN_PATTERNS = (
     re.compile(b"gh" + rb"[pousr]_[A-Za-z0-9]{30,}"),
@@ -116,8 +136,23 @@ TOKEN_PATTERNS = (
     re.compile(b"Bearer" + rb"\s+[A-Za-z0-9._~+/-]{32,}={0,2}"),
 )
 SYNTHETIC_PATH_ALLOWLIST = {
-    ("tests/test_redaction.py", b"/" + b"Users/" + b"example/")
+    ("tests/test_redaction.py", b"/" + b"Users/" + b"example/"),
+    ("tests/test_redaction.py", b"/" + b"Users/" + b"example"),
 }
+NATIVE_SBOM_PROFILES = {
+    "darwin-arm64-cpu.cdx.json": "cpu",
+    "windows-amd64-cpu.cdx.json": "cpu",
+    "windows-amd64-cu128.cdx.json": "cu128",
+    "linux-amd64-cu126.cdx.json": "cu126",
+}
+RELEASE_MODEL_SELECTIONS = (
+    ("asr", "large-v3"),
+    ("diarization", "community-1"),
+    ("alignment", "en"),
+    ("speaker-embedding", "ecapa"),
+)
+SDIST_TRACKED_EXCLUSIONS = {".env.example"}
+DETERMINISTIC_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
 
 def require(condition: bool, message: str) -> None:
@@ -127,6 +162,42 @@ def require(condition: bool, message: str) -> None:
 
 def sha(data: bytes, algorithm: str) -> str:
     return hashlib.new(algorithm, data).hexdigest()
+
+
+def tracked_files() -> set[str]:
+    completed = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+    )
+    return {item.decode("utf-8") for item in completed.stdout.split(b"\0") if item}
+
+
+def expected_release_model_manifest() -> dict[str, object]:
+    models: list[dict[str, object]] = []
+    for role, key in RELEASE_MODEL_SELECTIONS:
+        entry = resolve_model_entry(role, key)
+        require(entry is not None, f"committed model selection missing: {role}:{key}")
+        assert entry is not None
+        require(
+            set(entry.expected_digest_map) == set(entry.runtime_files),
+            f"committed model digest contract incomplete: {role}:{key}",
+        )
+        models.append(
+            {
+                "role": role,
+                "key": key,
+                "model_id": entry.model_id,
+                "revision": entry.revision,
+                "runtime_files": entry.expected_digest_map,
+                "repository_manifest_digest": model_manifest_digest(entry),
+                "gated": entry.gated,
+                "terms_url": entry.terms_url,
+                "redistribution_status": entry.redistribution_status,
+            }
+        )
+    return {"schema_version": "auralign-release-model-manifest.v1", "models": models}
 
 
 def safe_path(name: str) -> PurePosixPath:
@@ -178,10 +249,15 @@ def read_zip(path: Path) -> dict[str, bytes]:
             safe_path(info.filename)
             if info.is_dir():
                 continue
+            require(
+                info.date_time == DETERMINISTIC_ZIP_TIMESTAMP,
+                f"non-deterministic ZIP timestamp: {info.filename}",
+            )
+            require(info.create_system == 3, f"non-Unix ZIP metadata: {info.filename}")
             unix_mode = info.external_attr >> 16
             require(
-                stat.S_IFMT(unix_mode) in {0, stat.S_IFREG},
-                f"non-regular ZIP member: {info.filename}",
+                unix_mode == (stat.S_IFREG | 0o644),
+                f"unexpected ZIP member mode: {info.filename}",
             )
             require(info.filename not in files, f"duplicate ZIP member: {info.filename}")
             files[info.filename] = archive.read(info)
@@ -189,6 +265,12 @@ def read_zip(path: Path) -> dict[str, bytes]:
 
 
 def read_tar(path: Path) -> dict[str, bytes]:
+    with path.open("rb") as handle:
+        header = handle.read(8)
+    require(
+        len(header) == 8 and header[:2] == b"\x1f\x8b" and header[4:8] == b"\0\0\0\0",
+        f"non-deterministic gzip header: {path.name}",
+    )
     with tarfile.open(path, mode="r:gz") as archive:
         files: dict[str, bytes] = {}
         for member in archive.getmembers():
@@ -199,6 +281,12 @@ def read_tar(path: Path) -> dict[str, bytes]:
             )
             if member.isdir():
                 continue
+            require(member.mtime == 0, f"non-deterministic tar timestamp: {member.name}")
+            require(member.uid == 0 and member.gid == 0, f"tar owner metadata: {member.name}")
+            require(
+                not member.uname and not member.gname, f"tar owner name metadata: {member.name}"
+            )
+            require(member.mode in {0o644, 0o755}, f"unexpected tar mode: {member.name}")
             require(member.name not in files, f"duplicate tar member: {member.name}")
             handle = archive.extractfile(member)
             if handle is None:
@@ -227,6 +315,10 @@ def verify_no_prohibited_content(files: Mapping[str, bytes], scope: str) -> None
         require(basename not in PROHIBITED_BASENAMES, f"{scope} private file: {name}")
         require(path.suffix.lower() not in PROHIBITED_SUFFIXES, f"{scope} private file: {name}")
         require(not any(marker in data for marker in SENSITIVE_CONTENT), f"{scope} secret: {name}")
+        require(
+            not data.startswith((b"PACK", b"# v2 git bundle\n", b"# v3 git bundle\n")),
+            f"{scope} archived Git history: {name}",
+        )
         require(
             not any(pattern.search(data) for pattern in TOKEN_PATTERNS),
             f"{scope} token: {name}",
@@ -259,6 +351,21 @@ def verify_wheel(files: Mapping[str, bytes]) -> None:
     )
     dist_info = metadata_names[0].removesuffix("METADATA")
     verify_legal_payload(files, f"{dist_info}licenses/")
+    expected_package = {
+        name.removeprefix("src/")
+        for name in tracked_files()
+        if name.startswith("src/local_transcript_max/")
+    }
+    expected_metadata = {
+        f"{dist_info}{name}" for name in ("METADATA", "WHEEL", "entry_points.txt", "RECORD")
+    } | {f"{dist_info}licenses/{name}" for name in EXPECTED_LICENSE_FILES}
+    expected = expected_package | expected_metadata
+    require(
+        set(files) == expected,
+        "wheel member allowlist drift: "
+        f"missing={sorted(expected - files.keys())} "
+        f"unexpected={sorted(files.keys() - expected)}",
+    )
     for name in files:
         require(
             name.startswith("local_transcript_max/") or ".dist-info/" in name,
@@ -273,15 +380,13 @@ def verify_wheel(files: Mapping[str, bytes]) -> None:
 
 def verify_sdist(files: Mapping[str, bytes]) -> None:
     verify_legal_payload(files)
-    required = {
-        "pyproject.toml",
-        "compliance/external_assets.toml",
-        "docs/legal/README.md",
-        "scripts/check_compliance.py",
-        "src/local_transcript_max/__init__.py",
-    }
-    missing = required.difference(files)
-    require(not missing, f"sdist required content missing: {sorted(missing)}")
+    expected = (tracked_files() - SDIST_TRACKED_EXCLUSIONS) | {"PKG-INFO"}
+    require(
+        set(files) == expected,
+        "sdist member allowlist drift: "
+        f"missing={sorted(expected - files.keys())} "
+        f"unexpected={sorted(files.keys() - expected)}",
+    )
     verify_no_prohibited_content(files, "sdist")
 
 
@@ -300,7 +405,7 @@ def verify_native_bundle(
     verify_legal_payload(files, f"{root_name}/")
 
 
-def verify_sbom_bundle(archive: Path, expected_names: set[str]) -> None:
+def verify_sbom_bundle(archive: Path, expected_names: set[str], *, commit: str) -> None:
     files = read_zip(archive)
     require(set(files) == expected_names, "release SBOM member allowlist drift")
     verify_no_prohibited_content(files, "release SBOM")
@@ -324,6 +429,14 @@ def verify_sbom_bundle(archive: Path, expected_names: set[str]) -> None:
             require(payload.get("bomFormat") == "CycloneDX", f"invalid CycloneDX BOM: {name}")
             require(isinstance(payload.get("specVersion"), str), f"missing BOM version: {name}")
             require(isinstance(payload.get("components"), list), f"missing BOM components: {name}")
+            if name in NATIVE_SBOM_PROFILES:
+                validate_dependency_sbom_payload(
+                    payload,
+                    NATIVE_SBOM_PROFILES[name],
+                    label=f"release SBOM {name}",
+                    platform_name=name.removesuffix(".cdx.json"),
+                    commit=commit,
+                )
 
 
 def verify_sha256sums(path: Path, expected_names: set[str]) -> dict[str, str]:
@@ -397,36 +510,9 @@ def verify_private_release(
 
     model_manifest = json.loads((release_dir / "model-manifest.json").read_text(encoding="utf-8"))
     require(
-        model_manifest.get("schema_version") == "auralign-release-model-manifest.v1",
-        "release model manifest schema drift",
+        model_manifest == expected_release_model_manifest(),
+        "release model manifest differs from the committed exact model contract",
     )
-    models = model_manifest.get("models")
-    require(isinstance(models, list) and len(models) == 4, "release model manifest is incomplete")
-    expected_roles = {"asr", "diarization", "alignment", "speaker-embedding"}
-    require(
-        {row.get("role") for row in models if isinstance(row, dict)} == expected_roles,
-        "release model roles drifted",
-    )
-    for row in models:
-        require(isinstance(row, dict), "release model row is malformed")
-        require(isinstance(row.get("key"), str), "release model key is missing")
-        require(isinstance(row.get("model_id"), str), "release model ID is missing")
-        require(re.fullmatch(r"[0-9a-f]{40}", str(row.get("revision"))) is not None, "revision")
-        require(
-            re.fullmatch(r"[0-9a-f]{64}", str(row.get("repository_manifest_digest")))
-            is not None,
-            "repository model digest is invalid",
-        )
-        runtime_files = row.get("runtime_files")
-        require(isinstance(runtime_files, dict) and bool(runtime_files), "runtime files missing")
-        require(
-            all(
-                isinstance(name, str)
-                and re.fullmatch(r"[0-9a-f]{64}", str(digest)) is not None
-                for name, digest in runtime_files.items()
-            ),
-            "runtime file digest is invalid",
-        )
 
     verify_wheel(read_wheel(release_dir / wheel_name))
     verify_sdist(strip_sdist_root(read_sdist(release_dir / sdist_name)))
@@ -452,9 +538,7 @@ def verify_private_release(
         "examples/config.strict-macos-arm64-cpu.yaml",
         "requirements/macos-arm64-cpu-py311.txt",
     }
-    windows_content = common_content | {
-        name: (ROOT / name).read_bytes() for name in windows_files
-    }
+    windows_content = common_content | {name: (ROOT / name).read_bytes() for name in windows_files}
     macos_content = common_content | {name: (ROOT / name).read_bytes() for name in macos_files}
     verify_native_bundle(
         release_dir / windows_name,
@@ -472,11 +556,12 @@ def verify_private_release(
             "source.spdx",
             "wheel.spdx.json",
             "sdist.spdx.json",
-            "macos-arm64-cpu.cdx.json",
+            "darwin-arm64-cpu.cdx.json",
             "windows-amd64-cpu.cdx.json",
             "windows-amd64-cu128.cdx.json",
             "linux-amd64-cu126.cdx.json",
         },
+        commit=commit,
     )
 
 
@@ -589,12 +674,8 @@ def main() -> int:
     require(version in sdists[0].name, "sdist filename does not match the project version")
     verify_wheel(wheel_files)
     verify_sdist(sdist_files)
-    write_spdx(
-        "wheel", wheels[0], wheel_files, args.sbom_dir / "wheel.spdx.json", version=version
-    )
-    write_spdx(
-        "sdist", sdists[0], sdist_files, args.sbom_dir / "sdist.spdx.json", version=version
-    )
+    write_spdx("wheel", wheels[0], wheel_files, args.sbom_dir / "wheel.spdx.json", version=version)
+    write_spdx("sdist", sdists[0], sdist_files, args.sbom_dir / "sdist.spdx.json", version=version)
     print(
         "distribution_compliance_ok=true "
         f"wheel_files={len(wheel_files)} sdist_files={len(sdist_files)}"

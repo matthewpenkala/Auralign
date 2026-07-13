@@ -85,7 +85,11 @@ else
     echo "The lock-derived macOS arm64 CPU requirements manifest is missing." >&2
     exit 2
   }
-  uv pip install --python "$runtime_python" --require-hashes -r "$requirements"
+  # Every candidate remains hash-pinned. Considering all declared indexes is
+  # required because uv's first-index policy can otherwise stop at a PyTorch
+  # index that contains a package name but not the reviewed PyPI version.
+  uv pip install --python "$runtime_python" --index-strategy unsafe-best-match \
+    --require-hashes -r "$requirements"
   uv pip install --python "$runtime_python" --no-deps "$wheel_path"
 fi
 
@@ -114,11 +118,19 @@ export DYLD_LIBRARY_PATH="$av_dylibs${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 # embedded home directory and remains valid when the runtime directory moves.
 printf '%s\n' \
   '#!/usr/bin/env bash' \
-  '_auralign_runtime_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"' \
+  'if [ -n "${BASH_VERSION:-}" ]; then' \
+  '  _auralign_env_source="${BASH_SOURCE[0]}"' \
+  'elif [ -n "${ZSH_VERSION:-}" ]; then' \
+  '  eval '\''_auralign_env_source="${(%):-%N}"'\''' \
+  'else' \
+  '  printf "Auralign environment setup requires bash or zsh.\n" >&2' \
+  '  return 2' \
+  'fi' \
+  '_auralign_runtime_dir="$(cd -- "$(dirname -- "$_auralign_env_source")" && pwd -P)"' \
   '_auralign_python="$_auralign_runtime_dir/.venv/bin/python"' \
   '_auralign_av_dylibs="$("$_auralign_python" -c '\''import pathlib, av; print(pathlib.Path(av.__file__).parent / ".dylibs")'\'')"' \
   'export DYLD_LIBRARY_PATH="$_auralign_av_dylibs${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"' \
-  'unset _auralign_runtime_dir _auralign_python _auralign_av_dylibs' \
+  'unset _auralign_env_source _auralign_runtime_dir _auralign_python _auralign_av_dylibs' \
   > "$destination/auralign-env.sh"
 chmod 600 "$destination/auralign-env.sh"
 echo "Auralign 0.2.0 installed for macOS arm64 CPU."

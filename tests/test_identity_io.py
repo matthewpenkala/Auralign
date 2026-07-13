@@ -6,12 +6,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import stat
 from pathlib import Path
 
 import pytest
 
 from local_transcript_max.export.markdown_export import render_markdown
+from local_transcript_max.platform_security import private_path_is_secure
 from local_transcript_max.schemas import AlignedWord, SpeakerTurn, Transcript
 from local_transcript_max.speaker_id import identity_io
 from local_transcript_max.speaker_id.identity_io import (
@@ -369,7 +369,7 @@ def test_jsonl_is_deterministic_and_never_appends_implicitly() -> None:
 def test_job_lock_blocks_concurrent_entry_and_uses_private_mode(tmp_path: Path) -> None:
     with JobIdentityLock(tmp_path) as lock:
         assert lock.path.exists()
-        assert stat.S_IMODE(lock.path.stat().st_mode) == 0o600
+        assert private_path_is_secure(lock.path)
         with pytest.raises(IdentityResolverError) as busy:
             with JobIdentityLock(tmp_path):
                 pass
@@ -405,10 +405,10 @@ def test_transaction_publishes_report_last_with_private_modes_and_is_idempotent(
     monkeypatch.setattr(identity_io.os, "replace", recording_replace)
     for _ in range(2):
         with IdentityArtifactTransaction(tmp_path, RUN_ID) as transaction:
-            assert stat.S_IMODE(transaction.stage.stat().st_mode) == 0o700
+            assert private_path_is_secure(transaction.stage, directory=True)
             stage_complete_family(transaction, b"same")
             assert all(
-                stat.S_IMODE((transaction.stage / name).stat().st_mode) == 0o600
+                private_path_is_secure(transaction.stage / name)
                 for name in [
                     "speaker_identity_candidates.json",
                     "speaker_identity_evidence.jsonl",
@@ -425,7 +425,7 @@ def test_transaction_publishes_report_last_with_private_modes_and_is_idempotent(
     assert report_indexes
     assert report_indexes[-1] == len(destinations) - 1
     assert (tmp_path / "speaker_identity_report.json").read_bytes() == b"report-same"
-    assert stat.S_IMODE((tmp_path / "speaker_identity_report.json").stat().st_mode) == 0o600
+    assert private_path_is_secure(tmp_path / "speaker_identity_report.json")
 
 
 def test_transaction_rolls_back_all_artifacts_after_injected_replace_failure(

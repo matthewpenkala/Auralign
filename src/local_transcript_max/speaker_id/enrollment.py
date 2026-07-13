@@ -17,7 +17,11 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from local_transcript_max.platform_security import atomic_write_text, ensure_private_directory
+from local_transcript_max.platform_security import (
+    atomic_write_text,
+    ensure_private_directory,
+    ensure_private_file,
+)
 from local_transcript_max.redaction import redact_obj
 from local_transcript_max.schemas import SpeakerEnrollment, SpeakerMap, Transcript
 from local_transcript_max.utils import read_json, sha256_file, write_json
@@ -179,7 +183,7 @@ def enroll_speaker(
             if copied.is_symlink():
                 raise ValueError("Enrollment sample destinations cannot be symlinks.")
             shutil.copy2(sample, copied)
-            copied.chmod(0o600)
+            ensure_private_file(copied)
         copied_samples.append(str(copied))
     backend = backend_names[0]
     if any(candidate != backend for candidate in backend_names):
@@ -230,8 +234,8 @@ def list_enrollments(profile_dir: Path | None = None) -> list[SpeakerEnrollment]
         _assert_contained(path, root, label="Speaker profile metadata")
         if path.parent.is_symlink() or not path.is_file():
             raise ValueError("Speaker profile metadata must be a regular contained file.")
-        path.parent.chmod(0o700)
-        path.chmod(0o600)
+        _ensure_private_dir(path.parent)
+        ensure_private_file(path)
         profile = SpeakerEnrollment.model_validate_json(path.read_text(encoding="utf-8"))
         if path.parent.name != _slug(profile.name):
             raise ValueError("Speaker profile directory does not match its normalized name.")
@@ -247,6 +251,8 @@ def inspect_speaker(name: str) -> SpeakerEnrollment:
     _assert_contained(path, root, label="Speaker profile metadata")
     if path.parent.is_symlink() or not path.is_file():
         raise ValueError("Speaker profile metadata must be a regular contained file.")
+    _ensure_private_dir(path.parent)
+    ensure_private_file(path)
     return SpeakerEnrollment.model_validate_json(path.read_text(encoding="utf-8"))
 
 
@@ -417,8 +423,8 @@ def _load_profile_embedding(profile: SpeakerEnrollment) -> tuple[str, list[float
     _assert_contained(canonical, root, label="Speaker embedding")
     if profile_dir.is_symlink() or canonical.is_symlink() or not canonical.is_file():
         raise ValueError(f"Speaker profile '{profile.name}' has no safe local embedding.")
-    profile_dir.chmod(0o700)
-    canonical.chmod(0o600)
+    _ensure_private_dir(profile_dir)
+    ensure_private_file(canonical)
 
     recorded = Path(profile.embedding_path).expanduser()
     if recorded.is_absolute():

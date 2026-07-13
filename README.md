@@ -30,7 +30,7 @@ after caches are prepared.
 
 - FFmpeg inspection and canonical-audio preparation
 - faster-whisper ASR and opt-in Apple Silicon MLX ASR
-- WhisperX-style forced alignment with honest timestamp fallbacks
+- actual WhisperX forced alignment; non-strict configurations report any timestamp fallback
 - local pyannote diarization and deterministic candidate scoring
 - word-to-speaker fusion, QA, targeted re-decode candidates, and speaker checks
 - local speaker enrollment and conservative profile matching
@@ -92,10 +92,25 @@ Inspect the manifest before acquiring assets:
 ```bash
 uv run ltm models list
 uv run ltm models audit
-uv run ltm models pull --asr large-v3 --cache-dir models
-uv run ltm models pull --diarization community-1 --cache-dir models
-uv run ltm models pull --alignment auto --cache-dir models
-uv run ltm models pull --speaker-id ecapa --cache-dir models
+```
+
+> **Current Community-1 preparation gate:** the immutable Community-1 pointer
+> intentionally lacks the reviewed SHA-256 for `config.yaml`. Normal pull,
+> verification, bootstrap, and strict startup must fail closed until an
+> authorized operator accepts the gated terms, supplies an environment-only
+> token outside chat, runs the ephemeral `models review-digests` command from
+> [model management](docs/models.md#exact-connected-preparation-and-offline-runbook),
+> and a maintainer reviews and commits the exact returned digest. Do not bypass
+> this step or hand-author `.ltm-model.json`.
+
+Only after the committed digest contract is complete, acquire and verify the
+exact strict selection:
+
+```bash
+uv run ltm models pull \
+  --asr large-v3 --diarization community-1 --alignment en \
+  --speaker-id ecapa --cache-dir models
+unset LTM_HF_TOKEN HF_TOKEN
 uv run ltm models verify \
   --asr large-v3 --diarization community-1 --alignment en \
   --speaker-id ecapa \
@@ -104,8 +119,9 @@ LTM_OFFLINE=1 uv run ltm doctor --startup \
   --config examples/config.strict-offline.yaml
 ```
 
-Pyannote Community-1 is gated. Accept its Hugging Face terms and supply a
-read-scoped `HF_TOKEN` or `LTM_HF_TOKEN` in the local shell; never commit it.
+Pyannote Community-1 is gated. Each operator must personally accept its Hugging
+Face terms and supply a read-scoped `HF_TOKEN` or `LTM_HF_TOKEN` only in the
+local shell; never commit, echo, log, or pass it as a CLI argument.
 The combined model pull checks gated access before downloading unrelated assets
 so it does not leave a half-prepared cache. Each pinned pull writes a local
 `.ltm-model.json` v2 provenance marker with file hashes; verification rereads

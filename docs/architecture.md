@@ -137,7 +137,7 @@ pipeline orchestration with synthetic or mocked data.
 
 Real model inference is an operational validation boundary because model
 weights and private media are deliberately excluded from the repository. ASR,
-WhisperX-style alignment, pyannote diarization, and ECAPA matching therefore
+actual WhisperX alignment, pyannote diarization, and ECAPA matching therefore
 fail with actionable cache/dependency messages when assets are unavailable.
 The former NeMo Sortformer placeholder is not a supported CLI/config backend;
 pyannote or `off` are the supported diarization choices.

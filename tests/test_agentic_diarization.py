@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
+import os
 import stat
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from local_transcript_max.fusion.diarization_refinement import (
     score_candidate,
     select_candidate,
 )
+from local_transcript_max.platform_security import private_path_is_secure
 from local_transcript_max.schemas import (
     AlignedWord,
     DiarizationResult,
@@ -77,9 +79,9 @@ def test_known_four_speaker_path_runs_single_candidate(tmp_path: Path) -> None:
     candidate_rttm = candidate_dir / "candidate_001.rttm"
     assert candidate_json.exists()
     assert candidate_rttm.exists()
-    assert stat.S_IMODE(candidate_dir.stat().st_mode) == 0o700
-    assert stat.S_IMODE(candidate_json.stat().st_mode) == 0o600
-    assert stat.S_IMODE(candidate_rttm.stat().st_mode) == 0o600
+    assert private_path_is_secure(candidate_dir, directory=True)
+    assert private_path_is_secure(candidate_json)
+    assert private_path_is_secure(candidate_rttm)
     assert not list(candidate_dir.glob(".candidate_001.rttm.*"))
 
 
@@ -126,7 +128,8 @@ def test_candidate_directory_symlink_is_rejected_without_touching_target(tmp_pat
     else:
         raise AssertionError("pre-existing candidate directory must be rejected")
 
-    assert stat.S_IMODE(external.stat().st_mode) == original_mode
+    if os.name != "nt":
+        assert stat.S_IMODE(external.stat().st_mode) == original_mode
     assert not list(external.iterdir())
 
 

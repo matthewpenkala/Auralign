@@ -139,7 +139,13 @@ if ($SourceCheckout) {
     if (-not (Test-Path $requirements -PathType Leaf)) {
         throw "The lock-derived Windows $group requirements manifest is missing."
     }
-    Invoke-Native $uv @("pip", "install", "--python", $runtimePython, "--require-hashes", "-r", $requirements)
+    # Every candidate remains hash-pinned. Considering all declared indexes is
+    # required because uv's first-index policy can otherwise stop at a PyTorch
+    # index that contains a package name but not the reviewed PyPI version.
+    Invoke-Native $uv @(
+        "pip", "install", "--python", $runtimePython,
+        "--index-strategy", "unsafe-best-match", "--require-hashes", "-r", $requirements
+    )
     Invoke-Native $uv @("pip", "install", "--python", $runtimePython, "--no-deps", $WheelPath)
 }
 

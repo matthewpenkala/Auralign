@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
+import os
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -209,6 +211,71 @@ def test_symlinked_runtime_asset_fails_model_verification(tmp_path: Path) -> Non
     assert status.unexpected_files == ("unexpected-link",)
 
 
+def test_hardlinked_runtime_asset_and_extra_directory_fail_model_verification(
+    tmp_path: Path,
+) -> None:
+    entry = resolve_model_entry("asr", "large-v3")
+    assert entry is not None
+    model_dir = tmp_path / entry.directory_name
+    model_dir.mkdir()
+    write_complete_model(model_dir, entry)
+    linked_copy = tmp_path / "same-model-bytes.bin"
+    os.link(model_dir / "model.bin", linked_copy)
+
+    hardlinked = status_for(entry, tmp_path)
+    assert hardlinked.present is False
+    assert "model.bin" in hardlinked.unexpected_files
+
+    linked_copy.unlink()
+    (model_dir / "unreviewed-empty-directory").mkdir()
+    extra_directory = status_for(entry, tmp_path)
+    assert extra_directory.present is False
+    assert "unreviewed-empty-directory" in extra_directory.unexpected_files
+
+
+def test_linked_model_root_fails_without_reading_target(tmp_path: Path) -> None:
+    entry = resolve_model_entry("asr", "large-v3")
+    assert entry is not None
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    write_complete_model(outside, entry)
+    linked = tmp_path / entry.directory_name
+    try:
+        linked.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks are unavailable on this test host")
+
+    status = status_for(entry, tmp_path)
+
+    assert status.present is False
+    assert status.unexpected_files == (".",)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows junction contract")
+def test_windows_nested_model_junction_fails_closed(tmp_path: Path) -> None:
+    entry = resolve_model_entry("diarization", "community-1")
+    assert entry is not None
+    model_dir = tmp_path / entry.directory_name
+    model_dir.mkdir()
+    outside = tmp_path / "outside-segmentation"
+    outside.mkdir()
+    (outside / "pytorch_model.bin").write_text("ok", encoding="utf-8")
+    junction = model_dir / "segmentation"
+    completed = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(junction), str(outside)],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if completed.returncode != 0:
+        pytest.skip("host did not permit creation of a test junction")
+
+    status = status_for(entry, tmp_path)
+
+    assert status.present is False
+    assert "segmentation" in status.unexpected_files
+
+
 def test_obsolete_provenance_marker_fails_with_refresh_instruction(tmp_path: Path) -> None:
     entry = resolve_model_entry("asr", "large-v3")
     assert entry is not None
@@ -353,8 +420,10 @@ def test_runtime_preparation_preflight_rejects_low_cache_volume_space(
 ) -> None:
     entry = resolve_model_entry("asr", "large-v3")
     assert entry is not None
+    monkeypatch.setattr(models_module, "_release_python_is_311", lambda: True)
     monkeypatch.setattr(models_module.shutil, "which", lambda _name: "/approved/command")
     monkeypatch.setattr(models_module.importlib, "import_module", lambda _name: object())
+    monkeypatch.setattr(models_module, "probe_torchcodec", lambda: None)
     monkeypatch.setattr(
         models_module.shutil,
         "disk_usage",
@@ -370,6 +439,7 @@ def test_runtime_preparation_preflight_rejects_backend_import_failure(
 ) -> None:
     entry = resolve_model_entry("asr", "large-v3")
     assert entry is not None
+    monkeypatch.setattr(models_module, "_release_python_is_311", lambda: True)
     monkeypatch.setattr(models_module.shutil, "which", lambda _name: "/approved/command")
 
     def import_module(name: str) -> object:
@@ -381,6 +451,37 @@ def test_runtime_preparation_preflight_rejects_backend_import_failure(
 
     with pytest.raises(ModelCacheError, match="dependency import failed: whisperx"):
         preflight_runtime_preparation([entry], tmp_path / "models")
+
+
+def test_runtime_preparation_preflight_requires_python_311(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    entry = resolve_model_entry("asr", "large-v3")
+    assert entry is not None
+    monkeypatch.setattr(models_module, "_release_python_is_311", lambda: False)
+
+    with pytest.raises(ModelCacheError, match="requires Python 3.11 exactly"):
+        preflight_runtime_preparation([entry], tmp_path / "models")
+
+
+def test_runtime_preparation_preflight_rejects_native_probe_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    entry = resolve_model_entry("asr", "large-v3")
+    assert entry is not None
+    monkeypatch.setattr(models_module, "_release_python_is_311", lambda: True)
+    monkeypatch.setattr(models_module.shutil, "which", lambda _name: "/approved/command")
+    monkeypatch.setattr(models_module.importlib, "import_module", lambda _name: object())
+    monkeypatch.setattr(
+        models_module,
+        "probe_torchcodec",
+        lambda: (_ for _ in ()).throw(OSError("private native loader detail")),
+    )
+
+    with pytest.raises(ModelCacheError, match="native TorchCodec/FFmpeg probe failed") as exc:
+        preflight_runtime_preparation([entry], tmp_path / "models")
+
+    assert "private native loader detail" not in str(exc.value)
 
 
 def test_combined_pull_selection_excludes_optional_by_default() -> None:
@@ -424,6 +525,19 @@ def test_import_mlx_model_rejects_partial_source(tmp_path: Path) -> None:
 
     with pytest.raises(ModelCacheError, match="MLX model source is incomplete"):
         import_mlx_model(source, tmp_path / "models")
+
+
+def test_import_mlx_model_rejects_symlink_mode_before_mutation(tmp_path: Path) -> None:
+    source = tmp_path / "downloaded-mlx"
+    source.mkdir()
+    (source / "config.json").write_text("{}", encoding="utf-8")
+    (source / "weights.npz").write_bytes(b"ok")
+    cache_dir = tmp_path / "models"
+
+    with pytest.raises(ModelCacheError, match="symlink imports are prohibited"):
+        import_mlx_model(source, cache_dir, symlink=True)
+
+    assert not cache_dir.exists()
 
 
 def test_model_audit_json_is_redacted(tmp_path: Path, monkeypatch) -> None:

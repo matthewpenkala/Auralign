@@ -301,8 +301,9 @@ are required. MLX entries are audit-only: `ltm models pull` does not download
 them, and transcription refuses to pass remote repo IDs to `mlx-whisper`.
 Short aliases like `turbo`, `large-v3`, and `small` resolve only within the
 `asr-mlx` manifest role and still require a complete local cache directory. Use
-`ltm models import-mlx` to copy or symlink an already converted local MLX
-directory into the canonical cache path after validating those files. For
+`ltm models import-mlx` to copy an already converted local MLX directory into
+the canonical cache path after validating those files. Symlink imports are
+prohibited because strict cache verification rejects linked content. For
 pyannote community diarization, exactly the allowlisted `config.yaml`,
 segmentation, embedding, and PLDA runtime files are required. For English forced alignment, Auralign
 requires a CTC Wav2Vec2 ASR checkpoint with tokenizer/vocabulary files and
@@ -368,7 +369,7 @@ exact set.
 | `distil-large-v3` | `Systran/faster-distil-whisper-large-v3` | Pointer-only; hash review blocked | No | `models/Systran--faster-distil-whisper-large-v3` |
 | `distil-large-v3.5` | `distil-whisper/distil-large-v3.5-ct2` | Pointer-only; hash review blocked | No | `models/distil-whisper--distil-large-v3.5-ct2` |
 | `mlx-*` | `mlx-community/whisper-*-mlx` or `mlx-community/whisper-large-v3-turbo` | Optional audit-only | No | canonical escaped model-ID path, plus accepted alias directories such as `models/mlx-turbo` |
-| `community-1` | `pyannote/speaker-diarization-community-1` | Yes | Yes | `models/pyannote--speaker-diarization-community-1` |
+| `community-1` | `pyannote/speaker-diarization-community-1` | Strict diarization pointer; `config.yaml` digest review blocked | Yes | `models/pyannote--speaker-diarization-community-1` |
 | `auto` | `facebook/wav2vec2-base-960h` | Required in strict/full mode | No | `models/facebook--wav2vec2-base-960h` |
 | `ecapa` | `speechbrain/spkrec-ecapa-voxceleb` | Required in strict/full mode | No | `models/speechbrain--spkrec-ecapa-voxceleb` |
 

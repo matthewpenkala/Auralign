@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 import math
-import stat
 import wave
 from pathlib import Path
 
@@ -17,6 +16,7 @@ from local_transcript_max.audio.preprocess import (
     prepare_canonical_audio,
 )
 from local_transcript_max.config import AudioConfig
+from local_transcript_max.platform_security import private_path_is_secure
 from local_transcript_max.schemas import AudioMetadata
 
 
@@ -110,7 +110,7 @@ def test_prepare_canonical_audio_reuses_already_canonical_wav(tmp_path: Path, mo
     )
 
     assert canonical.exists()
-    assert stat.S_IMODE(canonical.stat().st_mode) == 0o600
+    assert private_path_is_secure(canonical)
     original_bytes = input_path.read_bytes()
     assert not canonical.samefile(input_path)
     input_path.write_bytes(b"source changed after canonical publication")
@@ -150,7 +150,7 @@ def test_prepare_canonical_audio_makes_normalized_output_private(
 
     assert command == ["ffmpeg", "..."]
     assert canonical.read_bytes() == b"synthetic-canonical"
-    assert stat.S_IMODE(canonical.stat().st_mode) == 0o600
+    assert private_path_is_secure(canonical)
 
 
 def test_prepare_canonical_audio_replaces_stale_reused_wav(tmp_path: Path, monkeypatch) -> None:

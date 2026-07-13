@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import gzip
 import hashlib
 import json
 import os
@@ -21,10 +22,16 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from validate_dependency_sbom import validate as validate_dependency_sbom
 from verify_distribution import verify_private_release
 
 from local_transcript_max.config import resolve_model_entry
 from local_transcript_max.models import model_manifest_digest
+from local_transcript_max.platform_security import (
+    atomic_write_text,
+    ensure_private_directory,
+    ensure_private_file,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "0.2.0"
@@ -49,6 +56,13 @@ ACCEPTANCE_CONFIGS = {
     "windows-amd64-cpu": ("cpu", "examples/config.strict-windows-amd64-cpu.yaml"),
     "windows-amd64-cu128": ("cu128", "examples/config.strict-windows-amd64-cu128.yaml"),
 }
+NATIVE_SBOMS = {
+    "darwin-arm64-cpu": "cpu",
+    "windows-amd64-cpu": "cpu",
+    "windows-amd64-cu128": "cu128",
+    "linux-amd64-cu126": "cu126",
+}
+ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
 
 def sha256_file(path: Path) -> str:
@@ -78,11 +92,25 @@ def verify_acceptance(acceptance_dir: Path, commit: str) -> None:
     validator_digest = sha256_file(ROOT / "scripts/run_trusted_platform_validation.py")
     contract_digest = repository_model_contract_digest()
     for platform_name in ACCEPTANCE_PLATFORMS:
-        path = acceptance_dir / f"{platform_name}.json"
+        path = ensure_private_file(acceptance_dir / f"{platform_name}.json")
         payload = json.loads(path.read_text(encoding="utf-8"))
         profile, config_relative = ACCEPTANCE_CONFIGS[platform_name]
+        sbom_name = f"{platform_name}.cdx.json"
+        sbom_path = acceptance_dir / sbom_name
+        try:
+            sbom_path = ensure_private_file(sbom_path)
+        except (OSError, RuntimeError) as exc:
+            raise RuntimeError(
+                f"native dependency SBOM is missing or unsafe: {platform_name}"
+            ) from exc
+        validate_dependency_sbom(
+            sbom_path,
+            profile,
+            platform_name=platform_name,
+            commit=commit,
+        )
         expected = {
-            "schema_version": "auralign-platform-acceptance.v1",
+            "schema_version": "auralign-platform-acceptance.v2",
             "platform": platform_name,
             "profile": profile,
             "commit": commit,
@@ -95,6 +123,8 @@ def verify_acceptance(acceptance_dir: Path, commit: str) -> None:
             "config_sha256": sha256_file(ROOT / config_relative),
             "model_contract_sha256": contract_digest,
             "capsule_id": CAPSULE_ID,
+            "dependency_sbom": sbom_name,
+            "dependency_sbom_sha256": sha256_file(sbom_path),
         }
         if not isinstance(payload, dict) or any(
             payload.get(key) != value for key, value in expected.items()
@@ -112,6 +142,18 @@ def verify_acceptance(acceptance_dir: Path, commit: str) -> None:
             ) from exc
         if completed.tzinfo is None:
             raise RuntimeError(f"platform acceptance timestamp lacks a timezone: {platform_name}")
+    linux_name = "linux-amd64-cu126"
+    linux_sbom = acceptance_dir / f"{linux_name}.cdx.json"
+    try:
+        linux_sbom = ensure_private_file(linux_sbom)
+    except (OSError, RuntimeError) as exc:
+        raise RuntimeError("retained Linux dependency SBOM is missing or unsafe") from exc
+    validate_dependency_sbom(
+        linux_sbom,
+        "cu126",
+        platform_name=linux_name,
+        commit=commit,
+    )
 
 
 def model_manifest() -> dict[str, Any]:
@@ -148,6 +190,39 @@ def add_common(stage: Path, wheel: Path, model_manifest_path: Path) -> None:
         shutil.copy2(source, target)
 
 
+def _archive_mode(path: Path) -> int:
+    return 0o755 if path.stat().st_mode & 0o111 else 0o644
+
+
+def write_deterministic_zip(output: Path, files: list[tuple[Path, str]]) -> None:
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for path, name in sorted(files, key=lambda row: row[1]):
+            info = zipfile.ZipInfo(name, ZIP_TIMESTAMP)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.create_system = 3
+            info.external_attr = (0o100000 | 0o644) << 16
+            archive.writestr(info, path.read_bytes())
+
+
+def write_deterministic_tar_gz(output: Path, root: Path) -> None:
+    with output.open("wb") as raw:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+            with tarfile.open(fileobj=compressed, mode="w", format=tarfile.PAX_FORMAT) as archive:
+                for path in sorted(
+                    candidate for candidate in root.rglob("*") if candidate.is_file()
+                ):
+                    info = tarfile.TarInfo(f"{root.name}/{path.relative_to(root).as_posix()}")
+                    info.size = path.stat().st_size
+                    info.mode = _archive_mode(path)
+                    info.mtime = 0
+                    info.uid = 0
+                    info.gid = 0
+                    info.uname = ""
+                    info.gname = ""
+                    with path.open("rb") as handle:
+                        archive.addfile(info, handle)
+
+
 def build_windows_bundle(output: Path, wheel: Path, model_manifest_path: Path) -> None:
     with tempfile.TemporaryDirectory() as temporary:
         stage = Path(temporary) / f"Auralign-{VERSION}-windows-amd64"
@@ -164,10 +239,14 @@ def build_windows_bundle(output: Path, wheel: Path, model_manifest_path: Path) -
             target = stage / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / relative, target)
-        with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            for path in sorted(stage.rglob("*")):
-                if path.is_file():
-                    archive.write(path, path.relative_to(stage.parent))
+        write_deterministic_zip(
+            output,
+            [
+                (path, path.relative_to(stage.parent).as_posix())
+                for path in stage.rglob("*")
+                if path.is_file()
+            ],
+        )
 
 
 def build_macos_bundle(output: Path, wheel: Path, model_manifest_path: Path) -> None:
@@ -184,53 +263,26 @@ def build_macos_bundle(output: Path, wheel: Path, model_manifest_path: Path) -> 
             target = stage / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / relative, target)
-        with tarfile.open(output, "w:gz", format=tarfile.PAX_FORMAT) as archive:
-            archive.add(stage, arcname=stage.name, recursive=True)
+        write_deterministic_tar_gz(output, stage)
 
 
-def build_sboms(output: Path, build_dir: Path) -> None:
+def build_sboms(output: Path, build_dir: Path, acceptance_dir: Path) -> None:
     sbom_dir = build_dir
     run(["uv", "run", "--frozen", "reuse", "spdx", "-o", str(sbom_dir / "source.spdx")])
-    for name, profile in (
-        ("macos-arm64-cpu", "cpu"),
-        ("windows-amd64-cpu", "cpu"),
-        ("windows-amd64-cu128", "cu128"),
-        ("linux-amd64-cu126", "cu126"),
-    ):
-        destination = sbom_dir / f"{name}.cdx.json"
-        run(
-            [
-                "uv",
-                "export",
-                "--locked",
-                "--extra",
-                "full",
-                "--group",
-                profile,
-                "--no-dev",
-                "--format",
-                "cyclonedx1.5",
-                "--preview-features",
-                "sbom-export",
-                "-o",
-                str(destination),
-            ]
+    commit = git_head()
+    for name, profile in NATIVE_SBOMS.items():
+        source = acceptance_dir / f"{name}.cdx.json"
+        validate_dependency_sbom(
+            source,
+            profile,
+            platform_name=name,
+            commit=commit,
         )
-        run(
-            [
-                "uv",
-                "run",
-                "--frozen",
-                "python",
-                "scripts/validate_dependency_sbom.py",
-                str(destination),
-                "--profile",
-                profile,
-            ]
-        )
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for path in sorted(sbom_dir.iterdir()):
-            archive.write(path, path.name)
+        shutil.copy2(source, sbom_dir / source.name)
+    write_deterministic_zip(
+        output,
+        [(path, path.name) for path in sbom_dir.iterdir() if path.is_file()],
+    )
 
 
 def clean_repository() -> bool:
@@ -358,11 +410,12 @@ def main() -> int:
     run_preassembly_gates()
     if not clean_repository():
         raise RuntimeError("release gates changed the repository worktree")
-    verify_acceptance(args.acceptance_dir.expanduser().resolve(strict=True), commit)
-    output_dir = args.output_dir.resolve()
+    acceptance_dir = ensure_private_directory(args.acceptance_dir.expanduser().absolute())
+    verify_acceptance(acceptance_dir, commit)
+    output_dir = args.output_dir.absolute()
     if output_dir.exists():
         raise RuntimeError("release output directory already exists")
-    output_dir.mkdir(mode=0o700, parents=True)
+    output_dir = ensure_private_directory(output_dir)
     with tempfile.TemporaryDirectory() as temporary:
         sbom_dir = Path(temporary) / "sboms"
         sbom_dir.mkdir()
@@ -383,8 +436,9 @@ def main() -> int:
         wheel = next(output_dir.glob("*.whl"))
         smoke_install(wheel)
         model_path = output_dir / "model-manifest.json"
-        model_path.write_text(
-            json.dumps(manifest_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        atomic_write_text(
+            model_path,
+            json.dumps(manifest_payload, indent=2, sort_keys=True) + "\n",
         )
         build_windows_bundle(
             output_dir / f"Auralign-{VERSION}-windows-amd64.zip", wheel, model_path
@@ -392,7 +446,11 @@ def main() -> int:
         build_macos_bundle(
             output_dir / f"Auralign-{VERSION}-darwin-arm64.tar.gz", wheel, model_path
         )
-        build_sboms(output_dir / f"Auralign-{VERSION}-sboms.zip", sbom_dir)
+        build_sboms(
+            output_dir / f"Auralign-{VERSION}-sboms.zip",
+            sbom_dir,
+            acceptance_dir,
+        )
     payload_files = sorted(path for path in output_dir.iterdir() if path.is_file())
     release_manifest = {
         "schema_version": "auralign-private-release.v1",
@@ -405,14 +463,18 @@ def main() -> int:
         ],
     }
     manifest_path = output_dir / "release-manifest.json"
-    manifest_path.write_text(
-        json.dumps(release_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    atomic_write_text(
+        manifest_path,
+        json.dumps(release_manifest, indent=2, sort_keys=True) + "\n",
     )
     checksum_files = [*payload_files, manifest_path]
-    (output_dir / "SHA256SUMS").write_text(
+    atomic_write_text(
+        output_dir / "SHA256SUMS",
         "".join(f"{sha256_file(path)}  {path.name}\n" for path in checksum_files),
-        encoding="utf-8",
     )
+    for artifact in output_dir.iterdir():
+        if artifact.is_file():
+            ensure_private_file(artifact)
     verify_private_release(
         output_dir,
         version=VERSION,

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auralign.invalid/schemas/platform-acceptance-v2.schema.json",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "config": { "const": "examples/config.strict-macos-arm64-cpu.yaml" },
+            "dependency_sbom": { "const": "darwin-arm64-cpu.cdx.json" },
+            "platform": { "const": "darwin-arm64-cpu" },
+            "profile": { "const": "cpu" }
+          }
+        },
+        {
+          "properties": {
+            "config": { "const": "examples/config.strict-windows-amd64-cpu.yaml" },
+            "dependency_sbom": { "const": "windows-amd64-cpu.cdx.json" },
+            "platform": { "const": "windows-amd64-cpu" },
+            "profile": { "const": "cpu" }
+          }
+        },
+        {
+          "properties": {
+            "config": { "const": "examples/config.strict-windows-amd64-cu128.yaml" },
+            "dependency_sbom": { "const": "windows-amd64-cu128.cdx.json" },
+            "platform": { "const": "windows-amd64-cu128" },
+            "profile": { "const": "cu128" }
+          }
+        }
+      ]
+    }
+  ],
+  "properties": {
+    "capsule_id": { "const": "auralign-validation-capsule.v1:5a652951669c" },
+    "commit": { "pattern": "^[0-9a-f]{40}$", "type": "string" },
+    "completed_at": { "format": "date-time", "type": "string" },
+    "config": {
+      "enum": [
+        "examples/config.strict-macos-arm64-cpu.yaml",
+        "examples/config.strict-windows-amd64-cpu.yaml",
+        "examples/config.strict-windows-amd64-cu128.yaml"
+      ]
+    },
+    "config_sha256": { "pattern": "^[0-9a-f]{64}$", "type": "string" },
+    "dependency_sbom": {
+      "pattern": "^(darwin-arm64-cpu|windows-amd64-cpu|windows-amd64-cu128)\\.cdx\\.json$",
+      "type": "string"
+    },
+    "dependency_sbom_sha256": { "pattern": "^[0-9a-f]{64}$", "type": "string" },
+    "model_contract_sha256": { "pattern": "^[0-9a-f]{64}$", "type": "string" },
+    "owner_attested": { "const": true },
+    "passed": { "const": true },
+    "platform": {
+      "enum": ["darwin-arm64-cpu", "windows-amd64-cpu", "windows-amd64-cu128"]
+    },
+    "profile": { "enum": ["cpu", "cu128"] },
+    "python_version": { "const": "3.11" },
+    "schema_version": { "const": "auralign-platform-acceptance.v2" },
+    "validator": { "const": "scripts/run_trusted_platform_validation.py" },
+    "validator_sha256": { "pattern": "^[0-9a-f]{64}$", "type": "string" }
+  },
+  "required": [
+    "schema_version",
+    "platform",
+    "profile",
+    "commit",
+    "passed",
+    "owner_attested",
+    "completed_at",
+    "python_version",
+    "validator",
+    "validator_sha256",
+    "config",
+    "config_sha256",
+    "model_contract_sha256",
+    "capsule_id",
+    "dependency_sbom",
+    "dependency_sbom_sha256"
+  ],
+  "title": "Auralign owner-local native platform acceptance v2",
+  "type": "object"
+}

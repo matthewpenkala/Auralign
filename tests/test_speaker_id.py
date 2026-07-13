@@ -4,13 +4,13 @@
 
 import json
 import math
-import stat
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 from local_transcript_max.cli import app
+from local_transcript_max.platform_security import private_path_is_secure
 from local_transcript_max.speaker_id.embeddings import (
     extract_embedding,
     load_embedding,
@@ -255,7 +255,7 @@ def test_profile_export_is_portable_and_import_does_not_leak_paths(
     exported_text = export_path.read_text(encoding="utf-8")
     exported = json.loads(exported_text)
     assert exported["schema_version"] == "speaker_profiles.v1"
-    assert stat.S_IMODE(export_path.stat().st_mode) == 0o600
+    assert private_path_is_secure(export_path)
     assert "embedding_path" not in exported_text
     assert "sample_paths" not in exported_text
     assert str(source_root) not in exported_text
@@ -314,11 +314,11 @@ def test_profile_storage_permissions_and_slug_collisions(
     enroll_speaker("A B", first)
 
     profile_dir = root / "a-b"
-    assert stat.S_IMODE(root.stat().st_mode) == 0o700
-    assert stat.S_IMODE(profile_dir.stat().st_mode) == 0o700
-    assert stat.S_IMODE((profile_dir / "profile.json").stat().st_mode) == 0o600
-    assert stat.S_IMODE((profile_dir / "embedding.json").stat().st_mode) == 0o600
-    assert stat.S_IMODE((profile_dir / "samples" / "first.wav").stat().st_mode) == 0o600
+    assert private_path_is_secure(root, directory=True)
+    assert private_path_is_secure(profile_dir, directory=True)
+    assert private_path_is_secure(profile_dir / "profile.json")
+    assert private_path_is_secure(profile_dir / "embedding.json")
+    assert private_path_is_secure(profile_dir / "samples" / "first.wav")
 
     with pytest.raises(ValueError, match="collide after slug normalization"):
         enroll_speaker("A-B", second)
@@ -339,8 +339,8 @@ def test_hash_bound_rename_evidence_rejects_stale_and_slug_collisions(
     assert [(row.speaker, row.name) for row in evidence] == [("SPEAKER_00", "Participant A")]
     assert len(evidence[0].record_hash) == 64
     assert evidence[0].record_id == f"rename:{evidence[0].record_hash[:16]}"
-    assert stat.S_IMODE(rename_root.stat().st_mode) == 0o700
-    assert stat.S_IMODE(record.stat().st_mode) == 0o600
+    assert private_path_is_secure(rename_root, directory=True)
+    assert private_path_is_secure(record)
 
     write_json(
         job / "transcript.json",
