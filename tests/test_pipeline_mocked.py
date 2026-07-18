@@ -16,6 +16,7 @@ from local_transcript_max.config import load_config
 from local_transcript_max.errors import BackendUnavailableError, LTMError
 from local_transcript_max.pipeline import preflight_required_models, transcribe_file
 from local_transcript_max.platform_security import private_path_is_secure
+from local_transcript_max.runtime_policy import HostCapabilities, resolve_runtime_policy
 from local_transcript_max.schemas import (
     AlignedWord,
     ASRResult,
@@ -673,12 +674,30 @@ def test_pipeline_repairs_sandwiched_unknown_fragment_labels(tmp_path: Path) -> 
     assert exported["words"][1]["speaker"] is None
 
 
-def test_mocked_pipeline_records_mlx_runtime_metadata(tmp_path: Path) -> None:
+def test_mocked_pipeline_records_mlx_runtime_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     input_path = tmp_path / "sample.wav"
     out_dir = tmp_path / "out"
     write_tiny_wav(input_path)
     config = mocked_config(tmp_path)
     config.asr.backend = "mlx-whisper"
+    native_apple_silicon = HostCapabilities(
+        system="Darwin",
+        process_architecture="arm64",
+        hardware_architecture="arm64",
+        is_apple_silicon=True,
+        is_native_arm64=True,
+        is_native_apple_silicon=True,
+        mlx_available=True,
+        mlx_whisper_available=True,
+    )
+
+    def resolve_test_policy(config):
+        return resolve_runtime_policy(config, native_apple_silicon)
+
+    monkeypatch.setattr(pipeline_module, "resolve_runtime_policy", resolve_test_policy)
 
     transcribe_file(
         input_path,

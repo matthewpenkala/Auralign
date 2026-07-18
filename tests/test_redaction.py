@@ -68,15 +68,19 @@ def test_privacy_safe_text_masks_posix_windows_and_explicit_paths() -> None:
     private = Path("/private/jobs/customer-a")
     text = (
         "failed at /Users/example/recordings/call.wav and "
-        r"C:\\Users\\example\\recordings\\call.wav in /private/jobs/customer-a"
+        r"C:\\Users\\example\\recordings\\call.wav, "
+        r"\Users\example\private\models\model.bin, "
+        r"\\server\private\recordings\call.wav in /private/jobs/customer-a"
     )
 
     safe = privacy_safe_text(text, private_paths=(private,))
 
     assert "/Users/example" not in safe
     assert "C:\\Users\\example" not in safe
+    assert r"\Users\example" not in safe
+    assert r"\\server\private" not in safe
     assert str(private) not in safe
-    assert safe.count("<local-path>") == 3
+    assert safe.count("<local-path>") == 5
 
 
 def test_privacy_safe_obj_masks_nested_secrets_and_paths() -> None:

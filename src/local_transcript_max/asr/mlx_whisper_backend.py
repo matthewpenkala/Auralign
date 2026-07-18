@@ -661,7 +661,7 @@ def read_wav_float32(audio_path: Path) -> tuple[Any, int]:
     """Decode the canonical PCM WAV once for all opt-in MLX VAD windows."""
 
     try:
-        import numpy as np
+        np = importlib.import_module("numpy")
 
         with wave.open(str(audio_path), "rb") as source:
             if source.getnchannels() != 1 or source.getsampwidth() != 2:

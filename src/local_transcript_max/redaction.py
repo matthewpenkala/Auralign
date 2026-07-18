@@ -29,6 +29,9 @@ SECRET_VALUE_PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 ABSOLUTE_LOCAL_PATH_RE = re.compile(r"(?<![A-Za-z0-9:/])/(?:[^\s,;\"'()\[\]{}]+/?)*")
 WINDOWS_LOCAL_PATH_RE = re.compile(r"(?i)(?<![A-Za-z0-9])\b[A-Z]:\\[^\s,;\"']+")
+WINDOWS_ROOTED_LOCAL_PATH_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9\\])\\{1,2}[^\\\s,;\"']+(?:\\[^\\\s,;\"']+)+"
+)
 
 
 def redact_text(text: str) -> str:
@@ -53,7 +56,8 @@ def privacy_safe_text(text: str, *, private_paths: tuple[Path, ...] = ()) -> str
     if Path(safe).is_absolute():
         return "<local-path>"
     safe = ABSOLUTE_LOCAL_PATH_RE.sub("<local-path>", safe)
-    return WINDOWS_LOCAL_PATH_RE.sub("<local-path>", safe)
+    safe = WINDOWS_LOCAL_PATH_RE.sub("<local-path>", safe)
+    return WINDOWS_ROOTED_LOCAL_PATH_RE.sub("<local-path>", safe)
 
 
 def redact_obj(value: Any) -> Any:

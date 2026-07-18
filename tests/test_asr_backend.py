@@ -539,6 +539,10 @@ def test_mlx_backend_vad_windowed_offsets_chunk_timestamps(
     (model_dir / "weights.safetensors").write_bytes(b"ok")
     audio_path = tmp_path / "audio.wav"
     write_silent_wav(audio_path, duration_seconds=2.0)
+    monkeypatch.setattr(
+        "local_transcript_max.asr.mlx_whisper_backend.read_wav_float32",
+        fake_read_wav_float32,
+    )
 
     calls: list[dict[str, object]] = []
     fake_module = ModuleType("mlx_whisper")
@@ -602,9 +606,14 @@ def test_mlx_backend_vad_windowed_offsets_chunk_timestamps(
 
 def test_vad_context_preserves_boundary_word_without_duplicate_emission(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     audio_path = tmp_path / "audio.wav"
     write_silent_wav(audio_path, duration_seconds=4.0)
+    monkeypatch.setattr(
+        "local_transcript_max.asr.mlx_whisper_backend.read_wav_float32",
+        fake_read_wav_float32,
+    )
 
     class FakeMlxWhisper:
         def __init__(self) -> None:
@@ -676,3 +685,10 @@ def write_silent_wav(path: Path, *, duration_seconds: float, sample_rate: int = 
         wav.setsampwidth(2)
         wav.setframerate(sample_rate)
         wav.writeframes(b"\x00\x00" * frames)
+
+
+def fake_read_wav_float32(path: Path) -> tuple[list[float], int]:
+    """Provide dependency-free samples for cross-platform MLX orchestration tests."""
+
+    with wave.open(str(path), "rb") as wav:
+        return [0.0] * wav.getnframes(), wav.getframerate()
