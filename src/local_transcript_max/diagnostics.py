@@ -10,6 +10,7 @@ import importlib.metadata
 import importlib.util
 import os
 import platform
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -22,41 +23,27 @@ from .asr.faster_whisper_backend import (
     resolve_num_workers,
     supported_compute_types,
 )
-from .asr.mlx_whisper_backend import mlx_compute_type, mlx_model_status
+from .asr.mlx_whisper_backend import (
+    mlx_compute_type,
+    mlx_model_status,
+    mlx_runtime_evidence,
+)
 from .config import PipelineConfig, default_hf_home, default_hf_hub_cache
 from .errors import ModelCacheError
 from .models import audit_selected_models
 from .redaction import redact_obj, redact_text
+from .resource_usage import framework_allocator_counters
+from .runtime_policy import collect_host_capabilities, resolve_runtime_policy
 from .schemas import AlignedWord
 from .utils import run_command, which
 
 
 def runtime_environment(config: PipelineConfig) -> dict[str, Any]:
-    torch_info: dict[str, Any] = {"installed": False}
-    try:
-        import torch
-
-        torch_info = {
-            "installed": True,
-            "version": getattr(torch, "__version__", None),
-            "cuda_available": torch.cuda.is_available(),
-            "mps_available": bool(
-                getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()
-            ),
-        }
-        if torch.cuda.is_available():
-            torch_info["cuda_device_count"] = torch.cuda.device_count()
-            torch_info["cuda_device_name"] = torch.cuda.get_device_name(0)
-            try:
-                torch_info["cuda_device_memory_bytes"] = torch.cuda.get_device_properties(
-                    0
-                ).total_memory
-            except Exception:
-                pass
-    except Exception as exc:  # pragma: no cover - host-specific import guard
-        torch_info = {"installed": False, "error": str(exc)}
-
+    torch_info = torch_runtime_info()
     asr_device_compute = asr_device_compute_environment(config)
+    capabilities = collect_host_capabilities()
+    device_policy = resolve_runtime_policy(config, capabilities)
+    memory_bytes = capabilities.physical_memory_bytes or physical_memory_bytes()
     return {
         "python": sys.version,
         "executable": sys.executable,
@@ -67,14 +54,21 @@ def runtime_environment(config: PipelineConfig) -> dict[str, Any]:
         "architecture": platform.machine(),
         "ffmpeg": command_version("ffmpeg"),
         "ffprobe": command_version("ffprobe"),
+        "ffmpeg_architecture": executable_architecture("ffmpeg", capabilities),
+        "ffprobe_architecture": executable_architecture("ffprobe", capabilities),
+        "physical_memory_bytes": memory_bytes,
+        "power": power_state(),
         "model_cache": str(config.model_cache),
         "hf_home": str(default_hf_home()),
         "hf_hub_cache": str(default_hf_hub_cache()),
         "offline": config.offline,
+        "model_lifecycle": config.runtime.model_lifecycle,
         "ltm_device": os.getenv("LTM_DEVICE"),
         "ltm_asr_device": os.getenv("LTM_ASR_DEVICE"),
         "ltm_diarization_device": os.getenv("LTM_DIARIZATION_DEVICE"),
         "ltm_alignment_device": os.getenv("LTM_ALIGNMENT_DEVICE"),
+        "torch_mps_environment": torch_mps_environment(),
+        "thread_environment": thread_environment(),
         "hf_token_present": bool(os.getenv("HF_TOKEN")),
         "ltm_hf_token_present": bool(os.getenv("LTM_HF_TOKEN")),
         "asr_device_compute": asr_device_compute,
@@ -88,7 +82,11 @@ def runtime_environment(config: PipelineConfig) -> dict[str, Any]:
             "backend": config.alignment.backend,
             "enabled": config.alignment.enabled,
         },
+        "host_capabilities": capabilities.model_dump(mode="json"),
+        "device_policy": device_policy.model_dump(mode="json"),
         "torch": torch_info,
+        "mlx": mlx_runtime_evidence(load_if_needed=False),
+        "framework_memory": framework_allocator_counters(),
         "imports": {
             "faster_whisper": module_status("faster_whisper", "faster-whisper"),
             "ctranslate2": module_status("ctranslate2", "ctranslate2"),
@@ -99,6 +97,58 @@ def runtime_environment(config: PipelineConfig) -> dict[str, Any]:
             "speechbrain": module_status("speechbrain", "speechbrain"),
         },
     }
+
+
+def torch_runtime_info() -> dict[str, Any]:
+    """Return optional Torch runtime and thread-pool evidence."""
+
+    unavailable: dict[str, Any] = {
+        "installed": False,
+        "intra_op_threads": None,
+        "inter_op_threads": None,
+    }
+    try:
+        import torch
+
+        torch_info: dict[str, Any] = {
+            "installed": True,
+            "version": getattr(torch, "__version__", None),
+            "cuda_available": torch.cuda.is_available(),
+            "mps_built": bool(
+                getattr(torch.backends, "mps", None) and torch.backends.mps.is_built()
+            ),
+            "mps_available": bool(
+                getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()
+            ),
+            "intra_op_threads": _optional_positive_int_call(torch, "get_num_threads"),
+            "inter_op_threads": _optional_positive_int_call(
+                torch,
+                "get_num_interop_threads",
+            ),
+        }
+        if torch.cuda.is_available():
+            torch_info["cuda_device_count"] = torch.cuda.device_count()
+            torch_info["cuda_device_name"] = torch.cuda.get_device_name(0)
+            try:
+                torch_info["cuda_device_memory_bytes"] = torch.cuda.get_device_properties(
+                    0
+                ).total_memory
+            except Exception:
+                pass
+        return torch_info
+    except Exception as exc:  # pragma: no cover - host-specific import guard
+        return {**unavailable, "error": str(exc)}
+
+
+def _optional_positive_int_call(source: object, name: str) -> int | None:
+    function = getattr(source, name, None)
+    if not callable(function):
+        return None
+    try:
+        value = int(function())
+    except (RuntimeError, TypeError, ValueError):
+        return None
+    return value if value > 0 else None
 
 
 def asr_device_compute_environment(config: PipelineConfig) -> dict[str, Any]:
@@ -290,16 +340,47 @@ def alignment_diagnostic_payload(
         )
     word_count = len(words)
     timed_word_count = sum(1 for word in words if word.start is not None and word.end is not None)
+    invalid_or_nonmonotonic = alignment_timestamp_defect_count(words)
     fallback_used = requested_backend in {"auto", "forced"} and backend == "whisper-word-timestamps"
+    metadata_payload = metadata or {}
+    forced_count = source_counts["forced"]
+    whisper_count = source_counts["whisper"]
+    estimated_count = source_counts["estimated"]
+    missing_count = word_count - timed_word_count
+    fallback_reasons = [
+        reason
+        for reason in (
+            metadata_payload.get("fallback_reason"),
+            *warnings,
+        )
+        if reason
+    ]
     return {
         "schema_version": "alignment_report.v1",
+        "canonical_metrics_version": "alignment_qa.v1",
         "requested_backend": requested_backend,
         "backend": backend,
+        "alignment_backend": backend,
         "device": device,
         "fallback_used": fallback_used,
+        "fallback_reasons": fallback_reasons,
         "word_count": word_count,
         "timed_word_count": timed_word_count,
-        "missing_timestamp_count": word_count - timed_word_count,
+        "forced_aligned_word_count": forced_count,
+        "forced_aligned_word_percentage": percent(forced_count, word_count),
+        "whisper_timestamp_word_count": whisper_count,
+        "whisper_timestamp_word_percentage": percent(whisper_count, word_count),
+        "estimated_interpolated_word_count": estimated_count,
+        "estimated_interpolated_word_percentage": percent(
+            estimated_count,
+            word_count,
+        ),
+        "missing_timestamp_count": missing_count,
+        "segments_with_missing_timestamps": int(
+            metadata_payload.get("missing_segment_count") or 0
+        ),
+        "invalid_or_non_monotonic_timestamp_count": invalid_or_nonmonotonic,
+        "timestamp_coverage_percentage": percent(timed_word_count, word_count),
         "source_counts": dict(sorted(source_counts.items())),
         "source_percentages": {
             source: round((count / word_count) * 100, 3) if word_count else 0.0
@@ -309,8 +390,37 @@ def alignment_diagnostic_payload(
         "missing_timestamp_spans": missing_spans,
         "backend_warnings": warnings,
         "duration_seconds": duration_seconds,
-        "metadata": metadata or {},
+        "metadata": metadata_payload,
     }
+
+
+def alignment_timestamp_defect_count(words: list[AlignedWord]) -> int:
+    """Count invalid or non-monotonic timestamps without inspecting word text."""
+
+    defects = 0
+    previous_start = float("-inf")
+    previous_end = float("-inf")
+    for word in words:
+        start = word.start
+        end = word.end
+        if start is None or end is None:
+            continue
+        if (
+            start < 0
+            or end < start
+            or start < previous_start
+            or end < previous_end
+        ):
+            defects += 1
+        previous_start = max(previous_start, start)
+        previous_end = max(previous_end, end)
+    return defects
+
+
+def percent(numerator: int, denominator: int) -> float:
+    if denominator <= 0:
+        return 0.0
+    return round((numerator / denominator) * 100.0, 3)
 
 
 def write_debug_report(path: Path, payload: dict[str, Any]) -> None:
@@ -347,3 +457,212 @@ def command_version(command: str) -> dict[str, str | bool | None]:
     except Exception as exc:
         first_line = str(exc)
     return {"available": True, "path": path, "version": first_line}
+
+
+def executable_architecture(
+    command: str,
+    capabilities: Any | None = None,
+) -> dict[str, Any]:
+    """Report executable architecture and native-host suitability when detectable."""
+
+    path = which(command)
+    if not path:
+        return {
+            "available": False,
+            "path": None,
+            "description": None,
+            "suitable_for_host": False,
+        }
+    description: str | None = None
+    try:
+        completed = run_command(["file", "-b", path], check=False)
+        description = (completed.stdout or completed.stderr).strip() or None
+    except Exception:
+        description = None
+    host = capabilities or collect_host_capabilities()
+    suitable: bool | None = None
+    if host.system == "Darwin" and host.is_apple_silicon and description:
+        normalized = (description or "").lower()
+        suitable = "arm64" in normalized or "universal binary" in normalized
+    return {
+        "available": True,
+        "path": path,
+        "description": description,
+        "suitable_for_host": suitable,
+    }
+
+
+def physical_memory_bytes() -> int | None:
+    """Return physical memory through unprivileged portable/native interfaces."""
+
+    if platform.system() == "Darwin":
+        try:
+            completed = run_command(["sysctl", "-n", "hw.memsize"], check=False)
+            value = int(completed.stdout.strip())
+            return value if value > 0 else None
+        except (OSError, ValueError):
+            pass
+    sysconf = getattr(os, "sysconf", None)
+    if not callable(sysconf):
+        return None
+    try:
+        page_size = int(sysconf("SC_PAGE_SIZE"))
+        page_count = int(sysconf("SC_PHYS_PAGES"))
+    except (OSError, ValueError, TypeError):
+        return None
+    value = page_size * page_count
+    return value if value > 0 else None
+
+
+def power_state() -> dict[str, Any]:
+    """Collect unprivileged macOS power-source and low-power-mode evidence."""
+
+    if platform.system() != "Darwin":
+        return {
+            "available": False,
+            "source": None,
+            "battery_percent": None,
+            "charging": None,
+            "low_power_mode": None,
+            "power_mode": None,
+            "thermal_state": None,
+            "thermal_pressure": None,
+            "serious_thermal_pressure": None,
+        }
+    try:
+        battery = run_command(["pmset", "-g", "batt"], check=False)
+        custom = run_command(["pmset", "-g", "custom"], check=False)
+        thermal = run_command(["pmset", "-g", "therm"], check=False)
+    except Exception:
+        return {
+            "available": False,
+            "source": None,
+            "battery_percent": None,
+            "charging": None,
+            "low_power_mode": None,
+            "power_mode": None,
+            "thermal_state": None,
+            "thermal_pressure": None,
+            "serious_thermal_pressure": None,
+        }
+    battery_text = battery.stdout or battery.stderr
+    custom_text = custom.stdout or custom.stderr
+    thermal_text = thermal.stdout or thermal.stderr
+    source_match = re.search(r"Now drawing from '([^']+)'", battery_text)
+    percent_match = re.search(r"(\d+)%", battery_text)
+    normalized_battery = battery_text.lower()
+    source = source_match.group(1) if source_match else None
+    active_profile = _active_pmset_profile(custom_text, source)
+    low_power_values = re.findall(
+        r"lowpowermode\s+(\d+)",
+        active_profile.lower(),
+    )
+    power_mode_values = re.findall(
+        r"powermode\s+(\d+)",
+        active_profile.lower(),
+    )
+    thermal_payload = _thermal_state(thermal_text, returncode=thermal.returncode)
+    return {
+        "available": battery.returncode == 0,
+        "source": source,
+        "battery_percent": int(percent_match.group(1)) if percent_match else None,
+        "charging": (
+            False
+            if "not charging" in normalized_battery
+            else
+            True
+            if "charging" in normalized_battery and "discharging" not in normalized_battery
+            else False
+            if "discharging" in normalized_battery or "charged" in normalized_battery
+            else None
+        ),
+        "low_power_mode": (
+            low_power_values[-1] == "1"
+            if low_power_values
+            else None
+        ),
+        "power_mode": (
+            int(power_mode_values[-1])
+            if power_mode_values
+            else None
+        ),
+        **thermal_payload,
+    }
+
+
+def _active_pmset_profile(custom_text: str, source: str | None) -> str:
+    """Return only the `pmset -g custom` section for the active power source."""
+
+    if not source:
+        return ""
+    sections: dict[str, list[str]] = {}
+    active_section: str | None = None
+    for line in custom_text.splitlines():
+        stripped = line.strip()
+        header = re.fullmatch(r"([^:]+):", stripped)
+        if header is not None:
+            active_section = header.group(1).strip().lower()
+            sections.setdefault(active_section, [])
+            continue
+        if active_section is not None:
+            sections[active_section].append(stripped)
+    return "\n".join(sections.get(source.strip().lower(), []))
+
+
+def torch_mps_environment() -> dict[str, str | None]:
+    """Return the documented Torch MPS tuning/fallback environment surface."""
+
+    names = (
+        "PYTORCH_DEBUG_MPS_ALLOCATOR",
+        "PYTORCH_MPS_LOG_PROFILE_INFO",
+        "PYTORCH_MPS_TRACE_SIGNPOSTS",
+        "PYTORCH_MPS_HIGH_WATERMARK_RATIO",
+        "PYTORCH_MPS_LOW_WATERMARK_RATIO",
+        "PYTORCH_MPS_FAST_MATH",
+        "PYTORCH_MPS_PREFER_METAL",
+        "PYTORCH_ENABLE_MPS_FALLBACK",
+    )
+    return {name: os.getenv(name) for name in names}
+
+
+def thread_environment() -> dict[str, str | None]:
+    """Return non-secret CPU thread-pool tuning environment values."""
+
+    names = (
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+    )
+    return {name: os.getenv(name) for name in names}
+
+
+def _thermal_state(text: str, *, returncode: int) -> dict[str, object]:
+    if returncode != 0:
+        return {
+            "thermal_state": None,
+            "thermal_pressure": None,
+            "serious_thermal_pressure": None,
+        }
+    normalized = text.lower()
+    no_thermal_warning = "no thermal warning level has been recorded" in normalized
+    no_performance_warning = "no performance warning level has been recorded" in normalized
+    limits = [
+        int(value)
+        for value in re.findall(
+            r"(?:cpu_speed_limit|scheduler_limit)\s*=\s*(\d+)",
+            normalized,
+        )
+    ]
+    constrained = any(value < 100 for value in limits)
+    nominal = no_thermal_warning and no_performance_warning and not constrained
+    warning_recorded = (
+        ("thermal warning level" in normalized and not no_thermal_warning)
+        or ("performance warning level" in normalized and not no_performance_warning)
+        or constrained
+    )
+    return {
+        "thermal_state": "nominal" if nominal else "warning" if warning_recorded else "unknown",
+        "thermal_pressure": "nominal" if nominal else "elevated" if warning_recorded else None,
+        "serious_thermal_pressure": True if warning_recorded else False if nominal else None,
+    }

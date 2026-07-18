@@ -2,23 +2,46 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
-# Candidate MLX profile for local Apple Silicon benchmarking.
+# Compatibility alias for the conservative Apple Silicon MLX topology.
+# Prefer config.apple-silicon.yaml for new production jobs.
 # Requires an existing converted MLX model directory; runtime downloads are disabled.
-preset: balanced
+preset: max
+model_cache: models
+offline: true
 asr:
   backend: mlx-whisper
-  mlx_model: mlx-large-v3-turbo
-  mlx_model_path: models/mlx-community--whisper-large-v3-turbo
+  mlx_model: mlx-large-v3
+  mlx_model_path: models/mlx-community--whisper-large-v3-mlx
   mlx_fp16: true
+  mlx_vad_windowed: false
+  vad_filter: false
   word_timestamps: true
   condition_on_previous_text: false
 diarization:
   backend: pyannote
+  model: community-1
   device: cpu
+  enabled: true
   preserve_overlap: true
   exclusive_diarization: true
 alignment:
-  backend: auto
+  backend: forced
+  language: en
+  model: en
   device: cpu
+  enabled: true
+speaker_id:
+  mode: auto
+  model: ecapa
+  device: cpu
+redecode:
+  mode: off
+  max_spans: 5
+  pad_seconds: 1.0
+  beam_size: 5
+  temperature: 0.0
+  write_report: false
 cleanup:
   mode: off
+runtime:
+  model_lifecycle: auto

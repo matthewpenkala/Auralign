@@ -29,7 +29,7 @@ after caches are prepared.
 ## Current Capabilities
 
 - FFmpeg inspection and canonical-audio preparation
-- faster-whisper ASR and opt-in Apple Silicon MLX ASR
+- faster-whisper ASR and native Apple Silicon MLX ASR
 - actual WhisperX forced alignment; non-strict configurations report any timestamp fallback
 - local pyannote diarization and deterministic candidate scoring
 - word-to-speaker fusion, QA, targeted re-decode candidates, and speaker checks
@@ -165,6 +165,11 @@ uv run ltm validate-speakers outputs/job_001 --expected-speakers <N>
 selected high-stakes or QA-flagged material to `max`. Turbo, Distil, batched
 faster-whisper, MLX, and explicit MPS device settings are opt-in performance
 paths and should be validated against the same representative media before use.
+For native Apple Silicon, follow the
+[Apple Silicon runbook](docs/apple-silicon.md): its conservative optimized
+topology uses local MLX Whisper `large-v3` FP16 for ASR, real WhisperX forced
+alignment on CPU, and pyannote diarization on CPU. MPS diarization remains an
+explicit evidence-gated canary rather than an automatic default.
 
 The canonical job keeps raw and derived stages separate. Important artifacts
 include:
@@ -174,12 +179,23 @@ include:
   `alignment_report.json`
 - `diarization.json`, `exclusive_diarization.json`, and speaker reports
 - `transcript.json`, `transcript.srt`, `transcript.vtt`, and review sidecars
-- `qa_report.json`, `run_metadata.json`, and optional `debug_report.json`
+- `qa_report.json`, `run_metadata.json`, `completion_timing.json`, and optional
+  `debug_report.json`
 
 Agentic diarization, re-decode, speaker matching, and local cleanup write
 separate artifacts; they do not overwrite raw ASR or diarization. See
 [architecture](docs/architecture.md), [alignment](docs/alignment.md), and
 [diarization](docs/diarization.md) for the stage contracts.
+
+`run_metadata.json` is the immutable core-run record and declares
+`timing_scope: pipeline_core.v1`. Its real-time factor and `pipeline_core`
+duration stop before metadata publication and later derived work.
+`completion_timing.json` separately records the observed end-to-end duration
+from invocation setup through model audit, pipeline work, metadata, identity,
+and optional debug-report publication. Its required `invocation_setup` duration
+names work before the immutable core begins, and `run_metadata_sha256` binds
+the exact `run_metadata.json` bytes. Its own publication and the final progress
+callback are listed as excluded operations.
 
 ## Speaker Identification And Identity Resolution
 
@@ -291,3 +307,5 @@ uv run mypy src/local_transcript_max
 Tests must not require model downloads, remote services, private media, or
 secrets. Docker usage is documented in [docs/docker.md](docs/docker.md), and
 common failures are covered in [troubleshooting](docs/troubleshooting.md).
+Native macOS arm64 setup and performance validation are covered in the
+[Apple Silicon runbook](docs/apple-silicon.md).

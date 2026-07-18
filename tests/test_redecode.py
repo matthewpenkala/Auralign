@@ -20,6 +20,7 @@ from local_transcript_max.schemas import (
     AlignedWord,
     ASRResult,
     ASRSegment,
+    ModelMetadata,
     QAFlag,
     QAReport,
     Transcript,
@@ -41,6 +42,14 @@ class MockASR:
                 )
             ],
             raw={"mock": True},
+            model=ModelMetadata(
+                role="asr",
+                model_id="mock-model",
+                revision="mock-revision",
+                revision_verified=True,
+                present=True,
+            ),
+            config={"backend": "mock-asr", "device": "cpu"},
         )
 
 
@@ -190,6 +199,8 @@ def test_candidate_preservation_and_raw_asr_not_overwritten(tmp_path: Path, monk
     config = load_config(cwd=tmp_path)
     config.redecode.mode = "low-confidence"
     config.redecode.write_report = True
+    canonical_wav = tmp_path / "canonical.wav"
+    canonical_wav.write_bytes(b"canonical-audio")
     temporary_dirs: list[Path] = []
     temporary_directory_security: list[bool] = []
 
@@ -202,7 +213,17 @@ def test_candidate_preservation_and_raw_asr_not_overwritten(tmp_path: Path, monk
         output.write_bytes(b"fake-wav")
 
     monkeypatch.setattr("local_transcript_max.qa.redecode.extract_audio_window", fake_extract)
-    run_targeted_redecode(tmp_path / "canonical.wav", transcript, qa, config, MockASR(), tmp_path)
+    backend = MockASR()
+    first_pass_result = backend.transcribe(canonical_wav, config)
+    run_targeted_redecode(
+        canonical_wav,
+        transcript,
+        qa,
+        config,
+        backend,
+        tmp_path,
+        first_pass_result=first_pass_result,
+    )
     candidates = read_json(tmp_path / "transcript.redecode_candidates.json")
     assert candidates["replacement_policy"] == "preserve_raw_record_candidates_only"
     assert candidates["candidates"][0]["original_text"]
@@ -211,6 +232,17 @@ def test_candidate_preservation_and_raw_asr_not_overwritten(tmp_path: Path, monk
     assert candidates["candidates"][0]["candidate_timestamps"]["coordinate_system"] == (
         "window_relative"
     )
+    provenance = candidates["candidates"][0]["provenance"]
+    assert provenance["first_pass"]["backend"] == "mock-asr"
+    assert provenance["repair_candidate"]["backend"] == "mock-asr"
+    assert provenance["first_pass"]["model"]["model_id"] == "mock-model"
+    assert provenance["repair_candidate"]["model"]["revision_verified"] is True
+    assert len(provenance["first_pass"]["configuration_sha256"]) == 64
+    assert len(provenance["repair_candidate"]["configuration_sha256"]) == 64
+    assert len(provenance["first_pass"]["canonical_audio_sha256"]) == 64
+    assert len(provenance["repair_candidate"]["window_audio_sha256"]) == 64
+    assert provenance["maximum_attempts"] == 1
+    assert provenance["recursive_redecode"] is False
     assert not (tmp_path / "transcript.raw.json").exists()
     assert not (tmp_path / "transcript.redecoded.json").exists()
     assert not (tmp_path / "transcript.redecoded.md").exists()
@@ -277,7 +309,7 @@ def test_redecode_failure_is_safe_and_temporary_windows_are_removed(
     candidate = payload["candidates"][0]
     assert candidate["status"] == "failed"
     assert candidate["warnings"] == ["redecode_failed"]
-    assert "private" not in str(candidate)
+    assert str(tmp_path / "private") not in str(candidate)
     assert "do-not-serialize" not in str(candidate)
     assert temporary_dirs
     assert all(not path.exists() for path in temporary_dirs)

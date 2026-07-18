@@ -28,7 +28,8 @@ from local_transcript_max.benchmark.corpus import (
 from local_transcript_max.benchmark.runner import run_benchmark_batch, run_benchmark_target
 from local_transcript_max.cli import app
 from local_transcript_max.doctor import private_benchmark_artifact_warning
-from local_transcript_max.utils import read_json, write_json
+from local_transcript_max.schemas import CompletionTimingReport
+from local_transcript_max.utils import read_json, sha256_file, write_json
 
 
 def write_job(job: Path) -> None:
@@ -106,6 +107,14 @@ def write_job(job: Path) -> None:
     )
 
 
+def declare_completion_contract(job: Path) -> str:
+    metadata_path = job / "run_metadata.json"
+    metadata = read_json(metadata_path)
+    metadata["completion_timing_artifact"] = "completion_timing.json"
+    write_json(metadata_path, metadata)
+    return sha256_file(metadata_path)
+
+
 def test_benchmark_from_job_directory(tmp_path: Path) -> None:
     job = tmp_path / "job"
     write_job(job)
@@ -136,6 +145,144 @@ def test_benchmark_from_job_directory(tmp_path: Path) -> None:
     markdown = (tmp_path / "bench" / "benchmark.md").read_text(encoding="utf-8")
     assert "RSS peak" in markdown
     assert "cpu threads" in markdown
+
+
+def test_benchmark_prefers_observed_completion_timing(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    write_job(job)
+    metadata_sha256 = declare_completion_contract(job)
+    write_json(
+        job / "completion_timing.json",
+        {
+            "schema_version": "completion_timing.v1",
+            "run_metadata_sha256": metadata_sha256,
+            "pipeline_core_seconds": 6.0,
+            "observed_end_to_end_seconds": 7.0,
+            "real_time_factor": 7.0 / 12.0,
+            "stage_durations": {
+                "invocation_setup": 0.25,
+                "run_metadata_preparation_and_publish": 0.25,
+                "speaker_identity": 0.25,
+                "debug_report_publish": 0.25,
+            },
+            "resource_usage": {
+                "rss_peak_sampled_bytes": 1_288_490_188,
+                "rss_peak_process_lifetime_bytes": 1_288_490_188,
+            },
+            "measurement_scope": (
+                "through_debug_publish_before_completion_artifact.v1"
+            ),
+            "excluded_operations": [
+                "completion_timing_artifact_publish",
+                "completion_progress_callback",
+            ],
+        },
+    )
+
+    report = run_benchmark_target(job, out=tmp_path / "bench")
+    metric = report.files[0]
+
+    assert metric.wall_time_seconds == 7.0
+    assert metric.timings["total"] == 7.0
+    assert metric.real_time_factor == 7.0 / 12.0
+    assert metric.resource_usage["rss_peak_sampled_bytes"] == 1_288_490_188
+    assert report.aggregate["mean_wall_time_seconds"] == 7.0
+    assert report.aggregate["max_rss_peak_sampled_bytes"] == 1_288_490_188
+    assert "completion_timing.json" in metric.artifact_counts["expected_present"]
+
+
+def test_benchmark_rejects_malformed_current_completion_timing(
+    tmp_path: Path,
+) -> None:
+    job = tmp_path / "job"
+    write_job(job)
+    metadata_sha256 = declare_completion_contract(job)
+    write_json(
+        job / "completion_timing.json",
+        {
+            "schema_version": "completion_timing.v1",
+            "run_metadata_sha256": metadata_sha256,
+            "pipeline_core_seconds": 6.0,
+            "observed_end_to_end_seconds": 7.0,
+            "real_time_factor": 7.0 / 12.0,
+            "stage_durations": {},
+            "resource_usage": {},
+            "measurement_scope": (
+                "through_debug_publish_before_completion_artifact.v1"
+            ),
+            "excluded_operations": [
+                "completion_timing_artifact_publish",
+                "completion_progress_callback",
+            ],
+        },
+    )
+
+    with pytest.raises(ValueError, match="run_metadata_preparation_and_publish"):
+        run_benchmark_target(job, out=tmp_path / "bench")
+
+
+def test_benchmark_rejects_completion_timing_bound_to_other_metadata(
+    tmp_path: Path,
+) -> None:
+    job = tmp_path / "job"
+    write_job(job)
+    declare_completion_contract(job)
+    write_json(
+        job / "completion_timing.json",
+        {
+            "schema_version": "completion_timing.v1",
+            "run_metadata_sha256": "f" * 64,
+            "pipeline_core_seconds": 6.0,
+            "observed_end_to_end_seconds": 7.0,
+            "real_time_factor": 7.0 / 12.0,
+            "stage_durations": {
+                "invocation_setup": 0.25,
+                "run_metadata_preparation_and_publish": 0.25,
+                "speaker_identity": 0.0,
+                "debug_report_publish": 0.0,
+            },
+            "resource_usage": {},
+            "measurement_scope": (
+                "through_debug_publish_before_completion_artifact.v1"
+            ),
+            "excluded_operations": [
+                "completion_timing_artifact_publish",
+                "completion_progress_callback",
+            ],
+        },
+    )
+
+    with pytest.raises(ValueError, match="does not match the bound"):
+        run_benchmark_target(job, out=tmp_path / "bench")
+
+
+def test_benchmark_rejects_missing_declared_completion_timing(
+    tmp_path: Path,
+) -> None:
+    job = tmp_path / "job"
+    write_job(job)
+    declare_completion_contract(job)
+
+    with pytest.raises(ValueError, match="declares a missing"):
+        run_benchmark_target(job, out=tmp_path / "bench")
+
+
+def test_completion_timing_rejects_nonfinite_evidence() -> None:
+    with pytest.raises(ValueError, match="finite number"):
+        CompletionTimingReport.model_validate(
+            {
+                "run_metadata_sha256": "a" * 64,
+                "pipeline_core_seconds": float("inf"),
+                "observed_end_to_end_seconds": float("inf"),
+                "real_time_factor": 0.5,
+                "stage_durations": {
+                    "invocation_setup": 0.0,
+                    "run_metadata_preparation_and_publish": 0.0,
+                    "speaker_identity": 0.0,
+                    "debug_report_publish": 0.0,
+                },
+            }
+        )
 
 
 def test_benchmark_compare_outputs_deltas_without_significance_claim(tmp_path: Path) -> None:

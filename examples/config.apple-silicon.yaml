@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+# Conservative native Apple Silicon production topology.
+# Supply the exact speaker count at the CLI with --num-speakers.
+# Every model directory must already exist locally; runtime downloads are disabled.
+preset: max
+model_cache: models
+offline: true
+audio:
+  normalize_loudness: false
+  denoise: off
+  separate_vocals: "off"
+asr:
+  backend: mlx-whisper
+  mlx_model: mlx-large-v3
+  mlx_model_path: models/mlx-community--whisper-large-v3-mlx
+  mlx_fp16: true
+  mlx_vad_windowed: false
+  vad_filter: false
+  word_timestamps: true
+  condition_on_previous_text: false
+diarization:
+  backend: pyannote
+  model: community-1
+  device: cpu
+  enabled: true
+  preserve_overlap: true
+  exclusive_diarization: true
+alignment:
+  backend: forced
+  language: en
+  model: en
+  device: cpu
+  enabled: true
+speaker_id:
+  mode: auto
+  model: ecapa
+  device: cpu
+redecode:
+  mode: off
+  max_spans: 5
+  pad_seconds: 1.0
+  beam_size: 5
+  temperature: 0.0
+  write_report: false
+cleanup:
+  mode: off
+runtime:
+  model_lifecycle: auto

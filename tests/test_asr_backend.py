@@ -18,9 +18,13 @@ from local_transcript_max.asr.faster_whisper_backend import (
 )
 from local_transcript_max.asr.mlx_whisper_backend import (
     MlxWhisperBackend,
+    merge_vad_regions,
     mlx_model_status,
+    prepare_mlx_model,
     resolve_mlx_model_path,
     segments_from_mlx_payload,
+    split_long_vad_window,
+    transcribe_vad_windows,
 )
 from local_transcript_max.config import load_config, resolve_model_entry
 from local_transcript_max.errors import BackendUnavailableError, ModelCacheError
@@ -213,7 +217,7 @@ def test_resolve_asr_threading_preserves_unset_and_positive_values() -> None:
 def test_mlx_model_path_validation_accepts_required_weight_alternatives(tmp_path: Path) -> None:
     config = load_config(cwd=tmp_path)
     config.asr.backend = "mlx-whisper"
-    entry = resolve_model_entry("asr-mlx", "mlx-large-v3-turbo")
+    entry = resolve_model_entry("asr-mlx", "mlx-large-v3")
     assert entry is not None
     model_dir = tmp_path / "models" / entry.directory_name
 
@@ -286,6 +290,176 @@ def test_mlx_payload_conversion_preserves_segments_and_words() -> None:
     assert segments[0].words[0].alignment_source == "whisper"
 
 
+def test_mlx_model_holder_reuses_matching_precision_and_resets_on_dtype_change(
+    tmp_path: Path,
+) -> None:
+    class FakeCore:
+        float16 = "float16"
+        float32 = "float32"
+
+    class FakeHolder:
+        model = None
+        model_path = None
+        load_count = 0
+
+        @classmethod
+        def get_model(cls, path: str, *, dtype: str):
+            if cls.model is None or cls.model_path != path:
+                cls.model = (path, dtype)
+                cls.model_path = path
+                cls.load_count += 1
+            return cls.model
+
+    path = tmp_path / "model"
+    first = prepare_mlx_model(
+        path,
+        fp16=True,
+        mlx_core=FakeCore,
+        model_holder=FakeHolder,
+    )
+    second = prepare_mlx_model(
+        path,
+        fp16=True,
+        mlx_core=FakeCore,
+        model_holder=FakeHolder,
+    )
+    third = prepare_mlx_model(
+        path,
+        fp16=False,
+        mlx_core=FakeCore,
+        model_holder=FakeHolder,
+    )
+
+    assert first["cold_start"] is True
+    assert second["cold_start"] is False
+    assert third["cold_start"] is True
+    assert FakeHolder.load_count == 2
+    assert FakeHolder.model == (str(path), "float32")
+
+
+def test_mlx_model_holder_reloads_existing_unbound_precision(
+    tmp_path: Path,
+) -> None:
+    class FakeCore:
+        float16 = "float16"
+        float32 = "float32"
+
+    class FakeHolder:
+        model = ("previous", "float32")
+        model_path = str(tmp_path / "model")
+        load_count = 0
+
+        @classmethod
+        def get_model(cls, path: str, *, dtype: str):
+            if cls.model is None or cls.model_path != path:
+                cls.model = (path, dtype)
+                cls.model_path = path
+                cls.load_count += 1
+            return cls.model
+
+    path = tmp_path / "model"
+    evidence = prepare_mlx_model(
+        path,
+        fp16=True,
+        mlx_core=FakeCore,
+        model_holder=FakeHolder,
+    )
+
+    assert evidence["cold_start"] is True
+    assert FakeHolder.load_count == 1
+    assert FakeHolder.model == (str(path), "float16")
+
+
+def test_single_long_vad_region_is_bounded() -> None:
+    pieces = split_long_vad_window(
+        {"start": 0.0, "end": 75.0},
+        window_seconds=30.0,
+    )
+
+    assert pieces == [
+        {
+            "start": 0.0,
+            "end": 30.0,
+            "ownership_start": 0.0,
+            "ownership_end": 29.0,
+            "boundary_context_seconds": 1.0,
+        },
+        {
+            "start": 28.0,
+            "end": 58.0,
+            "ownership_start": 29.0,
+            "ownership_end": 57.0,
+            "boundary_context_seconds": 1.0,
+        },
+        {
+            "start": 56.0,
+            "end": 75.0,
+            "ownership_start": 57.0,
+            "ownership_end": 75.0,
+            "boundary_context_seconds": 1.0,
+        },
+    ]
+
+
+def test_vad_window_minimum_prevents_rounded_ownership_collapse() -> None:
+    with pytest.raises(BackendUnavailableError, match="at least 1 second"):
+        split_long_vad_window(
+            {"start": 0.0, "end": 1.0},
+            window_seconds=0.5,
+        )
+
+    pieces = merge_vad_regions(
+        [VADRegion(start=0.0, end=5.001, source="test")],
+        window_seconds=1.0,
+        padding_seconds=0.0,
+        audio_duration_seconds=5.001,
+    )
+
+    assert all(
+        piece["ownership_end"] > piece["ownership_start"]
+        for piece in pieces
+    )
+    assert all(
+        previous["ownership_end"] == following["ownership_start"]
+        for previous, following in zip(pieces, pieces[1:], strict=False)
+    )
+
+
+def test_padded_vad_regions_use_overlap_but_nonoverlapping_ownership() -> None:
+    windows = merge_vad_regions(
+        [
+            VADRegion(start=1.0, end=20.0, source="test"),
+            VADRegion(start=20.0, end=40.0, source="test"),
+        ],
+        window_seconds=30.0,
+        padding_seconds=1.0,
+        audio_duration_seconds=60.0,
+    )
+
+    assert windows == [
+        {
+            "start": 0.0,
+            "end": 30.0,
+            "ownership_start": 0.0,
+            "ownership_end": 29.0,
+            "boundary_context_seconds": 1.0,
+        },
+        {
+            "start": 28.0,
+            "end": 41.0,
+            "ownership_start": 29.0,
+            "ownership_end": 41.0,
+            "boundary_context_seconds": 1.0,
+        },
+    ]
+    assert all(
+        previous["ownership_end"] <= following["ownership_start"]
+        for previous, following in zip(windows, windows[1:], strict=False)
+    )
+    assert windows[0]["end"] > windows[1]["start"]
+    assert all(window["end"] - window["start"] <= 30.0 for window in windows)
+
+
 def test_mlx_backend_uses_local_path_and_never_repo_id(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -294,7 +468,7 @@ def test_mlx_backend_uses_local_path_and_never_repo_id(
     config.asr.backend = "mlx-whisper"
     config.asr.language = "en"
     config.asr.mlx_fp16 = False
-    entry = resolve_model_entry("asr-mlx", "mlx-large-v3-turbo")
+    entry = resolve_model_entry("asr-mlx", "mlx-large-v3")
     assert entry is not None
     model_dir = tmp_path / "models" / entry.directory_name
     model_dir.mkdir(parents=True)
@@ -339,6 +513,9 @@ def test_mlx_backend_uses_local_path_and_never_repo_id(
     assert "beam_size" not in kwargs
     assert result.model is not None
     assert result.model.role == "asr-mlx"
+    assert result.model.revision is None
+    assert result.model.revision_verified is False
+    assert result.model.checkpoint_sha256 is not None
     assert result.config["backend"] == "mlx-whisper"
     assert result.config["runtime_downloads_disabled"] is True
     assert "mlx_beam_search_unsupported" in result.warnings
@@ -353,8 +530,8 @@ def test_mlx_backend_vad_windowed_offsets_chunk_timestamps(
     config.asr.backend = "mlx-whisper"
     config.asr.language = "en"
     config.asr.mlx_vad_windowed = True
-    config.asr.mlx_vad_window_seconds = 0.6
-    entry = resolve_model_entry("asr-mlx", "mlx-large-v3-turbo")
+    config.asr.mlx_vad_window_seconds = 1.0
+    entry = resolve_model_entry("asr-mlx", "mlx-large-v3")
     assert entry is not None
     model_dir = tmp_path / "models" / entry.directory_name
     model_dir.mkdir(parents=True)
@@ -421,6 +598,75 @@ def test_mlx_backend_vad_windowed_offsets_chunk_timestamps(
     assert fallback.config["inference_mode"] == "mlx"
     assert fallback.config["vad_window_count"] == 0
     assert "mlx_vad_windowed_no_regions_fell_back_full" in fallback.warnings
+
+
+def test_vad_context_preserves_boundary_word_without_duplicate_emission(
+    tmp_path: Path,
+) -> None:
+    audio_path = tmp_path / "audio.wav"
+    write_silent_wav(audio_path, duration_seconds=4.0)
+
+    class FakeMlxWhisper:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def transcribe(self, audio, **kwargs):
+            del audio, kwargs
+            self.calls += 1
+            if self.calls == 1:
+                word_start, word_end = 1.4, 1.6
+            elif self.calls == 2:
+                word_start, word_end = 0.4, 0.6
+            else:
+                return {"language": "en", "segments": []}
+            return {
+                "language": "en",
+                "segments": [
+                    {
+                        "id": self.calls,
+                        "start": word_start,
+                        "end": word_end,
+                        "text": "boundary",
+                        "words": [
+                            {
+                                "word": " boundary",
+                                "start": word_start,
+                                "end": word_end,
+                                "probability": 0.9,
+                            }
+                        ],
+                    }
+                ],
+            }
+
+    fake = FakeMlxWhisper()
+    payload, warnings = transcribe_vad_windows(
+        fake,
+        audio_path,
+        {},
+        [VADRegion(start=0.0, end=4.0, source="test")],
+        window_seconds=2.0,
+        padding_seconds=0.0,
+    )
+
+    assert warnings == []
+    assert fake.calls == 3
+    assert len(payload["segments"]) == 1
+    assert payload["segments"][0]["text"] == "boundary"
+    assert payload["segments"][0]["start"] == pytest.approx(1.4)
+    assert payload["segments"][0]["end"] == pytest.approx(1.6)
+    assert payload["vad_window_qa"] == {
+        "ownership_intervals_non_overlapping": True,
+        "context_words_not_emitted": 1,
+        "emitted_segment_count": 1,
+        "whole_file_comparison_performed": False,
+    }
+    assert payload["vad_provenance"] == {
+        "sources": ["test"],
+        "window_seconds": 2.0,
+        "region_padding_seconds": 0.0,
+        "internal_boundary_context_seconds": 0.5,
+    }
 
 
 def write_silent_wav(path: Path, *, duration_seconds: float, sample_rate: int = 16000) -> None:

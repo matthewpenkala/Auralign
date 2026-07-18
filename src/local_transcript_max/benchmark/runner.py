@@ -16,8 +16,18 @@ from pathlib import Path
 from typing import Any
 
 from local_transcript_max.export.json_export import write_json_artifact
-from local_transcript_max.schemas import BenchmarkFileMetric, BenchmarkReport, Transcript
-from local_transcript_max.utils import atomic_text_write, atomic_text_writer, read_json
+from local_transcript_max.schemas import (
+    BenchmarkFileMetric,
+    BenchmarkReport,
+    CompletionTimingReport,
+    Transcript,
+)
+from local_transcript_max.utils import (
+    atomic_text_write,
+    atomic_text_writer,
+    read_json,
+    sha256_file,
+)
 
 from .der import score_rttm
 from .report import render_benchmark_markdown
@@ -128,7 +138,10 @@ def benchmark_job(
     metadata = (
         read_json(job_dir / "run_metadata.json") if (job_dir / "run_metadata.json").exists() else {}
     )
+    completion = completion_timing(job_dir, metadata)
     timing_map = timings(metadata)
+    if completion is not None:
+        timing_map["total"] = completion.observed_end_to_end_seconds
     audio_duration = audio_duration_seconds(metadata)
     hyp_rttm = job_dir / "transcript.rttm"
     der_result = score_rttm(reference_rttm, hyp_rttm)
@@ -147,14 +160,53 @@ def benchmark_job(
         overlap_span_count=len(qa.get("summary", {}).get("overlap_spans", []))
         if isinstance(qa, dict)
         else None,
-        real_time_factor=metadata.get("real_time_factor") if isinstance(metadata, dict) else None,
-        resource_usage=resource_usage(metadata),
+        real_time_factor=(
+            completion.real_time_factor
+            if completion is not None
+            else metadata.get("real_time_factor")
+        ),
+        resource_usage=(
+            dict(completion.resource_usage)
+            if completion is not None
+            else resource_usage(metadata)
+        ),
         model_device_compute=model_device_compute(metadata),
         timings=timing_map,
         artifact_counts=artifact_counts(job_dir),
         audio_preprocessing=audio_preprocessing(metadata, job_dir),
         quality_checks=quality_checks(transcript, job_dir, audio_duration),
     )
+
+
+def completion_timing(
+    job_dir: Path,
+    metadata: dict[str, Any],
+) -> CompletionTimingReport | None:
+    """Load current completion evidence; absent legacy artifacts remain supported."""
+
+    path = job_dir / "completion_timing.json"
+    declares_completion = "completion_timing_artifact" in metadata
+    if not path.exists():
+        if declares_completion:
+            raise ValueError(
+                "current run_metadata.json declares a missing completion_timing.json"
+            )
+        return None
+    if metadata.get("completion_timing_artifact") != "completion_timing.json":
+        raise ValueError(
+            "completion_timing.json requires a matching current run metadata contract"
+        )
+    report = CompletionTimingReport.model_validate(read_json(path))
+    metadata_path = job_dir / "run_metadata.json"
+    if not metadata_path.is_file():
+        raise ValueError(
+            "completion_timing.json requires the bound run_metadata.json"
+        )
+    if report.run_metadata_sha256 != sha256_file(metadata_path):
+        raise ValueError(
+            "completion_timing.json does not match the bound run_metadata.json"
+        )
+    return report
 
 
 def hypothesis_text(job_dir: Path) -> str:
@@ -322,6 +374,7 @@ def artifact_counts(job_dir: Path) -> dict[str, Any]:
         "diarization.json",
         "qa_report.json",
         "run_metadata.json",
+        "completion_timing.json",
     ]
     present = [name for name in expected if (job_dir / name).exists()]
     return {

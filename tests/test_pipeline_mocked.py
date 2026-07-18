@@ -5,6 +5,7 @@
 import math
 import os
 import stat
+import time
 import wave
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from local_transcript_max.schemas import (
     ASRSegment,
     DiarizationResult,
     DiarizationTurn,
+    StageTiming,
 )
 from local_transcript_max.utils import read_json, sha256_file
 
@@ -28,6 +30,7 @@ from local_transcript_max.utils import read_json, sha256_file
 def mocked_config(tmp_path: Path):
     config = load_config(cwd=tmp_path)
     config.speaker_id.mode = "off"
+    config.alignment.backend = "fallback"
     return config
 
 
@@ -51,6 +54,33 @@ class MockASR:
             language="en",
             raw={"segments": [{"text": "hello world"}]},
         )
+
+
+def test_detailed_backend_timings_preserve_asr_backend_scope() -> None:
+    rows = pipeline_module.detailed_backend_timings(
+        asr_result=ASRResult(
+            segments=[],
+            config={
+                "timing": {
+                    "model_load_seconds": 1.25,
+                    "inference_seconds": 2.5,
+                }
+            },
+            timing=StageTiming(name="asr", duration_seconds=4.0),
+        ),
+        alignment=pipeline_module.AlignmentOutcome(
+            words=[],
+            backend="test",
+            warnings=[],
+        ),
+        diarization_result=DiarizationResult(turns=[]),
+    )
+
+    assert {row.name: row.duration_seconds for row in rows} == {
+        "asr_backend_total": 4.0,
+        "asr_model_load": 1.25,
+        "asr_inference": 2.5,
+    }
 
 
 class FragmentASR(MockASR):
@@ -272,6 +302,7 @@ def test_mocked_pipeline_writes_phase1_artifacts(tmp_path: Path) -> None:
         "words.csv",
         "qa_report.json",
         "run_metadata.json",
+        "completion_timing.json",
     }
     assert expected_artifacts.issubset({path.name for path in out_dir.iterdir()})
     assert read_json(out_dir / "transcript.raw.json")["raw"]["segments"][0]["text"] == "hello world"
@@ -280,6 +311,21 @@ def test_mocked_pipeline_writes_phase1_artifacts(tmp_path: Path) -> None:
     assert read_json(out_dir / "run_metadata.json")["asr_backend"] == "mock-asr"
     run_metadata = read_json(out_dir / "run_metadata.json")
     assert run_metadata["input_file_hash"] == sha256_file(input_path)
+    assert len(run_metadata["source_config_sha256"]) == 64
+    assert (
+        run_metadata["source_config_sha256_scope"]
+        == "complete_runtime_configuration.v1"
+    )
+    assert (
+        run_metadata["source_configuration_schema"]
+        == "privacy_safe_configuration.v1"
+    )
+    assert run_metadata["source_configuration"]["model_cache"] == {
+        "configured": True,
+        "kind": "local_path",
+    }
+    assert run_metadata["source_configuration"]["asr"]["device"] == "auto"
+    assert run_metadata["code_revision"]
     assert run_metadata["alignment_backend"] == "whisper-word-timestamps"
     alignment_report = read_json(out_dir / "alignment_report.json")
     assert alignment_report["backend"] == "whisper-word-timestamps"
@@ -288,6 +334,7 @@ def test_mocked_pipeline_writes_phase1_artifacts(tmp_path: Path) -> None:
     assert run_metadata["alignment_device"] is None
     assert run_metadata["diarization_requested_device"] == "auto"
     assert run_metadata["diarization_resolved_device"] == "auto"
+    assert run_metadata["diarization_actual_device"] == "auto"
     assert run_metadata["diarization_device_fallback"] is False
     assert run_metadata["diarization_warnings"] == []
     assert run_metadata["asr_cpu_threads"] == 8
@@ -301,6 +348,90 @@ def test_mocked_pipeline_writes_phase1_artifacts(tmp_path: Path) -> None:
     assert asr_device_compute["effective_num_workers"] == 2
     assert run_metadata["resource_usage"]["sample_count"] >= 1
     assert "rss_peak_sampled_bytes" in run_metadata["resource_usage"]
+    assert run_metadata["resource_usage"]["stage_samples"]
+    assert run_metadata["device_policy"]["asr"]["requested_device"] == "auto"
+    timing_names = {timing["name"] for timing in run_metadata["timings"]}
+    assert {
+        "preflight",
+        "media_probe",
+        "audio_preprocessing",
+        "vad",
+        "asr",
+        "alignment",
+        "speaker_assignment",
+        "qa",
+        "serialization",
+        "pipeline_core",
+    }.issubset(timing_names)
+    completion_timing = read_json(out_dir / "completion_timing.json")
+    assert completion_timing["schema_version"] == "completion_timing.v1"
+    assert completion_timing["run_metadata_sha256"] == sha256_file(
+        out_dir / "run_metadata.json"
+    )
+    assert (
+        completion_timing["observed_end_to_end_seconds"]
+        >= completion_timing["pipeline_core_seconds"]
+    )
+    assert completion_timing["stage_durations"]["invocation_setup"] >= 0
+    assert completion_timing["resource_usage"]["stage_samples"][-1]["stage"] == (
+        "pipeline_end_to_end_complete"
+    )
+
+
+def test_completion_timing_includes_model_audit_preflight(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    input_path = tmp_path / "sample.wav"
+    out_dir = tmp_path / "out"
+    write_tiny_wav(input_path)
+    config = mocked_config(tmp_path)
+    original = pipeline_module.base_debug_report
+
+    def delayed_debug_report(*args, **kwargs):
+        time.sleep(0.03)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        pipeline_module,
+        "base_debug_report",
+        delayed_debug_report,
+    )
+
+    transcribe_file(
+        input_path,
+        out_dir,
+        config,
+        asr_backend=MockASR(),
+        diarization_backend=MockDiarization(),
+        precheck_models=False,
+    )
+
+    completion = read_json(out_dir / "completion_timing.json")
+    assert completion["pipeline_core_seconds"] >= 0.025
+    assert completion["observed_end_to_end_seconds"] >= 0.025
+
+
+def test_pipeline_runtime_policy_cannot_be_bypassed_with_model_precheck_off(
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / "sample.wav"
+    out_dir = tmp_path / "out"
+    write_tiny_wav(input_path)
+    config = mocked_config(tmp_path)
+    config.alignment.backend = "forced"
+    config.alignment.device = "mps"
+    config.alignment.allow_experimental_mps = False
+
+    with pytest.raises(LTMError, match="alignment_mps_approval_required"):
+        transcribe_file(
+            input_path,
+            out_dir,
+            config,
+            asr_backend=MockASR(),
+            diarization_backend=MockDiarization(),
+            precheck_models=False,
+        )
 
 
 def test_pipeline_fails_closed_when_input_changes_during_processing(tmp_path: Path) -> None:
@@ -567,6 +698,46 @@ def test_mocked_pipeline_records_mlx_runtime_metadata(tmp_path: Path) -> None:
     asr_device_compute = run_metadata["runtime_environment"]["asr_device_compute"]
     assert asr_device_compute["backend"] == "mlx-whisper"
     assert asr_device_compute["runtime_downloads_disabled"] is True
+
+
+def test_pipeline_per_job_lifecycle_records_explicit_release(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_path = tmp_path / "sample.wav"
+    out_dir = tmp_path / "out"
+    write_tiny_wav(input_path)
+    config = mocked_config(tmp_path)
+    config.runtime.model_lifecycle = "per-job"
+    released: list[tuple[object | None, ...]] = []
+
+    def fake_release(backends):
+        released.append(tuple(backends))
+        return {
+            "policy": "per-job",
+            "released_backends": ["MockASR", "MockDiarization"],
+            "cleanup_performed": True,
+        }
+
+    monkeypatch.setattr(pipeline_module, "release_runtime_models", fake_release)
+    asr = MockASR()
+    diarization = MockDiarization()
+
+    transcribe_file(
+        input_path,
+        out_dir,
+        config,
+        asr_backend=asr,
+        diarization_backend=diarization,
+        precheck_models=False,
+    )
+
+    metadata = read_json(out_dir / "run_metadata.json")
+    assert len(released) == 1
+    assert released[0][0] is asr
+    assert released[0][2] is diarization
+    assert metadata["resource_usage"]["model_lifecycle"]["policy"] == "per-job"
+    assert any(row["name"] == "model_release" for row in metadata["timings"])
 
 
 def test_pipeline_emits_diarization_subprogress_when_backend_supports_it(tmp_path: Path) -> None:

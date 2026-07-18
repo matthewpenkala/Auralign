@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import importlib.util
+import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -14,6 +15,7 @@ from local_transcript_max.config import PipelineConfig, resolve_model_entry
 from local_transcript_max.errors import BackendUnavailableError
 from local_transcript_max.models import status_for
 from local_transcript_max.runtime_assets import verify_generated_punkt
+from local_transcript_max.runtime_policy import resolve_runtime_policy
 from local_transcript_max.schemas import AlignedWord, ASRResult
 
 
@@ -24,6 +26,18 @@ class WhisperXForcedAlignment:
         self.last_device: str | None = None
         self.last_model_name: str | None = None
         self.last_model_path: str | None = None
+        self.last_model_load_seconds: float | None = None
+        self.last_inference_seconds: float | None = None
+        self.last_cold_start: bool | None = None
+        self.last_expected_segment_count: int = 0
+        self.last_aligned_segment_count: int = 0
+        self.last_missing_segment_count: int = 0
+        self._model_cache: dict[tuple[str, str, str], tuple[Any, dict[str, Any]]] = {}
+
+    def clear_runtime_cache(self) -> None:
+        """Release cached alignment models for explicit per-job lifecycle."""
+
+        self._model_cache.clear()
 
     def align(
         self, audio_path: Path, asr_result: ASRResult, config: PipelineConfig
@@ -42,25 +56,40 @@ class WhisperXForcedAlignment:
             )
         import whisperx
 
-        device = _alignment_device(config.alignment.device or config.asr.device)
+        decision = resolve_runtime_policy(config).alignment
+        device = decision.resolved_device or _alignment_device(
+            config.alignment.device or "auto"
+        )
         self.last_device = device
+        model_key = (language, device, model_name)
+        load_started = time.perf_counter()
         try:
-            model, metadata = whisperx.load_align_model(
-                language_code=language,
-                device=device,
-                model_name=model_name,
-                model_dir=str(config.model_cache.expanduser()),
-                model_cache_only=True,
-            )
+            cached = self._model_cache.get(model_key)
+            if cached is None:
+                model, metadata = whisperx.load_align_model(
+                    language_code=language,
+                    device=device,
+                    model_name=model_name,
+                    model_dir=str(config.model_cache.expanduser()),
+                    model_cache_only=True,
+                )
+                self._model_cache[model_key] = (model, metadata)
+                self.last_cold_start = True
+            else:
+                model, metadata = cached
+                self.last_cold_start = False
         except Exception as exc:  # pragma: no cover - dependency/model specific
             raise BackendUnavailableError(
                 f"WhisperX alignment model unavailable for language '{language}': {exc}"
             ) from exc
+        self.last_model_load_seconds = time.perf_counter() - load_started
         segments = [
             {"start": segment.start, "end": segment.end, "text": segment.text}
             for segment in asr_result.segments
             if segment.text.strip()
         ]
+        self.last_expected_segment_count = len(segments)
+        inference_started = time.perf_counter()
         try:
             aligned = whisperx.align(
                 segments,
@@ -72,7 +101,10 @@ class WhisperXForcedAlignment:
             )
         except Exception as exc:  # pragma: no cover - dependency/model specific
             raise BackendUnavailableError(f"WhisperX alignment failed: {exc}") from exc
-        words = _words_from_whisperx(aligned)
+        self.last_inference_seconds = time.perf_counter() - inference_started
+        words, coverage = _words_from_whisperx(aligned, expected_segments=segments)
+        self.last_aligned_segment_count = coverage["aligned_segment_count"]
+        self.last_missing_segment_count = coverage["missing_segment_count"]
         if not words:
             raise BackendUnavailableError("WhisperX alignment returned no word timestamps.")
         return words
@@ -144,12 +176,22 @@ def _validate_local_alignment_path(path: Path) -> None:
         )
 
 
-def _words_from_whisperx(payload: dict[str, Any]) -> list[AlignedWord]:
+def _words_from_whisperx(
+    payload: dict[str, Any],
+    *,
+    expected_segments: list[dict[str, Any]] | None = None,
+) -> tuple[list[AlignedWord], dict[str, int]]:
     words: list[AlignedWord] = []
-    for segment in payload.get("segments", []):
+    raw_segments = payload.get("segments", [])
+    aligned_segments = raw_segments if isinstance(raw_segments, list) else []
+    aligned_segment_count = 0
+    missing_segment_count = 0
+    for segment_index, segment in enumerate(aligned_segments):
         if not isinstance(segment, dict):
             continue
-        for word in segment.get("words", []):
+        segment_words = segment.get("words", [])
+        segment_word_count = 0
+        for word in segment_words if isinstance(segment_words, list) else []:
             if not isinstance(word, dict):
                 continue
             text = str(word.get("word") or "").strip()
@@ -172,7 +214,44 @@ def _words_from_whisperx(payload: dict[str, Any]) -> list[AlignedWord]:
                     warnings=warnings,
                 )
             )
-    return words
+            segment_word_count += 1
+        if segment_word_count:
+            aligned_segment_count += 1
+        elif _segment_requires_alignment(expected_segments, segment_index):
+            missing_segment_count += 1
+            assert expected_segments is not None
+            words.append(_missing_segment_word(expected_segments, segment_index))
+    if expected_segments:
+        for segment_index in range(len(aligned_segments), len(expected_segments)):
+            if _segment_requires_alignment(expected_segments, segment_index):
+                missing_segment_count += 1
+                words.append(_missing_segment_word(expected_segments, segment_index))
+    return words, {
+        "expected_segment_count": len(expected_segments or []),
+        "aligned_segment_count": aligned_segment_count,
+        "missing_segment_count": missing_segment_count,
+    }
+
+
+def _segment_requires_alignment(
+    expected_segments: list[dict[str, Any]] | None,
+    segment_index: int,
+) -> bool:
+    if expected_segments is None or segment_index >= len(expected_segments):
+        return False
+    text = str(expected_segments[segment_index].get("text") or "")
+    return any(character.isalnum() for character in text)
+
+
+def _missing_segment_word(
+    expected_segments: list[dict[str, Any]],
+    segment_index: int,
+) -> AlignedWord:
+    return AlignedWord(
+        text=str(expected_segments[segment_index].get("text") or "").strip(),
+        alignment_source="missing",
+        warnings=["forced_alignment_missing_segment"],
+    )
 
 
 def _optional_float(value: object) -> float | None:

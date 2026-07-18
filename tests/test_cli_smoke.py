@@ -38,6 +38,122 @@ def test_doctor_suppresses_unredacted_dependency_stderr(monkeypatch) -> None:
     assert str(private_path) not in result.output
 
 
+def test_doctor_json_emits_machine_readable_environment(monkeypatch) -> None:
+    private_path = Path.home() / "private" / "models"
+    secret = "hf_" + "abcdefghijklmnopqrstuvwxyz"
+    report = DoctorReport(
+        ok=True,
+        offline=True,
+        environment={
+            "host_capabilities": {"is_native_apple_silicon": True},
+            "model_cache": str(private_path),
+            "credentials": {"token": secret},
+        },
+    )
+    report.add(
+        "model_startup",
+        "error",
+        f"failed at {private_path}/model.bin; HF_TOKEN={secret}",
+    )
+    monkeypatch.setattr("local_transcript_max.cli.run_doctor", lambda *_args, **_kwargs: report)
+
+    result = CliRunner().invoke(app, ["doctor", "--json"])
+
+    assert result.exit_code == 0
+    payload = __import__("json").loads(result.stdout)
+    assert payload["environment"]["host_capabilities"]["is_native_apple_silicon"] is True
+    assert payload["environment"]["model_cache"] == "<local-path>"
+    assert payload["environment"]["credentials"] == "<redacted>"
+    assert str(private_path) not in result.stdout
+    assert secret not in result.stdout
+    assert "<local-path>" in payload["checks"][0]["message"]
+    assert "<redacted>" in payload["checks"][0]["message"]
+
+
+def test_apple_silicon_canary_cli_builds_dry_run_request(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from local_transcript_max.benchmark import apple_silicon_runner
+
+    captured = {}
+
+    class FakeResult:
+        def model_dump_json(self, *, indent):
+            assert indent == 2
+            return '{"status":"planned"}'
+
+    def fake_run(request):
+        captured["request"] = request
+        return FakeResult()
+
+    monkeypatch.setattr(apple_silicon_runner, "run_apple_silicon_canary", fake_run)
+    result = CliRunner().invoke(
+        app,
+        [
+            "apple-silicon-canary",
+            str(tmp_path / "not-required-for-dry-run.wav"),
+            "--num-speakers",
+            "4",
+            "--out",
+            str(tmp_path / "not-created"),
+            "--warmup-runs",
+            "2",
+            "--measured-runs",
+            "4",
+            "--minimum-diarization-speedup-ratio",
+            "0.12",
+            "--maximum-total-time-regression-ratio",
+            "0.03",
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0
+    request = captured["request"]
+    assert request.speaker_count == 4
+    assert request.options.dry_run is True
+    assert request.options.warmup_runs == 2
+    assert request.options.measured_runs == 4
+    assert request.options.policy.minimum_diarization_speedup_ratio == 0.12
+    assert request.options.policy.maximum_total_time_regression_ratio == 0.03
+    assert not (tmp_path / "not-created").exists()
+
+
+def test_apple_silicon_canary_cli_redacts_unexpected_errors(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from local_transcript_max.benchmark import apple_silicon_runner
+
+    private_path = tmp_path / "private-person" / "input.wav"
+    secret = "hf_" + "abcdefghijklmnopqrstuvwxyz"
+
+    def fail(_request):
+        raise PermissionError(f"failed at {private_path}; HF_TOKEN={secret}")
+
+    monkeypatch.setattr(apple_silicon_runner, "run_apple_silicon_canary", fail)
+    result = CliRunner().invoke(
+        app,
+        [
+            "apple-silicon-canary",
+            str(private_path),
+            "--num-speakers",
+            "4",
+            "--out",
+            str(tmp_path / "not-created"),
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "PermissionError" in result.stderr
+    assert str(private_path) not in result.stderr
+    assert secret not in result.stderr
+    assert "<local-path>" in result.stderr
+    assert "<redacted>" in result.stderr
+
+
 def test_models_dry_run() -> None:
     result = CliRunner().invoke(
         app, ["models", "pull", "--asr", "large-v3", "--cache-dir", "models", "--dry-run"]
@@ -208,6 +324,67 @@ def test_transcribe_config_file_values_survive_cli_defaults(tmp_path, monkeypatc
     assert config.redecode.mode == "hallucination"
     assert config.speaker_id.mode == "auto"
     assert config.cleanup.endpoint == "http://127.0.0.1:9999/v1"
+
+
+def test_transcribe_fast_preset_keeps_fallback_alignment_default(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    captured = {}
+
+    def fake_transcribe_file(input_file, out_dir, config, debug_report_path=None):
+        captured["config"] = config
+        return Transcript(input_path=str(input_file))
+
+    monkeypatch.setattr("local_transcript_max.cli.transcribe_file", fake_transcribe_file)
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(
+        app,
+        ["transcribe", str(audio_path), "--preset", "fast"],
+    )
+
+    assert result.exit_code == 0
+    assert captured["config"].alignment.backend == "fallback"
+
+
+def test_transcribe_explicit_offline_cache_and_asr_device_flags(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    captured = {}
+
+    def fake_transcribe_file(input_file, out_dir, config, debug_report_path=None):
+        captured["config"] = config
+        return Transcript(input_path=str(input_file))
+
+    monkeypatch.setattr("local_transcript_max.cli.transcribe_file", fake_transcribe_file)
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+    cache = tmp_path / "local-models"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--offline",
+            "--model-cache",
+            str(cache),
+            "--asr-device",
+            "cpu",
+            "--model-lifecycle",
+            "per-job",
+        ],
+    )
+
+    assert result.exit_code == 0
+    config = captured["config"]
+    assert config.offline is True
+    assert config.model_cache == cache
+    assert config.asr.device == "cpu"
+    assert config.runtime.model_lifecycle == "per-job"
 
 
 def test_speaker_enrollment_does_not_expose_test_fallback_option() -> None:

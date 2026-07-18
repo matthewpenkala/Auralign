@@ -32,10 +32,12 @@ from .config import (
     resolve_model_entry,
 )
 from .datasets import DEFAULT_DATASET_PROFILE, dataset_budget_plan, default_dataset_cache
+from .diagnostics import runtime_environment
 from .errors import BackendUnavailableError
 from .models import shareable_model_path, status_for
 from .redaction import privacy_safe_text
 from .runtime_assets import configure_offline_environment, punkt_data_root
+from .runtime_policy import resolve_runtime_policy
 from .utils import run_command, which
 
 MIN_SUPPORTED_PYTHON = (3, 11)
@@ -91,6 +93,7 @@ class DoctorReport(BaseModel):
     ok: bool
     offline: bool
     checks: list[DoctorCheck] = Field(default_factory=list)
+    environment: dict[str, Any] = Field(default_factory=dict)
 
     def add(self, name: str, status: str, message: str) -> None:
         self.checks.append(DoctorCheck(name=name, status=status, message=message))
@@ -137,7 +140,8 @@ def run_doctor(
 ) -> DoctorReport:
     if config.offline:
         configure_offline_environment(nltk_data=punkt_data_root(config.model_cache))
-    report = DoctorReport(ok=True, offline=config.offline)
+    environment = runtime_environment(config)
+    report = DoctorReport(ok=True, offline=config.offline, environment=environment)
 
     python_version = (sys.version_info.major, sys.version_info.minor)
     py_ok = _python_supported(python_version)
@@ -188,6 +192,79 @@ def run_doctor(
         "info",
         f"{platform.system()} {platform.release()} machine={platform.machine()}",
     )
+    host = environment.get("host_capabilities", {})
+    if isinstance(host, dict) and host.get("is_apple_silicon"):
+        if host.get("is_rosetta"):
+            report.add(
+                "apple_silicon_native_runtime",
+                "error",
+                "Apple Silicon host is running translated Python under Rosetta; "
+                "install and run native arm64 Python.",
+            )
+            report.ok = False
+        else:
+            report.add(
+                "apple_silicon_native_runtime",
+                "ok",
+                "native_arm64=true rosetta=false",
+            )
+    elif platform.system() == "Darwin":
+        report.add(
+            "apple_silicon_native_runtime",
+            "info",
+            "Intel macOS host; MLX Apple Silicon topology is unavailable.",
+        )
+
+    for binary in ("ffmpeg", "ffprobe"):
+        architecture = environment.get(f"{binary}_architecture", {})
+        if not isinstance(architecture, dict):
+            continue
+        suitable = architecture.get("suitable_for_host")
+        status = "ok" if suitable is True else "error" if suitable is False else "info"
+        report.add(
+            f"{binary}_architecture",
+            status,
+            "suitable_for_host="
+            f"{suitable} description={architecture.get('description') or 'unavailable'}",
+        )
+        if suitable is False:
+            report.ok = False
+    report.add(
+        "physical_memory",
+        "info",
+        f"bytes={environment.get('physical_memory_bytes') or 'unavailable'}",
+    )
+    power = environment.get("power", {})
+    if isinstance(power, dict) and power.get("available"):
+        report.add(
+            "power_state",
+            "info",
+            "source="
+            f"{power.get('source') or 'unknown'} "
+            f"battery_percent={power.get('battery_percent')} "
+            f"low_power_mode={power.get('low_power_mode')}",
+        )
+
+    policy = resolve_runtime_policy(config)
+    for role, decision in (
+        ("asr", policy.asr),
+        ("alignment", policy.alignment),
+        ("diarization", policy.diarization),
+    ):
+        report.add(
+            f"device_policy:{role}",
+            "error" if decision.issues else "warning" if decision.warnings else "ok",
+            "requested_backend="
+            f"{decision.requested_backend} resolved_backend={decision.resolved_backend} "
+            f"requested_device={decision.requested_device} "
+            f"resolved_device={decision.resolved_device} "
+            f"experimental={decision.experimental}",
+        )
+    for issue in policy.issues:
+        report.add("device_policy_issue", "error", issue)
+        report.ok = False
+    for warning in policy.warnings:
+        report.add("device_policy_warning", "warning", warning)
     private_artifact_warning = private_benchmark_artifact_warning(Path.cwd())
     if private_artifact_warning:
         report.add("private_benchmark_artifacts", "warning", private_artifact_warning)

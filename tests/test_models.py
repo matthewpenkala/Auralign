@@ -19,6 +19,7 @@ from local_transcript_max.models import (
     audit_payload,
     ensure_pull_preconditions,
     import_mlx_model,
+    model_checkpoint_sha256,
     model_manifest_digest,
     model_provenance_payload,
     preflight_runtime_preparation,
@@ -511,11 +512,29 @@ def test_import_mlx_model_copies_valid_local_directory(tmp_path: Path) -> None:
     status = import_mlx_model(source, cache_dir)
 
     assert status.present is True
-    assert status.path == cache_dir / "mlx-community--whisper-large-v3-turbo"
+    assert status.path == cache_dir / "mlx-community--whisper-large-v3-mlx"
     assert (status.path / "config.json").exists()
     assert (status.path / "weights.npz").exists()
     with pytest.raises(ModelCacheError, match="Destination already exists"):
         import_mlx_model(source, cache_dir)
+
+
+def test_manual_mlx_checkpoint_hash_binds_exact_local_content(tmp_path: Path) -> None:
+    entry = resolve_model_entry("asr-mlx", "mlx-large-v3")
+    assert entry is not None
+    model_dir = tmp_path / entry.directory_name
+    model_dir.mkdir()
+    (model_dir / "config.json").write_text("{}", encoding="utf-8")
+    weights = model_dir / "weights.npz"
+    weights.write_bytes(b"first checkpoint")
+
+    first = model_checkpoint_sha256(entry, model_dir)
+    weights.write_bytes(b"second checkpoint")
+    second = model_checkpoint_sha256(entry, model_dir)
+
+    assert len(first) == 64
+    assert len(second) == 64
+    assert first != second
 
 
 def test_import_mlx_model_rejects_partial_source(tmp_path: Path) -> None:

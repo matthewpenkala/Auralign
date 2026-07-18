@@ -115,7 +115,7 @@ def test_models_audit_reports_configured_mlx_model_path(tmp_path: Path, monkeypa
 
     assert result.exit_code == 0
     assert "asr-mlx" in result.stdout
-    assert "mlx-community/whisper-large-v3-turbo" in result.stdout
+    assert "mlx-community/whisper-large-v3-mlx" in result.stdout
     assert str(model_dir) not in result.stdout
     assert "<local-model-path>" in result.stdout
     assert "alignment\ten\tfacebook/wav2vec2-base-960h" in result.stdout
@@ -139,9 +139,9 @@ def test_models_import_mlx_cli_copies_valid_local_directory(tmp_path: Path) -> N
     )
 
     assert result.exit_code == 0
-    assert "asr-mlx:mlx-large-v3-turbo" in result.stdout
-    assert (cache_dir / "mlx-community--whisper-large-v3-turbo" / "config.json").exists()
-    assert (cache_dir / "mlx-community--whisper-large-v3-turbo" / "weights.safetensors").exists()
+    assert "asr-mlx:mlx-large-v3" in result.stdout
+    assert (cache_dir / "mlx-community--whisper-large-v3-mlx" / "config.json").exists()
+    assert (cache_dir / "mlx-community--whisper-large-v3-mlx" / "weights.safetensors").exists()
 
 
 def test_pull_preconditions_block_incomplete_gated_digest_before_asr_download(

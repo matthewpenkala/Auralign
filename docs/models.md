@@ -235,6 +235,11 @@ Only `mlx-community/whisper-large-v3-mlx` currently has verified MIT publisher
 metadata. The other configured MLX conversions remain usable only from an
 operator-supplied local cache for evaluation; they are not acquisition- or
 redistribution-cleared and must not be described as production-cleared.
+Accordingly, the native
+[`config.apple-silicon.yaml`](../examples/config.apple-silicon.yaml) selects
+`mlx-large-v3` at
+`models/mlx-community--whisper-large-v3-mlx`; it does not select the
+local-evaluation-only Turbo conversion.
 
 ## Cache Behavior
 
@@ -243,7 +248,7 @@ derived from the model ID, for example:
 
 - `models/Systran--faster-whisper-large-v3`
 - `models/mobiuslabsgmbh--faster-whisper-large-v3-turbo`
-- `models/mlx-community--whisper-large-v3-turbo`
+- `models/mlx-community--whisper-large-v3-mlx`
 - `models/pyannote--speaker-diarization-community-1`
 - `models/facebook--wav2vec2-base-960h`
 - `models/speechbrain--spkrec-ecapa-voxceleb`
@@ -270,7 +275,8 @@ uv run ltm models pull --diarization community-1
 uv run ltm models pull --speaker-id ecapa
 uv run ltm models pull --alignment auto
 uv run ltm models review-digests --diarization community-1
-uv run ltm models import-mlx /path/to/converted-mlx-whisper --cache-dir models
+uv run ltm models import-mlx /path/to/converted-mlx-whisper \
+  --model mlx-large-v3 --cache-dir models
 ```
 
 `--all` includes required ASR and diarization entries. Add
@@ -303,7 +309,13 @@ Short aliases like `turbo`, `large-v3`, and `small` resolve only within the
 `asr-mlx` manifest role and still require a complete local cache directory. Use
 `ltm models import-mlx` to copy an already converted local MLX directory into
 the canonical cache path after validating those files. Symlink imports are
-prohibited because strict cache verification rejects linked content. For
+prohibited because strict cache verification rejects linked content.
+Manual-only MLX imports are complete local checkpoints, but Auralign does not
+claim that their bytes were verified against the manifest's upstream revision:
+runtime metadata records `revision_verified=false`, leaves `revision` unset,
+and binds the allowlisted runtime files with a deterministic
+`checkpoint_sha256`. This content identity supports same-checkpoint local
+comparisons without fabricating upstream provenance. For
 pyannote community diarization, exactly the allowlisted `config.yaml`,
 segmentation, embedding, and PLDA runtime files are required. For English forced alignment, Auralign
 requires a CTC Wav2Vec2 ASR checkpoint with tokenizer/vocabulary files and
@@ -368,7 +380,8 @@ exact set.
 | `turbo` | `mobiuslabsgmbh/faster-whisper-large-v3-turbo` | Pointer-only; hash review blocked | No | `models/mobiuslabsgmbh--faster-whisper-large-v3-turbo` or accepted alias cache `models/dropbox-dash--faster-whisper-large-v3-turbo` |
 | `distil-large-v3` | `Systran/faster-distil-whisper-large-v3` | Pointer-only; hash review blocked | No | `models/Systran--faster-distil-whisper-large-v3` |
 | `distil-large-v3.5` | `distil-whisper/distil-large-v3.5-ct2` | Pointer-only; hash review blocked | No | `models/distil-whisper--distil-large-v3.5-ct2` |
-| `mlx-*` | `mlx-community/whisper-*-mlx` or `mlx-community/whisper-large-v3-turbo` | Optional audit-only | No | canonical escaped model-ID path, plus accepted alias directories such as `models/mlx-turbo` |
+| `mlx-large-v3` | `mlx-community/whisper-large-v3-mlx` | Reviewed Apple Silicon production candidate; local import/audit only | No | `models/mlx-community--whisper-large-v3-mlx` |
+| other `mlx-*` | other configured MLX conversions, including Turbo | Local evaluation only; local import/audit only | No | canonical escaped model-ID path, plus accepted alias directories such as `models/mlx-turbo` |
 | `community-1` | `pyannote/speaker-diarization-community-1` | Strict diarization pointer; `config.yaml` digest review blocked | Yes | `models/pyannote--speaker-diarization-community-1` |
 | `auto` | `facebook/wav2vec2-base-960h` | Required in strict/full mode | No | `models/facebook--wav2vec2-base-960h` |
 | `ecapa` | `speechbrain/spkrec-ecapa-voxceleb` | Required in strict/full mode | No | `models/speechbrain--spkrec-ecapa-voxceleb` |

@@ -9,10 +9,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from local_transcript_max.config import AudioConfig
+from local_transcript_max.errors import LTMError
 from local_transcript_max.utils import run_command
 
 
 def build_ffmpeg_command(input_path: Path, output_path: Path, config: AudioConfig) -> list[str]:
+    if config.separate_vocals != "off":
+        raise LTMError(
+            "audio.separate_vocals=experimental is not implemented; refusing to "
+            "silently publish an unseparated canonical audio artifact."
+        )
     args = ["ffmpeg", "-y", "-i", str(input_path)]
     filters: list[str] = []
     if config.normalize_loudness:

@@ -428,13 +428,13 @@ def resolve_model_entry(role: str, value: str | None) -> ModelEntry | None:
 class ASRConfig(BaseModel):
     backend: Literal["faster-whisper", "mlx-whisper"] = "faster-whisper"
     model: str = "large-v3"
-    mlx_model: str = "mlx-large-v3-turbo"
+    mlx_model: str = "mlx-large-v3"
     mlx_model_path: Path | None = None
     mlx_fp16: bool = True
     mlx_vad_windowed: bool = False
-    mlx_vad_window_seconds: float = Field(default=30.0, gt=0.0)
+    mlx_vad_window_seconds: float = Field(default=30.0, ge=1.0)
     mlx_vad_window_padding_seconds: float = Field(default=0.0, ge=0.0)
-    device: str = "auto"
+    device: Literal["auto", "cpu", "cuda"] = "auto"
     compute_type: str = "auto"
     cpu_threads: int | None = Field(default=None, gt=0)
     num_workers: int | None = Field(default=None, gt=0)
@@ -463,7 +463,7 @@ class DiarizationConfig(BaseModel):
     num_speakers: int | None = Field(default=None, ge=1, le=128)
     min_speakers: int | None = Field(default=None, ge=1, le=128)
     max_speakers: int | None = Field(default=None, ge=1, le=128)
-    device: str = "auto"
+    device: Literal["auto", "cpu", "cuda", "mps"] = "auto"
     enabled: bool = True
     preserve_overlap: bool = True
     exclusive_diarization: bool = True
@@ -501,10 +501,11 @@ class AgenticDiarizationConfig(BaseModel):
 
 
 class AlignmentConfig(BaseModel):
-    backend: str = "auto"
+    backend: Literal["auto", "forced", "fallback", "whisper", "off"] = "auto"
     language: str | None = None
     model: str | None = None
-    device: str | None = None
+    device: Literal["auto", "cpu", "cuda", "mps"] | None = None
+    allow_experimental_mps: bool = False
     enabled: bool = True
 
 
@@ -524,10 +525,10 @@ class QAConfig(BaseModel):
 
 class RedecodeConfig(BaseModel):
     mode: Literal["off", "low-confidence", "hallucination", "all-suspect"] = "off"
-    max_spans: int = 5
-    pad_seconds: float = 1.0
-    beam_size: int = 5
-    temperature: float = 0.0
+    max_spans: int = Field(default=5, ge=1, le=100)
+    pad_seconds: float = Field(default=1.0, ge=0.0, le=30.0)
+    beam_size: int = Field(default=5, ge=1, le=20)
+    temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     write_report: bool = False
     write_repaired_transcript: bool = False
 
@@ -631,6 +632,10 @@ class SubtitleExportConfig(BaseModel):
     highlight_words: bool = False
 
 
+class RuntimeConfig(BaseModel):
+    model_lifecycle: Literal["auto", "persistent", "per-job"] = "auto"
+
+
 class PipelineConfig(BaseModel):
     preset: PresetName = "max"
     model_cache: Path = Path("models")
@@ -646,6 +651,7 @@ class PipelineConfig(BaseModel):
     speaker_identity: IdentityResolverConfig = Field(default_factory=IdentityResolverConfig)
     cleanup: CleanupConfig = Field(default_factory=CleanupConfig)
     subtitle_export: SubtitleExportConfig = Field(default_factory=SubtitleExportConfig)
+    runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
 
 
 def default_model_cache(cwd: Path | None = None) -> Path:
@@ -706,6 +712,7 @@ def preset_config(preset: PresetName, cwd: Path | None = None) -> PipelineConfig
     asr_device_override = os.getenv("LTM_ASR_DEVICE") or os.getenv("LTM_DEVICE")
     diarization_device_override = os.getenv("LTM_DIARIZATION_DEVICE") or os.getenv("LTM_DEVICE")
     alignment_device_override = os.getenv("LTM_ALIGNMENT_DEVICE")
+    model_lifecycle_override = os.getenv("LTM_MODEL_LIFECYCLE")
     config = PipelineConfig(preset=preset, model_cache=model_cache, offline=offline)
     if preset == "balanced":
         config.asr.model = "turbo"
@@ -734,8 +741,10 @@ def preset_config(preset: PresetName, cwd: Path | None = None) -> PipelineConfig
         )
     mlx_vad_window_seconds = _env_non_negative_float("LTM_ASR_MLX_VAD_WINDOW_SECONDS")
     if mlx_vad_window_seconds is not None:
-        if mlx_vad_window_seconds <= 0:
-            raise LTMError("LTM_ASR_MLX_VAD_WINDOW_SECONDS must be greater than 0 when set.")
+        if mlx_vad_window_seconds < 1.0:
+            raise LTMError(
+                "LTM_ASR_MLX_VAD_WINDOW_SECONDS must be at least 1 second when set."
+            )
         config.asr.mlx_vad_window_seconds = mlx_vad_window_seconds
     mlx_vad_window_padding_seconds = _env_non_negative_float(
         "LTM_ASR_MLX_VAD_WINDOW_PADDING_SECONDS"
@@ -743,11 +752,19 @@ def preset_config(preset: PresetName, cwd: Path | None = None) -> PipelineConfig
     if mlx_vad_window_padding_seconds is not None:
         config.asr.mlx_vad_window_padding_seconds = mlx_vad_window_padding_seconds
     if asr_device_override:
-        config.asr.device = asr_device_override
+        config.asr.device = _validate_asr_device(asr_device_override)
     if diarization_device_override:
-        config.diarization.device = diarization_device_override
+        config.diarization.device = _validate_diarization_device(diarization_device_override)
     if alignment_device_override:
-        config.alignment.device = alignment_device_override
+        config.alignment.device = _validate_alignment_device(alignment_device_override)
+    if model_lifecycle_override:
+        config.runtime.model_lifecycle = _validate_model_lifecycle(
+            model_lifecycle_override
+        )
+    config.alignment.allow_experimental_mps = env_flag(
+        "LTM_ALIGNMENT_ALLOW_EXPERIMENTAL_MPS",
+        config.alignment.allow_experimental_mps,
+    )
     asr_cpu_threads = _env_positive_int("LTM_ASR_CPU_THREADS")
     if asr_cpu_threads is not None:
         config.asr.cpu_threads = asr_cpu_threads
@@ -802,7 +819,9 @@ def load_config(
     if config.qa.targeted_redecode and config.redecode.mode == "off":
         config.redecode.mode = "low-confidence"
     if os.getenv("LTM_ASR_DEVICE") or os.getenv("LTM_DEVICE"):
-        config.asr.device = os.environ.get("LTM_ASR_DEVICE", os.environ.get("LTM_DEVICE", "auto"))
+        config.asr.device = _validate_asr_device(
+            os.environ.get("LTM_ASR_DEVICE", os.environ.get("LTM_DEVICE", "auto"))
+        )
     if os.getenv("LTM_ASR_BACKEND"):
         config.asr.backend = _validate_asr_backend(os.environ["LTM_ASR_BACKEND"])
     if os.getenv("LTM_ASR_MLX_MODEL"):
@@ -817,8 +836,10 @@ def load_config(
         )
     mlx_vad_window_seconds = _env_non_negative_float("LTM_ASR_MLX_VAD_WINDOW_SECONDS")
     if mlx_vad_window_seconds is not None:
-        if mlx_vad_window_seconds <= 0:
-            raise LTMError("LTM_ASR_MLX_VAD_WINDOW_SECONDS must be greater than 0 when set.")
+        if mlx_vad_window_seconds < 1.0:
+            raise LTMError(
+                "LTM_ASR_MLX_VAD_WINDOW_SECONDS must be at least 1 second when set."
+            )
         config.asr.mlx_vad_window_seconds = mlx_vad_window_seconds
     mlx_vad_window_padding_seconds = _env_non_negative_float(
         "LTM_ASR_MLX_VAD_WINDOW_PADDING_SECONDS"
@@ -826,12 +847,22 @@ def load_config(
     if mlx_vad_window_padding_seconds is not None:
         config.asr.mlx_vad_window_padding_seconds = mlx_vad_window_padding_seconds
     if os.getenv("LTM_DIARIZATION_DEVICE") or os.getenv("LTM_DEVICE"):
-        config.diarization.device = os.environ.get(
-            "LTM_DIARIZATION_DEVICE",
-            os.environ.get("LTM_DEVICE", "auto"),
+        config.diarization.device = _validate_diarization_device(
+            os.environ.get(
+                "LTM_DIARIZATION_DEVICE",
+                os.environ.get("LTM_DEVICE", "auto"),
+            )
         )
     if os.getenv("LTM_ALIGNMENT_DEVICE"):
-        config.alignment.device = os.environ["LTM_ALIGNMENT_DEVICE"]
+        config.alignment.device = _validate_alignment_device(os.environ["LTM_ALIGNMENT_DEVICE"])
+    if os.getenv("LTM_MODEL_LIFECYCLE"):
+        config.runtime.model_lifecycle = _validate_model_lifecycle(
+            os.environ["LTM_MODEL_LIFECYCLE"]
+        )
+    config.alignment.allow_experimental_mps = env_flag(
+        "LTM_ALIGNMENT_ALLOW_EXPERIMENTAL_MPS",
+        config.alignment.allow_experimental_mps,
+    )
     asr_cpu_threads = _env_positive_int("LTM_ASR_CPU_THREADS")
     if asr_cpu_threads is not None:
         config.asr.cpu_threads = asr_cpu_threads
@@ -852,6 +883,39 @@ def _validate_asr_backend(value: str) -> Literal["faster-whisper", "mlx-whisper"
     if value not in {"faster-whisper", "mlx-whisper"}:
         raise LTMError("LTM_ASR_BACKEND must be one of: faster-whisper, mlx-whisper.")
     return cast(Literal["faster-whisper", "mlx-whisper"], value)
+
+
+def _validate_asr_device(value: str) -> Literal["auto", "cpu", "cuda"]:
+    if value not in {"auto", "cpu", "cuda"}:
+        raise LTMError(
+            "LTM_ASR_DEVICE/LTM_DEVICE must be one of: auto, cpu, cuda. "
+            "Use LTM_DIARIZATION_DEVICE=mps for an explicit pyannote MPS experiment."
+        )
+    return cast(Literal["auto", "cpu", "cuda"], value)
+
+
+def _validate_diarization_device(value: str) -> Literal["auto", "cpu", "cuda", "mps"]:
+    if value not in {"auto", "cpu", "cuda", "mps"}:
+        raise LTMError(
+            "LTM_DIARIZATION_DEVICE/LTM_DEVICE must be one of: auto, cpu, cuda, mps."
+        )
+    return cast(Literal["auto", "cpu", "cuda", "mps"], value)
+
+
+def _validate_alignment_device(value: str) -> Literal["auto", "cpu", "cuda", "mps"]:
+    if value not in {"auto", "cpu", "cuda", "mps"}:
+        raise LTMError("LTM_ALIGNMENT_DEVICE must be one of: auto, cpu, cuda, mps.")
+    return cast(Literal["auto", "cpu", "cuda", "mps"], value)
+
+
+def _validate_model_lifecycle(
+    value: str,
+) -> Literal["auto", "persistent", "per-job"]:
+    if value not in {"auto", "persistent", "per-job"}:
+        raise LTMError(
+            "LTM_MODEL_LIFECYCLE must be one of: auto, persistent, per-job."
+        )
+    return cast(Literal["auto", "persistent", "per-job"], value)
 
 
 def model_local_path(entry: ModelEntry, cache_dir: Path) -> Path:

@@ -7,19 +7,27 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import tempfile
 from pathlib import Path
 from typing import Any, Literal, cast
 
 from local_transcript_max.asr.base import ASRBackend
 from local_transcript_max.config import PipelineConfig
+from local_transcript_max.configuration_evidence import configuration_evidence
 from local_transcript_max.errors import LTMError
 from local_transcript_max.export.json_export import write_json_artifact
 from local_transcript_max.platform_security import ensure_private_directory
 from local_transcript_max.qa.heuristics import count_non_monotonic_words
-from local_transcript_max.redaction import redact_obj
-from local_transcript_max.schemas import ASRResult, QAFlag, QAReport, Transcript
-from local_transcript_max.utils import run_command
+from local_transcript_max.redaction import privacy_safe_obj, redact_obj
+from local_transcript_max.schemas import (
+    ASRResult,
+    ModelMetadata,
+    QAFlag,
+    QAReport,
+    Transcript,
+)
+from local_transcript_max.utils import run_command, sha256_file
 
 RedecodeMode = Literal["off", "low-confidence", "hallucination", "all-suspect"]
 
@@ -48,6 +56,8 @@ def run_targeted_redecode(
     config: PipelineConfig,
     asr_backend: ASRBackend,
     out_dir: Path,
+    *,
+    first_pass_result: ASRResult | None = None,
 ) -> dict[str, Any]:
     if config.redecode.write_repaired_transcript:
         raise LTMError(
@@ -72,11 +82,35 @@ def run_targeted_redecode(
         max_spans=config.redecode.max_spans,
         pad_seconds=config.redecode.pad_seconds,
     )
+    try:
+        canonical_audio_sha256: str | None = sha256_file(canonical_wav)
+    except OSError:
+        canonical_audio_sha256 = None
+    first_pass_safe_config, first_pass_config_sha256 = configuration_evidence(
+        config
+    )
+    fallback_backend = str(
+        getattr(asr_backend, "name", type(asr_backend).__name__)
+    )
+    first_pass_provenance = asr_output_provenance(
+        first_pass_result,
+        fallback_backend=fallback_backend,
+        configuration=first_pass_safe_config,
+        configuration_sha256=first_pass_config_sha256,
+        canonical_audio_sha256=canonical_audio_sha256,
+    )
     candidates: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="ltm-redecode-") as window_dir_name:
         window_dir = ensure_private_directory(Path(window_dir_name))
         for index, span in enumerate(spans, start=1):
             window = window_dir / f"span_{index:03d}.wav"
+            redecode_config = copy.deepcopy(config)
+            redecode_config.asr.beam_size = config.redecode.beam_size
+            redecode_config.asr.temperature = config.redecode.temperature
+            candidate_safe_config, candidate_config_sha256 = (
+                configuration_evidence(redecode_config)
+            )
+            window_audio_sha256: str | None = None
             try:
                 extract_audio_window(
                     canonical_wav,
@@ -84,16 +118,36 @@ def run_targeted_redecode(
                     start=float(span["padded_start"]),
                     end=float(span["padded_end"]),
                 )
-                redecode_config = copy.deepcopy(config)
-                redecode_config.asr.beam_size = config.redecode.beam_size
-                redecode_config.asr.temperature = config.redecode.temperature
+                window_audio_sha256 = sha256_file(window)
                 result = asr_backend.transcribe(window, redecode_config)
-                candidate = redecode_candidate_record(span, result, failure_code=None)
+                candidate = redecode_candidate_record(
+                    span,
+                    result,
+                    failure_code=None,
+                    first_pass_provenance=first_pass_provenance,
+                    candidate_provenance=asr_output_provenance(
+                        result,
+                        fallback_backend=fallback_backend,
+                        configuration=candidate_safe_config,
+                        configuration_sha256=candidate_config_sha256,
+                        canonical_audio_sha256=canonical_audio_sha256,
+                        window_audio_sha256=window_audio_sha256,
+                    ),
+                )
             except Exception:  # pragma: no cover - defensive around ffmpeg/backends
                 candidate = redecode_candidate_record(
                     span,
                     None,
                     failure_code="redecode_failed",
+                    first_pass_provenance=first_pass_provenance,
+                    candidate_provenance=asr_output_provenance(
+                        None,
+                        fallback_backend=fallback_backend,
+                        configuration=candidate_safe_config,
+                        configuration_sha256=candidate_config_sha256,
+                        canonical_audio_sha256=canonical_audio_sha256,
+                        window_audio_sha256=window_audio_sha256,
+                    ),
                 )
             candidates.append(candidate)
 
@@ -102,6 +156,12 @@ def run_targeted_redecode(
         "mode": config.redecode.mode,
         "candidate_count": len(candidates),
         "replacement_policy": "preserve_raw_record_candidates_only",
+        "retry_policy": {
+            "maximum_attempts_per_span": 1,
+            "recursive_redecode": False,
+            "maximum_spans": config.redecode.max_spans,
+            "maximum_context_seconds_each_side": config.redecode.pad_seconds,
+        },
         "candidates": candidates,
     }
     write_json_artifact(out_dir / "transcript.redecode_candidates.json", redact_obj(payload))
@@ -236,6 +296,8 @@ def redecode_candidate_record(
     result: ASRResult | None,
     *,
     failure_code: Literal["redecode_failed"] | None,
+    first_pass_provenance: dict[str, Any] | None = None,
+    candidate_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     candidate_text = "" if result is None else " ".join(segment.text for segment in result.segments)
     original_text = str(span.get("original_text", ""))
@@ -259,6 +321,15 @@ def redecode_candidate_record(
                 "reason_codes": span["reason_codes"],
                 "status": "failed" if failure_code else "candidate_generated",
                 "decision": "recorded_not_replaced",
+                "provenance": {
+                    "first_pass": first_pass_provenance or {},
+                    "repair_candidate": candidate_provenance or {},
+                    "attempt_index": 1,
+                    "maximum_attempts": 1,
+                    "recursive_redecode": False,
+                    "original_text_sha256": sha256_text(original_text),
+                    "candidate_text_sha256": sha256_text(candidate_text),
+                },
                 "quality_deltas": {
                     "text_length_delta": len(candidate_text) - len(original_text),
                 },
@@ -266,6 +337,71 @@ def redecode_candidate_record(
             },
         ),
     )
+
+
+def asr_output_provenance(
+    result: ASRResult | None,
+    *,
+    fallback_backend: str,
+    configuration: dict[str, Any],
+    configuration_sha256: str,
+    canonical_audio_sha256: str | None,
+    window_audio_sha256: str | None = None,
+) -> dict[str, Any]:
+    backend = fallback_backend
+    inference_mode: str | None = None
+    runtime_device: str | None = None
+    model: dict[str, Any] | None = None
+    if result is not None:
+        configured_backend = result.config.get("backend")
+        if configured_backend:
+            backend = str(configured_backend)
+        inference_value = result.config.get("inference_mode")
+        if inference_value:
+            inference_mode = str(inference_value)
+        device_value = (
+            result.config.get("runtime_device")
+            or result.config.get("actual_device")
+            or result.config.get("device")
+        )
+        if device_value:
+            runtime_device = str(device_value)
+        model = model_provenance(result.model)
+    asr_configuration = configuration.get("asr")
+    payload = {
+        "backend": backend,
+        "inference_mode": inference_mode,
+        "runtime_device": runtime_device,
+        "model": model,
+        "configuration_sha256": configuration_sha256,
+        "asr_configuration": asr_configuration
+        if isinstance(asr_configuration, dict)
+        else {},
+        "canonical_audio_sha256": canonical_audio_sha256,
+        "window_audio_sha256": window_audio_sha256,
+    }
+    safe = privacy_safe_obj(payload)
+    if not isinstance(safe, dict):  # pragma: no cover - dict invariant
+        raise TypeError("ASR provenance must remain an object.")
+    return safe
+
+
+def model_provenance(model: ModelMetadata | None) -> dict[str, Any] | None:
+    if model is None:
+        return None
+    return {
+        "role": model.role,
+        "model_id": model.model_id,
+        "revision": model.revision,
+        "revision_verified": model.revision_verified,
+        "checkpoint_sha256": model.checkpoint_sha256,
+        "gated": model.gated,
+        "present": model.present,
+    }
+
+
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def candidate_timestamps(result: ASRResult | None) -> dict[str, float | str | None]:

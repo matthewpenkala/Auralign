@@ -540,7 +540,7 @@ def import_mlx_model(
     source_dir: Path,
     cache_dir: Path,
     *,
-    model: str = "mlx-large-v3-turbo",
+    model: str = "mlx-large-v3",
     symlink: bool = False,
     overwrite: bool = False,
 ) -> ModelStatus:
@@ -832,6 +832,31 @@ def model_manifest_digest(entry: ModelEntry) -> str:
         "review_status": entry.review_status,
     }
     encoded = json.dumps(contract, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def model_checkpoint_sha256(entry: ModelEntry, model_dir: Path) -> str:
+    """Bind exact local runtime files without asserting upstream provenance."""
+
+    digests = _runtime_file_digests(entry, model_dir)
+    expected_files = {
+        relative
+        for relative in entry.runtime_files
+        if (model_dir / relative).is_file()
+    }
+    if not digests or set(digests) != expected_files:
+        raise ModelCacheError(
+            f"Could not bind every local runtime file for {entry.role}:{entry.key}."
+        )
+    encoded = json.dumps(
+        {
+            "model_id": entry.model_id,
+            "runtime_file_sha256": digests,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 

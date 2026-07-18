@@ -31,6 +31,12 @@ class FasterWhisperBackend:
         self._models: dict[tuple[str, str, str, int | None, int | None], Any] = {}
         self._batched_transcribers: dict[tuple[str, str, str, int | None, int | None], Any] = {}
 
+    def clear_runtime_cache(self) -> None:
+        """Release backend-owned model references for explicit per-job lifecycle."""
+
+        self._batched_transcribers.clear()
+        self._models.clear()
+
     def transcribe(
         self,
         audio_path: Path,
@@ -70,6 +76,15 @@ class FasterWhisperBackend:
         cpu_threads = resolve_cpu_threads(config.asr.cpu_threads, device)
         num_workers = resolve_num_workers(config.asr.num_workers)
         start = time.perf_counter()
+        model_key = self._runtime_key(
+            model_path=model_path,
+            device=device,
+            compute_type=compute_type,
+            cpu_threads=cpu_threads,
+            num_workers=num_workers,
+        )
+        cold_start = model_key not in self._models
+        model_load_started = time.perf_counter()
         model = self._model(
             model_path=model_path,
             device=device,
@@ -78,13 +93,8 @@ class FasterWhisperBackend:
             num_workers=num_workers,
             model_factory=WhisperModel,
         )
-        model_key = self._runtime_key(
-            model_path=model_path,
-            device=device,
-            compute_type=compute_type,
-            cpu_threads=cpu_threads,
-            num_workers=num_workers,
-        )
+        actual_device = str(getattr(model, "device", device))
+        actual_compute_type = str(getattr(model, "compute_type", compute_type))
         transcriber = (
             self._batched_transcriber(
                 key=model_key,
@@ -94,6 +104,7 @@ class FasterWhisperBackend:
             if batched_pipeline_factory is not None
             else model
         )
+        model_load_seconds = time.perf_counter() - model_load_started
         initial_prompt = config.asr.initial_prompt
         if config.asr.glossary_file:
             initial_prompt = (
@@ -118,6 +129,7 @@ class FasterWhisperBackend:
         if config.asr.batched:
             transcribe_kwargs["batch_size"] = config.asr.batch_size
             transcribe_kwargs["without_timestamps"] = False
+        inference_started = time.perf_counter()
         segments_iter, info = transcriber.transcribe(str(audio_path), **transcribe_kwargs)
         segments: list[ASRSegment] = []
         raw_segments: list[dict[str, Any]] = []
@@ -169,6 +181,7 @@ class FasterWhisperBackend:
                 )
             )
         duration = time.perf_counter() - start
+        inference_seconds = time.perf_counter() - inference_started
         return ASRResult(
             segments=segments,
             language=getattr(info, "language", None),
@@ -178,6 +191,8 @@ class FasterWhisperBackend:
                 role="asr",
                 model_id=entry.model_id,
                 local_path=str(model_path),
+                revision=entry.revision,
+                revision_verified=True,
                 gated=entry.gated,
                 present=True,
             ),
@@ -185,6 +200,8 @@ class FasterWhisperBackend:
                 **config.asr.model_dump(mode="json"),
                 "device": device,
                 "compute_type": compute_type,
+                "actual_device": actual_device,
+                "actual_compute_type": actual_compute_type,
                 "requested_cpu_threads": config.asr.cpu_threads,
                 "effective_cpu_threads": cpu_threads,
                 "cpu_threads_passed_to_constructor": cpu_threads is not None,
@@ -193,6 +210,11 @@ class FasterWhisperBackend:
                 "num_workers_passed_to_constructor": num_workers is not None,
                 "inference_mode": "batched" if config.asr.batched else "standard",
                 "model_path": str(model_path),
+                "timing": {
+                    "model_load_seconds": model_load_seconds,
+                    "inference_seconds": inference_seconds,
+                    "cold_start": cold_start,
+                },
             },
             warnings=sorted(set(warnings)),
             timing=StageTiming(name="asr", duration_seconds=duration),

@@ -46,6 +46,22 @@ same-media runs demonstrate runtime stability and artifact equivalence against
 the CPU baseline; changing the default or support status requires a separate
 evidence-backed decision.
 
+Reports distinguish requested, resolved, and actual execution devices. On a
+recognized MPS compatibility failure, the backend may rebuild a fresh CPU
+pipeline and retry once. The result retains the MPS request and resolution,
+records `actual_device=cpu`, `fallback_occurred=true`, and a structured fallback
+reason. It cannot count as successful MPS evidence. Unrecognized failures
+propagate instead of being concealed by a generic fallback.
+
+Automatic promotion requires the full gate in the
+[Apple Silicon runbook](apple-silicon.md): at least three measured warm runs
+after warmup, a configurable minimum 10% median diarization-stage improvement,
+no material median end-to-end regression or individual candidate total-time
+outlier beyond the accepted baseline envelope, actual MPS execution without
+fallback, equivalent alignment and speaker QA, acceptable speaker counts, and
+no new Critical or Major defect. Availability alone is never a promotion
+signal.
+
 Normal diarization turns are preserved in `diarization.json` and
 `diarization.rttm`. When pyannote exposes exclusive diarization, it is also
 written to `exclusive_diarization.json` and used for single-label word-speaker

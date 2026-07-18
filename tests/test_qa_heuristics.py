@@ -43,7 +43,8 @@ def test_qa_flags_compression_missing_timestamps_and_overlap() -> None:
                 DiarizationTurn(start=0.0, end=1.0, speaker="SPEAKER_00"),
                 DiarizationTurn(start=0.5, end=1.5, speaker="SPEAKER_01"),
             ],
-        )
+        ),
+        requested_speaker_count=2,
     )
     codes = {flag.code for flag in report.flags}
     assert "high_compression_ratio" in codes
@@ -51,3 +52,9 @@ def test_qa_flags_compression_missing_timestamps_and_overlap() -> None:
     assert "overlapping_diarization_turns" in codes
     assert report.summary["whisper_alignment_percentage"] == 50.0
     assert report.summary["missing_timestamp_count"] == 1
+    assert report.summary["requested_speaker_count"] == 2
+    assert report.summary["detected_speaker_count"] == 1
+    assert report.summary["unassigned_word_count"] == 1
+    assert report.summary["percent_words_unassigned"] == 50.0
+    assert report.summary["overlap_span_count"] == 1
+    assert report.summary["speaker_flapping_definition"]["warning_threshold"] == 0.35

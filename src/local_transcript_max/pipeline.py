@@ -37,7 +37,13 @@ from .asr.mlx_whisper_backend import MlxWhisperBackend, mlx_compute_type, resolv
 from .audio.inspect import inspect_media
 from .audio.preprocess import canonical_audio_decision, prepare_canonical_audio
 from .cleanup import run_cleanup
-from .config import PipelineConfig
+from .code_provenance import current_code_revision
+from .config import PipelineConfig, resolve_model_entry
+from .configuration_evidence import (
+    SOURCE_CONFIG_SHA256_SCOPE,
+    SOURCE_CONFIGURATION_SCHEMA,
+    configuration_evidence,
+)
 from .diagnostics import (
     alignment_diagnostic_payload,
     base_debug_report,
@@ -65,6 +71,7 @@ from .fusion.turn_builder import (
     repair_unknown_fragment_labels,
 )
 from .fusion.word_speaker_assignment import assign_speakers_to_words
+from .model_lifecycle import release_runtime_models
 from .models import require_model
 from .platform_security import ensure_private_directory
 from .qa.heuristics import run_qa
@@ -72,10 +79,18 @@ from .qa.redecode import run_targeted_redecode
 from .redaction import privacy_safe_text
 from .resource_usage import ResourceMonitor
 from .runtime_assets import configure_offline_environment, punkt_data_root
+from .runtime_policy import (
+    RuntimePolicy,
+    resolve_runtime_policy,
+    validate_runtime_policy,
+)
 from .schemas import (
     AlignedWord,
     ASRResult,
+    CompletionStageDurations,
+    CompletionTimingReport,
     DiarizationResult,
+    ModelMetadata,
     QAReport,
     RunMetadata,
     StageTiming,
@@ -93,6 +108,7 @@ PIPELINE_ARTIFACT_NAMES = frozenset(
         "canonical.wav",
         "cleanup_diff.json",
         "cleanup_report.json",
+        "completion_timing.json",
         "debug_report.json",
         "diarization.json",
         "diarization.rttm",
@@ -165,6 +181,7 @@ def transcribe_file(
     debug_report_path: Path | None = None,
     progress: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> Transcript:
+    invocation_started = time.perf_counter()
     if config.offline:
         configure_offline_environment(nltk_data=punkt_data_root(config.model_cache))
     input_file = input_file.expanduser().resolve()
@@ -191,20 +208,46 @@ def transcribe_file(
         )
     ensure_private_directory(out_dir)
     debug_path = debug_report_path or out_dir / "debug_report.json"
-    debug_report = base_debug_report(input_file, out_dir, config)
+    debug_report: dict[str, Any] = {}
+    runtime_policy = resolve_runtime_policy(config)
     resource_monitor = ResourceMonitor()
     identity_lock = JobIdentityLock(out_dir)
+    models_released = False
+    model_release_evidence: dict[str, Any] = {
+        "policy": config.runtime.model_lifecycle,
+        "cleanup_performed": False,
+        "note": (
+            "Backend instances remain reusable for warm throughput."
+            if config.runtime.model_lifecycle in {"auto", "persistent"}
+            else "Per-job cleanup is pending."
+        ),
+    }
     try:
         identity_lock.__enter__()
         resource_monitor.start()
+        pipeline_core_started = time.perf_counter()
+        invocation_setup_duration = pipeline_core_started - invocation_started
+        preflight_started = time.perf_counter()
         emit_progress(progress, "preflight_start", {"input": str(input_file), "out": str(out_dir)})
+        debug_report = base_debug_report(input_file, out_dir, config)
+        validate_runtime_policy(runtime_policy)
         if precheck_models:
             preflight_required_models(config)
+        preflight_timing = StageTiming(
+            name="preflight",
+            duration_seconds=time.perf_counter() - preflight_started,
+        )
+        resource_monitor.snapshot("preflight")
         emit_progress(progress, "preflight_done", {})
 
-        started = time.perf_counter()
+        probe_started = time.perf_counter()
         emit_progress(progress, "inspect_start", {"path": str(input_file)})
         input_metadata = inspect_media(input_file)
+        media_probe_timing = StageTiming(
+            name="media_probe",
+            duration_seconds=time.perf_counter() - probe_started,
+        )
+        resource_monitor.snapshot("media_probe")
         emit_progress(
             progress,
             "inspect_done",
@@ -212,6 +255,7 @@ def transcribe_file(
         )
         debug_report["input_metadata"] = input_metadata.model_dump(mode="json")
         input_file_hash = sha256_file(input_file)
+        preprocessing_started = time.perf_counter()
         emit_progress(progress, "canonical_audio_start", {})
         canonical_path, ffmpeg_command = prepare_canonical_audio(
             input_file,
@@ -219,7 +263,11 @@ def transcribe_file(
             config.audio,
             input_metadata=input_metadata,
         )
-        canonical_metadata = inspect_media(canonical_path)
+        canonical_metadata = (
+            input_metadata.model_copy(update={"path": str(canonical_path)})
+            if ffmpeg_command and ffmpeg_command[0] == "reuse-canonical-wav"
+            else inspect_media(canonical_path)
+        )
         audio_preprocessing = canonical_audio_decision(
             input_file,
             canonical_path,
@@ -252,6 +300,11 @@ def transcribe_file(
             "metadata": canonical_metadata.model_dump(mode="json"),
             "preprocessing": audio_preprocessing,
         }
+        audio_preprocessing_timing = StageTiming(
+            name="audio_preprocessing",
+            duration_seconds=time.perf_counter() - preprocessing_started,
+        )
+        resource_monitor.snapshot("audio_preprocessing")
 
         vad_started = time.perf_counter()
         emit_progress(progress, "vad_start", {})
@@ -267,25 +320,36 @@ def transcribe_file(
             out_dir / "vad.json",
             vad_result.to_artifact(),
         )
+        resource_monitor.snapshot("vad")
 
         asr_backend = asr_backend or select_asr_backend(config)
         emit_progress(progress, "asr_start", {"backend": getattr(asr_backend, "name", "asr")})
+        asr_started = time.perf_counter()
         asr_result = transcribe_with_context(asr_backend, canonical_path, config, vad_regions)
+        asr_timing = StageTiming(
+            name="asr",
+            duration_seconds=time.perf_counter() - asr_started,
+        )
         emit_progress(
             progress,
             "asr_done",
             {
-                "duration_seconds": asr_result.timing.duration_seconds
-                if asr_result.timing
-                else None,
+                "duration_seconds": asr_timing.duration_seconds,
                 "segments": len(asr_result.segments),
                 "language": asr_result.language,
             },
         )
         write_json_artifact(out_dir / "transcript.raw.json", asr_result)
+        resource_monitor.snapshot("asr")
 
         alignment_started = time.perf_counter()
         emit_progress(progress, "alignment_start", {"backend": config.alignment.backend})
+        if (
+            alignment_backend is None
+            and config.alignment.enabled
+            and config.alignment.backend not in {"off", "whisper", "fallback"}
+        ):
+            alignment_backend = WhisperXForcedAlignment()
         alignment = align_words(canonical_path, asr_result, config, alignment_backend)
         alignment_timing = StageTiming(
             name="alignment", duration_seconds=time.perf_counter() - alignment_started
@@ -317,6 +381,7 @@ def transcribe_file(
             words=alignment.words,
         )
         write_json_artifact(out_dir / "transcript.aligned.json", aligned_transcript)
+        resource_monitor.snapshot("alignment")
 
         diarization_backend = diarization_backend or select_diarization_backend(config)
         emit_progress(
@@ -354,6 +419,7 @@ def transcribe_file(
                 "device": diarization_result.metadata.get("device"),
             },
         )
+        speaker_assignment_started = time.perf_counter()
         fusion_turns = (
             diarization_result.exclusive_turns
             if config.diarization.exclusive_diarization and diarization_result.exclusive_turns
@@ -385,8 +451,30 @@ def transcribe_file(
                 ]
             },
         )
+        speaker_assignment_timing = StageTiming(
+            name="speaker_assignment",
+            duration_seconds=time.perf_counter() - speaker_assignment_started,
+        )
+        resource_monitor.snapshot("speaker_assignment")
 
-        qa_report = run_qa(transcript) if config.qa.enabled else QAReport()
+        qa_started = time.perf_counter()
+        requested_speaker_count = (
+            config.diarization.num_speakers
+            or config.agentic_diarization.known_speakers
+            or config.speaker_identity.known_speakers
+        )
+        qa_report = (
+            run_qa(
+                transcript,
+                requested_speaker_count=requested_speaker_count,
+            )
+            if config.qa.enabled
+            else QAReport()
+        )
+        if config.qa.enabled:
+            qa_report.summary["missing_segment_timestamp_count"] = int(
+                (alignment.metadata or {}).get("missing_segment_count") or 0
+            )
         speaker_report = build_speaker_report(speaker_turns)
         write_json_artifact(out_dir / "qa_report.json", qa_report)
         write_json_artifact(out_dir / "speaker_report.json", speaker_report)
@@ -395,6 +483,11 @@ def transcribe_file(
                 out_dir / "diarization_decision_report.json",
                 diarization_decision,
             )
+        qa_timing = StageTiming(
+            name="qa",
+            duration_seconds=time.perf_counter() - qa_started,
+        )
+        resource_monitor.snapshot("qa")
         if config.redecode.mode != "off" or config.redecode.write_report:
             emit_progress(progress, "redecode_start", {"mode": config.redecode.mode})
             run_targeted_redecode(
@@ -404,13 +497,22 @@ def transcribe_file(
                 config,
                 asr_backend,
                 out_dir,
+                first_pass_result=asr_result,
             )
             emit_progress(progress, "redecode_done", {"mode": config.redecode.mode})
 
+        serialization_started = time.perf_counter()
         emit_progress(progress, "export_start", {})
         write_exports(out_dir, transcript, config)
         emit_progress(progress, "export_done", {})
+        serialization_timing = StageTiming(
+            name="serialization",
+            duration_seconds=time.perf_counter() - serialization_started,
+        )
+        resource_monitor.snapshot("serialization")
+        optional_timings: list[StageTiming] = []
         if config.speaker_id.mode == "auto":
+            speaker_id_started = time.perf_counter()
             from .speaker_id.cluster_embeddings import build_cluster_embeddings
             from .speaker_id.enrollment import match_job_speakers
 
@@ -434,30 +536,95 @@ def transcribe_file(
                 ambiguity_margin=config.speaker_id.ambiguity_margin,
                 profile_dir=config.speaker_id.profile_dir,
             )
+            optional_timings.append(
+                StageTiming(
+                    name="speaker_id",
+                    duration_seconds=time.perf_counter() - speaker_id_started,
+                )
+            )
+            resource_monitor.snapshot("speaker_id")
         if config.cleanup.mode != "off":
+            cleanup_started = time.perf_counter()
             cleanup_report = run_cleanup(transcript, out_dir, config)
             write_json_artifact(out_dir / "cleanup_report.json", cleanup_report)
-        total_duration = time.perf_counter() - started
-        timings = [vad_timing, alignment_timing]
-        if asr_result.timing:
-            timings.append(asr_result.timing)
+            optional_timings.append(
+                StageTiming(
+                    name="cleanup",
+                    duration_seconds=time.perf_counter() - cleanup_started,
+                )
+            )
+            resource_monitor.snapshot("cleanup")
+        if config.runtime.model_lifecycle == "per-job":
+            release_started = time.perf_counter()
+            model_release_evidence = release_runtime_models(
+                (asr_backend, alignment_backend, diarization_backend)
+            )
+            models_released = True
+            optional_timings.append(
+                StageTiming(
+                    name="model_release",
+                    duration_seconds=time.perf_counter() - release_started,
+                )
+            )
+            resource_monitor.snapshot("model_release")
+        pipeline_core_duration = time.perf_counter() - pipeline_core_started
+        timings = [
+            preflight_timing,
+            media_probe_timing,
+            audio_preprocessing_timing,
+            vad_timing,
+            asr_timing,
+            alignment_timing,
+            speaker_assignment_timing,
+            qa_timing,
+            serialization_timing,
+            *optional_timings,
+        ]
         if diarization_result.timing:
             timings.append(diarization_result.timing)
-        resource_usage = resource_monitor.stop()
+        timings.extend(
+            detailed_backend_timings(
+                asr_result=asr_result,
+                alignment=alignment,
+                diarization_result=diarization_result,
+            )
+        )
+        resource_monitor.snapshot("pipeline_core_complete")
+        core_resource_usage = resource_monitor.summary()
+        core_resource_usage["model_lifecycle"] = model_release_evidence
+        metadata_publish_started = time.perf_counter()
         asr_runtime = asr_runtime_metadata(config, asr_result, asr_backend)
         diarization_runtime = diarization_runtime_metadata(config, diarization_result)
+        source_configuration, source_config_sha256 = configuration_evidence(config)
+        device_policy = runtime_policy_evidence(
+            runtime_policy,
+            asr_actual_device=_optional_metadata_str(asr_runtime["actual_device"]),
+            alignment=alignment,
+            diarization_result=diarization_result,
+        )
         if sha256_file(input_file) != input_file_hash:
             raise LTMError(
                 "Input media changed while processing; refusing to publish completion metadata."
             )
         run_metadata = RunMetadata(
             package_version=__version__,
+            code_revision=current_code_revision(),
+            source_config_sha256=source_config_sha256,
+            source_config_sha256_scope=SOURCE_CONFIG_SHA256_SCOPE,
+            source_configuration=source_configuration,
+            source_configuration_schema=SOURCE_CONFIGURATION_SCHEMA,
             input_file_hash=input_file_hash,
             input_metadata=input_metadata,
             canonical_audio_metadata=canonical_metadata,
             ffmpeg_command=ffmpeg_command,
             models=[
-                model for model in (asr_result.model, diarization_result.model) if model is not None
+                model
+                for model in (
+                    asr_result.model,
+                    alignment_model_metadata(config, alignment),
+                    diarization_result.model,
+                )
+                if model is not None
             ],
             asr_backend=getattr(asr_backend, "name", asr_backend.__class__.__name__),
             diarization_backend=getattr(
@@ -465,11 +632,20 @@ def transcribe_file(
             ),
             alignment_backend=alignment.backend,
             alignment_device=alignment.device,
+            asr_requested_device=runtime_policy.asr.requested_device,
+            asr_resolved_device=runtime_policy.asr.resolved_device,
+            asr_actual_device=_optional_metadata_str(asr_runtime["actual_device"]),
+            alignment_requested_device=runtime_policy.alignment.requested_device,
+            alignment_resolved_device=runtime_policy.alignment.resolved_device,
+            alignment_actual_device=alignment.device,
+            alignment_fallback_reason=_optional_metadata_str(
+                (alignment.metadata or {}).get("fallback_reason")
+            ),
             cuda_available=cuda_available(),
             dependency_versions=dependency_versions(),
             runtime_environment=runtime_environment(config),
             environment_overrides=environment_overrides(),
-            resource_usage=resource_usage,
+            resource_usage=core_resource_usage,
             audio_preprocessing=audio_preprocessing,
             compute_type=asr_runtime["compute_type"],
             device=asr_runtime["device"],
@@ -479,17 +655,31 @@ def transcribe_file(
             asr_batch_size=asr_runtime["asr_batch_size"],
             diarization_requested_device=diarization_runtime["diarization_requested_device"],
             diarization_resolved_device=diarization_runtime["diarization_resolved_device"],
+            diarization_actual_device=diarization_runtime["diarization_actual_device"],
             diarization_device_fallback=bool(diarization_runtime["diarization_device_fallback"]),
+            diarization_fallback_reason=diarization_runtime["diarization_fallback_reason"],
             diarization_warnings=diarization_runtime["diarization_warnings"],
-            timings=timings + [StageTiming(name="total", duration_seconds=total_duration)],
+            device_policy=device_policy,
+            timings=timings
+            + [
+                StageTiming(
+                    name="pipeline_core",
+                    duration_seconds=pipeline_core_duration,
+                )
+            ],
             real_time_factor=(
-                total_duration / canonical_metadata.duration_seconds
+                pipeline_core_duration / canonical_metadata.duration_seconds
                 if canonical_metadata.duration_seconds
                 else None
             ),
         )
-        write_json_artifact(out_dir / "run_metadata.json", run_metadata)
+        run_metadata_path = out_dir / "run_metadata.json"
+        write_json_artifact(run_metadata_path, run_metadata)
+        run_metadata_sha256 = sha256_file(run_metadata_path)
+        metadata_publish_duration = time.perf_counter() - metadata_publish_started
+        identity_duration = 0.0
         if config.speaker_identity.mode != "off":
+            identity_started = time.perf_counter()
             emit_progress(
                 progress,
                 "speaker_identity_start",
@@ -507,26 +697,64 @@ def transcribe_file(
                 "speaker_identity_done",
                 debug_report["speaker_identity"],
             )
-        emit_progress(
-            progress,
-            "complete",
-            {
-                "duration_seconds": total_duration,
-                "real_time_factor": run_metadata.real_time_factor,
-                "rss_peak_sampled_bytes": resource_usage.get("rss_peak_sampled_bytes"),
-                "rss_end_bytes": resource_usage.get("rss_end_bytes"),
-                "out": str(out_dir),
-            },
-        )
+            identity_duration = time.perf_counter() - identity_started
         debug_report["status"] = "complete"
         debug_report["run_metadata"] = run_metadata.model_dump(mode="json")
         debug_report["alignment_warnings"] = alignment.warnings
         debug_report["alignment_report"] = alignment_report
+        debug_publish_duration = 0.0
         if debug_report_path:
+            debug_publish_started = time.perf_counter()
             write_debug_report(debug_path, debug_report)
+            debug_publish_duration = time.perf_counter() - debug_publish_started
+        resource_monitor.snapshot("pipeline_end_to_end_complete")
+        completion_resource_usage = resource_monitor.stop()
+        completion_resource_usage["model_lifecycle"] = model_release_evidence
+        observed_end_to_end_duration = time.perf_counter() - invocation_started
+        completion_timing = CompletionTimingReport(
+            run_metadata_sha256=run_metadata_sha256,
+            pipeline_core_seconds=pipeline_core_duration,
+            observed_end_to_end_seconds=observed_end_to_end_duration,
+            real_time_factor=(
+                observed_end_to_end_duration / canonical_metadata.duration_seconds
+                if canonical_metadata.duration_seconds
+                else None
+            ),
+            stage_durations=CompletionStageDurations(
+                invocation_setup=invocation_setup_duration,
+                run_metadata_preparation_and_publish=metadata_publish_duration,
+                speaker_identity=identity_duration,
+                debug_report_publish=debug_publish_duration,
+            ),
+            resource_usage=completion_resource_usage,
+        )
+        write_json_artifact(
+            out_dir / "completion_timing.json",
+            completion_timing,
+        )
+        emit_progress(
+            progress,
+            "complete",
+            {
+                "duration_seconds": observed_end_to_end_duration,
+                "real_time_factor": completion_timing.real_time_factor,
+                "rss_peak_sampled_bytes": completion_resource_usage.get(
+                    "rss_peak_sampled_bytes"
+                ),
+                "rss_end_bytes": completion_resource_usage.get("rss_end_bytes"),
+                "out": str(out_dir),
+            },
+        )
         return transcript
     except Exception as exc:
+        if config.runtime.model_lifecycle == "per-job" and not models_released:
+            model_release_evidence = release_runtime_models(
+                (asr_backend, alignment_backend, diarization_backend)
+            )
+            models_released = True
+            resource_monitor.snapshot("model_release_after_failure")
         resource_usage = resource_monitor.stop()
+        resource_usage["model_lifecycle"] = model_release_evidence
         emit_progress(
             progress,
             "failed",
@@ -661,6 +889,48 @@ def transcribe_with_context(
     return asr_backend.transcribe(audio_path, config)
 
 
+def detailed_backend_timings(
+    *,
+    asr_result: ASRResult,
+    alignment: AlignmentOutcome,
+    diarization_result: DiarizationResult,
+) -> list[StageTiming]:
+    """Extract separable backend timing fields without inventing unavailable splits."""
+
+    rows: list[StageTiming] = []
+    if asr_result.timing is not None:
+        _append_timing(
+            rows,
+            "asr_backend_total",
+            asr_result.timing.duration_seconds,
+        )
+    asr_timing = asr_result.config.get("timing")
+    if isinstance(asr_timing, dict):
+        _append_timing(rows, "asr_model_load", asr_timing.get("model_load_seconds"))
+        _append_timing(rows, "asr_inference", asr_timing.get("inference_seconds"))
+    alignment_timing = alignment.metadata or {}
+    _append_timing(rows, "alignment_model_load", alignment_timing.get("model_load_seconds"))
+    _append_timing(rows, "alignment_inference", alignment_timing.get("inference_seconds"))
+    diarization_timing = diarization_result.metadata.get("timing")
+    if isinstance(diarization_timing, dict):
+        _append_timing(
+            rows,
+            "diarization_model_load",
+            diarization_timing.get("model_load_seconds"),
+        )
+        _append_timing(
+            rows,
+            "diarization_inference",
+            diarization_timing.get("inference_seconds"),
+        )
+    return rows
+
+
+def _append_timing(rows: list[StageTiming], name: str, value: object) -> None:
+    if isinstance(value, int | float) and not isinstance(value, bool) and value >= 0:
+        rows.append(StageTiming(name=name, duration_seconds=float(value)))
+
+
 @dataclass(frozen=True)
 class AlignmentOutcome:
     words: list[AlignedWord]
@@ -677,6 +947,7 @@ def align_words(
     alignment_backend: AlignmentBackend | None = None,
 ) -> AlignmentOutcome:
     fallback = FallbackWordTimestampAlignment()
+    alignment_decision = resolve_runtime_policy(config).alignment
     if not config.alignment.enabled or config.alignment.backend in {"off", "whisper", "fallback"}:
         return AlignmentOutcome(
             words=fallback.align(audio_path, asr_result, config),
@@ -686,6 +957,9 @@ def align_words(
             metadata={
                 "source": "asr_word_timestamps",
                 "requested_backend": config.alignment.backend,
+                "requested_device": alignment_decision.requested_device,
+                "resolved_device": alignment_decision.resolved_device,
+                "actual_device": None,
             },
         )
     backend = alignment_backend or WhisperXForcedAlignment()
@@ -701,6 +975,23 @@ def align_words(
                 "language": config.alignment.language or asr_result.language,
                 "model": _optional_metadata_str(getattr(backend, "last_model_name", None)),
                 "model_path": _optional_metadata_str(getattr(backend, "last_model_path", None)),
+                "model_load_seconds": getattr(backend, "last_model_load_seconds", None),
+                "inference_seconds": getattr(backend, "last_inference_seconds", None),
+                "cold_start": getattr(backend, "last_cold_start", None),
+                "expected_segment_count": getattr(
+                    backend, "last_expected_segment_count", None
+                ),
+                "aligned_segment_count": getattr(
+                    backend, "last_aligned_segment_count", None
+                ),
+                "missing_segment_count": getattr(
+                    backend, "last_missing_segment_count", None
+                ),
+                "requested_device": alignment_decision.requested_device,
+                "resolved_device": alignment_decision.resolved_device,
+                "actual_device": _optional_metadata_str(
+                    getattr(backend, "last_device", None)
+                ),
             },
         )
     except BackendUnavailableError as exc:
@@ -715,6 +1006,9 @@ def align_words(
                 "source": "asr_word_timestamps",
                 "fallback_reason": privacy_safe_text(str(exc)),
                 "requested_backend": config.alignment.backend,
+                "requested_device": alignment_decision.requested_device,
+                "resolved_device": alignment_decision.resolved_device,
+                "actual_device": None,
             },
         )
 
@@ -776,6 +1070,9 @@ def asr_runtime_metadata(
     if backend_name == "mlx-whisper" or asr_result.config.get("backend") == "mlx-whisper":
         return {
             "device": "mlx",
+            "actual_device": str(
+                asr_result.config.get("runtime_device") or "mlx:unknown"
+            ),
             "compute_type": str(asr_result.config.get("compute_type") or mlx_compute_type(config)),
             "asr_cpu_threads": None,
             "asr_num_workers": None,
@@ -785,6 +1082,11 @@ def asr_runtime_metadata(
     asr_device = resolve_device(config.asr.device)
     return {
         "device": asr_device,
+        "actual_device": str(
+            asr_result.config.get("actual_device")
+            or asr_result.config.get("device")
+            or asr_device
+        ),
         "compute_type": resolve_compute_type(config.asr.compute_type, asr_device),
         "asr_cpu_threads": resolve_cpu_threads(config.asr.cpu_threads, asr_device),
         "asr_num_workers": resolve_num_workers(config.asr.num_workers),
@@ -801,17 +1103,28 @@ def diarization_runtime_metadata(
     requested = _optional_metadata_str(metadata.get("requested_device"))
     if requested is None and config.diarization.enabled and config.diarization.backend != "off":
         requested = config.diarization.device
-    resolved = _optional_metadata_str(metadata.get("device"))
+    resolved = _optional_metadata_str(metadata.get("resolved_device"))
+    actual = _optional_metadata_str(metadata.get("actual_device"))
+    if actual is None:
+        actual = _optional_metadata_str(metadata.get("device"))
     if resolved is None:
-        resolved = _optional_metadata_str(metadata.get("resolved_device"))
+        resolved = actual
     if resolved is None and (not config.diarization.enabled or config.diarization.backend == "off"):
         resolved = "off"
+    if actual is None and (not config.diarization.enabled or config.diarization.backend == "off"):
+        actual = "off"
     warnings = [str(warning) for warning in diarization_result.warnings]
-    fallback = any(warning.startswith("pyannote_device_fallback:") for warning in warnings)
+    fallback = bool(metadata.get("device_fallback")) or any(
+        warning.startswith("pyannote_device_fallback:") for warning in warnings
+    )
     return {
         "diarization_requested_device": requested,
         "diarization_resolved_device": resolved,
+        "diarization_actual_device": actual,
         "diarization_device_fallback": fallback,
+        "diarization_fallback_reason": _optional_metadata_str(
+            metadata.get("fallback_reason")
+        ),
         "diarization_warnings": warnings,
     }
 
@@ -840,6 +1153,7 @@ def dependency_versions() -> dict[str, str | None]:
         "ctranslate2",
         "mlx-whisper",
         "mlx",
+        "mlx-metal",
         "pyannote.audio",
         "torch",
         "torchaudio",
@@ -865,10 +1179,20 @@ def environment_overrides() -> dict[str, str]:
         "LTM_ASR_DEVICE",
         "LTM_DIARIZATION_DEVICE",
         "LTM_ALIGNMENT_DEVICE",
+        "LTM_ALIGNMENT_ALLOW_EXPERIMENTAL_MPS",
         "LTM_ASR_CPU_THREADS",
         "LTM_ASR_NUM_WORKERS",
         "LTM_ASR_BATCHED",
         "LTM_ASR_BATCH_SIZE",
+        "LTM_MODEL_LIFECYCLE",
+        "PYTORCH_DEBUG_MPS_ALLOCATOR",
+        "PYTORCH_MPS_LOG_PROFILE_INFO",
+        "PYTORCH_MPS_TRACE_SIGNPOSTS",
+        "PYTORCH_MPS_HIGH_WATERMARK_RATIO",
+        "PYTORCH_MPS_LOW_WATERMARK_RATIO",
+        "PYTORCH_MPS_FAST_MATH",
+        "PYTORCH_MPS_PREFER_METAL",
+        "PYTORCH_ENABLE_MPS_FALLBACK",
         "HF_HOME",
         "HF_HUB_CACHE",
     )
@@ -885,24 +1209,64 @@ def cuda_available() -> bool:
 
 
 def validate_requested_device(config: PipelineConfig) -> None:
-    asr_requests_cuda = config.asr.backend == "faster-whisper" and config.asr.device == "cuda"
-    alignment_requests_cuda = config.alignment.device == "cuda"
-    if (
-        not asr_requests_cuda
-        and config.diarization.device != "cuda"
-        and not alignment_requests_cuda
-    ):
-        return
-    try:
-        import torch
+    validate_runtime_policy(resolve_runtime_policy(config))
 
-        cuda_available = torch.cuda.is_available()
-    except Exception:
-        cuda_available = False
-    if not cuda_available:
-        from .errors import LTMError
 
-        raise LTMError(
-            "CUDA was requested through config or LTM_DEVICE, but CUDA is not available. "
-            "Use --preset cpu, set LTM_DEVICE=cpu, or run in an NVIDIA/CUDA environment."
-        )
+def runtime_policy_evidence(
+    policy: RuntimePolicy,
+    *,
+    asr_actual_device: str | None,
+    alignment: AlignmentOutcome,
+    diarization_result: DiarizationResult,
+) -> dict[str, Any]:
+    """Overlay observed runtime devices and structured fallbacks onto the policy."""
+
+    payload = policy.model_dump(mode="json")
+    payload["asr"]["actual_device"] = asr_actual_device
+    payload["alignment"]["actual_device"] = alignment.device
+    payload["alignment"]["fallback_reason"] = _optional_metadata_str(
+        (alignment.metadata or {}).get("fallback_reason")
+    )
+    diarization_metadata = diarization_result.metadata
+    payload["diarization"]["actual_device"] = _optional_metadata_str(
+        diarization_metadata.get("actual_device")
+        or diarization_metadata.get("device")
+    )
+    payload["diarization"]["fallback_reason"] = _optional_metadata_str(
+        diarization_metadata.get("fallback_reason")
+    )
+    component_devices = diarization_metadata.get("component_devices")
+    if isinstance(component_devices, dict | list):
+        payload["diarization"]["component_devices"] = component_devices
+    payload["diarization"]["mps_inference_attempted"] = bool(
+        diarization_metadata.get("mps_inference_attempted")
+    )
+    payload["diarization"]["pytorch_mps_fallback_enabled"] = bool(
+        diarization_metadata.get("pytorch_mps_fallback_enabled")
+    )
+    return payload
+
+
+def alignment_model_metadata(
+    config: PipelineConfig,
+    alignment: AlignmentOutcome,
+) -> ModelMetadata | None:
+    """Bind a successful forced-alignment artifact to its manifest revision."""
+
+    if not alignment.backend.startswith("whisperx"):
+        return None
+    entry = resolve_model_entry("alignment", config.alignment.model or "en")
+    if entry is None:
+        return None
+    metadata = alignment.metadata or {}
+    return ModelMetadata(
+        role="alignment",
+        model_id=entry.model_id,
+        local_path=_optional_metadata_str(
+            metadata.get("model_path") or metadata.get("model")
+        ),
+        revision=entry.revision,
+        revision_verified=True,
+        gated=entry.gated,
+        present=True,
+    )

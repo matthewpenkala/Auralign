@@ -51,6 +51,9 @@ Raw ASR is preserved. Candidate text is recorded separately and is not silently
 merged into the final transcript. Re-decode windows are created only for QA
 flags with known timestamps; transcript-wide aggregate warnings remain in the
 QA report for review and never trigger an implicit full-recording ASR retry.
+Each candidate records first-pass and repair-candidate backend/model/config
+bindings, canonical and window audio hashes, both timestamp coordinate systems,
+selection reasons, and the one-attempt/non-recursive limits.
 
 ## Benchmarking
 

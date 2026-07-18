@@ -46,9 +46,12 @@ validated across the CLI, pipeline, API, benchmarks, and tests.
 12. Optionally run guarded cleanup into separate artifacts. Cleanup is
     localhost-only by default; non-local use requires explicit opt-in and is
     forbidden in offline mode.
-13. Write exports, reports, diagnostics, resource usage, and run metadata.
+13. Write exports, reports, diagnostics, core resource usage, and immutable run
+    metadata.
 14. When explicitly enabled, run identity resolution as a locked post-process
     and write only its derived report/export family.
+15. Write a separate completion-timing artifact after optional debug-report
+    publication, preserving the immutable core metadata contract.
 
 ## Artifact Invariants
 
@@ -100,6 +103,7 @@ words.csv
 speaker_report.json
 qa_report.json
 run_metadata.json
+completion_timing.json
 ```
 
 Optional modes add separate sidecars such as diarization candidate/decision
@@ -109,6 +113,20 @@ reports, re-decode candidates, `speaker_map.json`,
 `transcript.identity_mapped.*` exports without changing canonical transcripts
 or anonymous RTTM. Compatibility aliases remain part of the current file
 contract and must not be removed without an explicit migration.
+
+`run_metadata.json` declares `timing_scope: pipeline_core.v1`. Its
+`pipeline_core` duration, real-time factor, and resource snapshot are immutable
+core evidence and stop before the metadata is published and before optional
+identity or debug-report work. `completion_timing.json` uses schema
+`completion_timing.v1` to record the observed end-to-end duration, matching
+real-time factor, final resource usage, invocation setup, and post-core stage
+durations. Its required `invocation_setup` field names pre-core work, while
+`run_metadata_sha256` binds the exact immutable `run_metadata.json` bytes.
+Its `through_debug_publish_before_completion_artifact.v1` measurement scope
+explicitly excludes publishing the completion artifact itself and invoking the
+final completion progress callback. Benchmark readers prefer the completion
+record for total time and final resources; core stage timings remain sourced
+from run metadata.
 
 SRT and VTT are rendered from fused speaker turns. Their line width, line count,
 speaker labels, cue duration, and related behavior are controlled by the

@@ -16,6 +16,16 @@ def test_asr_threading_defaults_are_unset(tmp_path: Path) -> None:
     assert config.asr.num_workers is None
 
 
+def test_default_mlx_model_is_verified_large_v3_lane(tmp_path: Path) -> None:
+    config = load_config(cwd=tmp_path)
+    entry = resolve_model_entry("asr-mlx", config.asr.mlx_model)
+
+    assert config.asr.mlx_model == "mlx-large-v3"
+    assert entry is not None
+    assert entry.license_expression == "MIT"
+    assert entry.runtime_status == "approved_local"
+
+
 def test_preset_config_uses_confirmed_model_ids(tmp_path: Path) -> None:
     config = load_config(cwd=tmp_path)
     entry = resolve_model_entry("asr", config.asr.model)
@@ -41,6 +51,7 @@ def test_env_overrides_model_cache_and_offline(tmp_path: Path, monkeypatch) -> N
     monkeypatch.setenv("LTM_ASR_MLX_VAD_WINDOW_SECONDS", "20.5")
     monkeypatch.setenv("LTM_ASR_MLX_VAD_WINDOW_PADDING_SECONDS", "0.25")
     monkeypatch.setenv("LTM_ALIGNMENT_DEVICE", "mps")
+    monkeypatch.setenv("LTM_MODEL_LIFECYCLE", "per-job")
     config = load_config(cwd=tmp_path)
     assert config.model_cache == tmp_path / "cache"
     assert config.offline is True
@@ -57,6 +68,7 @@ def test_env_overrides_model_cache_and_offline(tmp_path: Path, monkeypatch) -> N
     assert config.asr.mlx_vad_window_seconds == 20.5
     assert config.asr.mlx_vad_window_padding_seconds == 0.25
     assert config.alignment.device == "mps"
+    assert config.runtime.model_lifecycle == "per-job"
 
 
 def test_empty_asr_thread_env_values_behave_like_unset(tmp_path: Path, monkeypatch) -> None:
@@ -95,7 +107,8 @@ def test_invalid_asr_thread_env_values_are_rejected(
 @pytest.mark.parametrize(
     ("name", "value", "message"),
     [
-        ("LTM_ASR_MLX_VAD_WINDOW_SECONDS", "0", "greater than 0"),
+        ("LTM_ASR_MLX_VAD_WINDOW_SECONDS", "0", "at least 1 second"),
+        ("LTM_ASR_MLX_VAD_WINDOW_SECONDS", "0.5", "at least 1 second"),
         ("LTM_ASR_MLX_VAD_WINDOW_SECONDS", "-1", "non-negative number"),
         ("LTM_ASR_MLX_VAD_WINDOW_SECONDS", "many", "non-negative number"),
         ("LTM_ASR_MLX_VAD_WINDOW_PADDING_SECONDS", "-1", "non-negative number"),
@@ -178,6 +191,28 @@ def test_asr_mlx_config_file_values_are_honored(tmp_path: Path) -> None:
     assert config.asr.mlx_vad_window_padding_seconds == 0.5
 
 
+def test_model_lifecycle_config_file_values_are_honored(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "runtime:\n  model_lifecycle: persistent\n",
+        encoding="utf-8",
+    )
+
+    config = load_config(config_file=config_path, cwd=tmp_path)
+
+    assert config.runtime.model_lifecycle == "persistent"
+
+
+def test_invalid_model_lifecycle_environment_is_rejected(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("LTM_MODEL_LIFECYCLE", "forever")
+
+    with pytest.raises(LTMError, match="LTM_MODEL_LIFECYCLE"):
+        load_config(cwd=tmp_path)
+
+
 def test_subtitle_export_config_file_values_are_honored(tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
@@ -239,6 +274,55 @@ def test_split_device_env_overrides_keep_asr_and_diarization_separate(
     assert config.asr.device == "cpu"
     assert config.diarization.device == "mps"
     assert config.alignment.device == "cpu"
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("LTM_ASR_DEVICE", "mps"),
+        ("LTM_DIARIZATION_DEVICE", "metal"),
+        ("LTM_ALIGNMENT_DEVICE", "neural-engine"),
+    ],
+)
+def test_invalid_device_environment_values_are_rejected(
+    tmp_path: Path,
+    monkeypatch,
+    name: str,
+    value: str,
+) -> None:
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(LTMError, match="must be one of"):
+        load_config(cwd=tmp_path)
+
+
+def test_alignment_mps_experimental_approval_environment_is_explicit(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("LTM_ALIGNMENT_ALLOW_EXPERIMENTAL_MPS", "1")
+
+    config = load_config(cwd=tmp_path)
+
+    assert config.alignment.allow_experimental_mps is True
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "redecode:\n  max_spans: 0\n",
+        "redecode:\n  max_spans: 101\n",
+        "redecode:\n  pad_seconds: 31\n",
+        "redecode:\n  beam_size: 21\n",
+        "redecode:\n  temperature: 2.1\n",
+    ],
+)
+def test_targeted_redecode_bounds_fail_closed(tmp_path: Path, payload: str) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(payload, encoding="utf-8")
+
+    with pytest.raises(LTMError, match="Invalid config file"):
+        load_config(config_file=config_path, cwd=tmp_path)
 
 
 def test_alignment_auto_alias_resolves_manifest_entry() -> None:

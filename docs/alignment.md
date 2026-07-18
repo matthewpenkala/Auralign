@@ -68,22 +68,43 @@ fall back and therefore does not prove forced-alignment startup readiness.
 uv run ltm transcribe input.wav --forced-alignment auto
 uv run ltm transcribe input.wav --forced-alignment on --alignment-language en
 uv run ltm transcribe input.wav --forced-alignment whisper
-uv run ltm transcribe input.wav --forced-alignment on --alignment-device mps
+uv run ltm transcribe input.wav --forced-alignment on --alignment-device cpu
 uv run ltm transcribe input.wav --no-alignment
 ```
 
 Use `--forced-alignment on` only when missing forced-alignment support should be
-a hard failure. Use `auto` for production-friendly fallback.
+a hard failure. Use `auto` only when a clearly reported Whisper-timestamp
+fallback is acceptable.
 
-`alignment.device` is optional. When unset, forced alignment inherits the ASR
-device policy used by the existing pipeline. Set `--alignment-device mps`,
-`LTM_ALIGNMENT_DEVICE=mps`, or `alignment.device: mps` only for explicit
-Apple/Torch MPS experiments, then check `run_metadata.json` and benchmark
-reports for the recorded alignment device.
+Alignment device resolution is independent from ASR and diarization. On Apple
+Silicon, an unset or `auto` alignment device resolves to CPU; MLX ASR never
+moves WhisperX to MPS. The runtime and reports distinguish the requested,
+resolved, and actual alignment device.
 
-These experiments are outside acceptance. Complete the same strict alignment
-case successfully on CPU first, keep the CPU artifacts unchanged, and run MPS
-as a separate benchmark job. Treat MPS as a candidate rather than a supported
-acceleration path until repeated runs are stable and the alignment report,
-timestamp coverage, fallback state, and derived artifacts are equivalent to
-the CPU baseline.
+MPS alignment requires both explicit device selection and the separate
+experimental-approval control. For the CLI, pass both flags:
+
+```bash
+uv run ltm transcribe input.wav \
+  --alignment-device mps \
+  --experimental-alignment-mps
+```
+
+For environment configuration, set both
+`LTM_ALIGNMENT_DEVICE=mps` and
+`LTM_ALIGNMENT_ALLOW_EXPERIMENTAL_MPS=1`. For YAML, set both fields:
+
+```yaml
+alignment:
+  device: mps
+  allow_experimental_mps: true
+```
+
+Use that paired approval only for an explicit isolated Apple/Torch experiment.
+This path is outside the normal MPS diarization canary and acceptance. Complete
+the same strict alignment case successfully on CPU first, keep the CPU artifacts
+unchanged, and run MPS in a separate directory. Promotion would require repeated
+same-machine measurements, actual-device verification, equivalent forced-
+alignment coverage and provenance, no additional missing or non-monotonic
+timestamps, and no end-to-end QA regression. The production default remains
+CPU; see the [Apple Silicon runbook](apple-silicon.md).

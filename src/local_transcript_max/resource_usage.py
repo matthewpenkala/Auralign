@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import time
 from typing import Any
@@ -28,6 +29,7 @@ class ResourceMonitor:
         self._rss_peak_bytes: int | None = None
         self._started_at: float | None = None
         self._ended_at: float | None = None
+        self._stage_samples: list[dict[str, Any]] = []
 
     def start(self) -> None:
         if self._thread is not None:
@@ -45,6 +47,26 @@ class ResourceMonitor:
         self._sample()
         self._ended_at = time.perf_counter()
         return self.summary()
+
+    def snapshot(self, stage: str) -> dict[str, Any]:
+        """Capture a privacy-safe process sample at a named stage boundary."""
+
+        rss = current_rss_bytes(self.pid)
+        user_cpu_seconds, system_cpu_seconds = process_cpu_seconds()
+        sample = {
+            "stage": stage,
+            "elapsed_seconds": (
+                round(time.perf_counter() - self._started_at, 6)
+                if self._started_at is not None
+                else None
+            ),
+            "rss_bytes": rss,
+            "user_cpu_seconds": user_cpu_seconds,
+            "system_cpu_seconds": system_cpu_seconds,
+            "framework_memory": framework_allocator_counters(),
+        }
+        self._stage_samples.append(sample)
+        return dict(sample)
 
     def summary(self) -> dict[str, Any]:
         rss_values = [] if self._rss_start_bytes is None else [self._rss_start_bytes]
@@ -74,6 +96,8 @@ class ResourceMonitor:
                 if self._started_at is not None and self._ended_at is not None
                 else None
             ),
+            "stage_samples": list(self._stage_samples),
+            "framework_memory_final": framework_allocator_counters(),
             "measurement_notes": resource_measurement_notes(rss_values, peak_ru, cpu_available),
         }
 
@@ -119,6 +143,56 @@ def process_cpu_seconds() -> tuple[float | None, float | None]:
         return usage.user_seconds, usage.system_seconds
     except OSError:
         return None, None
+
+
+def framework_allocator_counters() -> dict[str, Any]:
+    """Sample already-loaded accelerator allocators without importing frameworks.
+
+    MLX, Torch MPS, and RSS describe overlapping unified-memory views. Consumers
+    must compare them independently and never add them together.
+    """
+
+    counters: dict[str, Any] = {
+        "measurement_note": (
+            "Framework allocator counters overlap with process RSS and with each "
+            "other on unified memory; do not sum them."
+        )
+    }
+    mlx_core = sys.modules.get("mlx.core")
+    if mlx_core is not None:
+        counters["mlx"] = {
+            "active_memory_bytes": _optional_counter(mlx_core, "get_active_memory"),
+            "peak_memory_bytes": _optional_counter(mlx_core, "get_peak_memory"),
+            "cache_memory_bytes": _optional_counter(mlx_core, "get_cache_memory"),
+        }
+    torch = sys.modules.get("torch")
+    mps = getattr(torch, "mps", None) if torch is not None else None
+    if mps is not None:
+        counters["torch_mps"] = {
+            "current_allocated_memory_bytes": _optional_counter(
+                mps,
+                "current_allocated_memory",
+            ),
+            "driver_allocated_memory_bytes": _optional_counter(
+                mps,
+                "driver_allocated_memory",
+            ),
+            "recommended_max_memory_bytes": _optional_counter(
+                mps,
+                "recommended_max_memory",
+            ),
+        }
+    return counters
+
+
+def _optional_counter(source: object, name: str) -> int | None:
+    function = getattr(source, name, None)
+    if not callable(function):
+        return None
+    try:
+        return int(function())
+    except (RuntimeError, TypeError, ValueError):
+        return None
 
 
 def resource_measurement_notes(

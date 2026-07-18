@@ -74,3 +74,24 @@ def redact_obj(value: Any) -> Any:
     if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray)):
         return [redact_obj(item) for item in value]
     return value
+
+
+def privacy_safe_obj(value: Any) -> Any:
+    """Redact secrets and local paths throughout a machine-readable value."""
+
+    return _privacy_safe_obj(redact_obj(value))
+
+
+def _privacy_safe_obj(value: Any) -> Any:
+    if isinstance(value, str):
+        return privacy_safe_text(value)
+    if isinstance(value, Path):
+        return "<local-path>"
+    if isinstance(value, Mapping):
+        return {
+            privacy_safe_text(str(key)): _privacy_safe_obj(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_privacy_safe_obj(item) for item in value]
+    return value

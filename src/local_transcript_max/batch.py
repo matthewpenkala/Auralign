@@ -9,14 +9,26 @@ from __future__ import annotations
 import csv
 import fnmatch
 import hashlib
+import math
 import time
 from pathlib import Path
 from typing import Any
 
+from .alignment.base import AlignmentBackend
+from .alignment.forced_alignment import WhisperXForcedAlignment
+from .asr.base import ASRBackend
 from .config import PipelineConfig
+from .diarization.base import DiarizationBackend
 from .pipeline import select_asr_backend, select_diarization_backend, transcribe_file
 from .redaction import privacy_safe_text
-from .utils import atomic_text_write, atomic_text_writer, read_json, write_json
+from .schemas import CompletionTimingReport
+from .utils import (
+    atomic_text_write,
+    atomic_text_writer,
+    read_json,
+    sha256_file,
+    write_json,
+)
 from .validation.speakers import validate_speaker_artifacts
 
 AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".flac", ".aac", ".ogg", ".mov", ".mp4"}
@@ -58,21 +70,31 @@ def run_batch(
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     rows: list[dict[str, Any]] = []
-    asr_backend = select_asr_backend(config)
-    diarization_backend = select_diarization_backend(config)
+    reuse_backends = config.runtime.model_lifecycle in {"auto", "persistent"}
+    persistent_backends: (
+        tuple[ASRBackend, AlignmentBackend | None, DiarizationBackend] | None
+    ) = None
     for audio in discover_audio(input_dir, recursive=recursive, include=include, exclude=exclude):
         job_dir = out_dir / safe_job_name(audio)
-        transcript_path = job_dir / "transcript.json"
-        if skip_completed and transcript_path.exists():
+        completed = job_has_completion_evidence(job_dir)
+        if skip_completed and completed:
             rows.append(
                 {"input": str(audio), "job_dir": str(job_dir), "status": "skipped_complete"}
             )
             continue
-        if resume and (job_dir / "run_metadata.json").exists() and transcript_path.exists():
+        if resume and completed:
             rows.append(
                 {"input": str(audio), "job_dir": str(job_dir), "status": "resumed_complete"}
             )
             continue
+        if reuse_backends:
+            if persistent_backends is None:
+                persistent_backends = _runtime_backends(config)
+            asr_backend, alignment_backend, diarization_backend = persistent_backends
+        else:
+            asr_backend, alignment_backend, diarization_backend = _runtime_backends(
+                config
+            )
         started = time.perf_counter()
         try:
             transcribe_file(
@@ -80,6 +102,7 @@ def run_batch(
                 job_dir,
                 config,
                 asr_backend=asr_backend,
+                alignment_backend=alignment_backend,
                 diarization_backend=diarization_backend,
                 debug_report_path=job_dir / "debug_report.json" if debug_report else None,
             )
@@ -112,6 +135,7 @@ def run_batch(
         "total": len(rows),
         "complete": sum(1 for row in rows if row["status"] == "complete"),
         "failed": sum(1 for row in rows if row["status"] == "failed"),
+        "model_lifecycle": config.runtime.model_lifecycle,
         "rows": rows,
     }
     write_json(out_dir / "batch_summary.json", summary)
@@ -119,6 +143,68 @@ def run_batch(
     write_aggregate_qa(out_dir / "aggregate_qa.csv", rows)
     write_aggregate_speaker_validation(out_dir / "aggregate_speaker_validation.csv", rows)
     return summary
+
+
+def job_has_completion_evidence(job_dir: Path) -> bool:
+    """Return whether the job reached the pipeline's final durable sentinel."""
+
+    transcript_path = job_dir / "transcript.json"
+    metadata_path = job_dir / "run_metadata.json"
+    if not transcript_path.is_file() or not metadata_path.is_file():
+        return False
+    try:
+        metadata = read_json(metadata_path)
+    except (OSError, TypeError, ValueError):
+        return False
+    if not isinstance(metadata, dict):
+        return False
+    if "completion_timing_artifact" not in metadata:
+        return _legacy_run_metadata_is_complete(metadata)
+    if metadata.get("completion_timing_artifact") != "completion_timing.json":
+        return False
+    completion_path = job_dir / "completion_timing.json"
+    if not completion_path.is_file():
+        return False
+    try:
+        completion = CompletionTimingReport.model_validate(read_json(completion_path))
+    except (OSError, TypeError, ValueError):
+        return False
+    return completion.run_metadata_sha256 == sha256_file(metadata_path)
+
+
+def _legacy_run_metadata_is_complete(metadata: dict[str, Any]) -> bool:
+    """Recognize the pre-completion-artifact batch resume contract."""
+
+    timings = metadata.get("timings")
+    if not isinstance(timings, list):
+        return False
+    for row in timings:
+        if not isinstance(row, dict) or row.get("name") != "total":
+            continue
+        duration = row.get("duration_seconds")
+        if (
+            isinstance(duration, int | float)
+            and not isinstance(duration, bool)
+            and math.isfinite(duration)
+            and duration >= 0
+        ):
+            return True
+    return False
+
+
+def _runtime_backends(
+    config: PipelineConfig,
+) -> tuple[ASRBackend, AlignmentBackend | None, DiarizationBackend]:
+    return (
+        select_asr_backend(config),
+        (
+            WhisperXForcedAlignment()
+            if config.alignment.enabled
+            and config.alignment.backend not in {"off", "whisper", "fallback"}
+            else None
+        ),
+        select_diarization_backend(config),
+    )
 
 
 def safe_job_name(path: Path) -> str:

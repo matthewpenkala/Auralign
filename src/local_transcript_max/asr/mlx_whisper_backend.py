@@ -6,8 +6,9 @@
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
-import tempfile
+import sys
 import time
 import wave
 from pathlib import Path
@@ -15,7 +16,12 @@ from typing import Any
 
 from local_transcript_max.config import ModelEntry, PipelineConfig, resolve_model_entry
 from local_transcript_max.errors import BackendUnavailableError, ModelCacheError, OfflineModeError
-from local_transcript_max.models import ModelStatus, status_for, status_for_path
+from local_transcript_max.models import (
+    ModelStatus,
+    model_checkpoint_sha256,
+    status_for,
+    status_for_path,
+)
 from local_transcript_max.schemas import (
     AlignedWord,
     ASRResult,
@@ -26,10 +32,27 @@ from local_transcript_max.schemas import (
 )
 
 MLX_SAMPLE_RATE_WARNING = "mlx_vad_windowed_requires_seekable_wav"
+MLX_INTERNAL_BOUNDARY_CONTEXT_SECONDS = 1.0
 
 
 class MlxWhisperBackend:
     name = "mlx-whisper"
+
+    def __init__(self) -> None:
+        self._checkpoint_binding: tuple[Path, str] | None = None
+
+    def clear_runtime_cache(self) -> None:
+        """Release the pinned upstream process model holder when explicitly asked."""
+
+        self._checkpoint_binding = None
+        holder_module = sys.modules.get("mlx_whisper.transcribe")
+        holder = getattr(holder_module, "ModelHolder", None)
+        if holder is None:
+            return
+        holder.model = None
+        holder.model_path = None
+        if hasattr(holder, "_ltm_runtime_key"):
+            holder._ltm_runtime_key = None
 
     def transcribe(
         self,
@@ -45,6 +68,8 @@ class MlxWhisperBackend:
 
         entry = mlx_model_entry(config)
         model_path = resolve_mlx_model_path(config)
+        status = mlx_model_status(config)
+        checkpoint_sha256 = self._checkpoint_sha256(entry, model_path)
         initial_prompt = config.asr.initial_prompt
         if config.asr.glossary_file:
             initial_prompt = (
@@ -69,7 +94,18 @@ class MlxWhisperBackend:
             "fp16": config.asr.mlx_fp16,
         }
 
-        start = time.perf_counter()
+        runtime_package = getattr(mlx_whisper, "__path__", None) is not None
+        if runtime_package:
+            reset_mlx_peak_memory(load_if_needed=True)
+            mlx_memory_before = mlx_runtime_evidence()
+        else:
+            mlx_memory_before = mlx_runtime_evidence(load_if_needed=False)
+        model_timing = prepare_mlx_model(
+            model_path,
+            fp16=config.asr.mlx_fp16,
+        )
+        synchronize_mlx()
+        inference_started = time.perf_counter()
         if config.asr.mlx_vad_windowed:
             payload, window_warnings = transcribe_vad_windows(
                 mlx_whisper,
@@ -86,7 +122,19 @@ class MlxWhisperBackend:
         else:
             payload = mlx_whisper.transcribe(str(audio_path), **transcribe_kwargs)
             inference_mode = "mlx"
-        duration = time.perf_counter() - start
+        synchronize_mlx()
+        inference_duration = time.perf_counter() - inference_started
+        mlx_memory_after = mlx_runtime_evidence(
+            load_if_needed=runtime_package,
+        )
+        model_load_value = model_timing["model_load_seconds"]
+        model_load_duration = (
+            float(model_load_value)
+            if isinstance(model_load_value, int | float)
+            and not isinstance(model_load_value, bool)
+            else 0.0
+        )
+        duration = inference_duration + model_load_duration
         segments, raw_segments, timestamp_warnings = segments_from_mlx_payload(
             payload,
             require_word_timestamps=config.asr.word_timestamps,
@@ -96,11 +144,21 @@ class MlxWhisperBackend:
         return ASRResult(
             segments=segments,
             language=_str_or_none(payload.get("language")) if isinstance(payload, dict) else None,
-            raw={"segments": raw_segments, "mlx": payload if isinstance(payload, dict) else {}},
+            raw={
+                "segments": raw_segments,
+                "mlx": (
+                    {key: value for key, value in payload.items() if key != "segments"}
+                    if isinstance(payload, dict)
+                    else {}
+                ),
+            },
             model=ModelMetadata(
                 role="asr-mlx",
                 model_id=entry.model_id,
                 local_path=str(model_path),
+                revision=entry.revision if status.revision_verified else None,
+                revision_verified=status.revision_verified,
+                checkpoint_sha256=checkpoint_sha256,
                 gated=entry.gated,
                 present=True,
             ),
@@ -112,13 +170,185 @@ class MlxWhisperBackend:
                 "inference_mode": inference_mode,
                 "model_path": str(model_path),
                 "runtime_downloads_disabled": True,
+                "runtime_device": mlx_memory_after.get("default_device"),
+                "metal_available": mlx_memory_after.get("metal_available"),
+                "memory_before": mlx_memory_before,
+                "memory_after": mlx_memory_after,
                 "vad_window_count": len(payload.get("vad_windows", []))
                 if isinstance(payload, dict)
                 else 0,
+                "timing": {
+                    **model_timing,
+                    "inference_seconds": inference_duration,
+                    "lifecycle": "mlx_whisper_process_model_holder",
+                },
             },
             warnings=sorted(set(warnings)),
             timing=StageTiming(name="asr", duration_seconds=duration),
         )
+
+    def _checkpoint_sha256(self, entry: ModelEntry, model_path: Path) -> str:
+        resolved = model_path.expanduser().resolve()
+        if self._checkpoint_binding is None or self._checkpoint_binding[0] != resolved:
+            self._checkpoint_binding = (
+                resolved,
+                model_checkpoint_sha256(entry, resolved),
+            )
+        return self._checkpoint_binding[1]
+
+
+def prepare_mlx_model(
+    model_path: Path,
+    *,
+    fp16: bool,
+    mlx_core: Any | None = None,
+    model_holder: Any | None = None,
+) -> dict[str, object]:
+    """Warm the version-pinned MLX model holder and separate load from inference.
+
+    Older or mocked ``mlx-whisper`` surfaces may not expose ``ModelHolder``.
+    In that case the public transcribe call remains authoritative and load time
+    is honestly reported as inseparable.
+    """
+
+    if mlx_core is None or model_holder is None:
+        try:
+            model_holder_module = importlib.import_module("mlx_whisper.transcribe")
+            model_holder = model_holder_module.ModelHolder
+            mlx_core = importlib.import_module("mlx.core")
+        except (ImportError, AttributeError):
+            return {
+                "model_load_seconds": None,
+                "model_load_separable": False,
+                "cold_start": None,
+            }
+    dtype = mlx_core.float16 if fp16 else mlx_core.float32
+    key = (str(model_path), "float16" if fp16 else "float32")
+    previous_key = getattr(model_holder, "_ltm_runtime_key", None)
+    if model_holder.model is not None and previous_key != key:
+        # Upstream 0.4.x keys only by path. A precision change must not reuse a
+        # model instantiated with the previous dtype. An unbound existing
+        # holder is also unsafe because its construction precision is unknown.
+        model_holder.model = None
+        model_holder.model_path = None
+    cold_start = (
+        model_holder.model is None
+        or model_holder.model_path != str(model_path)
+    )
+    started = time.perf_counter()
+    model_holder.get_model(str(model_path), dtype=dtype)
+    synchronize = getattr(mlx_core, "synchronize", None)
+    if callable(synchronize):
+        synchronize()
+    model_load_seconds = time.perf_counter() - started
+    model_holder._ltm_runtime_key = key
+    return {
+        "model_load_seconds": model_load_seconds,
+        "model_load_separable": True,
+        "cold_start": cold_start,
+    }
+
+
+def synchronize_mlx() -> None:
+    """Materialize lazy MLX work at a benchmark boundary when MLX is loaded."""
+
+    try:
+        mx = sys.modules.get("mlx.core")
+        if mx is None:
+            return
+        synchronize = getattr(mx, "synchronize", None)
+        if callable(synchronize):
+            synchronize()
+    except (ImportError, RuntimeError):
+        return
+
+
+def reset_mlx_peak_memory(*, load_if_needed: bool = False) -> None:
+    try:
+        mx = (
+            importlib.import_module("mlx.core")
+            if load_if_needed
+            else sys.modules.get("mlx.core")
+        )
+        if mx is None:
+            return
+        reset = getattr(mx, "reset_peak_memory", None)
+        if callable(reset):
+            reset()
+    except (ImportError, RuntimeError):
+        return
+
+
+def mlx_runtime_evidence(*, load_if_needed: bool = True) -> dict[str, object]:
+    """Return overlap-aware MLX device and allocator counters.
+
+    Diagnostics can set ``load_if_needed=False`` so merely inspecting a
+    faster-whisper/CPU run does not initialize a second accelerator runtime.
+    """
+
+    try:
+        mx = (
+            importlib.import_module("mlx.core")
+            if load_if_needed
+            else sys.modules.get("mlx.core")
+        )
+        if mx is None:
+            return {
+                "available": importlib.util.find_spec("mlx") is not None,
+                "loaded": False,
+                "default_device": None,
+                "metal_available": None,
+                "active_memory_bytes": None,
+                "peak_memory_bytes": None,
+                "cache_memory_bytes": None,
+                "measurement_note": (
+                    "MLX is not loaded in this process; runtime device and allocator "
+                    "evidence are unavailable until the MLX backend starts."
+                ),
+            }
+        device = mx.default_device()
+        device_type = getattr(getattr(device, "type", None), "name", None)
+        metal = getattr(mx, "metal", None)
+        metal_available = bool(
+            metal is not None
+            and callable(getattr(metal, "is_available", None))
+            and metal.is_available()
+        )
+        return {
+            "available": True,
+            "loaded": True,
+            "default_device": (
+                f"mlx:{device_type}" if device_type else str(device)
+            ),
+            "metal_available": metal_available,
+            "active_memory_bytes": _call_optional_int(mx, "get_active_memory"),
+            "peak_memory_bytes": _call_optional_int(mx, "get_peak_memory"),
+            "cache_memory_bytes": _call_optional_int(mx, "get_cache_memory"),
+            "measurement_note": (
+                "MLX allocator counters overlap conceptually with process RSS; do not sum them."
+            ),
+        }
+    except (ImportError, RuntimeError):
+        return {
+            "available": False,
+            "loaded": False,
+            "default_device": None,
+            "metal_available": False,
+            "active_memory_bytes": None,
+            "peak_memory_bytes": None,
+            "cache_memory_bytes": None,
+            "measurement_note": "MLX runtime counters unavailable.",
+        }
+
+
+def _call_optional_int(module: Any, name: str) -> int | None:
+    function = getattr(module, name, None)
+    if not callable(function):
+        return None
+    try:
+        return int(function())
+    except (RuntimeError, TypeError, ValueError):
+        return None
 
 
 def mlx_model_entry(config: PipelineConfig) -> ModelEntry:
@@ -164,6 +394,21 @@ def transcribe_vad_windows(
     window_seconds: float,
     padding_seconds: float,
 ) -> tuple[dict[str, Any], list[str]]:
+    vad_provenance = {
+        "sources": sorted(
+            {
+                region.source
+                for region in vad_regions
+                if isinstance(region.source, str) and region.source.strip()
+            }
+        ),
+        "window_seconds": window_seconds,
+        "region_padding_seconds": padding_seconds,
+        "internal_boundary_context_seconds": internal_boundary_context_seconds(
+            window_seconds=window_seconds,
+            padding_seconds=padding_seconds,
+        ),
+    }
     windows = merge_vad_regions(
         vad_regions,
         window_seconds=window_seconds,
@@ -179,45 +424,89 @@ def transcribe_vad_windows(
         payload = dict(payload)
         payload["vad_windows"] = []
         payload["vad_windowed"] = False
+        payload["vad_provenance"] = vad_provenance
         return payload, warnings
 
     combined_segments: list[dict[str, Any]] = []
     chunk_payloads: list[dict[str, Any]] = []
-    with tempfile.TemporaryDirectory(prefix="ltm-mlx-vad-") as tmp_dir_name:
-        tmp_dir = Path(tmp_dir_name)
-        for index, window in enumerate(windows):
-            chunk_path = tmp_dir / f"window_{index:04d}.wav"
-            write_wav_chunk(audio_path, chunk_path, window["start"], window["end"])
-            payload = mlx_whisper.transcribe(str(chunk_path), **transcribe_kwargs)
-            if not isinstance(payload, dict):
-                raise BackendUnavailableError(
-                    "mlx-whisper returned an unexpected non-dict payload."
-                )
-            chunk_segments = payload.get("segments", [])
-            if not isinstance(chunk_segments, list):
-                raise BackendUnavailableError(
-                    "mlx-whisper returned an unexpected segments payload."
-                )
-            segment_count = sum(
-                1 for item in chunk_segments if isinstance(item, dict)
+    audio_samples, sample_rate = read_wav_float32(audio_path)
+    for index, window in enumerate(windows):
+        start_sample = max(0, int(round(window["start"] * sample_rate)))
+        end_sample = min(
+            len(audio_samples),
+            max(start_sample + 1, int(round(window["end"] * sample_rate))),
+        )
+        chunk = audio_samples[start_sample:end_sample]
+        payload = mlx_whisper.transcribe(chunk, **transcribe_kwargs)
+        if not isinstance(payload, dict):
+            raise BackendUnavailableError(
+                "mlx-whisper returned an unexpected non-dict payload."
             )
-            for segment in chunk_segments:
-                if isinstance(segment, dict):
-                    combined_segments.append(offset_mlx_segment(segment, window["start"]))
-            chunk_payloads.append(
-                {
-                    "window_index": index,
-                    "start": window["start"],
-                    "end": window["end"],
-                    "segment_count": segment_count,
-                    "language": payload.get("language"),
-                }
+        chunk_segments = payload.get("segments", [])
+        if not isinstance(chunk_segments, list):
+            raise BackendUnavailableError(
+                "mlx-whisper returned an unexpected segments payload."
             )
+        raw_segment_count = sum(
+            1 for item in chunk_segments if isinstance(item, dict)
+        )
+        emitted_segment_count = 0
+        context_word_count = 0
+        for segment in chunk_segments:
+            if isinstance(segment, dict):
+                shifted = offset_mlx_segment(segment, window["start"])
+                emitted = retain_mlx_segment_for_window(
+                    shifted,
+                    window,
+                    inclusive_end=(
+                        index == len(windows) - 1
+                        or windows[index + 1]["ownership_start"]
+                        > window["ownership_end"]
+                    ),
+                )
+                raw_words = segment.get("words")
+                emitted_words = None if emitted is None else emitted.get("words")
+                if isinstance(raw_words, list):
+                    context_word_count += len(raw_words) - (
+                        len(emitted_words)
+                        if isinstance(emitted_words, list)
+                        else 0
+                    )
+                if emitted is not None:
+                    combined_segments.append(emitted)
+                    emitted_segment_count += 1
+        chunk_payloads.append(
+            {
+                "window_index": index,
+                "decode_start": window["start"],
+                "decode_end": window["end"],
+                "ownership_start": window["ownership_start"],
+                "ownership_end": window["ownership_end"],
+                "boundary_context_seconds": window["boundary_context_seconds"],
+                "raw_segment_count": raw_segment_count,
+                "emitted_segment_count": emitted_segment_count,
+                "context_word_count_not_emitted": context_word_count,
+                "language": payload.get("language"),
+                "audio_representation": "in_memory_float32",
+            }
+        )
     return {
         "segments": resequence_segments(combined_segments),
         "language": first_non_empty_language(chunk_payloads),
         "vad_windows": windows,
         "vad_windowed": True,
+        "vad_provenance": vad_provenance,
+        "vad_window_qa": {
+            "ownership_intervals_non_overlapping": ownership_intervals_are_non_overlapping(
+                windows
+            ),
+            "context_words_not_emitted": sum(
+                int(item["context_word_count_not_emitted"])
+                for item in chunk_payloads
+            ),
+            "emitted_segment_count": len(combined_segments),
+            "whole_file_comparison_performed": False,
+        },
         "chunk_payloads": chunk_payloads,
     }, warnings
 
@@ -229,8 +518,10 @@ def merge_vad_regions(
     padding_seconds: float,
     audio_duration_seconds: float,
 ) -> list[dict[str, float]]:
-    if window_seconds <= 0:
-        raise BackendUnavailableError("MLX VAD window seconds must be greater than 0.")
+    if window_seconds < 1.0:
+        raise BackendUnavailableError(
+            "MLX VAD window seconds must be at least 1 second."
+        )
     ordered = sorted(
         (
             {
@@ -248,18 +539,111 @@ def merge_vad_regions(
         if current is None:
             current = dict(region)
             continue
-        if region["end"] - current["start"] > window_seconds and current["end"] > current["start"]:
-            windows.append(round_window(current))
-            current = dict(region)
+        overlaps_or_touches = region["start"] <= current["end"]
+        fits_current_window = region["end"] - current["start"] <= window_seconds
+        if overlaps_or_touches or fits_current_window:
+            current["end"] = max(current["end"], region["end"])
             continue
-        current["end"] = max(current["end"], region["end"])
+        if current["end"] > current["start"]:
+            windows.append(dict(current))
+        current = dict(region)
     if current is not None and current["end"] > current["start"]:
-        windows.append(round_window(current))
-    return windows
+        windows.append(dict(current))
+    return [
+        round_window(piece)
+        for window in windows
+        for piece in split_long_vad_window(
+            window,
+            window_seconds=window_seconds,
+            context_seconds=internal_boundary_context_seconds(
+                window_seconds=window_seconds,
+                padding_seconds=padding_seconds,
+            ),
+        )
+    ]
+
+
+def split_long_vad_window(
+    window: dict[str, float],
+    *,
+    window_seconds: float,
+    context_seconds: float = MLX_INTERNAL_BOUNDARY_CONTEXT_SECONDS,
+) -> list[dict[str, float]]:
+    """Bound one VAD region with context and non-overlapping emission ownership."""
+
+    start = window["start"]
+    end = window["end"]
+    if window_seconds < 1.0:
+        raise BackendUnavailableError(
+            "MLX VAD window seconds must be at least 1 second."
+        )
+    if context_seconds < 0 or context_seconds * 2 >= window_seconds:
+        raise BackendUnavailableError(
+            "MLX VAD boundary context must be non-negative and less than "
+            "half the window duration."
+        )
+    if end - start <= window_seconds:
+        return [
+            {
+                "start": start,
+                "end": end,
+                "ownership_start": start,
+                "ownership_end": end,
+                "boundary_context_seconds": 0.0,
+            }
+        ]
+
+    pieces: list[dict[str, float]] = []
+    ownership_start = start
+    while ownership_start < end:
+        decode_start = max(start, ownership_start - context_seconds)
+        decode_end = min(end, decode_start + window_seconds)
+        ownership_end = (
+            end
+            if decode_end >= end
+            else decode_end - context_seconds
+        )
+        if ownership_end <= ownership_start:
+            raise BackendUnavailableError(
+                "MLX VAD boundary context left no owned audio interval."
+            )
+        pieces.append(
+            {
+                "start": decode_start,
+                "end": decode_end,
+                "ownership_start": ownership_start,
+                "ownership_end": ownership_end,
+                "boundary_context_seconds": context_seconds,
+            }
+        )
+        ownership_start = ownership_end
+    return pieces
 
 
 def round_window(window: dict[str, float]) -> dict[str, float]:
-    return {"start": round(window["start"], 3), "end": round(window["end"], 3)}
+    return {key: round(value, 3) for key, value in window.items()}
+
+
+def internal_boundary_context_seconds(
+    *,
+    window_seconds: float,
+    padding_seconds: float,
+) -> float:
+    """Choose a safe internal context while keeping each decoded chunk bounded."""
+
+    return min(
+        max(MLX_INTERNAL_BOUNDARY_CONTEXT_SECONDS, padding_seconds),
+        window_seconds / 4.0,
+    )
+
+
+def ownership_intervals_are_non_overlapping(
+    windows: list[dict[str, float]],
+) -> bool:
+    return all(
+        previous["ownership_end"] <= following["ownership_start"]
+        for previous, following in zip(windows, windows[1:], strict=False)
+    )
 
 
 def wav_duration_seconds(audio_path: Path) -> float:
@@ -273,20 +657,23 @@ def wav_duration_seconds(audio_path: Path) -> float:
         raise BackendUnavailableError(MLX_SAMPLE_RATE_WARNING) from exc
 
 
-def write_wav_chunk(audio_path: Path, chunk_path: Path, start: float, end: float) -> None:
+def read_wav_float32(audio_path: Path) -> tuple[Any, int]:
+    """Decode the canonical PCM WAV once for all opt-in MLX VAD windows."""
+
     try:
+        import numpy as np
+
         with wave.open(str(audio_path), "rb") as source:
-            params = source.getparams()
+            if source.getnchannels() != 1 or source.getsampwidth() != 2:
+                raise BackendUnavailableError(MLX_SAMPLE_RATE_WARNING)
             rate = source.getframerate()
-            start_frame = max(0, int(round(start * rate)))
-            end_frame = max(start_frame + 1, int(round(end * rate)))
-            end_frame = min(end_frame, source.getnframes())
-            source.setpos(start_frame)
-            frames = source.readframes(max(0, end_frame - start_frame))
-        with wave.open(str(chunk_path), "wb") as target:
-            target.setparams(params)
-            target.writeframes(frames)
-    except wave.Error as exc:
+            if rate != 16_000:
+                raise BackendUnavailableError(MLX_SAMPLE_RATE_WARNING)
+            frames = source.readframes(source.getnframes())
+        samples = np.frombuffer(frames, dtype="<i2").astype(np.float32)
+        samples /= 32768.0
+        return samples, rate
+    except (ImportError, wave.Error) as exc:
         raise BackendUnavailableError(MLX_SAMPLE_RATE_WARNING) from exc
 
 
@@ -308,6 +695,89 @@ def offset_mlx_segment(segment: dict[str, Any], offset: float) -> dict[str, Any]
             shifted_words.append(shifted_word)
         shifted["words"] = shifted_words
     return shifted
+
+
+def retain_mlx_segment_for_window(
+    segment: dict[str, Any],
+    window: dict[str, float],
+    *,
+    inclusive_end: bool,
+) -> dict[str, Any] | None:
+    """Emit each context-decoded word from exactly one ownership interval."""
+
+    segment_start = _float_value(segment.get("start"))
+    segment_end = _float_value(segment.get("end"))
+    segment_midpoint = (segment_start + segment_end) / 2.0
+    words = segment.get("words")
+    if isinstance(words, list) and words:
+        retained_words: list[dict[str, Any]] = []
+        for word in words:
+            if not isinstance(word, dict):
+                continue
+            start = _optional_float(word.get("start"))
+            end = _optional_float(word.get("end"))
+            if start is not None and end is not None:
+                midpoint = (start + end) / 2.0
+            elif start is not None:
+                midpoint = start
+            elif end is not None:
+                midpoint = end
+            else:
+                midpoint = segment_midpoint
+            if ownership_contains(
+                midpoint,
+                window,
+                inclusive_end=inclusive_end,
+            ):
+                retained_words.append(word)
+        if not retained_words:
+            return None
+        emitted = dict(segment)
+        emitted["words"] = retained_words
+        emitted["text"] = text_from_mlx_words(retained_words)
+        retained_starts = [
+            value
+            for word in retained_words
+            if (value := _optional_float(word.get("start"))) is not None
+        ]
+        retained_ends = [
+            value
+            for word in retained_words
+            if (value := _optional_float(word.get("end"))) is not None
+        ]
+        if retained_starts:
+            emitted["start"] = min(retained_starts)
+        if retained_ends:
+            emitted["end"] = max(retained_ends)
+        return emitted
+
+    if ownership_contains(
+        segment_midpoint,
+        window,
+        inclusive_end=inclusive_end,
+    ):
+        return segment
+    return None
+
+
+def ownership_contains(
+    timestamp: float,
+    window: dict[str, float],
+    *,
+    inclusive_end: bool,
+) -> bool:
+    start = window["ownership_start"]
+    end = window["ownership_end"]
+    return timestamp >= start and (
+        timestamp <= end if inclusive_end else timestamp < end
+    )
+
+
+def text_from_mlx_words(words: list[dict[str, Any]]) -> str:
+    tokens = [str(word.get("word") or "") for word in words]
+    if any(token[:1].isspace() for token in tokens):
+        return "".join(tokens).strip()
+    return " ".join(token.strip() for token in tokens if token.strip())
 
 
 def resequence_segments(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:

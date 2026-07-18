@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class LTMBaseModel(BaseModel):
@@ -43,6 +43,8 @@ class ModelMetadata(LTMBaseModel):
     model_id: str
     local_path: str | None = None
     revision: str | None = None
+    revision_verified: bool | None = None
+    checkpoint_sha256: str | None = None
     gated: bool = False
     present: bool = False
 
@@ -237,6 +239,11 @@ class BenchmarkReport(LTMBaseModel):
 
 class RunMetadata(LTMBaseModel):
     package_version: str
+    code_revision: str | None = None
+    source_config_sha256: str | None = None
+    source_config_sha256_scope: Literal["complete_runtime_configuration.v1"] | None = None
+    source_configuration: dict[str, Any] = Field(default_factory=dict)
+    source_configuration_schema: Literal["privacy_safe_configuration.v1"] | None = None
     input_file_hash: str | None = None
     input_metadata: AudioMetadata | None = None
     canonical_audio_metadata: AudioMetadata | None = None
@@ -246,6 +253,13 @@ class RunMetadata(LTMBaseModel):
     diarization_backend: str | None = None
     alignment_backend: str | None = None
     alignment_device: str | None = None
+    asr_requested_device: str | None = None
+    asr_resolved_device: str | None = None
+    asr_actual_device: str | None = None
+    alignment_requested_device: str | None = None
+    alignment_resolved_device: str | None = None
+    alignment_actual_device: str | None = None
+    alignment_fallback_reason: str | None = None
     compute_type: str | None = None
     device: str | None = None
     asr_cpu_threads: int | None = None
@@ -254,8 +268,11 @@ class RunMetadata(LTMBaseModel):
     asr_batch_size: int | None = None
     diarization_requested_device: str | None = None
     diarization_resolved_device: str | None = None
+    diarization_actual_device: str | None = None
     diarization_device_fallback: bool = False
+    diarization_fallback_reason: str | None = None
     diarization_warnings: list[str] = Field(default_factory=list)
+    device_policy: dict[str, Any] = Field(default_factory=dict)
     cuda_available: bool | None = None
     dependency_versions: dict[str, str | None] = Field(default_factory=dict)
     runtime_environment: dict[str, Any] = Field(default_factory=dict)
@@ -266,6 +283,69 @@ class RunMetadata(LTMBaseModel):
     processing_timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     timings: list[StageTiming] = Field(default_factory=list)
     real_time_factor: float | None = None
+    timing_scope: Literal["pipeline_core.v1"] = "pipeline_core.v1"
+    completion_timing_artifact: str | None = "completion_timing.json"
+
+
+class CompletionStageDurations(LTMBaseModel):
+    """Named work outside the immutable pipeline-core timing scope."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=True,
+        allow_inf_nan=False,
+    )
+
+    invocation_setup: float = Field(strict=True, ge=0.0)
+    run_metadata_preparation_and_publish: float = Field(strict=True, ge=0.0)
+    speaker_identity: float = Field(strict=True, ge=0.0)
+    debug_report_publish: float = Field(strict=True, ge=0.0)
+
+
+class CompletionTimingReport(LTMBaseModel):
+    """Observed end-to-end timing kept separate from immutable run metadata."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=True,
+        allow_inf_nan=False,
+    )
+
+    schema_version: Literal["completion_timing.v1"] = "completion_timing.v1"
+    run_metadata_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    pipeline_core_seconds: float = Field(strict=True, ge=0.0)
+    observed_end_to_end_seconds: float = Field(strict=True, ge=0.0)
+    real_time_factor: float | None = Field(default=None, strict=True, ge=0.0)
+    stage_durations: CompletionStageDurations
+    resource_usage: dict[str, Any] = Field(default_factory=dict)
+    measurement_scope: Literal[
+        "through_debug_publish_before_completion_artifact.v1"
+    ] = "through_debug_publish_before_completion_artifact.v1"
+    excluded_operations: tuple[
+        Literal["completion_timing_artifact_publish"],
+        Literal["completion_progress_callback"],
+    ] = (
+        "completion_timing_artifact_publish",
+        "completion_progress_callback",
+    )
+
+    @model_validator(mode="after")
+    def _end_to_end_covers_core(self) -> CompletionTimingReport:
+        if self.observed_end_to_end_seconds < self.pipeline_core_seconds:
+            raise ValueError("observed end-to-end timing cannot be shorter than core")
+        accounted = self.pipeline_core_seconds + sum(
+            (
+                self.stage_durations.invocation_setup,
+                self.stage_durations.run_metadata_preparation_and_publish,
+                self.stage_durations.speaker_identity,
+                self.stage_durations.debug_report_publish,
+            )
+        )
+        if self.observed_end_to_end_seconds + 1e-9 < accounted:
+            raise ValueError(
+                "observed end-to-end timing cannot be shorter than accounted stages"
+            )
+        return self
 
 
 def jsonable(model: BaseModel) -> dict[str, Any]:

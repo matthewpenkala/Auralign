@@ -943,6 +943,9 @@ def execute_jobs(
             use_macos_time=False,
         )
         job["benchmark_result"] = benchmark_result.to_dict()
+        if benchmark_result.exit_code != 0:
+            job["benchmark_status"] = "failed"
+            continue
         validate_command = cast(list[str] | None, job.get("validate_command"))
         if validate_command is not None:
             validate_result = run_logged_command(
@@ -954,6 +957,10 @@ def execute_jobs(
                 use_macos_time=False,
             )
             job["speaker_validation_result"] = validate_result.to_dict()
+            if validate_result.exit_code != 0:
+                merge_job_metrics(job)
+                job["benchmark_status"] = "failed"
+                continue
         merge_job_metrics(job)
         job["benchmark_status"] = "complete"
         if emit:
@@ -1445,6 +1452,7 @@ def collect_repo_state() -> dict[str, Any]:
     return {
         "cwd": str(Path.cwd()),
         "branch": command_stdout(["git", "branch", "--show-current"]),
+        "commit": command_stdout(["git", "rev-parse", "--verify", "HEAD"]),
         "status_short": command_stdout(["git", "status", "--short"]),
         "diff_stat": command_stdout(["git", "diff", "--stat"]),
     }

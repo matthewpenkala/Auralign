@@ -4,7 +4,12 @@
 
 from pathlib import Path
 
-from local_transcript_max.redaction import privacy_safe_text, redact_obj, redact_text
+from local_transcript_max.redaction import (
+    privacy_safe_obj,
+    privacy_safe_text,
+    redact_obj,
+    redact_text,
+)
 
 
 def test_redact_text_masks_hf_and_bearer_tokens() -> None:
@@ -72,3 +77,28 @@ def test_privacy_safe_text_masks_posix_windows_and_explicit_paths() -> None:
     assert "C:\\Users\\example" not in safe
     assert str(private) not in safe
     assert safe.count("<local-path>") == 3
+
+
+def test_privacy_safe_obj_masks_nested_secrets_and_paths() -> None:
+    private_path = Path("/Users/example/private/models")
+    secret = "hf_" + "abcdefghijklmnopqrstuvwxyz"
+    payload = {
+        "ok": True,
+        "model_cache": private_path,
+        "checks": [
+            {
+                "message": f"failed at {private_path}/model.bin; HF_TOKEN={secret}"
+            }
+        ],
+        "credentials": {"user": "private", "password": "private"},
+    }
+
+    safe = privacy_safe_obj(payload)
+
+    assert safe["ok"] is True
+    assert safe["model_cache"] == "<local-path>"
+    assert safe["credentials"] == "<redacted>"
+    assert str(private_path) not in str(safe)
+    assert secret not in str(safe)
+    assert "<local-path>" in safe["checks"][0]["message"]
+    assert "<redacted>" in safe["checks"][0]["message"]

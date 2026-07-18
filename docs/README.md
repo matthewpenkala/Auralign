@@ -13,6 +13,8 @@ canonical sources for implementation details and operational policy.
 
 - [Architecture](architecture.md): repository spine, runtime stages, and
   validation boundaries.
+- [Apple Silicon](apple-silicon.md): native arm64 MLX/CPU topology, diagnostics,
+  offline setup, QA, and evidence-gated MPS diarization.
 - [Alignment](alignment.md): forced-alignment routing and fallback semantics.
 - [Diarization](diarization.md): backends, device policy, and candidate scoring.
 

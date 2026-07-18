@@ -10,8 +10,17 @@ from collections import Counter
 
 from local_transcript_max.schemas import DiarizationTurn, QAFlag, QAReport, Transcript
 
+SPEAKER_FLAPPING_MAX_GAP_SECONDS = 1.0
+SPEAKER_FLAPPING_MAX_TURN_SECONDS = 2.0
+SPEAKER_FLAPPING_WARNING_THRESHOLD = 0.35
+EXCESSIVELY_SHORT_TURN_SECONDS = 0.75
 
-def run_qa(transcript: Transcript) -> QAReport:
+
+def run_qa(
+    transcript: Transcript,
+    *,
+    requested_speaker_count: int | None = None,
+) -> QAReport:
     flags: list[QAFlag] = []
     for segment in transcript.segments:
         if segment.end < segment.start:
@@ -117,7 +126,7 @@ def run_qa(transcript: Transcript) -> QAReport:
             )
         )
     flapping = speaker_flapping_score(transcript.diarization_turns)
-    if flapping > 0.35:
+    if flapping > SPEAKER_FLAPPING_WARNING_THRESHOLD:
         flags.append(
             QAFlag(
                 code="speaker_flapping",
@@ -127,19 +136,58 @@ def run_qa(transcript: Transcript) -> QAReport:
             )
         )
     alignment_counts = Counter(word.alignment_source for word in transcript.words)
+    assignment_counts = Counter(
+        word.assignment_source or "unassigned" for word in transcript.words
+    )
     word_count = len(transcript.words)
+    detected_speaker_count = len(set(labels))
+    short_turn_count = sum(
+        1
+        for turn in transcript.diarization_turns
+        if max(0.0, turn.end - turn.start) < EXCESSIVELY_SHORT_TURN_SECONDS
+    )
+    error_flag_count = sum(flag.severity == "error" for flag in flags)
+    warning_flag_count = sum(flag.severity == "warning" for flag in flags)
     summary = {
         "flag_count": len(flags),
-        "speaker_count": len(set(labels)),
+        "error_flag_count": error_flag_count,
+        "warning_flag_count": warning_flag_count,
+        "critical_qa_defect_count": error_flag_count,
+        "major_qa_defect_count": warning_flag_count,
+        "speaker_count": detected_speaker_count,
+        "requested_speaker_count": requested_speaker_count,
+        "detected_speaker_count": detected_speaker_count,
+        "validated_speaker_count": None,
         "word_count": word_count,
+        "assigned_word_count": word_count - unlabeled,
+        "unassigned_word_count": unlabeled,
+        "uncertain_speaker_word_count": uncertain,
         "percent_words_assigned_to_speakers": percent(word_count - unlabeled, word_count),
+        "percent_words_unassigned": percent(unlabeled, word_count),
         "percent_words_uncertain": percent(uncertain, word_count),
+        "assignment_source_counts": dict(sorted(assignment_counts.items())),
         "forced_alignment_percentage": percent(alignment_counts["forced"], word_count),
         "whisper_alignment_percentage": percent(alignment_counts["whisper"], word_count),
         "estimated_alignment_percentage": percent(alignment_counts["estimated"], word_count),
+        "missing_alignment_percentage": percent(alignment_counts["missing"], word_count),
+        "timestamp_coverage_percentage": percent(word_count - missing_timestamps, word_count),
         "missing_timestamp_count": missing_timestamps,
+        "non_monotonic_timestamp_count": non_monotonic_words,
+        "missing_segment_timestamp_count": 0,
         "overlap_spans": overlap_spans,
+        "overlap_span_count": len(overlap_spans),
+        "excessively_short_turn_count": short_turn_count,
+        "excessively_short_turn_rate": percent(
+            short_turn_count,
+            len(transcript.diarization_turns),
+        ),
         "speaker_flapping_score": flapping,
+        "speaker_flapping_definition": {
+            "max_gap_seconds": SPEAKER_FLAPPING_MAX_GAP_SECONDS,
+            "max_current_turn_seconds": SPEAKER_FLAPPING_MAX_TURN_SECONDS,
+            "warning_threshold": SPEAKER_FLAPPING_WARNING_THRESHOLD,
+        },
+        "short_turn_definition_seconds": EXCESSIVELY_SHORT_TURN_SECONDS,
         "overall_quality_summary": "review_warnings" if flags else "no_deterministic_warnings",
         "actionable_remediation_suggestions": remediation_suggestions(flags),
     }
@@ -201,7 +249,11 @@ def speaker_flapping_score(turns: list[DiarizationTurn]) -> float:
     ordered = sorted(turns, key=lambda turn: (turn.start, turn.end, turn.speaker))
     for previous, current in zip(ordered, ordered[1:], strict=False):
         gap = max(0.0, current.start - previous.end)
-        if previous.speaker != current.speaker and gap <= 1.0 and current.end - current.start < 2.0:
+        if (
+            previous.speaker != current.speaker
+            and gap <= SPEAKER_FLAPPING_MAX_GAP_SECONDS
+            and current.end - current.start < SPEAKER_FLAPPING_MAX_TURN_SECONDS
+        ):
             rapid_switches += 1
     return round(rapid_switches / (len(ordered) - 1), 6)
 

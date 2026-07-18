@@ -58,7 +58,7 @@ from .platform_security import (
     private_path_is_secure,
     reject_reparse_or_symlink,
 )
-from .redaction import privacy_safe_text
+from .redaction import privacy_safe_obj, privacy_safe_text
 from .runtime_assets import prepare_generated_punkt
 
 app = typer.Typer(no_args_is_help=True, help="Local speaker-aware transcription.")
@@ -242,6 +242,10 @@ def _run_doctor_without_upstream_stderr(
 def doctor(
     preset: Annotated[str, typer.Option(help="Config preset to inspect.")] = "max",
     config_file: Annotated[Path | None, typer.Option("--config", exists=True)] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Emit a privacy-safe machine-readable diagnostic report."),
+    ] = False,
     startup: Annotated[
         bool,
         typer.Option(
@@ -254,11 +258,120 @@ def doctor(
     try:
         config = _config(preset, config_file)
         report = _run_doctor_without_upstream_stderr(config, startup=startup)
-        typer.echo(format_doctor(report))
+        if json_output:
+            payload = privacy_safe_obj(report.model_dump(mode="json"))
+            typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            typer.echo(format_doctor(report))
         if not report.ok:
             raise typer.Exit(1)
     except LTMError as exc:
         typer.echo(privacy_safe_text(str(exc)), err=True)
+        raise typer.Exit(1) from exc
+
+
+@app.command("apple-silicon-canary")
+def apple_silicon_canary(
+    input_file: Annotated[Path, typer.Argument()],
+    speaker_count: Annotated[
+        int,
+        typer.Option("--num-speakers", min=1, max=128),
+    ],
+    out: Annotated[
+        Path,
+        typer.Option("--out", "-o", help="Fresh private canary output directory."),
+    ] = Path("benchmark_runs/apple_silicon_canary"),
+    preset: Annotated[str, typer.Option(help="Base preset to bind.")] = "max",
+    config_file: Annotated[Path | None, typer.Option("--config", exists=True)] = None,
+    roster: Annotated[
+        Path | None,
+        typer.Option(
+            "--roster",
+            help="Optional local roster included by content hash in the canary binding.",
+        ),
+    ] = None,
+    warmup_runs: Annotated[
+        int,
+        typer.Option("--warmup-runs", min=1),
+    ] = 1,
+    measured_runs: Annotated[
+        int,
+        typer.Option("--measured-runs", min=3),
+    ] = 3,
+    alignment_model: Annotated[str, typer.Option("--alignment-model")] = "en",
+    minimum_diarization_speedup_ratio: Annotated[
+        float,
+        typer.Option("--minimum-diarization-speedup-ratio", min=0.0),
+    ] = 0.10,
+    maximum_total_time_regression_ratio: Annotated[
+        float,
+        typer.Option("--maximum-total-time-regression-ratio", min=0.0),
+    ] = 0.05,
+    explicit_mps_override: Annotated[
+        bool,
+        typer.Option(
+            "--explicit-mps-override",
+            help=(
+                "Record a completed non-fallback MPS lane as an operator override; "
+                "never auto-promotion."
+            ),
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Validate and print the plan without reading media or creating output.",
+        ),
+    ] = False,
+) -> None:
+    """Run the bound offline CPU-versus-MPS pyannote evidence gate."""
+
+    from .benchmark.apple_silicon_canary import CanaryGatePolicy
+    from .benchmark.apple_silicon_runner import (
+        AppleSiliconCanaryOptions,
+        AppleSiliconCanaryRequest,
+        run_apple_silicon_canary,
+    )
+
+    try:
+        if minimum_diarization_speedup_ratio >= 1.0:
+            raise typer.BadParameter(
+                "minimum-diarization-speedup-ratio must be less than 1"
+            )
+        config = _config(preset, config_file)
+        policy = CanaryGatePolicy(
+            minimum_diarization_speedup_ratio=minimum_diarization_speedup_ratio,
+            maximum_total_time_regression_ratio=maximum_total_time_regression_ratio,
+        )
+        result = run_apple_silicon_canary(
+            AppleSiliconCanaryRequest(
+                input_file=input_file,
+                output_dir=out,
+                config=config,
+                speaker_count=speaker_count,
+                roster_path=roster,
+                options=AppleSiliconCanaryOptions(
+                    warmup_runs=warmup_runs,
+                    measured_runs=measured_runs,
+                    alignment_model=alignment_model,
+                    explicit_mps_override=explicit_mps_override,
+                    dry_run=dry_run,
+                    policy=policy,
+                ),
+            )
+        )
+        typer.echo(result.model_dump_json(indent=2))
+    except (LTMError, ValueError) as exc:
+        typer.echo(privacy_safe_text(str(exc)), err=True)
+        raise typer.Exit(1) from exc
+    except Exception as exc:
+        safe_message = privacy_safe_text(str(exc))
+        typer.echo(
+            "Apple Silicon canary failed unexpectedly: "
+            f"{exc.__class__.__name__}: {safe_message}",
+            err=True,
+        )
         raise typer.Exit(1) from exc
 
 
@@ -345,6 +458,17 @@ def transcribe(
     preset: Annotated[str, typer.Option(help="max, balanced, fast, or cpu")] = "max",
     out: Annotated[Path, typer.Option("--out", "-o", help="Output directory.")] = Path("outputs"),
     config_file: Annotated[Path | None, typer.Option("--config", exists=True)] = None,
+    offline: Annotated[
+        bool | None,
+        typer.Option(
+            "--offline/--online",
+            help="Explicitly require or disable local/offline operation.",
+        ),
+    ] = None,
+    model_cache: Annotated[
+        Path | None,
+        typer.Option("--model-cache", help="Override the local model-cache directory."),
+    ] = None,
     language: Annotated[str | None, typer.Option("--language")] = None,
     asr_backend: Annotated[
         str,
@@ -365,11 +489,15 @@ def transcribe(
     ] = False,
     asr_mlx_vad_window_seconds: Annotated[
         float | None,
-        typer.Option("--asr-mlx-vad-window-seconds", min=0.001),
+        typer.Option("--asr-mlx-vad-window-seconds", min=1.0),
     ] = None,
     asr_mlx_vad_window_padding_seconds: Annotated[
         float | None,
         typer.Option("--asr-mlx-vad-window-padding-seconds", min=0.0),
+    ] = None,
+    asr_device: Annotated[
+        str | None,
+        typer.Option("--asr-device", help="auto, cpu, or cuda; MLX owns its native device."),
     ] = None,
     num_speakers: Annotated[int | None, typer.Option("--num-speakers", min=1, max=128)] = None,
     min_speakers: Annotated[int | None, typer.Option("--min-speakers", min=1, max=128)] = None,
@@ -414,6 +542,13 @@ def transcribe(
         str | None,
         typer.Option("--alignment-device", help="auto, cpu, cuda, or experimental mps."),
     ] = None,
+    experimental_alignment_mps: Annotated[
+        bool,
+        typer.Option(
+            "--experimental-alignment-mps",
+            help="Approve an isolated WhisperX MPS experiment; never used automatically.",
+        ),
+    ] = False,
     no_alignment: Annotated[bool, typer.Option("--no-alignment")] = False,
     word_timestamps: Annotated[bool, typer.Option("--word-timestamps/--no-word-timestamps")] = True,
     initial_prompt: Annotated[Path | None, typer.Option("--initial-prompt", exists=True)] = None,
@@ -423,12 +558,21 @@ def transcribe(
         str,
         typer.Option("--targeted-redecode", help="off, low-confidence, hallucination, all-suspect"),
     ] = "off",
-    redecode_max_spans: Annotated[int, typer.Option("--redecode-max-spans", min=1)] = 5,
-    redecode_pad_seconds: Annotated[float, typer.Option("--redecode-pad-seconds", min=0.0)] = 1.0,
-    redecode_beam_size: Annotated[int, typer.Option("--redecode-beam-size", min=1)] = 5,
+    redecode_max_spans: Annotated[
+        int,
+        typer.Option("--redecode-max-spans", min=1, max=100),
+    ] = 5,
+    redecode_pad_seconds: Annotated[
+        float,
+        typer.Option("--redecode-pad-seconds", min=0.0, max=30.0),
+    ] = 1.0,
+    redecode_beam_size: Annotated[
+        int,
+        typer.Option("--redecode-beam-size", min=1, max=20),
+    ] = 5,
     redecode_temperature: Annotated[
         float,
-        typer.Option("--redecode-temperature", min=0.0),
+        typer.Option("--redecode-temperature", min=0.0, max=2.0),
     ] = 0.0,
     write_redecode_report: Annotated[bool, typer.Option("--write-redecode-report")] = False,
     speaker_id: Annotated[str, typer.Option("--speaker-id", help="auto or off")] = "auto",
@@ -512,6 +656,13 @@ def transcribe(
         int | None,
         typer.Option("--asr-batch-size", min=1, help="Batch size for --asr-batched."),
     ] = None,
+    model_lifecycle: Annotated[
+        str | None,
+        typer.Option(
+            "--model-lifecycle",
+            help="auto, persistent, or per-job model/cache residency.",
+        ),
+    ] = None,
 ) -> None:
     """Transcribe one local audio/video file into reproducible artifacts."""
     try:
@@ -519,14 +670,17 @@ def transcribe(
 
         def use_cli_value(name: str) -> bool:
             source = ctx.get_parameter_source(name)
-            return config_file is None or getattr(source, "name", None) == "COMMANDLINE"
+            return getattr(source, "name", None) == "COMMANDLINE"
 
         def use_cli_default_or_explicit(name: str, env_names: tuple[str, ...]) -> bool:
+            del env_names
             source = ctx.get_parameter_source(name)
-            if getattr(source, "name", None) == "COMMANDLINE":
-                return True
-            return config_file is None and not any(name in os.environ for name in env_names)
+            return getattr(source, "name", None) == "COMMANDLINE"
 
+        if offline is not None:
+            config.offline = offline
+        if model_cache is not None:
+            config.model_cache = model_cache
         if use_cli_value("language"):
             config.asr.language = language
         if asr_backend not in {"faster-whisper", "mlx-whisper"}:
@@ -545,6 +699,10 @@ def transcribe(
             config.asr.mlx_vad_window_seconds = asr_mlx_vad_window_seconds
         if asr_mlx_vad_window_padding_seconds is not None:
             config.asr.mlx_vad_window_padding_seconds = asr_mlx_vad_window_padding_seconds
+        if asr_device is not None:
+            if asr_device not in {"auto", "cpu", "cuda"}:
+                raise typer.BadParameter("asr-device must be one of: auto, cpu, cuda")
+            config.asr.device = cast(Literal["auto", "cpu", "cuda"], asr_device)
         if use_cli_value("word_timestamps"):
             config.asr.word_timestamps = word_timestamps
         if use_cli_value("initial_prompt"):
@@ -557,6 +715,15 @@ def transcribe(
             config.asr.batched = asr_batched
         if asr_batch_size is not None:
             config.asr.batch_size = asr_batch_size
+        if model_lifecycle is not None:
+            if model_lifecycle not in {"auto", "persistent", "per-job"}:
+                raise typer.BadParameter(
+                    "model-lifecycle must be one of: auto, persistent, per-job"
+                )
+            config.runtime.model_lifecycle = cast(
+                Literal["auto", "persistent", "per-job"],
+                model_lifecycle,
+            )
         if use_cli_value("num_speakers"):
             config.diarization.num_speakers = num_speakers
         if use_cli_value("min_speakers"):
@@ -592,7 +759,13 @@ def transcribe(
             )
             config.diarization.enabled = diarization_backend != "off"
         if use_cli_value("diarization_device") and diarization_device is not None:
-            config.diarization.device = diarization_device
+            if diarization_device not in {"auto", "cpu", "cuda", "mps"}:
+                raise typer.BadParameter(
+                    "diarization-device must be one of: auto, cpu, cuda, mps"
+                )
+            config.diarization.device = cast(
+                Literal["auto", "cpu", "cuda", "mps"], diarization_device
+            )
         if use_cli_value("preserve_overlap"):
             config.diarization.preserve_overlap = preserve_overlap
         if use_cli_value("exclusive_diarization"):
@@ -630,11 +803,14 @@ def transcribe(
         if forced_alignment not in {"auto", "on", "off", "whisper"}:
             raise typer.BadParameter("forced-alignment must be one of: auto, on, off, whisper")
         if use_cli_value("forced_alignment"):
-            config.alignment.backend = {
-                "on": "forced",
-                "off": "off",
-                "whisper": "whisper",
-            }.get(forced_alignment, forced_alignment)
+            config.alignment.backend = cast(
+                Literal["auto", "forced", "fallback", "whisper", "off"],
+                {
+                    "on": "forced",
+                    "off": "off",
+                    "whisper": "whisper",
+                }.get(forced_alignment, forced_alignment),
+            )
             config.alignment.enabled = config.alignment.backend != "off"
         if use_cli_value("no_alignment") and no_alignment:
             config.alignment.enabled = False
@@ -643,7 +819,15 @@ def transcribe(
         if use_cli_value("alignment_model"):
             config.alignment.model = alignment_model
         if use_cli_value("alignment_device") and alignment_device is not None:
-            config.alignment.device = alignment_device
+            if alignment_device not in {"auto", "cpu", "cuda", "mps"}:
+                raise typer.BadParameter(
+                    "alignment-device must be one of: auto, cpu, cuda, mps"
+                )
+            config.alignment.device = cast(
+                Literal["auto", "cpu", "cuda", "mps"], alignment_device
+            )
+        if use_cli_value("experimental_alignment_mps"):
+            config.alignment.allow_experimental_mps = experimental_alignment_mps
         if use_cli_value("normalize_loudness"):
             config.audio.normalize_loudness = normalize_loudness
         if denoise not in {"off", "mild", "strong"}:
@@ -886,7 +1070,7 @@ def models_import_mlx(
         Path,
         typer.Argument(exists=True, file_okay=False, readable=True),
     ],
-    model: Annotated[str, typer.Option("--model")] = "mlx-large-v3-turbo",
+    model: Annotated[str, typer.Option("--model")] = "mlx-large-v3",
     cache_dir: Annotated[Path, typer.Option("--cache-dir", help="Model cache directory.")] = Path(
         "models"
     ),
@@ -1721,11 +1905,27 @@ def batch(
     expected_speakers: Annotated[int | None, typer.Option("--expected-speakers", min=1)] = None,
     debug_report: Annotated[bool, typer.Option("--debug-report")] = False,
     aggregate_qa: Annotated[bool, typer.Option("--aggregate-qa")] = True,
+    model_lifecycle: Annotated[
+        str | None,
+        typer.Option(
+            "--model-lifecycle",
+            help="auto/persistent reuses models; per-job releases them between files.",
+        ),
+    ] = None,
 ) -> None:
     """Transcribe a directory of local media files with isolated failures."""
     from .batch import run_batch
 
     config = _config(preset)
+    if model_lifecycle is not None:
+        if model_lifecycle not in {"auto", "persistent", "per-job"}:
+            raise typer.BadParameter(
+                "model-lifecycle must be one of: auto, persistent, per-job"
+            )
+        config.runtime.model_lifecycle = cast(
+            Literal["auto", "persistent", "per-job"],
+            model_lifecycle,
+        )
     summary = run_batch(
         input_dir,
         out,
