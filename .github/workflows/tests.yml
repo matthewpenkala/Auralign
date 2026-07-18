@@ -48,6 +48,7 @@ jobs:
         with:
           version: "0.11.26"
           enable-cache: true
+          save-cache: ${{ matrix.python-version == '3.11' }}
       - name: Install FFmpeg
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
