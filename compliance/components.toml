@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 schema_version = "1.0"
-reviewed_at = "2026-07-13"
+reviewed_at = "2026-07-18"
 
 # Fields here are inherited by every row unless overridden. The checker merges
 # these defaults before evaluating a component record.
@@ -296,21 +296,23 @@ usage = "pinned PEP 517 build backend"
 id = "github-action:checkout"
 category = "github-action"
 identifier = "actions/checkout"
-versions = ["11bd71901bbe5b1630ceea73d27597364c9af683"]
-source_url = "https://github.com/actions/checkout/tree/11bd71901bbe5b1630ceea73d27597364c9af683"
-terms_url = "https://github.com/actions/checkout/blob/11bd71901bbe5b1630ceea73d27597364c9af683/LICENSE"
+versions = ["9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"]
+source_url = "https://github.com/actions/checkout/tree/9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+terms_url = "https://github.com/actions/checkout/blob/9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0/LICENSE"
 license_expression = "MIT"
 usage = "private CI source checkout with persisted credentials disabled"
+review_date = "2026-07-18"
 
 [[components]]
 id = "github-action:setup-uv"
 category = "github-action"
 identifier = "astral-sh/setup-uv"
-versions = ["557e51de59eb14aaaba2ed9621916900a91d50c6"]
-source_url = "https://github.com/astral-sh/setup-uv/tree/557e51de59eb14aaaba2ed9621916900a91d50c6"
-terms_url = "https://github.com/astral-sh/setup-uv/blob/557e51de59eb14aaaba2ed9621916900a91d50c6/LICENSE"
+versions = ["11f9893b081a58869d3b5fccaea48c9e9e46f990"]
+source_url = "https://github.com/astral-sh/setup-uv/tree/11f9893b081a58869d3b5fccaea48c9e9e46f990"
+terms_url = "https://github.com/astral-sh/setup-uv/blob/11f9893b081a58869d3b5fccaea48c9e9e46f990/LICENSE"
 license_expression = "MIT"
 usage = "private CI uv provisioning"
+review_date = "2026-07-18"
 
 [[components]]
 id = "github-action:dependency-review"
