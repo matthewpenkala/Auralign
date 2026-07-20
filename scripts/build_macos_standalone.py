@@ -2671,25 +2671,33 @@ def sign_app(
 ) -> dict[str, str]:
     timestamp = [] if structure_only else ["--timestamp"]
     hardened_runtime = [] if structure_only else ["--options", "runtime"]
+    main_executable = app / "Contents/MacOS/Auralign"
     for path in sorted(
         macho_files(app),
         key=lambda candidate: len(candidate.relative_to(app).parts),
         reverse=True,
     ):
-        subprocess.run(
-            [
-                "codesign",
-                "--force",
-                *hardened_runtime,
-                *timestamp,
-                "--sign",
-                identity,
-                str(path),
-            ],
+        if path == main_executable:
+            continue
+        command = [
+            "codesign",
+            "--force",
+            *hardened_runtime,
+            *timestamp,
+            "--sign",
+            identity,
+            str(path),
+        ]
+        signature = subprocess.run(
+            command,
             cwd=ROOT,
-            check=True,
+            check=False,
             text=True,
             capture_output=True,
+        )
+        require(
+            signature.returncode == 0,
+            f"nested code signing failed: {path}\n{signature.stderr}",
         )
     runtime_bundle = app_runtime_bundle(app)
     run(

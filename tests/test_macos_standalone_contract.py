@@ -453,6 +453,72 @@ def test_universal_macho_bundle_is_not_misread_as_a_dylib(
     )
 
 
+def test_app_signing_seals_nested_code_before_the_outer_app(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    app = tmp_path / "Auralign.app"
+    main = app / "Contents/MacOS/Auralign"
+    nested = (
+        app
+        / "Contents/Frameworks/AuralignEngineRuntime.bundle"
+        / "Contents/Resources/Runtime/lib/native.dylib"
+    )
+    runtime_bundle = BUILDER_MODULE.app_runtime_bundle(app)
+    nested.parent.mkdir(parents=True)
+    main.parent.mkdir(parents=True)
+    main.touch()
+    nested.touch()
+    subprocess_commands: list[list[str]] = []
+    run_commands: list[list[str]] = []
+
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "macho_files",
+        lambda _root: [main, nested],
+    )
+
+    def fake_subprocess_run(
+        command: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        subprocess_commands.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    def fake_run(
+        command: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        run_commands.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(BUILDER_MODULE.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(BUILDER_MODULE, "run", fake_run)
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "verify_app_signatures",
+        lambda *_args, **_kwargs: {"Identifier": "com.auralign.studio"},
+    )
+
+    identity = "Developer ID Application: Fixture (TEAMID)"
+    result = BUILDER_MODULE.sign_app(
+        app,
+        identity,
+        structure_only=False,
+        expected_team="TEAMID",
+    )
+
+    assert result == {"Identifier": "com.auralign.studio"}
+    assert len(subprocess_commands) == 1
+    assert subprocess_commands[0][-1] == str(nested)
+    assert str(main) not in subprocess_commands[0]
+    assert run_commands[0][-1] == str(runtime_bundle)
+    assert run_commands[1][-1] == str(app)
+    assert run_commands[1].count(identity) == 1
+    assert "--entitlements" not in run_commands[0]
+    assert "--entitlements" in run_commands[1]
+
+
 @pytest.mark.skipif(
     sys.platform != "darwin" or platform.machine() != "arm64",
     reason="requires Apple Silicon and the macOS native toolchain",
