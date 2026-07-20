@@ -13,6 +13,7 @@ import platform
 import plistlib
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -238,6 +239,45 @@ def test_diagnostic_cache_is_atomic_content_addressed_and_fail_closed(
     (published / "fixture/payload.txt").write_text("tampered\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="cache payload hash or mode drift"):
         BUILDER_MODULE.verified_cache_payload(cache, "test", key_inputs)
+
+
+def test_installable_payload_modes_are_normalized_and_fail_closed(
+    tmp_path: Path,
+) -> None:
+    payload = tmp_path / "payload"
+    private_directory = payload / "private"
+    private_directory.mkdir(parents=True)
+    private_file = private_directory / "metadata.json"
+    executable = payload / "bin/tool"
+    executable.parent.mkdir()
+    private_file.write_text("{}\n", encoding="utf-8")
+    executable.write_text("#!/bin/sh\n", encoding="utf-8")
+    payload.chmod(0o700)
+    private_directory.chmod(0o700)
+    private_file.chmod(0o640)
+    executable.chmod(0o700)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+
+    with pytest.raises(RuntimeError, match="non-installable payload modes"):
+        BUILDER_MODULE.verify_installable_payload_modes(payload)
+
+    result = BUILDER_MODULE.normalize_installable_payload_modes(payload, evidence)
+
+    assert stat.S_IMODE(payload.stat().st_mode) == 0o755
+    assert stat.S_IMODE(private_directory.stat().st_mode) == 0o755
+    assert stat.S_IMODE(private_file.stat().st_mode) == 0o644
+    assert stat.S_IMODE(executable.stat().st_mode) == 0o755
+    assert result["schema_version"] == "auralign-installable-payload-modes.v1"
+    assert {
+        row["path"]
+        for row in result["changes"]
+    } == {".", "bin/tool", "private", "private/metadata.json"}
+    BUILDER_MODULE.verify_installable_payload_modes(payload)
+
+    private_file.chmod(0o646)
+    with pytest.raises(RuntimeError, match=r"private/metadata\.json"):
+        BUILDER_MODULE.verify_installable_payload_modes(payload)
 
 
 def test_exact_download_cache_reuse_never_contacts_source(

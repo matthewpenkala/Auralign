@@ -1345,6 +1345,67 @@ def verify_payload_safety(root: Path, markers: Iterable[Path]) -> None:
                 previous = payload[-8192:]
 
 
+def normalize_installable_payload_modes(
+    root: Path,
+    evidence: Path,
+) -> dict[str, Any]:
+    changes: list[dict[str, Any]] = []
+    for path in [root, *sorted(root.rglob("*"))]:
+        metadata = path.lstat()
+        if stat.S_ISLNK(metadata.st_mode):
+            continue
+        original = stat.S_IMODE(metadata.st_mode)
+        if stat.S_ISDIR(metadata.st_mode):
+            required = 0o555
+        elif stat.S_ISREG(metadata.st_mode):
+            required = 0o555 if original & 0o111 else 0o444
+        else:
+            continue
+        normalized = (original | required) & ~0o022
+        if normalized == original:
+            continue
+        path.chmod(normalized)
+        changes.append(
+            {
+                "path": "." if path == root else path.relative_to(root).as_posix(),
+                "original_mode": original,
+                "normalized_mode": normalized,
+            }
+        )
+    payload = {
+        "schema_version": "auralign-installable-payload-modes.v1",
+        "changes": changes,
+    }
+    (evidence / "installable-payload-modes.json").write_text(
+        json.dumps(payload, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    verify_installable_payload_modes(root)
+    return payload
+
+
+def verify_installable_payload_modes(root: Path) -> None:
+    defects: list[str] = []
+    for path in [root, *sorted(root.rglob("*"))]:
+        metadata = path.lstat()
+        if stat.S_ISLNK(metadata.st_mode):
+            continue
+        mode = stat.S_IMODE(metadata.st_mode)
+        if stat.S_ISDIR(metadata.st_mode):
+            required = 0o555
+        elif stat.S_ISREG(metadata.st_mode):
+            required = 0o555 if mode & 0o111 else 0o444
+        else:
+            continue
+        if mode & required != required or mode & 0o022:
+            relative = "." if path == root else path.relative_to(root).as_posix()
+            defects.append(f"{relative} ({mode:#05o})")
+    require(
+        not defects,
+        "non-installable payload modes: " + ", ".join(defects),
+    )
+
+
 def verify_app_topology(app: Path) -> None:
     require(app.name == "Auralign.app", "unexpected application bundle name")
     contents = app / "Contents"
@@ -1377,6 +1438,7 @@ def verify_app_topology(app: Path) -> None:
         "embedded Python launcher missing",
     )
     require(not (contents / "PlugIns").exists(), "application plug-ins are prohibited")
+    verify_installable_payload_modes(app)
 
 
 def rewrite_ffmpeg_prefix(prefix: Path) -> None:
@@ -2454,6 +2516,7 @@ def build_runtime(
         ROOT / "compliance/THIRD_PARTY_COMPONENTS.generated.md",
         legal / "Auralign-components.md",
     )
+    installable_payload_modes = normalize_installable_payload_modes(runtime, evidence)
 
     build_info = {
         "schema_version": "auralign-embedded-build.v1",
@@ -2478,6 +2541,7 @@ def build_runtime(
         "native_loader_rpaths": native_loader_rpaths,
         "native_thinning": native_thinning,
         "diagnostic_ad_hoc_signing": diagnostic_ad_hoc_signing,
+        "installable_payload_modes": installable_payload_modes,
         "requirements_sha256": sha256(REQUIREMENTS_PATH),
         "diagnostic_cache": {
             "enabled": cache_root is not None,
@@ -2512,6 +2576,7 @@ def build_runtime(
     )
     write_runtime_sbom(runtime, evidence, sources)
     prune_runtime(runtime)
+    verify_installable_payload_modes(runtime)
     smoke = runtime_smoke(runtime, label="constructed-runtime")
     (evidence / "runtime-smoke.json").write_text(
         json.dumps(smoke, sort_keys=True, indent=2) + "\n",
