@@ -112,7 +112,10 @@ jobs:
       - name: Sync locked environment
         run: uv sync --locked --python ${{ matrix.python-version }} --extra dev --extra api
       - name: Test on Python ${{ matrix.python-version }}
-        run: uv run --python ${{ matrix.python-version }} pytest -q
+        run: >-
+          uv run --python ${{ matrix.python-version }} pytest -q
+          -o faulthandler_timeout=90
+          -o faulthandler_exit_on_timeout=true
       - name: Lint (Python 3.11)
         if: matrix.python-version == '3.11' && runner.os == 'Linux'
         run: uv run --python ${{ matrix.python-version }} ruff check .
