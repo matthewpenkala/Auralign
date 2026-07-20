@@ -112,8 +112,25 @@ jobs:
       - name: Sync locked environment
         run: uv sync --locked --python ${{ matrix.python-version }} --extra dev --extra api
       - name: Test on Python ${{ matrix.python-version }}
+        if: runner.os != 'Windows'
         run: >-
           uv run --python ${{ matrix.python-version }} pytest -q
+          -o faulthandler_timeout=90
+          -o faulthandler_exit_on_timeout=true
+      - name: Test Windows GUI bridge contracts on Python ${{ matrix.python-version }}
+        if: runner.os == 'Windows'
+        timeout-minutes: 5
+        run: >-
+          uv run --python ${{ matrix.python-version }} pytest -q
+          tests/test_gui_bridge.py
+          -o faulthandler_timeout=90
+          -o faulthandler_exit_on_timeout=true
+      - name: Test remaining Windows contracts on Python ${{ matrix.python-version }}
+        if: runner.os == 'Windows'
+        timeout-minutes: 10
+        run: >-
+          uv run --python ${{ matrix.python-version }} pytest -q
+          --ignore=tests/test_gui_bridge.py
           -o faulthandler_timeout=90
           -o faulthandler_exit_on_timeout=true
       - name: Lint (Python 3.11)

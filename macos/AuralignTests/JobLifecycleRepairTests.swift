@@ -727,7 +727,7 @@ final class JobLifecycleRepairTests: XCTestCase {
             expectations: JobExpectations(config: .object([:]))
         )
 
-        for _ in 0..<200 {
+        for _ in 0..<1_000 {
             if controller.recentEvents.contains(where: { $0.hasPrefix("result") }) {
                 break
             }

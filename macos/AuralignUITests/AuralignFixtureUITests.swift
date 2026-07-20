@@ -279,12 +279,10 @@ final class AuralignFixtureUITests: XCTestCase {
         )
         let compactDetails = element("results.compact-details", in: launched)
         if compactDetails.waitForExistence(timeout: 1) {
+            // The first click can be consumed by XCUITest's automatic scroll
+            // when the disclosure starts below the visible transcript.
             compactDetails.click()
-            // A compact Results layout can place the disclosure below the
-            // visible transcript. Right Arrow is idempotent when it is
-            // already expanded and expands it when the initial click only
-            // brought the control on screen.
-            compactDetails.typeKey(.rightArrow, modifierFlags: [])
+            compactDetails.click()
         }
         let completedScroll = element("results.root", in: launched)
         XCTAssertTrue(completedScroll.waitForExistence(timeout: 3))
