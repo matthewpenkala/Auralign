@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from .errors import BackendUnavailableError
@@ -53,12 +55,53 @@ def probe_torchcodec() -> str:
             "PyAV is unavailable for the reviewed macOS TorchCodec FFmpeg 7 boundary."
         ) from exc
     dylibs = _reviewed_ffmpeg_library_directory(Path(av.__file__).resolve().parent)
+    libraries, aliases_complete = _reviewed_ffmpeg_libraries(dylibs)
+
+    environment: dict[str, str] | None = None
+    if dylibs.name == ".dylibs":
+        environment = os.environ.copy()
+        environment["PYTHONDONTWRITEBYTECODE"] = "1"
+        environment["DYLD_LIBRARY_PATH"] = str(dylibs)
+
+    if environment is not None and not aliases_complete:
+        with tempfile.TemporaryDirectory(prefix="auralign-ffmpeg7-aliases-") as temporary:
+            alias_directory = Path(temporary)
+            for name, library in zip(PYAV_FFMPEG7_ALIASES, libraries, strict=True):
+                (alias_directory / name).symlink_to(library)
+            environment["DYLD_LIBRARY_PATH"] = str(alias_directory)
+            completed = _run_torchcodec_probe(libraries, environment)
+    else:
+        completed = _run_torchcodec_probe(libraries, environment)
+    if completed.returncode != 0:
+        raise BackendUnavailableError(
+            "TorchCodec could not load against the reviewed PyAV FFmpeg 7 ABI in a clean "
+            "macOS subprocess. Reinstall Auralign or repair the reviewed native runtime."
+        )
+    return completed.stdout.strip() or "installed"
+
+
+def _reviewed_ffmpeg_libraries(dylibs: Path) -> tuple[list[Path], bool]:
+    """Resolve exact aliases or the wheel's unique fully versioned equivalents."""
+
+    root = dylibs.resolve(strict=True)
     libraries: list[Path] = []
+    aliases_complete = True
     for name in PYAV_FFMPEG7_ALIASES:
-        candidate = dylibs / name
+        candidate = root / name
+        if not candidate.exists() and dylibs.name == ".dylibs":
+            aliases_complete = False
+            prefix = name.removesuffix(".dylib")
+            pattern = re.compile(rf"{re.escape(prefix)}(?:\.\d+)+\.dylib")
+            matches = sorted(
+                path
+                for path in root.iterdir()
+                if pattern.fullmatch(path.name) and path.is_file() and not path.is_symlink()
+            )
+            if len(matches) == 1:
+                candidate = matches[0]
         try:
             resolved = candidate.resolve(strict=True)
-            resolved.relative_to(dylibs.resolve(strict=True))
+            resolved.relative_to(root)
         except (OSError, ValueError) as exc:
             raise BackendUnavailableError(
                 "The reviewed PyAV FFmpeg 7 runtime contract is incomplete."
@@ -68,15 +111,14 @@ def probe_torchcodec() -> str:
                 "The reviewed PyAV FFmpeg 7 runtime contract is incomplete."
             )
         libraries.append(resolved)
+    return libraries, aliases_complete
 
-    environment: dict[str, str] | None = None
-    if dylibs.name == ".dylibs":
-        environment = os.environ.copy()
-        environment["DYLD_LIBRARY_PATH"] = str(dylibs)
-        environment["PYTHONDONTWRITEBYTECODE"] = "1"
 
+def _run_torchcodec_probe(
+    libraries: list[Path], environment: dict[str, str] | None
+) -> subprocess.CompletedProcess[str]:
     try:
-        completed = subprocess.run(
+        return subprocess.run(
             [
                 sys.executable,
                 "-B",
@@ -101,12 +143,6 @@ def probe_torchcodec() -> str:
             "TorchCodec could not load against the reviewed PyAV FFmpeg 7 ABI in a clean "
             "macOS subprocess. Reinstall Auralign or repair the reviewed native runtime."
         ) from exc
-    if completed.returncode != 0:
-        raise BackendUnavailableError(
-            "TorchCodec could not load against the reviewed PyAV FFmpeg 7 ABI in a clean "
-            "macOS subprocess. Reinstall Auralign or repair the reviewed native runtime."
-        )
-    return completed.stdout.strip() or "installed"
 
 
 def _reviewed_ffmpeg_library_directory(pyav_package: Path) -> Path:

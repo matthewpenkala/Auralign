@@ -89,6 +89,42 @@ def test_macos_torchcodec_probe_accepts_standalone_runtime_library_layout(
     assert kwargs["env"] is None
 
 
+def test_macos_torchcodec_probe_supports_fully_versioned_pyav_wheel_libraries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package = tmp_path / "av"
+    dylibs = package / ".dylibs"
+    dylibs.mkdir(parents=True)
+    versioned: list[Path] = []
+    for name in PYAV_FFMPEG7_ALIASES:
+        prefix = name.removesuffix(".dylib")
+        library = dylibs / f"{prefix}.1.2.dylib"
+        library.write_bytes(b"reviewed")
+        versioned.append(library)
+    av = ModuleType("av")
+    av.__file__ = str(package / "__init__.py")
+    monkeypatch.setitem(sys.modules, "av", av)
+    monkeypatch.setattr("local_transcript_max.native_runtime.platform.system", lambda: "Darwin")
+    observed_aliases = False
+
+    def completed(command: list[str], **kwargs: object) -> SimpleNamespace:
+        nonlocal observed_aliases
+        environment = kwargs["env"]
+        assert isinstance(environment, dict)
+        alias_directory = Path(environment["DYLD_LIBRARY_PATH"])
+        observed_aliases = all(
+            (alias_directory / name).resolve(strict=True) == library.resolve(strict=True)
+            for name, library in zip(PYAV_FFMPEG7_ALIASES, versioned, strict=True)
+        )
+        assert command[5:] == [str(path.resolve()) for path in versioned]
+        return SimpleNamespace(returncode=0, stdout="0.7.0\n")
+
+    monkeypatch.setattr("local_transcript_max.native_runtime.subprocess.run", completed)
+
+    assert probe_torchcodec() == "0.7.0"
+    assert observed_aliases
+
+
 def test_macos_torchcodec_probe_fails_closed_on_missing_alias(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
