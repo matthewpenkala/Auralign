@@ -1056,8 +1056,9 @@ final class JobLifecycleRepairTests: XCTestCase {
         let lockURL = directory.appendingPathComponent("cross-process.lock")
         let readyURL = directory.appendingPathComponent("cross-process.ready")
         let holder = Process()
-        holder.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        holder.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         holder.arguments = [
+            "python3",
             "-c",
             """
             import fcntl, os, sys, time
@@ -1098,6 +1099,9 @@ final class JobLifecycleRepairTests: XCTestCase {
             FileManager.default.fileExists(atPath: readyURL.path),
             "the independent lock-holder process did not become ready"
         )
+        guard FileManager.default.fileExists(atPath: readyURL.path) else {
+            return
+        }
         let recordedPID = try pid(from: readyURL)
         XCTAssertEqual(recordedPID, holder.processIdentifier)
 

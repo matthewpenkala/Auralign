@@ -277,6 +277,10 @@ final class AuralignFixtureUITests: XCTestCase {
             element("results.transcript", in: launched)
                 .waitForExistence(timeout: 3)
         )
+        let compactDetails = element("results.compact-details", in: launched)
+        if compactDetails.waitForExistence(timeout: 1) {
+            compactDetails.click()
+        }
         XCTAssertTrue(
             element("results.qa", in: launched)
                 .waitForExistence(timeout: 3)

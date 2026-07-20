@@ -1293,24 +1293,25 @@ def verify_payload_safety(root: Path, markers: Iterable[Path]) -> None:
     encoded = [str(path.resolve()).encode() for path in markers]
     encoded.append(str(Path.home()).encode())
     encoded.append(str(Path(tempfile.gettempdir()).resolve()).encode())
-    xattr_command = ["/usr/bin/xattr"]
-    if root.is_dir():
-        xattr_command.append("-r")
-    xattr_command.append(str(root))
-    inspected_attributes = subprocess.run(
-        xattr_command,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    require(
-        inspected_attributes.returncode == 0,
-        f"cannot inspect extended attributes: {root}",
-    )
-    require(
-        "com.apple.quarantine" not in inspected_attributes.stdout,
-        f"quarantine metadata in payload: {root}",
-    )
+    if sys.platform == "darwin":
+        xattr_command = ["/usr/bin/xattr"]
+        if root.is_dir():
+            xattr_command.append("-r")
+        xattr_command.append(str(root))
+        inspected_attributes = subprocess.run(
+            xattr_command,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        require(
+            inspected_attributes.returncode == 0,
+            f"cannot inspect extended attributes: {root}",
+        )
+        require(
+            "com.apple.quarantine" not in inspected_attributes.stdout,
+            f"quarantine metadata in payload: {root}",
+        )
     paths = [root] if root.is_file() else root.rglob("*")
     for path in paths:
         if path.is_symlink() or not path.is_file():
