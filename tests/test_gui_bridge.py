@@ -1149,6 +1149,7 @@ def test_bridge_subprocess_handshake_and_schema_are_clean_jsonl() -> None:
     for command in (["handshake"], ["schema"]):
         completed = subprocess.run(
             [sys.executable, "-m", "local_transcript_max.gui_bridge", *command],
+            input="",
             capture_output=True,
             text=True,
             timeout=120,
