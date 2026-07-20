@@ -1,0 +1,1521 @@
+{
+  "fields": [
+    {
+      "choices": [
+        "max",
+        "balanced",
+        "fast",
+        "cpu"
+      ],
+      "default": "max",
+      "key": "preset",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": "models",
+      "key": "model_cache",
+      "kind": "path",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "offline",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": 16000,
+      "key": "audio.sample_rate",
+      "kind": "int",
+      "optional": false
+    },
+    {
+      "default": true,
+      "key": "audio.mono",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "audio.normalize_loudness",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "choices": [
+        "off",
+        "mild",
+        "strong"
+      ],
+      "default": "off",
+      "key": "audio.denoise",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "choices": [
+        "off",
+        "experimental"
+      ],
+      "default": "off",
+      "key": "audio.separate_vocals",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "audio.preserve_channels",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "choices": [
+        "faster-whisper",
+        "mlx-whisper"
+      ],
+      "default": "faster-whisper",
+      "key": "asr.backend",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": "large-v3",
+      "key": "asr.model",
+      "kind": "string",
+      "model_role": "asr",
+      "optional": false
+    },
+    {
+      "default": "mlx-large-v3",
+      "key": "asr.mlx_model",
+      "kind": "string",
+      "model_role": "asr-mlx",
+      "optional": false
+    },
+    {
+      "default": null,
+      "key": "asr.mlx_model_path",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": true,
+      "key": "asr.mlx_fp16",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "asr.mlx_vad_windowed",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": 30.0,
+      "ge": 1.0,
+      "key": "asr.mlx_vad_window_seconds",
+      "kind": "float",
+      "optional": false
+    },
+    {
+      "default": 0.0,
+      "ge": 0.0,
+      "key": "asr.mlx_vad_window_padding_seconds",
+      "kind": "float",
+      "optional": false
+    },
+    {
+      "choices": [
+        "auto",
+        "cpu",
+        "cuda"
+      ],
+      "default": "auto",
+      "key": "asr.device",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": "auto",
+      "key": "asr.compute_type",
+      "kind": "string",
+      "optional": false
+    },
+    {
+      "default": null,
+      "gt": 0,
+      "key": "asr.cpu_threads",
+      "kind": "int",
+      "optional": true
+    },
+    {
+      "default": null,
+      "gt": 0,
+      "key": "asr.num_workers",
+      "kind": "int",
+      "optional": true
+    },
+    {
+      "default": false,
+      "key": "asr.batched",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": 5,
+      "key": "asr.beam_size",
+      "kind": "int",
+      "optional": false
+    },
+    {
+      "default": 5,
+      "key": "asr.best_of",
+      "kind": "int",
+      "optional": false
+    },
+    {
+      "default": null,
+      "key": "asr.patience",
+      "kind": "float",
+      "optional": true
+    },
+    {
+      "default": [
+        0.0,
+        0.2,
+        0.4
+      ],
+      "key": "asr.temperature",
+      "kind": "float_or_float_list",
+      "optional": false
+    },
+    {
+      "default": 2.4,
+      "key": "asr.compression_ratio_threshold",
+      "kind": "float",
+      "optional": false
+    },
+    {
+      "default": -1.0,
+      "key": "asr.logprob_threshold",
+      "kind": "float",
+      "optional": false
+    },
+    {
+      "default": 0.6,
+      "key": "asr.no_speech_threshold",
+      "kind": "float",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "asr.condition_on_previous_text",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": null,
+      "key": "asr.language",
+      "kind": "string",
+      "optional": true
+    },
+    {
+      "default": "transcribe",
+      "key": "asr.task",
+      "kind": "string",
+      "optional": false
+    },
+    {
+      "default": null,
+      "key": "asr.initial_prompt",
+      "kind": "string",
+      "optional": true
+    },
+    {
+      "default": null,
+      "key": "asr.prefix",
+      "kind": "string",
+      "optional": true
+    },
+    {
+      "default": null,
+      "key": "asr.glossary_file",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": true,
+      "key": "asr.word_timestamps",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "asr.vad_filter",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": 8,
+      "gt": 0,
+      "key": "asr.batch_size",
+      "kind": "int",
+      "optional": false
+    },
+    {
+      "choices": [
+        "auto",
+        "pyannote",
+        "off"
+      ],
+      "default": "pyannote",
+      "key": "diarization.backend",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": "community-1",
+      "key": "diarization.model",
+      "kind": "string",
+      "model_role": "diarization",
+      "optional": false
+    },
+    {
+      "default": null,
+      "ge": 1,
+      "key": "diarization.num_speakers",
+      "kind": "int",
+      "le": 128,
+      "optional": true
+    },
+    {
+      "default": null,
+      "ge": 1,
+      "key": "diarization.min_speakers",
+      "kind": "int",
+      "le": 128,
+      "optional": true
+    },
+    {
+      "default": null,
+      "ge": 1,
+      "key": "diarization.max_speakers",
+      "kind": "int",
+      "le": 128,
+      "optional": true
+    },
+    {
+      "choices": [
+        "auto",
+        "cpu",
+        "cuda",
+        "mps"
+      ],
+      "default": "auto",
+      "key": "diarization.device",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": true,
+      "key": "diarization.enabled",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": true,
+      "key": "diarization.preserve_overlap",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": true,
+      "key": "diarization.exclusive_diarization",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "agentic_diarization.enabled",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": null,
+      "ge": 1,
+      "key": "agentic_diarization.candidates",
+      "kind": "int",
+      "le": 128,
+      "optional": true
+    },
+    {
+      "default": "2:8",
+      "key": "agentic_diarization.candidate_range",
+      "kind": "string",
+      "optional": false
+    },
+    {
+      "default": null,
+      "ge": 1,
+      "key": "agentic_diarization.known_speakers",
+      "kind": "int",
+      "le": 128,
+      "optional": true
+    },
+    {
+      "default": true,
+      "key": "agentic_diarization.write_decision_report",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "choices": [
+        "auto",
+        "forced",
+        "fallback",
+        "whisper",
+        "off"
+      ],
+      "default": "auto",
+      "key": "alignment.backend",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": null,
+      "key": "alignment.language",
+      "kind": "string",
+      "optional": true
+    },
+    {
+      "default": null,
+      "key": "alignment.model",
+      "kind": "string",
+      "model_role": "alignment",
+      "optional": true
+    },
+    {
+      "choices": [
+        "auto",
+        "cpu",
+        "cuda",
+        "mps"
+      ],
+      "default": null,
+      "key": "alignment.device",
+      "kind": "enum",
+      "optional": true
+    },
+    {
+      "default": false,
+      "key": "alignment.allow_experimental_mps",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": true,
+      "key": "alignment.enabled",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": true,
+      "key": "qa.enabled",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "qa.targeted_redecode",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "choices": [
+        "off",
+        "low-confidence",
+        "hallucination",
+        "all-suspect"
+      ],
+      "default": "off",
+      "key": "redecode.mode",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": 5,
+      "ge": 1,
+      "key": "redecode.max_spans",
+      "kind": "int",
+      "le": 100,
+      "optional": false
+    },
+    {
+      "default": 1.0,
+      "ge": 0.0,
+      "key": "redecode.pad_seconds",
+      "kind": "float",
+      "le": 30.0,
+      "optional": false
+    },
+    {
+      "default": 5,
+      "ge": 1,
+      "key": "redecode.beam_size",
+      "kind": "int",
+      "le": 20,
+      "optional": false
+    },
+    {
+      "default": 0.0,
+      "ge": 0.0,
+      "key": "redecode.temperature",
+      "kind": "float",
+      "le": 2.0,
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "redecode.write_report",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "redecode.write_repaired_transcript",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "choices": [
+        "off",
+        "auto"
+      ],
+      "default": "auto",
+      "key": "speaker_id.mode",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": "ecapa",
+      "key": "speaker_id.model",
+      "kind": "string",
+      "model_role": "speaker-embedding",
+      "optional": false
+    },
+    {
+      "choices": [
+        "auto",
+        "cpu",
+        "cuda"
+      ],
+      "default": "auto",
+      "key": "speaker_id.device",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": 1.0,
+      "ge": 1.0,
+      "key": "speaker_id.minimum_segment_seconds",
+      "kind": "float",
+      "le": 60.0,
+      "optional": false
+    },
+    {
+      "default": 60.0,
+      "ge": 1.0,
+      "key": "speaker_id.maximum_speech_seconds",
+      "kind": "float",
+      "le": 600.0,
+      "optional": false
+    },
+    {
+      "default": null,
+      "key": "speaker_id.profile_dir",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": 0.75,
+      "ge": 0.0,
+      "key": "speaker_id.threshold",
+      "kind": "float",
+      "le": 1.0,
+      "optional": false
+    },
+    {
+      "default": 0.05,
+      "ge": 0.0,
+      "key": "speaker_id.ambiguity_margin",
+      "kind": "float",
+      "le": 1.0,
+      "optional": false
+    },
+    {
+      "choices": [
+        "off",
+        "review",
+        "apply-safe",
+        "apply-approved"
+      ],
+      "default": "off",
+      "key": "speaker_identity.mode",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": null,
+      "ge": 1,
+      "key": "speaker_identity.known_speakers",
+      "kind": "int",
+      "le": 128,
+      "optional": true
+    },
+    {
+      "default": null,
+      "key": "speaker_identity.roster_path",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": null,
+      "key": "speaker_identity.external_transcript",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": null,
+      "key": "speaker_identity.approved_map_path",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": [],
+      "key": "speaker_identity.sibling_jobs",
+      "kind": "path_list",
+      "max_length": 100,
+      "optional": false
+    },
+    {
+      "default": null,
+      "key": "speaker_identity.sibling_root",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": null,
+      "key": "speaker_identity.sibling_manifest",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": null,
+      "key": "speaker_identity.stability_config_path",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": null,
+      "key": "speaker_identity.media_review_report_path",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": false,
+      "key": "speaker_identity.write_identity_mapped_exports",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "speaker_identity.write_media_review_queue",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": true,
+      "key": "speaker_identity.audit_csv",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "choices": [
+        "srt",
+        "all"
+      ],
+      "default": "srt",
+      "key": "speaker_identity.deliverable_format",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "choices": [
+        "none",
+        "queue",
+        "reviewed-report"
+      ],
+      "default": "queue",
+      "key": "speaker_identity.source_media_review",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "choices": [
+        "report-only",
+        "label-only"
+      ],
+      "default": "report-only",
+      "key": "speaker_identity.turn_boundary_repair",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": "Unattributed",
+      "key": "speaker_identity.unattributed_label",
+      "kind": "string",
+      "optional": false
+    },
+    {
+      "default": 0.9,
+      "ge": 0.0,
+      "key": "speaker_identity.min_apply_confidence",
+      "kind": "float",
+      "le": 1.0,
+      "optional": false
+    },
+    {
+      "default": 0.75,
+      "ge": 0.0,
+      "key": "speaker_identity.profile_threshold",
+      "kind": "float",
+      "le": 1.0,
+      "optional": false
+    },
+    {
+      "default": 0.05,
+      "ge": 0.0,
+      "key": "speaker_identity.profile_ambiguity_margin",
+      "kind": "float",
+      "le": 1.0,
+      "optional": false
+    },
+    {
+      "default": 4.0,
+      "gt": 0.0,
+      "key": "speaker_identity.max_fragment_duration",
+      "kind": "float",
+      "le": 60.0,
+      "optional": false
+    },
+    {
+      "default": 12,
+      "ge": 1,
+      "key": "speaker_identity.max_fragment_words",
+      "kind": "int",
+      "le": 500,
+      "optional": false
+    },
+    {
+      "default": 20,
+      "ge": 1,
+      "key": "speaker_identity.max_sibling_jobs",
+      "kind": "int",
+      "le": 100,
+      "optional": false
+    },
+    {
+      "choices": [
+        "off",
+        "local-llm"
+      ],
+      "default": "off",
+      "key": "cleanup.mode",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": "http://127.0.0.1:11434/v1",
+      "key": "cleanup.endpoint",
+      "kind": "string",
+      "optional": false
+    },
+    {
+      "default": null,
+      "key": "cleanup.model",
+      "kind": "string",
+      "optional": true
+    },
+    {
+      "choices": [
+        "punctuation",
+        "readability"
+      ],
+      "default": "punctuation",
+      "key": "cleanup.scope",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "cleanup.allow_remote_cleanup",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "cleanup.write_diff",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": 0.15,
+      "key": "cleanup.max_word_delta_ratio",
+      "kind": "float",
+      "optional": false
+    },
+    {
+      "default": true,
+      "key": "subtitle_export.split_long_cues",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": 45,
+      "gt": 0,
+      "key": "subtitle_export.max_line_width",
+      "kind": "int",
+      "optional": true
+    },
+    {
+      "default": 2,
+      "gt": 0,
+      "key": "subtitle_export.max_line_count",
+      "kind": "int",
+      "optional": true
+    },
+    {
+      "default": true,
+      "key": "subtitle_export.speaker_labels",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": true,
+      "key": "subtitle_export.use_mapped_names",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "subtitle_export.highlight_words",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "choices": [
+        "auto",
+        "persistent",
+        "per-job"
+      ],
+      "default": "auto",
+      "key": "runtime.model_lifecycle",
+      "kind": "enum",
+      "optional": false
+    }
+  ],
+  "model_manifest": [
+    {
+      "acquisition_status": "approved",
+      "aliases": [
+        "max",
+        "whisper-large-v3"
+      ],
+      "any_required_files": [],
+      "attribution": "SYSTRAN faster-whisper conversion of OpenAI Whisper large-v3.",
+      "directory_name": "Systran--faster-whisper-large-v3",
+      "gated": false,
+      "key": "large-v3",
+      "license_expression": "MIT",
+      "model_id": "Systran/faster-whisper-large-v3",
+      "optional": false,
+      "pullable": true,
+      "redistribution_status": "permitted_with_license_terms",
+      "required_files": [
+        "model.bin",
+        "config.json",
+        "tokenizer.json",
+        "preprocessor_config.json",
+        "vocabulary.json"
+      ],
+      "review_status": "verified",
+      "reviewed_at": "2026-07-10",
+      "revision": "edaa852ec7e145841d8ffdb056a99866b5f0a478",
+      "role": "asr",
+      "runtime_files": [
+        "model.bin",
+        "config.json",
+        "tokenizer.json",
+        "preprocessor_config.json",
+        "vocabulary.json"
+      ],
+      "runtime_status": "approved_local",
+      "source_url": "https://huggingface.co/Systran/faster-whisper-large-v3",
+      "terms_url": "https://huggingface.co/Systran/faster-whisper-large-v3"
+    },
+    {
+      "acquisition_status": "approved",
+      "aliases": [
+        "large-v3-turbo",
+        "dropbox-dash/faster-whisper-large-v3-turbo"
+      ],
+      "any_required_files": [],
+      "attribution": "Mobius Labs faster-whisper conversion; upstream Whisper terms also apply.",
+      "directory_name": "mobiuslabsgmbh--faster-whisper-large-v3-turbo",
+      "gated": false,
+      "key": "turbo",
+      "license_expression": "MIT",
+      "model_id": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+      "optional": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_license_terms",
+      "required_files": [
+        "model.bin",
+        "config.json",
+        "tokenizer.json",
+        "preprocessor_config.json"
+      ],
+      "review_status": "verified",
+      "reviewed_at": "2026-07-10",
+      "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+      "role": "asr",
+      "runtime_files": [
+        "model.bin",
+        "config.json",
+        "tokenizer.json",
+        "preprocessor_config.json"
+      ],
+      "runtime_status": "approved_local",
+      "source_url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+      "terms_url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+    },
+    {
+      "acquisition_status": "approved",
+      "aliases": [],
+      "any_required_files": [],
+      "attribution": "SYSTRAN CTranslate2 conversion of Distil-Whisper.",
+      "directory_name": "Systran--faster-distil-whisper-large-v3",
+      "gated": false,
+      "key": "distil-large-v3",
+      "license_expression": "MIT",
+      "model_id": "Systran/faster-distil-whisper-large-v3",
+      "optional": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_license_terms",
+      "required_files": [
+        "model.bin",
+        "config.json",
+        "tokenizer.json",
+        "preprocessor_config.json"
+      ],
+      "review_status": "verified",
+      "reviewed_at": "2026-07-10",
+      "revision": "c3058b475261292e64a0412df1d2681c06260fab",
+      "role": "asr",
+      "runtime_files": [
+        "model.bin",
+        "config.json",
+        "tokenizer.json",
+        "preprocessor_config.json"
+      ],
+      "runtime_status": "approved_local",
+      "source_url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3",
+      "terms_url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3"
+    },
+    {
+      "acquisition_status": "approved",
+      "aliases": [],
+      "any_required_files": [],
+      "attribution": "Distil-Whisper CTranslate2 conversion.",
+      "directory_name": "distil-whisper--distil-large-v3.5-ct2",
+      "gated": false,
+      "key": "distil-large-v3.5",
+      "license_expression": "MIT",
+      "model_id": "distil-whisper/distil-large-v3.5-ct2",
+      "optional": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_license_terms",
+      "required_files": [
+        "model.bin",
+        "config.json",
+        "tokenizer.json",
+        "preprocessor_config.json"
+      ],
+      "review_status": "verified",
+      "reviewed_at": "2026-07-10",
+      "revision": "9793ccc07920e0f830e1dba0343efcdf0ef8c903",
+      "role": "asr",
+      "runtime_files": [
+        "model.bin",
+        "config.json",
+        "tokenizer.json",
+        "preprocessor_config.json"
+      ],
+      "runtime_status": "approved_local",
+      "source_url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2",
+      "terms_url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "tiny",
+        "whisper-tiny-mlx",
+        "mlx-community/whisper-tiny-mlx"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-tiny-mlx",
+      "gated": false,
+      "key": "mlx-tiny",
+      "license_expression": "NOASSERTION",
+      "model_id": "mlx-community/whisper-tiny-mlx",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "blocked",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "blocked_missing_publisher_license",
+      "reviewed_at": "2026-07-10",
+      "revision": "6caf9c55601caafbe6508a8b0d216bdf4783c4e8",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "local_evaluation_only",
+      "source_url": "https://huggingface.co/mlx-community/whisper-tiny-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-tiny-mlx"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "tiny.en",
+        "whisper-tiny.en-mlx",
+        "mlx-community/whisper-tiny.en-mlx"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-tiny.en-mlx",
+      "gated": false,
+      "key": "mlx-tiny.en",
+      "license_expression": "NOASSERTION",
+      "model_id": "mlx-community/whisper-tiny.en-mlx",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "blocked",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "blocked_missing_publisher_license",
+      "reviewed_at": "2026-07-10",
+      "revision": "5f4dafbb28e62a53c1b10426ff7eed36ca733bf7",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "local_evaluation_only",
+      "source_url": "https://huggingface.co/mlx-community/whisper-tiny.en-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-tiny.en-mlx"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "base",
+        "whisper-base-mlx",
+        "mlx-community/whisper-base-mlx"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-base-mlx",
+      "gated": false,
+      "key": "mlx-base",
+      "license_expression": "NOASSERTION",
+      "model_id": "mlx-community/whisper-base-mlx",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "blocked",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "blocked_missing_publisher_license",
+      "reviewed_at": "2026-07-10",
+      "revision": "1e3e249fb8d01c655324bd6841b1deadffd6d04c",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "local_evaluation_only",
+      "source_url": "https://huggingface.co/mlx-community/whisper-base-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-base-mlx"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "base.en",
+        "whisper-base.en-mlx",
+        "mlx-community/whisper-base.en-mlx"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-base.en-mlx",
+      "gated": false,
+      "key": "mlx-base.en",
+      "license_expression": "NOASSERTION",
+      "model_id": "mlx-community/whisper-base.en-mlx",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "blocked",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "blocked_missing_publisher_license",
+      "reviewed_at": "2026-07-10",
+      "revision": "aa0678c3466ed62c5c6114ec600a0e1f96820089",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "local_evaluation_only",
+      "source_url": "https://huggingface.co/mlx-community/whisper-base.en-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-base.en-mlx"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "small",
+        "whisper-small-mlx",
+        "mlx-community/whisper-small-mlx"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-small-mlx",
+      "gated": false,
+      "key": "mlx-small",
+      "license_expression": "NOASSERTION",
+      "model_id": "mlx-community/whisper-small-mlx",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "blocked",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "blocked_missing_publisher_license",
+      "reviewed_at": "2026-07-10",
+      "revision": "45f3915923c7a79a5a5b5a7d909d39aeb0e5630e",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "local_evaluation_only",
+      "source_url": "https://huggingface.co/mlx-community/whisper-small-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-small-mlx"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "small.en",
+        "whisper-small.en-mlx",
+        "mlx-community/whisper-small.en-mlx"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-small.en-mlx",
+      "gated": false,
+      "key": "mlx-small.en",
+      "license_expression": "NOASSERTION",
+      "model_id": "mlx-community/whisper-small.en-mlx",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "blocked",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "blocked_missing_publisher_license",
+      "reviewed_at": "2026-07-10",
+      "revision": "52a88bf6e98b114a210c21bb83e22d6e1505cb73",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "local_evaluation_only",
+      "source_url": "https://huggingface.co/mlx-community/whisper-small.en-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-small.en-mlx"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "medium",
+        "whisper-medium-mlx",
+        "mlx-community/whisper-medium-mlx"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-medium-mlx",
+      "gated": false,
+      "key": "mlx-medium",
+      "license_expression": "NOASSERTION",
+      "model_id": "mlx-community/whisper-medium-mlx",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "blocked",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "blocked_missing_publisher_license",
+      "reviewed_at": "2026-07-10",
+      "revision": "7fc08c4eac4c316526498f147dfdee6f6303f975",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "local_evaluation_only",
+      "source_url": "https://huggingface.co/mlx-community/whisper-medium-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-medium-mlx"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "medium.en",
+        "whisper-medium.en-mlx",
+        "mlx-community/whisper-medium.en-mlx"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-medium.en-mlx",
+      "gated": false,
+      "key": "mlx-medium.en",
+      "license_expression": "NOASSERTION",
+      "model_id": "mlx-community/whisper-medium.en-mlx",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "blocked",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "blocked_missing_publisher_license",
+      "reviewed_at": "2026-07-10",
+      "revision": "8d0335069b551e8586b8a4680674403d9417dfe4",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "local_evaluation_only",
+      "source_url": "https://huggingface.co/mlx-community/whisper-medium.en-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-medium.en-mlx"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "large",
+        "large-v1",
+        "whisper-large-mlx",
+        "mlx-community/whisper-large-mlx"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-large-mlx",
+      "gated": false,
+      "key": "mlx-large",
+      "license_expression": "NOASSERTION",
+      "model_id": "mlx-community/whisper-large-mlx",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "blocked",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "blocked_missing_publisher_license",
+      "reviewed_at": "2026-07-10",
+      "revision": "9310354911111f2406ead1478e0139d9c6ea3acc",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "local_evaluation_only",
+      "source_url": "https://huggingface.co/mlx-community/whisper-large-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-large-mlx"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "large-v2",
+        "whisper-large-v2-mlx",
+        "mlx-community/whisper-large-v2-mlx"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-large-v2-mlx",
+      "gated": false,
+      "key": "mlx-large-v2",
+      "license_expression": "NOASSERTION",
+      "model_id": "mlx-community/whisper-large-v2-mlx",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "blocked",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "blocked_missing_publisher_license",
+      "reviewed_at": "2026-07-10",
+      "revision": "cce86229e2765266197fef869ce9f7e2550067ab",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "local_evaluation_only",
+      "source_url": "https://huggingface.co/mlx-community/whisper-large-v2-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-large-v2-mlx"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "large-v3",
+        "whisper-large-v3-mlx",
+        "mlx-community/whisper-large-v3-mlx"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-large-v3-mlx",
+      "gated": false,
+      "key": "mlx-large-v3",
+      "license_expression": "MIT",
+      "model_id": "mlx-community/whisper-large-v3-mlx",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "permitted_with_license_terms",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "verified",
+      "reviewed_at": "2026-07-10",
+      "revision": "49e6aa286ad60c14352c404340ded53710378a11",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "approved_local",
+      "source_url": "https://huggingface.co/mlx-community/whisper-large-v3-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-large-v3-mlx"
+    },
+    {
+      "acquisition_status": "manual_only",
+      "aliases": [
+        "mlx-turbo",
+        "large-v3-turbo-mlx",
+        "large-v3-turbo",
+        "turbo",
+        "mlx-community/whisper-large-v3-turbo"
+      ],
+      "any_required_files": [
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "directory_name": "mlx-community--whisper-large-v3-turbo",
+      "gated": false,
+      "key": "mlx-large-v3-turbo",
+      "license_expression": "NOASSERTION",
+      "model_id": "mlx-community/whisper-large-v3-turbo",
+      "optional": true,
+      "pullable": false,
+      "redistribution_status": "blocked",
+      "required_files": [
+        "config.json"
+      ],
+      "review_status": "blocked_missing_publisher_license",
+      "reviewed_at": "2026-07-10",
+      "revision": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+      "role": "asr-mlx",
+      "runtime_files": [
+        "config.json",
+        "weights.safetensors",
+        "weights.npz"
+      ],
+      "runtime_status": "local_evaluation_only",
+      "source_url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo"
+    },
+    {
+      "acquisition_status": "approved_after_gated_terms",
+      "aliases": [
+        "pyannote-community-1"
+      ],
+      "any_required_files": [],
+      "attribution": "pyannote speaker-diarization-community-1; attribution and gated terms apply.",
+      "directory_name": "pyannote--speaker-diarization-community-1",
+      "gated": true,
+      "key": "community-1",
+      "license_expression": "CC-BY-4.0",
+      "model_id": "pyannote/speaker-diarization-community-1",
+      "optional": false,
+      "pullable": true,
+      "redistribution_status": "permitted_with_attribution_and_gated_terms",
+      "required_files": [
+        "config.yaml",
+        "segmentation/pytorch_model.bin",
+        "embedding/pytorch_model.bin",
+        "plda/plda.npz",
+        "plda/xvec_transform.npz"
+      ],
+      "review_status": "verified_gated",
+      "reviewed_at": "2026-07-20",
+      "revision": "3533c8cf8e369892e6b79ff1bf80f7b0286a54ee",
+      "role": "diarization",
+      "runtime_files": [
+        "config.yaml",
+        "segmentation/pytorch_model.bin",
+        "embedding/pytorch_model.bin",
+        "plda/plda.npz",
+        "plda/xvec_transform.npz"
+      ],
+      "runtime_status": "approved_local_after_gated_terms",
+      "source_url": "https://huggingface.co/pyannote/speaker-diarization-community-1",
+      "terms_url": "https://huggingface.co/pyannote/speaker-diarization-community-1"
+    },
+    {
+      "acquisition_status": "approved",
+      "aliases": [
+        "auto",
+        "english"
+      ],
+      "any_required_files": [],
+      "attribution": "Meta wav2vec2-base-960h.",
+      "directory_name": "facebook--wav2vec2-base-960h",
+      "gated": false,
+      "key": "en",
+      "license_expression": "Apache-2.0",
+      "model_id": "facebook/wav2vec2-base-960h",
+      "optional": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_license_terms",
+      "required_files": [
+        "config.json",
+        "preprocessor_config.json",
+        "tokenizer_config.json",
+        "vocab.json",
+        "model.safetensors"
+      ],
+      "review_status": "verified",
+      "reviewed_at": "2026-07-10",
+      "revision": "22aad52d435eb6dbaf354bdad9b0da84ce7d6156",
+      "role": "alignment",
+      "runtime_files": [
+        "config.json",
+        "preprocessor_config.json",
+        "tokenizer_config.json",
+        "vocab.json",
+        "model.safetensors"
+      ],
+      "runtime_status": "approved_local",
+      "source_url": "https://huggingface.co/facebook/wav2vec2-base-960h",
+      "terms_url": "https://huggingface.co/facebook/wav2vec2-base-960h"
+    },
+    {
+      "acquisition_status": "approved",
+      "aliases": [
+        "speechbrain-ecapa"
+      ],
+      "any_required_files": [],
+      "attribution": "SpeechBrain ECAPA-TDNN model; upstream VoxCeleb data caveats apply.",
+      "directory_name": "speechbrain--spkrec-ecapa-voxceleb",
+      "gated": false,
+      "key": "ecapa",
+      "license_expression": "Apache-2.0",
+      "model_id": "speechbrain/spkrec-ecapa-voxceleb",
+      "optional": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_license_terms",
+      "required_files": [
+        "hyperparams.yaml",
+        "embedding_model.ckpt",
+        "classifier.ckpt",
+        "mean_var_norm_emb.ckpt",
+        "label_encoder.txt",
+        "config.json"
+      ],
+      "review_status": "verified_with_training_data_caveat",
+      "reviewed_at": "2026-07-10",
+      "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
+      "role": "speaker-embedding",
+      "runtime_files": [
+        "hyperparams.yaml",
+        "embedding_model.ckpt",
+        "classifier.ckpt",
+        "mean_var_norm_emb.ckpt",
+        "label_encoder.txt",
+        "config.json"
+      ],
+      "runtime_status": "approved_local",
+      "source_url": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb",
+      "terms_url": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb"
+    }
+  ],
+  "package_version": "0.2.0",
+  "schema_version": "gui_config_manifest.v1"
+}

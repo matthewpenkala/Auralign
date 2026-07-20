@@ -16,6 +16,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  macos-gui:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.11.26"
+          enable-cache: true
+      - name: Install Python
+        run: uv python install 3.11
+      - name: Sync locked GUI test environment
+        run: uv sync --locked --python 3.11 --extra dev --extra api
+      - name: Test, analyze, and inspect native macOS GUI
+        run: bash scripts/check_macos_gui.sh
+
   dependency-review:
     if: >-
       github.event_name == 'pull_request' &&

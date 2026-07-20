@@ -12,8 +12,16 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
+from .cleanup_policy import CleanupRejectedError, validate_cleanup_policy
 from .errors import LTMError
 from .utils import env_flag, safe_repo_dir
 
@@ -297,6 +305,10 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         ),
         expected_sha256=(
             (
+                "config.yaml",
+                "5ce2bfa9a938dc132cec1172592d65173cbb8f444ea1e4133f10f9391de155be",
+            ),
+            (
                 "segmentation/pytorch_model.bin",
                 "7ad24338d844fb95985486eb1a464e32d229f6d7a03c9abe60f978bacf3f816e",
             ),
@@ -320,7 +332,7 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         runtime_status="approved_local_after_gated_terms",
         redistribution_status="permitted_with_attribution_and_gated_terms",
         review_status="verified_gated",
-        reviewed_at="2026-07-10",
+        reviewed_at="2026-07-20",
     ),
     "en": ModelEntry(
         key="en",
@@ -479,6 +491,12 @@ class DiarizationConfig(BaseModel):
         return self
 
 
+def diarization_runtime_enabled(config: DiarizationConfig) -> bool:
+    """Return whether the configured diarization backend participates in runtime."""
+
+    return config.enabled and config.backend in {"auto", "pyannote"}
+
+
 class AgenticDiarizationConfig(BaseModel):
     enabled: bool = False
     candidates: int | None = Field(default=None, ge=1, le=128)
@@ -622,6 +640,18 @@ class CleanupConfig(BaseModel):
     write_diff: bool = False
     max_word_delta_ratio: float = 0.15
 
+    @model_validator(mode="after")
+    def validate_endpoint_policy(self) -> CleanupConfig:
+        try:
+            validate_cleanup_policy(
+                mode=self.mode,
+                endpoint=self.endpoint,
+                allow_remote_cleanup=self.allow_remote_cleanup,
+            )
+        except CleanupRejectedError as exc:
+            raise ValueError(str(exc)) from exc
+        return self
+
 
 class SubtitleExportConfig(BaseModel):
     split_long_cues: bool = True
@@ -652,6 +682,41 @@ class PipelineConfig(BaseModel):
     cleanup: CleanupConfig = Field(default_factory=CleanupConfig)
     subtitle_export: SubtitleExportConfig = Field(default_factory=SubtitleExportConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+
+    @field_validator("cleanup")
+    @classmethod
+    def validate_cleanup_offline_policy(
+        cls,
+        cleanup: CleanupConfig,
+        info: ValidationInfo,
+    ) -> CleanupConfig:
+        try:
+            validate_cleanup_policy(
+                mode=cleanup.mode,
+                endpoint=cleanup.endpoint,
+                allow_remote_cleanup=cleanup.allow_remote_cleanup,
+                offline=bool(info.data.get("offline", False)),
+            )
+        except CleanupRejectedError as exc:
+            raise ValueError(str(exc)) from exc
+        return cleanup
+
+
+def required_model_requests(config: PipelineConfig) -> tuple[tuple[str, str], ...]:
+    """Return deterministic model roles and selectors required by ``config``."""
+
+    requests: list[tuple[str, str]] = []
+    if config.asr.backend == "mlx-whisper":
+        requests.append(("asr-mlx", config.asr.mlx_model))
+    else:
+        requests.append(("asr", config.asr.model))
+    if diarization_runtime_enabled(config.diarization):
+        requests.append(("diarization", config.diarization.model))
+    if config.alignment.enabled and config.alignment.backend == "forced":
+        requests.append(("alignment", config.alignment.model or "auto"))
+    if config.speaker_id.mode == "auto":
+        requests.append(("speaker-embedding", config.speaker_id.model))
+    return tuple(requests)
 
 
 def default_model_cache(cwd: Path | None = None) -> Path:
@@ -742,9 +807,7 @@ def preset_config(preset: PresetName, cwd: Path | None = None) -> PipelineConfig
     mlx_vad_window_seconds = _env_non_negative_float("LTM_ASR_MLX_VAD_WINDOW_SECONDS")
     if mlx_vad_window_seconds is not None:
         if mlx_vad_window_seconds < 1.0:
-            raise LTMError(
-                "LTM_ASR_MLX_VAD_WINDOW_SECONDS must be at least 1 second when set."
-            )
+            raise LTMError("LTM_ASR_MLX_VAD_WINDOW_SECONDS must be at least 1 second when set.")
         config.asr.mlx_vad_window_seconds = mlx_vad_window_seconds
     mlx_vad_window_padding_seconds = _env_non_negative_float(
         "LTM_ASR_MLX_VAD_WINDOW_PADDING_SECONDS"
@@ -758,9 +821,7 @@ def preset_config(preset: PresetName, cwd: Path | None = None) -> PipelineConfig
     if alignment_device_override:
         config.alignment.device = _validate_alignment_device(alignment_device_override)
     if model_lifecycle_override:
-        config.runtime.model_lifecycle = _validate_model_lifecycle(
-            model_lifecycle_override
-        )
+        config.runtime.model_lifecycle = _validate_model_lifecycle(model_lifecycle_override)
     config.alignment.allow_experimental_mps = env_flag(
         "LTM_ALIGNMENT_ALLOW_EXPERIMENTAL_MPS",
         config.alignment.allow_experimental_mps,
@@ -837,9 +898,7 @@ def load_config(
     mlx_vad_window_seconds = _env_non_negative_float("LTM_ASR_MLX_VAD_WINDOW_SECONDS")
     if mlx_vad_window_seconds is not None:
         if mlx_vad_window_seconds < 1.0:
-            raise LTMError(
-                "LTM_ASR_MLX_VAD_WINDOW_SECONDS must be at least 1 second when set."
-            )
+            raise LTMError("LTM_ASR_MLX_VAD_WINDOW_SECONDS must be at least 1 second when set.")
         config.asr.mlx_vad_window_seconds = mlx_vad_window_seconds
     mlx_vad_window_padding_seconds = _env_non_negative_float(
         "LTM_ASR_MLX_VAD_WINDOW_PADDING_SECONDS"
@@ -876,7 +935,10 @@ def load_config(
         config.asr.batch_size = asr_batch_size
     if os.getenv("LTM_CLEANUP_ENDPOINT"):
         config.cleanup.endpoint = os.environ["LTM_CLEANUP_ENDPOINT"]
-    return config
+    try:
+        return PipelineConfig.model_validate(config.model_dump(mode="python"))
+    except ValidationError as exc:
+        raise LTMError(f"Invalid effective configuration: {exc}") from exc
 
 
 def _validate_asr_backend(value: str) -> Literal["faster-whisper", "mlx-whisper"]:
@@ -896,9 +958,7 @@ def _validate_asr_device(value: str) -> Literal["auto", "cpu", "cuda"]:
 
 def _validate_diarization_device(value: str) -> Literal["auto", "cpu", "cuda", "mps"]:
     if value not in {"auto", "cpu", "cuda", "mps"}:
-        raise LTMError(
-            "LTM_DIARIZATION_DEVICE/LTM_DEVICE must be one of: auto, cpu, cuda, mps."
-        )
+        raise LTMError("LTM_DIARIZATION_DEVICE/LTM_DEVICE must be one of: auto, cpu, cuda, mps.")
     return cast(Literal["auto", "cpu", "cuda", "mps"], value)
 
 
@@ -912,9 +972,7 @@ def _validate_model_lifecycle(
     value: str,
 ) -> Literal["auto", "persistent", "per-job"]:
     if value not in {"auto", "persistent", "per-job"}:
-        raise LTMError(
-            "LTM_MODEL_LIFECYCLE must be one of: auto, persistent, per-job."
-        )
+        raise LTMError("LTM_MODEL_LIFECYCLE must be one of: auto, persistent, per-job.")
     return cast(Literal["auto", "persistent", "per-job"], value)
 
 

@@ -9,20 +9,21 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from urllib.error import HTTPError
-from urllib.parse import parse_qsl, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from .cleanup_policy import (
+    CleanupRejectedError,
+    validate_cleanup_policy,
+)
+from .cleanup_policy import (
+    validate_cleanup_endpoint as validate_cleanup_endpoint,
+)
 from .config import PipelineConfig
 from .export.json_export import write_json_artifact
 from .export.markdown_export import render_markdown
 from .redaction import redact_obj
 from .schemas import Transcript
 from .utils import atomic_text_write
-
-
-class CleanupRejectedError(RuntimeError):
-    """Raised when cleanup output violates local safety constraints."""
-
 
 MAX_CLEANUP_RESPONSE_BYTES = 4 * 1024 * 1024
 
@@ -39,8 +40,9 @@ def run_cleanup(
 ) -> dict[str, object]:
     if config.cleanup.mode == "off":
         return {"enabled": False, "reason": "cleanup disabled"}
-    validate_cleanup_endpoint(
-        config.cleanup.endpoint,
+    validate_cleanup_policy(
+        mode=config.cleanup.mode,
+        endpoint=config.cleanup.endpoint,
         allow_remote_cleanup=config.cleanup.allow_remote_cleanup,
         offline=config.offline,
     )
@@ -68,44 +70,6 @@ def run_cleanup(
     write_json_artifact(out_dir / "transcript.cleaned.json", cleaned)
     atomic_text_write(out_dir / "transcript.cleaned.md", render_markdown(cleaned))
     return {"enabled": True, "accepted": True, "diff": diff}
-
-
-def validate_cleanup_endpoint(
-    endpoint: str,
-    *,
-    allow_remote_cleanup: bool,
-    offline: bool = False,
-) -> None:
-    parsed = urlparse(endpoint)
-    host = parsed.hostname or ""
-    local_hosts = {"127.0.0.1", "localhost", "::1"}
-    if parsed.username or parsed.password or _has_sensitive_query_param(parsed.query):
-        raise CleanupRejectedError(
-            "Cleanup endpoint must not contain inline credentials. "
-            "Use local configuration outside the URL."
-        )
-    if parsed.scheme not in {"http", "https"} or not host or parsed.fragment:
-        raise CleanupRejectedError("Cleanup endpoint must be an absolute HTTP(S) URL.")
-    if offline and host not in local_hosts:
-        raise CleanupRejectedError("Offline mode forbids non-local cleanup endpoints.")
-    if host not in local_hosts and not allow_remote_cleanup:
-        raise CleanupRejectedError(
-            "Cleanup endpoint must be localhost unless --allow-remote-cleanup is set."
-        )
-
-
-def _has_sensitive_query_param(query: str) -> bool:
-    sensitive = {
-        "token",
-        "access_token",
-        "api_key",
-        "apikey",
-        "secret",
-        "password",
-        "authorization",
-        "credential",
-    }
-    return any(key.lower() in sensitive for key, _value in parse_qsl(query, keep_blank_values=True))
 
 
 def request_local_cleanup(endpoint: str, *, model: str | None, scope: str, text: str) -> str:

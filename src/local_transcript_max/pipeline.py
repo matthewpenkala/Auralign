@@ -513,6 +513,11 @@ def transcribe_file(
         optional_timings: list[StageTiming] = []
         if config.speaker_id.mode == "auto":
             speaker_id_started = time.perf_counter()
+            emit_progress(
+                progress,
+                "speaker_id_start",
+                {"model": config.speaker_id.model},
+            )
             from .speaker_id.cluster_embeddings import build_cluster_embeddings
             from .speaker_id.enrollment import match_job_speakers
 
@@ -536,37 +541,61 @@ def transcribe_file(
                 ambiguity_margin=config.speaker_id.ambiguity_margin,
                 profile_dir=config.speaker_id.profile_dir,
             )
+            speaker_id_duration = time.perf_counter() - speaker_id_started
             optional_timings.append(
                 StageTiming(
                     name="speaker_id",
-                    duration_seconds=time.perf_counter() - speaker_id_started,
+                    duration_seconds=speaker_id_duration,
                 )
             )
             resource_monitor.snapshot("speaker_id")
+            emit_progress(
+                progress,
+                "speaker_id_done",
+                {"duration_seconds": speaker_id_duration},
+            )
         if config.cleanup.mode != "off":
             cleanup_started = time.perf_counter()
+            emit_progress(
+                progress,
+                "cleanup_start",
+                {"mode": config.cleanup.mode},
+            )
             cleanup_report = run_cleanup(transcript, out_dir, config)
             write_json_artifact(out_dir / "cleanup_report.json", cleanup_report)
+            cleanup_duration = time.perf_counter() - cleanup_started
             optional_timings.append(
                 StageTiming(
                     name="cleanup",
-                    duration_seconds=time.perf_counter() - cleanup_started,
+                    duration_seconds=cleanup_duration,
                 )
             )
             resource_monitor.snapshot("cleanup")
+            emit_progress(
+                progress,
+                "cleanup_done",
+                {"duration_seconds": cleanup_duration},
+            )
         if config.runtime.model_lifecycle == "per-job":
             release_started = time.perf_counter()
+            emit_progress(progress, "model_release_start", {})
             model_release_evidence = release_runtime_models(
                 (asr_backend, alignment_backend, diarization_backend)
             )
             models_released = True
+            model_release_duration = time.perf_counter() - release_started
             optional_timings.append(
                 StageTiming(
                     name="model_release",
-                    duration_seconds=time.perf_counter() - release_started,
+                    duration_seconds=model_release_duration,
                 )
             )
             resource_monitor.snapshot("model_release")
+            emit_progress(
+                progress,
+                "model_release_done",
+                {"duration_seconds": model_release_duration},
+            )
         pipeline_core_duration = time.perf_counter() - pipeline_core_started
         timings = [
             preflight_timing,
@@ -748,11 +777,21 @@ def transcribe_file(
         return transcript
     except Exception as exc:
         if config.runtime.model_lifecycle == "per-job" and not models_released:
+            release_after_failure_started = time.perf_counter()
+            emit_progress(progress, "model_release_start", {"after_failure": True})
             model_release_evidence = release_runtime_models(
                 (asr_backend, alignment_backend, diarization_backend)
             )
             models_released = True
             resource_monitor.snapshot("model_release_after_failure")
+            emit_progress(
+                progress,
+                "model_release_done",
+                {
+                    "after_failure": True,
+                    "duration_seconds": time.perf_counter() - release_after_failure_started,
+                },
+            )
         resource_usage = resource_monitor.stop()
         resource_usage["model_lifecycle"] = model_release_evidence
         emit_progress(

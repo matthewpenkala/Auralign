@@ -8,6 +8,7 @@ import stat
 import time
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -729,6 +730,7 @@ def test_pipeline_per_job_lifecycle_records_explicit_release(
     config = mocked_config(tmp_path)
     config.runtime.model_lifecycle = "per-job"
     released: list[tuple[object | None, ...]] = []
+    events: list[tuple[str, dict[str, object]]] = []
 
     def fake_release(backends):
         released.append(tuple(backends))
@@ -749,6 +751,7 @@ def test_pipeline_per_job_lifecycle_records_explicit_release(
         asr_backend=asr,
         diarization_backend=diarization,
         precheck_models=False,
+        progress=lambda event, payload: events.append((event, payload)),
     )
 
     metadata = read_json(out_dir / "run_metadata.json")
@@ -757,6 +760,66 @@ def test_pipeline_per_job_lifecycle_records_explicit_release(
     assert released[0][2] is diarization
     assert metadata["resource_usage"]["model_lifecycle"]["policy"] == "per-job"
     assert any(row["name"] == "model_release" for row in metadata["timings"])
+    event_names = [name for name, _payload in events]
+    assert event_names.index("model_release_start") < event_names.index("model_release_done")
+    release_done = next(payload for name, payload in events if name == "model_release_done")
+    assert float(release_done["duration_seconds"]) >= 0.0
+
+
+def test_pipeline_emits_real_post_export_optional_stage_progress(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from local_transcript_max.speaker_id import cluster_embeddings, enrollment
+
+    input_path = tmp_path / "sample.wav"
+    out_dir = tmp_path / "out"
+    write_tiny_wav(input_path)
+    config = mocked_config(tmp_path)
+    config.speaker_id.mode = "auto"
+    config.cleanup.mode = "local-llm"
+    events: list[tuple[str, dict[str, object]]] = []
+
+    monkeypatch.setattr(
+        cluster_embeddings,
+        "build_cluster_embeddings",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            embeddings={"SPEAKER_00": [0.0, 1.0]},
+            report={"status": "mocked"},
+        ),
+    )
+    monkeypatch.setattr(enrollment, "match_job_speakers", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        pipeline_module,
+        "run_cleanup",
+        lambda *_args, **_kwargs: {"enabled": True, "accepted": True},
+    )
+
+    transcribe_file(
+        input_path,
+        out_dir,
+        config,
+        asr_backend=MockASR(),
+        diarization_backend=MockDiarization(),
+        precheck_models=False,
+        progress=lambda event, payload: events.append((event, payload)),
+    )
+
+    event_names = [name for name, _payload in events]
+    ordered = [
+        "export_done",
+        "speaker_id_start",
+        "speaker_id_done",
+        "cleanup_start",
+        "cleanup_done",
+        "complete",
+    ]
+    assert [event_names.index(name) for name in ordered] == sorted(
+        event_names.index(name) for name in ordered
+    )
+    for done_event in ("speaker_id_done", "cleanup_done"):
+        payload = next(payload for name, payload in events if name == done_event)
+        assert float(payload["duration_seconds"]) >= 0.0
 
 
 def test_pipeline_emits_diarization_subprogress_when_backend_supports_it(tmp_path: Path) -> None:

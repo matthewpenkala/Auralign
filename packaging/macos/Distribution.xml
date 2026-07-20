@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+  <title>Auralign</title>
+  <organization>com.auralign.studio</organization>
+  <domains enable_localSystem="true" enable_currentUserHome="false"
+    enable_anywhere="false"/>
+  <options customize="never" require-scripts="false"
+    rootVolumeOnly="true" hostArchitectures="arm64"/>
+  <allowed-os-versions>
+    <os-version min="14.0"/>
+  </allowed-os-versions>
+  <!--
+    Installer owns all text, controls, focus, localization, and accessibility.
+    These checked-in resources are text-free presentation scaffolds.
+  -->
+  <background
+    file="background.png"
+    alignment="bottomleft"
+    scaling="tofit"/>
+  <background-darkAqua
+    file="background-darkAqua.png"
+    alignment="bottomleft"
+    scaling="tofit"/>
+  <welcome file="welcome.html" mime-type="text/html"/>
+  <conclusion file="conclusion.html" mime-type="text/html"/>
+  <choices-outline>
+    <line choice="default">
+      <line choice="com.auralign.studio.pkg.app"/>
+    </line>
+  </choices-outline>
+  <choice id="default"/>
+  <choice id="com.auralign.studio.pkg.app" visible="false">
+    <pkg-ref id="com.auralign.studio.pkg.app"/>
+  </choice>
+  <pkg-ref id="com.auralign.studio.pkg.app" version="0.2.0.1"
+    onConclusion="none">Auralign-component.pkg</pkg-ref>
+</installer-gui-script>

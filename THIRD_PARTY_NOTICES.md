@@ -50,6 +50,26 @@ native libraries under additional terms. A package name, classifier, or lock
 entry alone is not enough to clear redistribution. Consult the scope-specific
 SBOM and compliance registry for exact versions and expressions.
 
+## Private Standalone macOS PKG
+
+The owner-authorized private macOS PKG is a distinct artifact from the source,
+wheel, and sdist lanes. It embeds CPython 3.11.15 from the immutable
+python-build-standalone 20260510 asset, the exact hash-locked CPU Python
+dependency environment, native Torch-family libraries, source-built PyAV 15.1.0,
+and a custom FFmpeg 7.1.5 shared-library build. Models and datasets are not
+included.
+
+The application carries the complete python-build-standalone runtime-license
+metadata, Python and PyAV notices, FFmpeg LGPL/configuration evidence, Auralign's
+generated registry notice, an exact installed-distribution CycloneDX SBOM, and a
+signed-byte runtime inventory. The private release also provides the exact
+unmodified FFmpeg 7.1.5 source archive as corresponding-source evidence. FFmpeg
+is built with network, GPL, nonfree, and version3 code disabled; its actual
+configure string and native closure are release gates. Every remaining Python
+distribution and native object is governed by the exact artifact SBOM and its
+upstream terms. No package name or source-workspace declaration alone clears a
+shipped byte.
+
 ## Separately Downloaded Models
 
 | Asset | Recorded license/terms disposition | Inclusion |

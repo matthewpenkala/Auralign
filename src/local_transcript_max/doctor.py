@@ -12,9 +12,9 @@ import os
 import platform
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .alignment.forced_alignment import preflight_forced_alignment
 from .asr.faster_whisper_backend import (
@@ -29,6 +29,8 @@ from .config import (
     PipelineConfig,
     default_hf_home,
     default_hf_hub_cache,
+    diarization_runtime_enabled,
+    required_model_requests,
     resolve_model_entry,
 )
 from .datasets import DEFAULT_DATASET_PROFILE, dataset_budget_plan, default_dataset_cache
@@ -74,7 +76,7 @@ def required_inference_dependencies(config: PipelineConfig) -> frozenset[str]:
         required.update({"faster-whisper", "ctranslate2"})
     elif config.asr.backend == "mlx-whisper":
         required.update({"mlx-whisper", "mlx"})
-    if config.diarization.enabled and config.diarization.backend in {"auto", "pyannote"}:
+    if diarization_runtime_enabled(config.diarization):
         required.update({"pyannote.audio", "torch", "torchaudio"})
     if config.alignment.enabled and config.alignment.backend == "forced":
         required.update({"whisperx", "torch", "torchaudio"})
@@ -89,11 +91,37 @@ class DoctorCheck(BaseModel):
     message: str
 
 
+class StartupEvidence(BaseModel):
+    """Versioned completeness declaration for heavyweight startup evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["doctor_startup_evidence.v1"] = "doctor_startup_evidence.v1"
+    requested: bool = False
+    complete: bool = False
+    expected_ids: list[str] = Field(default_factory=list)
+    observed_ids: list[str] = Field(default_factory=list)
+    expected_count: int = 0
+    observed_count: int = 0
+
+    @model_validator(mode="after")
+    def validate_completeness(self) -> StartupEvidence:
+        if self.expected_count != len(self.expected_ids):
+            raise ValueError("startup evidence expected_count does not match expected_ids")
+        if self.observed_count != len(self.observed_ids):
+            raise ValueError("startup evidence observed_count does not match observed_ids")
+        actual_complete = self.requested and self.observed_ids == self.expected_ids
+        if self.complete != actual_complete:
+            raise ValueError("startup evidence complete does not match observed probe coverage")
+        return self
+
+
 class DoctorReport(BaseModel):
     ok: bool
     offline: bool
     checks: list[DoctorCheck] = Field(default_factory=list)
     environment: dict[str, Any] = Field(default_factory=dict)
+    startup_evidence: StartupEvidence = Field(default_factory=StartupEvidence)
 
     def add(self, name: str, status: str, message: str) -> None:
         self.checks.append(DoctorCheck(name=name, status=status, message=message))
@@ -138,10 +166,22 @@ def run_doctor(
     include_docker: bool = True,
     startup: bool = False,
 ) -> DoctorReport:
+    from .startup import startup_probe_ids
+
     if config.offline:
         configure_offline_environment(nltk_data=punkt_data_root(config.model_cache))
     environment = runtime_environment(config)
-    report = DoctorReport(ok=True, offline=config.offline, environment=environment)
+    expected_startup_ids = list(startup_probe_ids(config))
+    report = DoctorReport(
+        ok=True,
+        offline=config.offline,
+        environment=environment,
+        startup_evidence=StartupEvidence(
+            requested=startup,
+            expected_ids=expected_startup_ids,
+            expected_count=len(expected_startup_ids),
+        ),
+    )
 
     python_version = (sys.version_info.major, sys.version_info.minor)
     py_ok = _python_supported(python_version)
@@ -374,21 +414,7 @@ def run_doctor(
         else:
             report.add("forced_alignment_readiness", "ok", alignment_path)
 
-    model_checks: list[tuple[str, str | None]] = []
-    if config.asr.backend == "mlx-whisper":
-        model_checks.append(("asr-mlx", config.asr.mlx_model))
-    else:
-        model_checks.append(("asr", config.asr.model))
-    model_checks.append(
-        ("diarization", config.diarization.model if config.diarization.enabled else None)
-    )
-    if config.alignment.enabled and config.alignment.backend == "forced":
-        model_checks.append(("alignment", config.alignment.model or "auto"))
-    if config.speaker_id.mode == "auto":
-        model_checks.append(("speaker-embedding", getattr(config.speaker_id, "model", "ecapa")))
-    for role, model_value in model_checks:
-        if not model_value:
-            continue
+    for role, model_value in required_model_requests(config):
         entry = resolve_model_entry(role, model_value)
         if entry is None:
             report.add(f"model:{role}", "error", f"unknown model '{model_value}'")
@@ -414,7 +440,27 @@ def run_doctor(
     if startup:
         from .startup import run_startup_probes
 
-        for probe in run_startup_probes(config):
+        startup_probes = run_startup_probes(config)
+        observed_startup_ids = [probe.name for probe in startup_probes]
+        report.startup_evidence = StartupEvidence(
+            requested=True,
+            complete=observed_startup_ids == expected_startup_ids,
+            expected_ids=expected_startup_ids,
+            observed_ids=observed_startup_ids,
+            expected_count=len(expected_startup_ids),
+            observed_count=len(observed_startup_ids),
+        )
+        evidence_status = "ok" if report.startup_evidence.complete else "error"
+        report.add(
+            "startup:evidence-completeness",
+            evidence_status,
+            "schema=doctor_startup_evidence.v1 "
+            f"expected_count={report.startup_evidence.expected_count} "
+            f"observed_count={report.startup_evidence.observed_count}",
+        )
+        if not report.startup_evidence.complete:
+            report.ok = False
+        for probe in startup_probes:
             report.add(probe.name, "ok" if probe.ok else "error", probe.message)
             if not probe.ok:
                 report.ok = False

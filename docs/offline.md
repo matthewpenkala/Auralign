@@ -59,28 +59,17 @@ configured model is offline-usable:
 uv run ltm models audit
 ```
 
-The current source intentionally lacks Community-1's reviewed `config.yaml`
-SHA-256. Therefore Community-1 pull, bootstrap, verification, and strict
-startup must fail closed even after gated access is accepted. An authorized
-operator must first accept the terms personally, expose a read-scoped token
-only through the local environment, and run the ephemeral digest review:
+The source contains the owner-reviewed SHA-256 contract for all five
+Community-1 runtime files, including `config.yaml` at immutable revision
+`3533c8cf8e369892e6b79ff1bf80f7b0286a54ee`. Gated access remains personal:
+an authorized operator must accept the terms and expose a read-scoped token
+only through the local environment before normal acquisition:
 
 ```bash
 export LTM_MODEL_CACHE="$PWD/models"
 export HF_HOME="$PWD/.hf-cache"
 export HF_HUB_CACHE="$HF_HOME/hub"
 export LTM_HF_TOKEN="REDACTED_USER_SUPPLIED_READ_TOKEN"
-uv run ltm models review-digests \
-  --diarization community-1 \
-  --cache-dir "$LTM_MODEL_CACHE"
-```
-
-The review command installs nothing and deletes its temporary model bytes. A
-maintainer must review and commit the exact returned `config.yaml` digest; do
-not edit the local provenance marker. Only from source containing that complete
-contract should the operator perform normal acquisition:
-
-```bash
 uv run ltm models pull \
   --asr large-v3 \
   --diarization community-1 \
@@ -94,6 +83,12 @@ uv run ltm models verify \
   --cache-dir "$LTM_MODEL_CACHE"
 LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
 ```
+
+The committed `config.yaml` digest was produced by the repository's ephemeral
+five-file review command and approved by the owner on 2026-07-20. The review
+installed nothing, its temporary model bytes were deleted, and the other four
+returned hashes matched the existing manifest exactly. Do not edit the local
+provenance marker or substitute an unreviewed revision.
 
 For a full local procurement pass on a connected staging machine:
 

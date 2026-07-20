@@ -23,6 +23,8 @@ automatically_allowed = [
   "ISC",
   "MIT",
   "MIT-CMU",
+  "CNRI-Python",
+  "Python-2.0",
   "PSF-2.0",
 ]
 conditionally_allowed = [

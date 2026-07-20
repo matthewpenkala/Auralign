@@ -1,0 +1,108 @@
+{
+  "fill" : {
+    "solid" : "srgb:0.00392,0.01176,0.12157,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "08-selected-controls.svg",
+          "name" : "08-selected-controls"
+        },
+        {
+          "glass" : false,
+          "image-name" : "06-selected-rail.svg",
+          "name" : "06-selected-rail"
+        }
+      ],
+      "name" : "Selected Controls",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "glass" : true,
+          "image-name" : "07-inactive-controls.svg",
+          "name" : "07-inactive-controls"
+        },
+        {
+          "glass" : false,
+          "image-name" : "05-inactive-rails.svg",
+          "name" : "05-inactive-rails"
+        }
+      ],
+      "name" : "Inactive Controls",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "glass" : false,
+          "image-name" : "04-waveform-detail.svg",
+          "name" : "04-waveform-detail"
+        },
+        {
+          "image-name" : "03-waveform-base.svg",
+          "name" : "03-waveform-base"
+        }
+      ],
+      "lighting" : "combined",
+      "name" : "Waveform",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name" : "02-inner-panel-and-axis.svg",
+          "name" : "02-inner-panel-and-axis"
+        },
+        {
+          "glass" : false,
+          "image-name" : "01-structural-frame.svg",
+          "name" : "01-structural-frame"
+        }
+      ],
+      "lighting" : "combined",
+      "name" : "Frame and Panel",
+      "shadow" : {
+        "kind" : "none",
+        "opacity" : 0.5
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

@@ -16,6 +16,8 @@
 /outputs/
 /out/
 /.trusted-validation-work/
+# Local agent scratch, readiness captures, and private inspection evidence.
+/.codex-work/
 validation-capsule.json
 SHA256SUMS
 canary-10m.mp4
@@ -28,6 +30,10 @@ enrollment-speaker-*.wav
 .ruff_cache/
 .mypy_cache/
 .pytest_cache/
+# Xcode user state and local build products for the macOS app.
+xcuserdata/
+macos/DerivedData/
+macos/build/
 /build/
 /dist/
 /.wheel-smoke/

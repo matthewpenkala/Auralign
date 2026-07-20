@@ -59,6 +59,26 @@ Agents must never:
 - weaken a compliance, security, privacy, provenance, or release gate to obtain
   a passing result.
 
+## Owner-Authorized Private macOS Release For This Run
+
+On 2026-07-20, the repository owner explicitly authorized this implementation
+run to synchronize reviewed source to the existing private `main`, create and
+push the private macOS `0.2.0` release tag, and publish the exact Developer ID
+signed, Apple-notarized, stapled Auralign PKG plus its allowlisted provenance
+artifacts to that same private repository. This narrow authorization supersedes
+the general tag/release/package prohibition above only for that exact private
+macOS release after every applicable gate passes.
+
+It does not authorize public visibility, a different repository, force-push,
+history rewrite, containers, models, datasets, media, transcripts, credentials,
+validation evidence, or any artifact outside the reviewed release allowlist.
+The private-collaborator preflight, clean exact-commit build, dependency and
+license closure, Developer ID Application and Installer identities, shared Team
+ID, hardened runtime, notarization acceptance, stapling, install verification,
+hash parity, and private-visibility checks remain mandatory. Credentials must
+come from the operator's Keychain or Apple tooling and must never be committed
+or placed in command-line arguments.
+
 ## Escalation
 
 Stop and request owner review when evidence conflicts, an upstream license is

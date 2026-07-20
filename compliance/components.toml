@@ -8,15 +8,63 @@ reviewed_at = "2026-07-18"
 # Fields here are inherited by every row unless overridden. The checker merges
 # these defaults before evaluating a component record.
 [defaults]
-bundling_status = "declared_or_build_only_not_bundled_in_source_wheel_sdist"
-notice_obligations = "Upstream terms govern installed copies; informative dependency notice only in Auralign archives."
-source_offer_obligations = "none_for_Auralign_source_wheel_sdist"
+bundling_status = "not bundled in source/wheel/sdist; any native bundle is artifact-specific and SBOM-bound"
+notice_obligations = "Upstream terms govern installed or bundled copies; exact native artifacts carry their scope-specific notices and SBOM."
+source_offer_obligations = "none for Auralign source/wheel/sdist; native-artifact obligations are recorded separately"
 commercial_use_status = "subject_to_upstream_terms_and_scope_review"
 privacy_classification = "not_a_user_data_asset"
 review_status = "automated_evidence_recorded_pending_owner_release_approval"
 reviewer = "automated pre-publication inventory; not a legal signatory"
 review_date = "2026-07-10"
-redistribution_status = "not_bundled; installed copy remains under upstream terms"
+redistribution_status = "conditional; installed or bundled copy remains under upstream terms and exact artifact clearance"
+
+[[components]]
+id = "runtime:cpython-macos-app"
+category = "macos-app-runtime"
+identifier = "CPython macOS standalone runtime"
+versions = ["3.11.15; python-build-standalone 20260510 asset sha256:03bcedae9b19a48888d7dc8ba064f73f6efaaf2b13f6a8e1a1bcc062df13e855"]
+source_url = "https://www.python.org/downloads/release/python-31115/"
+terms_url = "https://docs.python.org/3.11/license.html"
+license_expression = "Python-2.0 AND CNRI-Python"
+usage = "embedded Python interpreter and standard library in the private arm64 macOS application"
+bundling_status = "bundled only in the exact owner-authorized private macOS application PKG"
+notice_obligations = "Bundle the upstream runtime license inventory and preserve Python notices."
+source_offer_obligations = "none recorded for the reviewed Python license expressions"
+redistribution_status = "owner-authorized private macOS PKG only after exact artifact gates"
+review_status = "owner_authorized_private_macos_release_pending_exact_artifact_gates"
+review_date = "2026-07-20"
+
+[[components]]
+id = "build:python-build-standalone-macos-app"
+category = "macos-app-runtime-build"
+identifier = "python-build-standalone macOS runtime builder"
+versions = ["20260510; source f0ae464f527498d6c4b13f19977447d603cd5edd; metadata sha256:0fdbc1a816bb04d0c8244c51ef623372f92870c6e8f7e6c603575976cbb0d1ea"]
+source_url = "https://github.com/astral-sh/python-build-standalone/tree/f0ae464f527498d6c4b13f19977447d603cd5edd"
+terms_url = "https://github.com/astral-sh/python-build-standalone/blob/f0ae464f527498d6c4b13f19977447d603cd5edd/LICENSE"
+license_expression = "MPL-2.0"
+usage = "immutable build source and metadata for the embedded CPython runtime"
+bundling_status = "generated runtime content is bundled; full upstream component-license metadata is copied into the application"
+notice_obligations = "Preserve MPL notice plus the complete upstream PYTHON.json and license directory."
+source_offer_obligations = "retain immutable upstream source revision and source URL with the release record"
+redistribution_status = "conditional private macOS PKG only with complete upstream metadata and exact artifact gates"
+review_status = "owner_authorized_private_macos_release_pending_exact_artifact_gates"
+review_date = "2026-07-20"
+
+[[components]]
+id = "runtime:ffmpeg-macos-app"
+category = "macos-app-native-runtime"
+identifier = "FFmpeg macOS 7.1.5 LGPL-only build"
+versions = ["7.1.5; sha256:de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f"]
+source_url = "https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.xz"
+terms_url = "https://ffmpeg.org/doxygen/7.1/md_LICENSE.html"
+license_expression = "LGPL-2.1-or-later"
+usage = "custom shared, network-disabled FFmpeg and FFprobe closure for the private arm64 macOS application"
+bundling_status = "bundled only in the exact private macOS PKG; GPL, nonfree, and version3 code disabled"
+notice_obligations = "Bundle LGPL and FFmpeg license/configuration evidence; publish the exact corresponding source beside the private PKG."
+source_offer_obligations = "the exact unmodified FFmpeg 7.1.5 source archive is an allowlisted private release asset"
+redistribution_status = "conditional private macOS PKG only with configure audit, corresponding source, SBOM, and native-closure gates"
+review_status = "owner_authorized_private_macos_release_pending_exact_artifact_gates"
+review_date = "2026-07-20"
 
 [[components]]
 id = "pypi:huggingface-hub"

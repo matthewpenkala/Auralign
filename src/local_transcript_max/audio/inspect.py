@@ -10,13 +10,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from local_transcript_max.native_runtime import reviewed_media_executable
 from local_transcript_max.schemas import AudioMetadata
 from local_transcript_max.utils import run_command
 
 
 def inspect_media(path: Path) -> AudioMetadata:
     args = [
-        "ffprobe",
+        reviewed_media_executable("ffprobe"),
         "-v",
         "error",
         "-show_format",

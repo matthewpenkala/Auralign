@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -19,18 +20,30 @@ from packaging.markers import Marker
 CPU_PROHIBITED = re.compile(r"^(?:triton|nvidia-|.*cuda|.*cudnn|.*nccl)", re.IGNORECASE)
 ROOT = Path(__file__).resolve().parents[1]
 PLATFORM_PROFILES = {
+    "darwin-arm64-cpu-app": "cpu",
     "darwin-arm64-cpu": "cpu",
     "windows-amd64-cpu": "cpu",
     "windows-amd64-cu128": "cu128",
     "linux-amd64-cu126": "cu126",
 }
 PLATFORM_REQUIREMENTS = {
+    "darwin-arm64-cpu-app": "requirements/macos-app-arm64-cpu-py311.txt",
     "darwin-arm64-cpu": "requirements/macos-arm64-cpu-py311.txt",
     "windows-amd64-cpu": "requirements/windows-cpu-py311.txt",
     "windows-amd64-cu128": "requirements/windows-cu128-py311.txt",
     "linux-amd64-cu126": "requirements/linux-cu126-py311.txt",
 }
 PLATFORM_MARKER_ENVIRONMENTS = {
+    "darwin-arm64-cpu-app": {
+        "implementation_name": "cpython",
+        "os_name": "posix",
+        "platform_machine": "arm64",
+        "platform_system": "Darwin",
+        "platform_python_implementation": "CPython",
+        "python_version": "3.11",
+        "python_full_version": "3.11.0",
+        "sys_platform": "darwin",
+    },
     "darwin-arm64-cpu": {
         "implementation_name": "cpython",
         "os_name": "posix",
@@ -89,6 +102,14 @@ PRIVATE_PATH = re.compile(
     r"(?:^|/)(?:users|home)/[^/\s\"',;:)}\]]+(?:/|$|(?=[\s\"',;:)}\]]))",
     re.IGNORECASE,
 )
+RUNTIME_SOURCES = tomllib.loads(
+    (ROOT / "packaging/macos/runtime-sources.toml").read_text(encoding="utf-8")
+)
+APP_SUPPLEMENTAL_VERSIONS = {
+    "cpython": str(RUNTIME_SOURCES["python"]["version"]),
+    "python-build-standalone": str(RUNTIME_SOURCES["python"]["release"]),
+    "ffmpeg": str(RUNTIME_SOURCES["ffmpeg"]["version"]),
+}
 
 
 def require(condition: bool, message: str) -> None:
@@ -162,7 +183,12 @@ def validate_payload(
 ) -> int:
     require(isinstance(payload, dict), f"{label}: SBOM root is invalid")
     require(payload.get("bomFormat") == "CycloneDX", f"{label}: not CycloneDX")
-    require(payload.get("specVersion") == "1.5", f"{label}: unexpected schema version")
+    standalone_app = platform_name == "darwin-arm64-cpu-app"
+    expected_spec = "1.6" if standalone_app else "1.5"
+    require(
+        payload.get("specVersion") == expected_spec,
+        f"{label}: unexpected schema version",
+    )
     metadata = payload.get("metadata")
     require(isinstance(metadata, dict), f"{label}: metadata missing")
     environment = platform_name is not None
@@ -173,7 +199,9 @@ def validate_payload(
         expected_properties = {
             "auralign:platform": platform_name,
             "auralign:profile": profile,
-            "auralign:sbom-kind": "installed-environment",
+            "auralign:sbom-kind": (
+                "standalone-app-runtime" if standalone_app else "installed-environment"
+            ),
         }
         if commit is not None:
             expected_properties["auralign:commit"] = commit
@@ -240,17 +268,20 @@ def validate_payload(
     if environment:
         require(len(normalized_names) == len(names), f"{label}: duplicate package")
         expected_versions = NATIVE_PACKAGE_VERSIONS[platform_name]
+        allowed_versions = dict(expected_versions)
+        if standalone_app:
+            allowed_versions.update(APP_SUPPLEMENTAL_VERSIONS)
         observed_versions = {
             _normalize_package_name(item.get("name", "")): str(item.get("version", ""))
             for item in components
         }
-        missing = sorted(expected_versions.keys() - names)
-        unexpected = sorted(names - expected_versions.keys())
+        missing = sorted(allowed_versions.keys() - names)
+        unexpected = sorted(names - allowed_versions.keys())
         require(not missing, f"{label}: native runtime packages missing: {missing}")
         require(not unexpected, f"{label}: unexpected native runtime packages: {unexpected}")
         drifted = sorted(
             name
-            for name, version in expected_versions.items()
+            for name, version in allowed_versions.items()
             if observed_versions.get(name) != version
         )
         require(

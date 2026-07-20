@@ -20,7 +20,7 @@ from .asr.faster_whisper_backend import (
     resolve_num_workers,
 )
 from .asr.mlx_whisper_backend import resolve_mlx_model_path
-from .config import PipelineConfig
+from .config import PipelineConfig, diarization_runtime_enabled
 from .diarization.pyannote_backend import ensure_pyannote_privacy_defaults
 from .models import require_model
 from .native_runtime import probe_torchcodec
@@ -34,6 +34,27 @@ class StartupProbe:
     name: str
     ok: bool
     message: str
+
+
+def startup_probe_ids(config: PipelineConfig) -> tuple[str, ...]:
+    """Return the complete, deterministic probe contract for ``config``."""
+
+    names: list[str] = []
+    diarization_active = diarization_runtime_enabled(config.diarization)
+    forced_alignment = config.alignment.enabled and config.alignment.backend == "forced"
+    if diarization_active or forced_alignment:
+        names.append("startup:native:torchcodec")
+    if config.asr.backend == "faster-whisper":
+        names.append("startup:asr:faster-whisper")
+    elif config.asr.backend == "mlx-whisper":
+        names.append("startup:asr:mlx-whisper")
+    if diarization_active:
+        names.append("startup:diarization:pyannote")
+    if forced_alignment:
+        names.append("startup:alignment:whisperx")
+    if config.speaker_id.mode == "auto":
+        names.append("startup:speaker-id:ecapa")
+    return tuple(names)
 
 
 def run_startup_probes(config: PipelineConfig) -> list[StartupProbe]:
@@ -52,11 +73,10 @@ def run_startup_probes(config: PipelineConfig) -> list[StartupProbe]:
             )
         ]
     probes: list[tuple[str, Callable[[], str]]] = []
-    if config.diarization.enabled or (
-        config.alignment.enabled and config.alignment.backend == "forced"
-    ):
+    expected_ids = startup_probe_ids(config)
+    if "startup:native:torchcodec" in expected_ids:
         probes.append(("startup:native:torchcodec", _probe_torchcodec))
-    if config.asr.backend == "faster-whisper":
+    if "startup:asr:faster-whisper" in expected_ids:
         probes.append(
             (
                 "startup:asr:faster-whisper",
@@ -66,9 +86,9 @@ def run_startup_probes(config: PipelineConfig) -> list[StartupProbe]:
                 ),
             )
         )
-    elif config.asr.backend == "mlx-whisper":
+    elif "startup:asr:mlx-whisper" in expected_ids:
         probes.append(("startup:asr:mlx-whisper", lambda: _probe_mlx_whisper(config)))
-    if config.diarization.enabled and config.diarization.backend in {"auto", "pyannote"}:
+    if "startup:diarization:pyannote" in expected_ids:
         probes.append(
             (
                 "startup:diarization:pyannote",
@@ -78,7 +98,7 @@ def run_startup_probes(config: PipelineConfig) -> list[StartupProbe]:
                 ),
             )
         )
-    if config.alignment.enabled and config.alignment.backend == "forced":
+    if "startup:alignment:whisperx" in expected_ids:
         probes.append(
             (
                 "startup:alignment:whisperx",
@@ -88,7 +108,7 @@ def run_startup_probes(config: PipelineConfig) -> list[StartupProbe]:
                 ),
             )
         )
-    if config.speaker_id.mode == "auto":
+    if "startup:speaker-id:ecapa" in expected_ids:
         probes.append(("startup:speaker-id:ecapa", lambda: _probe_ecapa(config)))
 
     results: list[StartupProbe] = []

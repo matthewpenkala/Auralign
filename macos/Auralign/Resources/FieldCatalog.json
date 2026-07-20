@@ -1,0 +1,941 @@
+{
+  "catalog_version": "gui_field_catalog.v1",
+  "sections": [
+    {
+      "id": "general",
+      "title": "General",
+      "symbol": "slider.horizontal.3",
+      "summary": "Preset baseline, offline posture, and model cache location."
+    },
+    {
+      "id": "audio",
+      "title": "Audio",
+      "symbol": "waveform",
+      "summary": "Canonical audio preparation applied before recognition."
+    },
+    {
+      "id": "asr",
+      "title": "ASR",
+      "symbol": "text.quote",
+      "summary": "Speech-recognition backend, model selection, decoding, and performance."
+    },
+    {
+      "id": "diarization",
+      "title": "Diarization",
+      "symbol": "person.2.wave.2",
+      "summary": "Speaker segmentation with pyannote, speaker-count hints, and the agentic candidate search."
+    },
+    {
+      "id": "alignment",
+      "title": "Alignment",
+      "symbol": "ruler",
+      "summary": "Word-level forced alignment and its fallback policy."
+    },
+    {
+      "id": "qa_redecode",
+      "title": "QA & Re-decode",
+      "symbol": "checkmark.shield",
+      "summary": "Deterministic quality heuristics and targeted candidate-only re-decode."
+    },
+    {
+      "id": "speakers",
+      "title": "Speaker ID",
+      "symbol": "person.crop.circle.badge.questionmark",
+      "summary": "Conservative matching of diarized clusters against locally enrolled speaker profiles."
+    },
+    {
+      "id": "identity",
+      "title": "Identity Resolution",
+      "symbol": "person.text.rectangle",
+      "summary": "Opt-in post-transcription identity review and derived named-speaker exports; canonical transcripts stay anonymous."
+    },
+    {
+      "id": "cleanup",
+      "title": "Cleanup",
+      "symbol": "sparkles",
+      "summary": "Optional local-LLM transcript cleanup. Remote endpoints require an explicit opt-in and send transcript text off this machine."
+    },
+    {
+      "id": "subtitles",
+      "title": "Subtitles & Exports",
+      "symbol": "captions.bubble",
+      "summary": "SRT/VTT cue shaping and speaker labeling for subtitle deliverables."
+    }
+  ],
+  "fields": [
+    {
+      "key": "preset",
+      "title": "Preset",
+      "help": "Select the engine baseline profile: max, balanced, fast, or cpu. Each profile maps to reviewed configuration values, and explicit overrides below are applied on top of the selected preset.",
+      "section": "general",
+      "disposition": "primary"
+    },
+    {
+      "key": "offline",
+      "title": "Offline mode",
+      "help": "Require fully local operation. Missing local assets fail fast instead of triggering any network access, and non-local cleanup endpoints are rejected.",
+      "section": "general",
+      "disposition": "primary"
+    },
+    {
+      "key": "model_cache",
+      "title": "Model cache",
+      "help": "Directory holding verified local model caches. Relative paths resolve against the engine repository.",
+      "section": "general",
+      "disposition": "advanced",
+      "path_style": "directory"
+    },
+    {
+      "key": "runtime.model_lifecycle",
+      "title": "Model lifecycle",
+      "help": "Model residency between jobs: auto/persistent keep backends warm for throughput; per-job releases models and allocator caches after each job for lower memory residency.",
+      "section": "general",
+      "disposition": "advanced"
+    },
+    {
+      "key": "audio.sample_rate",
+      "title": "Sample rate",
+      "help": "Canonical WAV sample rate. The pipeline standardizes on 16000 Hz for recognition.",
+      "section": "audio",
+      "disposition": "advanced",
+      "unit": "Hz"
+    },
+    {
+      "key": "audio.mono",
+      "title": "Downmix to mono",
+      "help": "Mix the source down to a single channel for the canonical recognition audio.",
+      "section": "audio",
+      "disposition": "advanced"
+    },
+    {
+      "key": "audio.normalize_loudness",
+      "title": "Normalize loudness",
+      "help": "Apply loudness normalization while preparing canonical audio. Helpful for very quiet or uneven sources.",
+      "section": "audio",
+      "disposition": "primary"
+    },
+    {
+      "key": "audio.denoise",
+      "title": "Denoise",
+      "help": "Optional noise reduction before recognition. Mild is conservative; strong can distort speech and should be reserved for very noisy sources.",
+      "section": "audio",
+      "disposition": "primary"
+    },
+    {
+      "key": "audio.separate_vocals",
+      "title": "Separate vocals",
+      "help": "Experimental vocal separation before recognition for music-heavy sources.",
+      "section": "audio",
+      "disposition": "advanced",
+      "experimental": true
+    },
+    {
+      "key": "audio.preserve_channels",
+      "title": "Preserve channels",
+      "help": "Keep the original channel layout instead of downmixing when preparing canonical audio.",
+      "section": "audio",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.backend",
+      "title": "Backend",
+      "help": "faster-whisper runs Whisper through CTranslate2 (CPU/CUDA); mlx-whisper runs natively on Apple Silicon via MLX.",
+      "section": "asr",
+      "disposition": "primary"
+    },
+    {
+      "key": "asr.model",
+      "title": "Model",
+      "help": "faster-whisper model from the reviewed manifest. large-v3 is the accuracy reference; turbo and the distil variants trade accuracy for speed.",
+      "section": "asr",
+      "disposition": "primary",
+      "requires": [{ "key": "asr.backend", "equals": "faster-whisper" }]
+    },
+    {
+      "key": "asr.language",
+      "title": "Language",
+      "help": "ISO language code such as en or de. Leave empty to auto-detect from the audio.",
+      "section": "asr",
+      "disposition": "primary"
+    },
+    {
+      "key": "asr.task",
+      "title": "Task",
+      "help": "transcribe keeps the source language; translate produces English output.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.beam_size",
+      "title": "Beam size",
+      "help": "Beam-search width during decoding. Larger beams improve accuracy at a roughly linear cost in time.",
+      "section": "asr",
+      "disposition": "primary"
+    },
+    {
+      "key": "asr.device",
+      "title": "Device",
+      "help": "Compute device for faster-whisper. auto prefers CUDA when available; MLX owns its native device.",
+      "section": "asr",
+      "disposition": "advanced",
+      "requires": [{ "key": "asr.backend", "equals": "faster-whisper" }]
+    },
+    {
+      "key": "asr.compute_type",
+      "title": "Compute type",
+      "help": "CTranslate2 quantization/precision, e.g. auto, int8, int8_float32, float16. Unsupported combinations are rejected by preflight.",
+      "section": "asr",
+      "disposition": "advanced",
+      "requires": [{ "key": "asr.backend", "equals": "faster-whisper" }]
+    },
+    {
+      "key": "asr.cpu_threads",
+      "title": "CPU threads",
+      "help": "Explicit CPU thread count for faster-whisper. Automatic uses the library default.",
+      "section": "asr",
+      "disposition": "advanced",
+      "requires": [{ "key": "asr.backend", "equals": "faster-whisper" }]
+    },
+    {
+      "key": "asr.num_workers",
+      "title": "Workers",
+      "help": "faster-whisper worker count for parallel decoding.",
+      "section": "asr",
+      "disposition": "advanced",
+      "requires": [{ "key": "asr.backend", "equals": "faster-whisper" }]
+    },
+    {
+      "key": "asr.batched",
+      "title": "Batched inference",
+      "help": "Use the faster-whisper BatchedInferencePipeline. Validate against representative media before relying on it.",
+      "section": "asr",
+      "disposition": "advanced",
+      "requires": [{ "key": "asr.backend", "equals": "faster-whisper" }]
+    },
+    {
+      "key": "asr.batch_size",
+      "title": "Batch size",
+      "help": "Segments decoded per batch when batched inference is enabled.",
+      "section": "asr",
+      "disposition": "advanced",
+      "requires": [{ "key": "asr.batched", "equals": true }]
+    },
+    {
+      "key": "asr.best_of",
+      "title": "Best of",
+      "help": "Candidate count when sampling at non-zero temperatures.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.patience",
+      "title": "Beam patience",
+      "help": "Beam-search patience factor. Automatic uses the library default of 1.0.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.temperature",
+      "title": "Temperature schedule",
+      "help": "Decoding temperatures tried in order when quality thresholds fail, e.g. 0.0, 0.2, 0.4. A single value disables the fallback ladder.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.compression_ratio_threshold",
+      "title": "Compression ratio threshold",
+      "help": "Segments whose text compresses beyond this ratio are treated as failed decodes and retried at the next temperature.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.logprob_threshold",
+      "title": "Log-probability threshold",
+      "help": "Average log-probability below this value marks a decode as failed for the temperature ladder.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.no_speech_threshold",
+      "title": "No-speech threshold",
+      "help": "Probability above which a segment is treated as silence and skipped.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.condition_on_previous_text",
+      "title": "Condition on previous text",
+      "help": "Feed prior output back as context. Improves continuity but can propagate hallucinations on long recordings; the engine defaults to off.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.initial_prompt",
+      "title": "Initial prompt",
+      "help": "Free-text prompt biasing the first window, e.g. domain vocabulary or expected names. Kept private; never copied into shareable metadata.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.prefix",
+      "title": "Decoder prefix",
+      "help": "Forced decoder prefix for the first segment. Rarely needed; kept private like the prompt.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.glossary_file",
+      "title": "Glossary file",
+      "help": "Local text file whose contents seed the initial prompt with project vocabulary.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.word_timestamps",
+      "title": "Word timestamps",
+      "help": "Ask the ASR backend for word-level timestamps. Required for fallback word timing when forced alignment is unavailable.",
+      "section": "asr",
+      "disposition": "advanced"
+    },
+    {
+      "key": "asr.vad_filter",
+      "title": "ASR VAD filter",
+      "help": "Let faster-whisper apply its own voice-activity filter during decoding, in addition to the pipeline's VAD stage.",
+      "section": "asr",
+      "disposition": "advanced",
+      "requires": [{ "key": "asr.backend", "equals": "faster-whisper" }]
+    },
+    {
+      "key": "asr.mlx_model",
+      "title": "MLX model",
+      "help": "MLX Whisper conversion used on Apple Silicon. Models are imported locally via the reviewed manifest; mlx-large-v3 is the verified selection.",
+      "section": "asr",
+      "disposition": "primary",
+      "requires": [{ "key": "asr.backend", "equals": "mlx-whisper" }]
+    },
+    {
+      "key": "asr.mlx_model_path",
+      "title": "MLX model path",
+      "help": "Explicit local directory containing the MLX model, overriding cache lookup.",
+      "section": "asr",
+      "disposition": "advanced",
+      "path_style": "directory",
+      "requires": [{ "key": "asr.backend", "equals": "mlx-whisper" }]
+    },
+    {
+      "key": "asr.mlx_fp16",
+      "title": "MLX FP16",
+      "help": "Run MLX inference in half precision. The validated Apple Silicon topology uses FP16.",
+      "section": "asr",
+      "disposition": "advanced",
+      "requires": [{ "key": "asr.backend", "equals": "mlx-whisper" }]
+    },
+    {
+      "key": "asr.mlx_vad_windowed",
+      "title": "MLX VAD windowing",
+      "help": "Experimental: transcribe MLX ASR inside local VAD windows instead of one pass.",
+      "section": "asr",
+      "disposition": "advanced",
+      "experimental": true,
+      "requires": [{ "key": "asr.backend", "equals": "mlx-whisper" }]
+    },
+    {
+      "key": "asr.mlx_vad_window_seconds",
+      "title": "MLX VAD window",
+      "help": "Window length for experimental MLX VAD-windowed transcription.",
+      "section": "asr",
+      "disposition": "advanced",
+      "unit": "s",
+      "experimental": true,
+      "requires": [{ "key": "asr.mlx_vad_windowed", "equals": true }]
+    },
+    {
+      "key": "asr.mlx_vad_window_padding_seconds",
+      "title": "MLX window padding",
+      "help": "Padding added around each VAD window in the experimental windowed mode.",
+      "section": "asr",
+      "disposition": "advanced",
+      "unit": "s",
+      "experimental": true,
+      "requires": [{ "key": "asr.mlx_vad_windowed", "equals": true }]
+    },
+    {
+      "key": "diarization.enabled",
+      "title": "Enable diarization",
+      "help": "Segment the recording by speaker with pyannote. Disabling leaves all words unattributed.",
+      "section": "diarization",
+      "disposition": "primary"
+    },
+    {
+      "key": "diarization.backend",
+      "title": "Backend",
+      "help": "pyannote runs the local Community-1 pipeline; off disables diarization entirely.",
+      "section": "diarization",
+      "disposition": "primary",
+      "requires": [{ "key": "diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "diarization.model",
+      "title": "Model",
+      "help": "Diarization model from the reviewed manifest. Community-1 is gated: each operator accepts upstream terms before acquisition.",
+      "section": "diarization",
+      "disposition": "primary",
+      "requires": [{ "key": "diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "diarization.num_speakers",
+      "title": "Exact speaker count",
+      "help": "Pin the number of speakers when it is known. Leave automatic for the model to estimate.",
+      "section": "diarization",
+      "disposition": "primary",
+      "requires": [{ "key": "diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "diarization.min_speakers",
+      "title": "Minimum speakers",
+      "help": "Lower bound for the estimated speaker count. Must not exceed the maximum.",
+      "section": "diarization",
+      "disposition": "primary",
+      "requires": [{ "key": "diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "diarization.max_speakers",
+      "title": "Maximum speakers",
+      "help": "Upper bound for the estimated speaker count.",
+      "section": "diarization",
+      "disposition": "primary",
+      "requires": [{ "key": "diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "diarization.device",
+      "title": "Device",
+      "help": "Compute device for pyannote. The conservative Apple Silicon topology runs diarization on CPU; MPS remains an explicit evidence-gated canary.",
+      "section": "diarization",
+      "disposition": "advanced",
+      "requires": [{ "key": "diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "diarization.preserve_overlap",
+      "title": "Preserve overlap",
+      "help": "Keep overlapping speech turns in the diarization output instead of flattening them.",
+      "section": "diarization",
+      "disposition": "advanced",
+      "requires": [{ "key": "diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "diarization.exclusive_diarization",
+      "title": "Exclusive turns for fusion",
+      "help": "Use non-overlapping exclusive turns when assigning words to speakers, which stabilizes attribution in crosstalk.",
+      "section": "diarization",
+      "disposition": "advanced",
+      "requires": [{ "key": "diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "agentic_diarization.enabled",
+      "title": "Agentic diarization",
+      "help": "Score multiple candidate speaker counts deterministically and pick the best-supported one. Slower; useful when the speaker count is uncertain.",
+      "section": "diarization",
+      "disposition": "primary",
+      "requires": [{ "key": "diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "agentic_diarization.candidates",
+      "title": "Candidate count",
+      "help": "Explicit number of candidate hypotheses to score. Automatic derives it from the candidate range.",
+      "section": "diarization",
+      "disposition": "advanced",
+      "requires": [{ "key": "agentic_diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "agentic_diarization.candidate_range",
+      "title": "Candidate range",
+      "help": "Inclusive speaker-count range to explore, written like 2:8.",
+      "section": "diarization",
+      "disposition": "advanced",
+      "requires": [{ "key": "agentic_diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "agentic_diarization.known_speakers",
+      "title": "Known speakers",
+      "help": "Anchor candidate scoring around a known participant count.",
+      "section": "diarization",
+      "disposition": "advanced",
+      "requires": [{ "key": "agentic_diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "agentic_diarization.write_decision_report",
+      "title": "Write decision report",
+      "help": "Persist the deterministic candidate-scoring evidence as diarization_decision_report.json.",
+      "section": "diarization",
+      "disposition": "advanced",
+      "requires": [{ "key": "diarization.enabled", "equals": true }]
+    },
+    {
+      "key": "alignment.enabled",
+      "title": "Enable alignment",
+      "help": "Refine word timestamps with forced alignment. Disabling falls back to the ASR backend's own word timing.",
+      "section": "alignment",
+      "disposition": "primary"
+    },
+    {
+      "key": "alignment.backend",
+      "title": "Backend",
+      "help": "auto tries WhisperX forced alignment and falls back to ASR word timestamps with a recorded reason; forced makes alignment failures fatal; whisper/fallback skip forced alignment.",
+      "section": "alignment",
+      "disposition": "primary",
+      "requires": [{ "key": "alignment.enabled", "equals": true }]
+    },
+    {
+      "key": "alignment.language",
+      "title": "Language",
+      "help": "Alignment-model language. Automatic follows the detected ASR language.",
+      "section": "alignment",
+      "disposition": "advanced",
+      "requires": [{ "key": "alignment.enabled", "equals": true }]
+    },
+    {
+      "key": "alignment.model",
+      "title": "Model",
+      "help": "Alignment model key from the manifest (en = wav2vec2-base-960h) or a reviewed local model path. Automatic selects by language.",
+      "section": "alignment",
+      "disposition": "advanced",
+      "requires": [{ "key": "alignment.enabled", "equals": true }]
+    },
+    {
+      "key": "alignment.device",
+      "title": "Device",
+      "help": "Compute device for forced alignment. The conservative Apple Silicon topology aligns on CPU; MPS requires the explicit experiment toggle.",
+      "section": "alignment",
+      "disposition": "advanced",
+      "requires": [{ "key": "alignment.enabled", "equals": true }]
+    },
+    {
+      "key": "alignment.allow_experimental_mps",
+      "title": "Allow experimental MPS",
+      "help": "Approve an isolated WhisperX MPS experiment. Never used automatically.",
+      "section": "alignment",
+      "disposition": "advanced",
+      "experimental": true,
+      "requires": [{ "key": "alignment.enabled", "equals": true }]
+    },
+    {
+      "key": "qa.enabled",
+      "title": "Run QA heuristics",
+      "help": "Deterministic transcript quality checks producing qa_report.json: suspect spans, repetition, timing anomalies, and speaker-count review flags.",
+      "section": "qa_redecode",
+      "disposition": "primary"
+    },
+    {
+      "key": "qa.targeted_redecode",
+      "title": "QA-driven re-decode",
+      "help": "Let QA findings trigger targeted re-decode. If the re-decode mode below is off, the engine promotes it to low-confidence.",
+      "section": "qa_redecode",
+      "disposition": "primary"
+    },
+    {
+      "key": "redecode.mode",
+      "title": "Re-decode mode",
+      "help": "Which suspect spans get a second decoding pass. Re-decode is candidate-only: it writes review candidates and never rewrites the canonical transcript.",
+      "section": "qa_redecode",
+      "disposition": "primary"
+    },
+    {
+      "key": "redecode.max_spans",
+      "title": "Max spans",
+      "help": "Upper bound on re-decoded spans per job.",
+      "section": "qa_redecode",
+      "disposition": "advanced",
+      "requires": [{ "key": "redecode.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "redecode.pad_seconds",
+      "title": "Span padding",
+      "help": "Audio padding added around each suspect span before re-decoding.",
+      "section": "qa_redecode",
+      "disposition": "advanced",
+      "unit": "s",
+      "requires": [{ "key": "redecode.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "redecode.beam_size",
+      "title": "Re-decode beam size",
+      "help": "Beam width for the second pass over suspect spans.",
+      "section": "qa_redecode",
+      "disposition": "advanced",
+      "requires": [{ "key": "redecode.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "redecode.temperature",
+      "title": "Re-decode temperature",
+      "help": "Sampling temperature for the second pass; 0 keeps it deterministic.",
+      "section": "qa_redecode",
+      "disposition": "advanced",
+      "requires": [{ "key": "redecode.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "redecode.write_report",
+      "title": "Write re-decode report",
+      "help": "Persist redecode_report.json describing selected spans and outcomes, even when the mode is off.",
+      "section": "qa_redecode",
+      "disposition": "advanced"
+    },
+    {
+      "key": "redecode.write_repaired_transcript",
+      "title": "Write repaired transcript",
+      "help": "Retired: the engine rejects this option. Targeted re-decode is candidate-only; review transcript.redecode_candidates.json instead.",
+      "section": "qa_redecode",
+      "disposition": "readonly"
+    },
+    {
+      "key": "speaker_id.mode",
+      "title": "Speaker matching",
+      "help": "auto matches diarized clusters against locally enrolled ECAPA profiles; ambiguous matches stay UNKNOWN. off skips embedding extraction.",
+      "section": "speakers",
+      "disposition": "primary"
+    },
+    {
+      "key": "speaker_id.model",
+      "title": "Embedding model",
+      "help": "Speaker-embedding model from the reviewed manifest (ecapa = SpeechBrain ECAPA-TDNN).",
+      "section": "speakers",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_id.mode", "equals": "auto" }]
+    },
+    {
+      "key": "speaker_id.device",
+      "title": "Device",
+      "help": "Compute device for speaker-embedding extraction.",
+      "section": "speakers",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_id.mode", "equals": "auto" }]
+    },
+    {
+      "key": "speaker_id.minimum_segment_seconds",
+      "title": "Minimum segment",
+      "help": "Shortest speech segment used when building cluster embeddings.",
+      "section": "speakers",
+      "disposition": "advanced",
+      "unit": "s",
+      "requires": [{ "key": "speaker_id.mode", "equals": "auto" }]
+    },
+    {
+      "key": "speaker_id.maximum_speech_seconds",
+      "title": "Maximum speech",
+      "help": "Cap on speech sampled per cluster when building embeddings.",
+      "section": "speakers",
+      "disposition": "advanced",
+      "unit": "s",
+      "requires": [{ "key": "speaker_id.mode", "equals": "auto" }]
+    },
+    {
+      "key": "speaker_id.profile_dir",
+      "title": "Profile directory",
+      "help": "Directory of locally enrolled speaker profiles. Automatic uses the engine's default profile store.",
+      "section": "speakers",
+      "disposition": "advanced",
+      "path_style": "directory",
+      "requires": [{ "key": "speaker_id.mode", "equals": "auto" }]
+    },
+    {
+      "key": "speaker_id.threshold",
+      "title": "Match threshold",
+      "help": "Minimum cosine similarity for a profile match. Higher is stricter; unmatched clusters stay UNKNOWN.",
+      "section": "speakers",
+      "disposition": "primary",
+      "requires": [{ "key": "speaker_id.mode", "equals": "auto" }]
+    },
+    {
+      "key": "speaker_id.ambiguity_margin",
+      "title": "Ambiguity margin",
+      "help": "If the two best profile matches are closer than this margin, the cluster is treated as ambiguous and left UNKNOWN.",
+      "section": "speakers",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_id.mode", "equals": "auto" }]
+    },
+    {
+      "key": "speaker_identity.mode",
+      "title": "Identity resolution",
+      "help": "Deterministic offline post-processor on the completed job. review writes reports and candidates only; apply-safe and apply-approved additionally write derived identity-mapped exports.",
+      "section": "identity",
+      "disposition": "primary"
+    },
+    {
+      "key": "speaker_identity.known_speakers",
+      "title": "Known speakers",
+      "help": "Expected participant count used as review evidence. Apply modes with a count also require a roster.",
+      "section": "identity",
+      "disposition": "primary",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.roster_path",
+      "title": "Roster",
+      "help": "Strict local identity roster JSON naming expected participants.",
+      "section": "identity",
+      "disposition": "primary",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.deliverable_format",
+      "title": "Deliverable format",
+      "help": "Named-speaker delivery is SRT-first; all additionally writes review sidecars in other formats.",
+      "section": "identity",
+      "disposition": "primary",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.write_identity_mapped_exports",
+      "title": "Write identity-mapped exports",
+      "help": "Write derived transcript.identity_mapped.* files. Canonical anonymous transcripts and RTTM are never overwritten.",
+      "section": "identity",
+      "disposition": "primary",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.approved_map_path",
+      "title": "Approved map",
+      "help": "Current-job, hash-bound approved identity map. Consumed only by apply-approved.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "equals": "apply-approved" }]
+    },
+    {
+      "key": "speaker_identity.external_transcript",
+      "title": "External transcript",
+      "help": "Read-only external transcript used for drift comparison during review.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.sibling_jobs",
+      "title": "Sibling jobs",
+      "help": "Related completed job folders whose stable speaker evidence supports this job's review.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.sibling_root",
+      "title": "Sibling root",
+      "help": "Directory scanned for sibling jobs.",
+      "section": "identity",
+      "disposition": "advanced",
+      "path_style": "directory",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.sibling_manifest",
+      "title": "Sibling manifest",
+      "help": "Explicit manifest file listing sibling jobs.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.stability_config_path",
+      "title": "Stability config",
+      "help": "Optional configuration for the diarization-stability comparison.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.media_review_report_path",
+      "title": "Media review report",
+      "help": "Reviewed source-media report. Required by, and consumed only with, source media review = reviewed-report.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [
+        { "key": "speaker_identity.source_media_review", "equals": "reviewed-report" }
+      ]
+    },
+    {
+      "key": "speaker_identity.write_media_review_queue",
+      "title": "Write media review queue",
+      "help": "Emit a queue of segments recommended for human media review.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.audit_csv",
+      "title": "Attribution audit CSV",
+      "help": "Write the attribution audit as CSV alongside the authoritative JSON audit.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.source_media_review",
+      "title": "Source media review",
+      "help": "How human media review feeds the resolver: queue emits requests; reviewed-report consumes a completed report; none disables it.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.turn_boundary_repair",
+      "title": "Turn boundary repair",
+      "help": "report-only records suspect turn boundaries; label-only may relabel fragments without changing timings.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.unattributed_label",
+      "title": "Unattributed label",
+      "help": "Display label for speech that stays unattributed in derived exports.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.min_apply_confidence",
+      "title": "Minimum apply confidence",
+      "help": "Apply modes only map identities whose confidence reaches this floor.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.profile_threshold",
+      "title": "Profile threshold",
+      "help": "Similarity floor for enrolled-profile evidence during resolution.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.profile_ambiguity_margin",
+      "title": "Profile ambiguity margin",
+      "help": "Margin below which competing profile matches are treated as ambiguous.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.max_fragment_duration",
+      "title": "Max fragment duration",
+      "help": "Turns shorter than this are treated as fragments during boundary repair.",
+      "section": "identity",
+      "disposition": "advanced",
+      "unit": "s",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.max_fragment_words",
+      "title": "Max fragment words",
+      "help": "Word-count ceiling for fragment classification during boundary repair.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "speaker_identity.max_sibling_jobs",
+      "title": "Max sibling jobs",
+      "help": "Upper bound on sibling jobs consulted for stability evidence.",
+      "section": "identity",
+      "disposition": "advanced",
+      "requires": [{ "key": "speaker_identity.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.mode",
+      "title": "Cleanup",
+      "help": "local-llm sends transcript text to an OpenAI-compatible endpoint for cleanup. Canonical transcripts are preserved; cleanup output is a separate artifact.",
+      "section": "cleanup",
+      "disposition": "primary"
+    },
+    {
+      "key": "cleanup.endpoint",
+      "title": "Endpoint",
+      "help": "OpenAI-compatible endpoint URL. Non-local endpoints are rejected unless remote cleanup is explicitly allowed, and always rejected in offline mode.",
+      "section": "cleanup",
+      "disposition": "primary",
+      "requires": [{ "key": "cleanup.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.model",
+      "title": "Model",
+      "help": "Model name requested from the cleanup endpoint. Automatic lets the endpoint choose its default.",
+      "section": "cleanup",
+      "disposition": "advanced",
+      "requires": [{ "key": "cleanup.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.scope",
+      "title": "Scope",
+      "help": "punctuation restricts edits to punctuation and casing; readability allows limited rewording within the word-delta budget.",
+      "section": "cleanup",
+      "disposition": "primary",
+      "requires": [{ "key": "cleanup.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.allow_remote_cleanup",
+      "title": "Allow remote endpoint",
+      "help": "Permit a non-local cleanup endpoint. This sends transcript text off this machine; leave off unless that is explicitly acceptable.",
+      "section": "cleanup",
+      "disposition": "advanced",
+      "experimental": true,
+      "requires": [{ "key": "cleanup.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.write_diff",
+      "title": "Write cleanup diff",
+      "help": "Persist a diff of original vs. cleaned text. Diffs contain transcript excerpts and must remain private.",
+      "section": "cleanup",
+      "disposition": "advanced",
+      "requires": [{ "key": "cleanup.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.max_word_delta_ratio",
+      "title": "Max word delta",
+      "help": "Reject cleanup output whose word count drifts from the original by more than this ratio.",
+      "section": "cleanup",
+      "disposition": "advanced",
+      "requires": [{ "key": "cleanup.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "subtitle_export.split_long_cues",
+      "title": "Split long cues",
+      "help": "Break long subtitle cues to respect the line width and count limits below.",
+      "section": "subtitles",
+      "disposition": "primary"
+    },
+    {
+      "key": "subtitle_export.max_line_width",
+      "title": "Max line width",
+      "help": "Character budget per subtitle line. Automatic removes the limit.",
+      "section": "subtitles",
+      "disposition": "primary"
+    },
+    {
+      "key": "subtitle_export.max_line_count",
+      "title": "Max lines per cue",
+      "help": "Line budget per subtitle cue. Automatic removes the limit.",
+      "section": "subtitles",
+      "disposition": "primary"
+    },
+    {
+      "key": "subtitle_export.speaker_labels",
+      "title": "Speaker labels",
+      "help": "Prefix cues with the speaker label when the speaker changes.",
+      "section": "subtitles",
+      "disposition": "primary"
+    },
+    {
+      "key": "subtitle_export.use_mapped_names",
+      "title": "Use mapped names",
+      "help": "Use resolved identity names in derived identity-mapped subtitles where an approved mapping exists.",
+      "section": "subtitles",
+      "disposition": "advanced"
+    },
+    {
+      "key": "subtitle_export.highlight_words",
+      "title": "Highlight words",
+      "help": "Emit per-word highlighting cues (karaoke-style) in supported formats.",
+      "section": "subtitles",
+      "disposition": "advanced"
+    }
+  ]
+}

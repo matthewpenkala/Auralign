@@ -54,6 +54,36 @@ An owner-authorized wheel or sdist must:
 The package is private and must not be uploaded to PyPI or another public index.
 Possession of an archive does not authorize redistribution.
 
+## Standalone macOS Application
+
+The owner-authorized private macOS lane is one scriptless, system-domain PKG
+containing `/Applications/Auralign.app`. The app embeds an arm64 Python 3.11
+runtime, Auralign engine wheel, exact hash-locked CPU dependency closure, and a
+custom shared FFmpeg/PyAV closure. It does not embed model weights, caches,
+tokens, media, transcripts, user configuration, or generated output.
+
+An accepted artifact must:
+
+- be built from clean private `main` at the exact release commit using the
+  checked-in source and dependency contracts;
+- support macOS 14 or later on Apple Silicon and contain only arm64 Mach-O code;
+- resolve every non-system native dependency to exactly one in-bundle object;
+- include complete runtime licenses, exact installed-distribution SBOM,
+  corresponding FFmpeg source, signed-byte inventory, and privacy scan;
+- launch the embedded bridge and native media stack under the same sanitized,
+  offline environment before signing, after app signing, and from the expanded
+  final package;
+- sign nested code inside-out with a Developer ID Application identity and sign
+  the PKG with a Developer ID Installer identity from the same Team ID;
+- receive Apple notarization acceptance, carry a stapled ticket, pass
+  `codesign`, `pkgutil`, `spctl`, and `stapler` verification, and survive an
+  install/reinstall test without scripts; and
+- remain private and hash-identical to the allowlisted release assets.
+
+Models remain separately acquired under their upstream terms. Installer scripts,
+runtime downloads, virtual-environment creation, package installation, model
+acquisition, telemetry, and shell-profile configuration are prohibited.
+
 ## Containers
 
 Container images are internal-only and non-distributable until the exact image

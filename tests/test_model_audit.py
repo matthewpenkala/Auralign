@@ -148,6 +148,15 @@ def test_pull_preconditions_block_incomplete_gated_digest_before_asr_download(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    community = resolve_model_entry("diarization", "community-1")
+    assert community is not None
+    incomplete = replace(
+        community,
+        expected_sha256=tuple(
+            item for item in community.expected_sha256 if item[0] != "config.yaml"
+        ),
+    )
+    monkeypatch.setitem(MODEL_MANIFEST, "community-1", incomplete)
     monkeypatch.delenv("HF_TOKEN", raising=False)
     monkeypatch.delenv("LTM_HF_TOKEN", raising=False)
     result = CliRunner().invoke(
@@ -166,6 +175,26 @@ def test_pull_preconditions_block_incomplete_gated_digest_before_asr_download(
     assert result.exit_code == 1
     assert "repository digest contract incomplete" in result.stderr
     assert not any(tmp_path.iterdir())
+
+
+def test_community_1_manifest_has_owner_reviewed_complete_digest_contract() -> None:
+    entry = resolve_model_entry("diarization", "community-1")
+    assert entry is not None
+    assert entry.reviewed_at == "2026-07-20"
+    assert entry.expected_digest_map == {
+        "config.yaml": "5ce2bfa9a938dc132cec1172592d65173cbb8f444ea1e4133f10f9391de155be",
+        "segmentation/pytorch_model.bin": (
+            "7ad24338d844fb95985486eb1a464e32d229f6d7a03c9abe60f978bacf3f816e"
+        ),
+        "embedding/pytorch_model.bin": (
+            "6f10ff60898a1d185fa22e1d11e0bfa8a92efec811f11bca48cb8cafebefd929"
+        ),
+        "plda/plda.npz": "9b77bcd840692710dd3496f62ecfeed8d8e5f002fd991b785079b244eab7d255",
+        "plda/xvec_transform.npz": (
+            "325f1ce8e48f7e55e9c8aa47e05d2766b7c48c4b25b8de8dd751e7a4cc5fbe8f"
+        ),
+    }
+    assert set(entry.expected_digest_map) == set(entry.runtime_files)
 
 
 def test_model_audit_payload_includes_optional_classification(tmp_path: Path) -> None:
@@ -202,9 +231,7 @@ def test_models_verify_fails_and_writes_audit_for_missing_cache(tmp_path: Path) 
     assert (tmp_path / "model_audit.json").exists()
 
 
-def test_models_verify_can_target_the_exact_strict_lane(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_models_verify_can_target_the_exact_strict_lane(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         "local_transcript_max.models._repository_digest_contract_problem",
         lambda _entry: None,
@@ -285,9 +312,16 @@ def test_pull_refuses_manifest_entry_with_incomplete_repository_digest_contract(
         pull_model(entry, tmp_path)
 
 
-def test_strict_community_cache_cannot_verify_without_config_digest(tmp_path: Path) -> None:
+def test_strict_community_cache_cannot_verify_with_synthetic_missing_config_digest(
+    tmp_path: Path, monkeypatch
+) -> None:
     entry = resolve_model_entry("diarization", "community-1")
     assert entry is not None
+    entry = replace(
+        entry,
+        expected_sha256=tuple(item for item in entry.expected_sha256 if item[0] != "config.yaml"),
+    )
+    monkeypatch.setitem(MODEL_MANIFEST, "community-1", entry)
     model_dir = tmp_path / entry.directory_name
     model_dir.mkdir()
     for required in entry.required_files:

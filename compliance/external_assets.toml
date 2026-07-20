@@ -301,7 +301,7 @@ acquisition_status = "approved_after_gated_terms"
 runtime_status = "approved_local_after_gated_terms"
 redistribution_status = "permitted_with_attribution_and_gated_terms"
 review_status = "verified_gated"
-reviewed_at = "2026-07-10"
+reviewed_at = "2026-07-20"
 
 [[assets]]
 kind = "model"

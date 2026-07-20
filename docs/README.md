@@ -33,6 +33,8 @@ canonical sources for implementation details and operational policy.
 
 ## Interfaces
 
+- [Native macOS GUI](macos-gui.md): SwiftUI workbench, engine-bridge trust
+  boundary, source-development and embedded-runtime lanes, privacy, and gates.
 - [API](api.md): localhost service and job lifecycle.
 - [Speaker identification](speaker-id.md): local profiles, matching, and
   offline identity resolution and named-speaker delivery.
@@ -40,6 +42,9 @@ canonical sources for implementation details and operational policy.
   supported v1 evidence, decision, validation, and artifact contracts.
 - [Auralign 0.2.0 private runbook](release/v0.2.0-private-runbook.md): native
   installation, model preparation, trusted validation, and owner-only release.
+- [Auralign 0.2.0 private macOS PKG](release/macos-v0.2.0-private-pkg.md):
+  standalone runtime, Developer ID signing, notarization, installation, and
+  private-release parity.
 
 ## Safety
 

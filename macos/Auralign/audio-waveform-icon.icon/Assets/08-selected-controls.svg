@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" shape-rendering="geometricPrecision" color-interpolation="sRGB">
+  <title>Icon Composer flat layer 8: selected endpoint and center controls</title>
+
+  <g id="selected-controls">
+    <circle cx="512" cy="172" r="12.5" fill="#FFAE17" stroke="#FFC841" stroke-width="2"/>
+    <circle cx="512" cy="845.5" r="12.5" fill="#FFAE17" stroke="#FFC841" stroke-width="2"/>
+    <circle cx="512" cy="519.5" r="14" fill="#FFAE17" stroke="#FFC841" stroke-width="2"/>
+  </g>
+</svg>

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from local_transcript_max.config import AudioConfig
 from local_transcript_max.errors import LTMError
+from local_transcript_max.native_runtime import reviewed_media_executable
 from local_transcript_max.utils import run_command
 
 
@@ -19,7 +20,7 @@ def build_ffmpeg_command(input_path: Path, output_path: Path, config: AudioConfi
             "audio.separate_vocals=experimental is not implemented; refusing to "
             "silently publish an unseparated canonical audio artifact."
         )
-    args = ["ffmpeg", "-y", "-i", str(input_path)]
+    args = [reviewed_media_executable("ffmpeg"), "-y", "-i", str(input_path)]
     filters: list[str] = []
     if config.normalize_loudness:
         filters.append("loudnorm=I=-16:TP=-1.5:LRA=11")

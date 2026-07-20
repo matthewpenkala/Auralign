@@ -20,33 +20,49 @@ SPDX_FOOTER = (
     "Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0\n"
 )
 TARGETS = {
-    "requirements/macos-arm64-cpu-py311.txt": "cpu",
-    "requirements/windows-cpu-py311.txt": "cpu",
-    "requirements/windows-cu128-py311.txt": "cu128",
-    "requirements/linux-cu126-py311.txt": "cu126",
+    "requirements/macos-arm64-cpu-py311.txt": ("cpu", ("full",), False),
+    "requirements/windows-cpu-py311.txt": ("cpu", ("full",), False),
+    "requirements/windows-cu128-py311.txt": ("cu128", ("full",), False),
+    "requirements/linux-cu126-py311.txt": ("cu126", ("full",), False),
+    "requirements/macos-app-arm64-cpu-py311.txt": (
+        "cpu",
+        ("asr", "diarization", "alignment", "speaker-id"),
+        True,
+    ),
 }
 
 
-def exported_requirements(group: str) -> str:
+def exported_requirements(
+    group: str,
+    extras: tuple[str, ...],
+    no_default_groups: bool,
+) -> str:
     with tempfile.TemporaryDirectory() as temporary:
         output = Path(temporary) / "requirements.txt"
-        subprocess.run(
+        command = [
+            "uv",
+            "export",
+            "--locked",
+            "--no-dev",
+        ]
+        if no_default_groups:
+            command.append("--no-default-groups")
+        for extra in extras:
+            command.extend(["--extra", extra])
+        command.extend(
             [
-                "uv",
-                "export",
-                "--locked",
-                "--extra",
-                "full",
                 "--group",
                 group,
-                "--no-dev",
                 "--no-emit-project",
                 "--no-header",
                 "--no-annotate",
                 "--emit-index-url",
                 "--output-file",
                 str(output),
-            ],
+            ]
+        )
+        subprocess.run(
+            command,
             cwd=ROOT,
             check=True,
             capture_output=True,
@@ -56,11 +72,13 @@ def exported_requirements(group: str) -> str:
 
 
 def verify_or_write(*, write: bool) -> None:
-    rendered_by_group = {group: exported_requirements(group) for group in set(TARGETS.values())}
+    rendered_by_contract = {
+        contract: exported_requirements(*contract) for contract in set(TARGETS.values())
+    }
     drifted: list[str] = []
-    for relative, group in TARGETS.items():
+    for relative, contract in TARGETS.items():
         path = ROOT / relative
-        rendered = rendered_by_group[group]
+        rendered = rendered_by_contract[contract]
         if write:
             path.write_text(rendered, encoding="utf-8")
         elif not path.is_file() or path.read_text(encoding="utf-8") != rendered:

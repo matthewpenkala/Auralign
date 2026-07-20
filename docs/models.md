@@ -111,12 +111,15 @@ the authorized connected machine only:
 export LTM_HF_TOKEN="REDACTED_USER_SUPPLIED_READ_TOKEN"
 ```
 
-If an approved immutable pointer is intentionally awaiting its first committed
-file hash, an authorized maintainer reviews exactly one revision before pull:
+If a future approved immutable pointer is intentionally awaiting its first
+committed file hash, an authorized maintainer reviews exactly one revision
+before pull. Community-1 no longer requires this step: its fifth and final
+runtime-file digest was owner-reviewed on 2026-07-20.
 
 ```bash
+# Example procedure only; select the exact approved incomplete entry.
 uv run ltm models review-digests \
-  --diarization community-1 \
+  --asr turbo \
   --cache-dir "$LTM_MODEL_CACHE"
 ```
 
@@ -294,12 +297,13 @@ The cache validator treats a model as not ready when:
 - offline mode is enabled and the required model is incomplete
 - any allowlisted runtime file lacks a committed repository-reviewed SHA-256
 
-The strict four-model lane has a complete reviewed digest contract only after
-Community-1's gated `config.yaml` digest is acquired and committed by the owner.
-Other configured faster-whisper alternatives remain pointer-only until their
-complete runtime-file hashes are independently acquired and reviewed. They must
-not be represented as operational pulls merely because an ID and immutable
-revision are present.
+The strict four-model lane has a complete reviewed digest contract.
+Community-1's gated `config.yaml` digest was acquired ephemerally and approved
+by the owner on 2026-07-20; the temporary review bytes were deleted. Other
+configured faster-whisper alternatives remain pointer-only until their complete
+runtime-file hashes are independently acquired and reviewed. They must not be
+represented as operational pulls merely because an ID and immutable revision
+are present.
 
 For ASR CTranslate2 models, every allowlisted runtime file is required. For
 MLX ASR models, `config.json` and either `weights.safetensors` or `weights.npz`
@@ -382,7 +386,7 @@ exact set.
 | `distil-large-v3.5` | `distil-whisper/distil-large-v3.5-ct2` | Pointer-only; hash review blocked | No | `models/distil-whisper--distil-large-v3.5-ct2` |
 | `mlx-large-v3` | `mlx-community/whisper-large-v3-mlx` | Reviewed Apple Silicon production candidate; local import/audit only | No | `models/mlx-community--whisper-large-v3-mlx` |
 | other `mlx-*` | other configured MLX conversions, including Turbo | Local evaluation only; local import/audit only | No | canonical escaped model-ID path, plus accepted alias directories such as `models/mlx-turbo` |
-| `community-1` | `pyannote/speaker-diarization-community-1` | Strict diarization pointer; `config.yaml` digest review blocked | Yes | `models/pyannote--speaker-diarization-community-1` |
+| `community-1` | `pyannote/speaker-diarization-community-1` | Strict diarization; digest-complete after owner review; personal gated access still required | Yes | `models/pyannote--speaker-diarization-community-1` |
 | `auto` | `facebook/wav2vec2-base-960h` | Required in strict/full mode | No | `models/facebook--wav2vec2-base-960h` |
 | `ecapa` | `speechbrain/spkrec-ecapa-voxceleb` | Required in strict/full mode | No | `models/speechbrain--spkrec-ecapa-voxceleb` |
 

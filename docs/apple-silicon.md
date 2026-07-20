@@ -29,8 +29,10 @@ substitute for that release gate.
 
 ## Support Status And Current Evidence
 
-Auralign's native macOS installer requires macOS 14 or later, Apple Silicon, and
-Python 3.11. The MLX lane additionally requires the optional `mlx-whisper`
+Auralign's standalone native macOS PKG requires macOS 14 or later and Apple
+Silicon. It embeds Python 3.11 and its reviewed CPU runtime; Python is a host
+prerequisite only for the source-development lane. The experimental MLX lane
+additionally requires the optional `mlx-whisper`
 dependency and a complete operator-supplied local MLX model directory. Model
 weights are not bundled and transcription never downloads them.
 
@@ -44,7 +46,7 @@ readiness truth.
 
 ## Native Prerequisites And Rosetta Detection
 
-Required host components:
+Required source-development host components:
 
 - macOS 14 or later on Apple Silicon;
 - native arm64 Python 3.11 and `uv`;
@@ -52,6 +54,10 @@ Required host components:
 - the locked CPU Torch dependency group;
 - the `mlx`, `diarization`, `alignment`, and `speaker-id` extras;
 - enough disk and unified-memory headroom for the selected local models.
+
+The private standalone PKG replaces the host Python, `uv`, FFmpeg, and dependency
+requirements with its signed embedded runtime. It still requires separately
+acquired local models and enough disk and memory for the selected configuration.
 
 Check the process architecture before installing or benchmarking:
 

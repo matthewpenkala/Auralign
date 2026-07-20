@@ -1,0 +1,98 @@
+{
+  "brand_rail_width_points": 210,
+  "canvas_pixels": [
+    1240,
+    836
+  ],
+  "canvas_points": [
+    620,
+    418
+  ],
+  "dark_text_contrast": 15.806,
+  "distribution_round_trip": {
+    "dark_aqua_element_accepted": true,
+    "passed": true,
+    "returncode": 0,
+    "stage": "productbuild"
+  },
+  "files": {
+    "Distribution.xml.template": {
+      "bytes": 962,
+      "sha256": "b188e9b897ca0bece3de6701487417d25c9d4510c78b69e5d84e9d9c0544122f"
+    },
+    "Resources/background-darkAqua.png": {
+      "bytes": 52496,
+      "sha256": "513c9cf18b978409ec2c5ed85e08a856abfd38389a503c232dc78c1a412fd366"
+    },
+    "Resources/background.png": {
+      "bytes": 51852,
+      "sha256": "1df7830cbfab4da98f80e5c89a8ed31fc7321a5d95a0e16a305a05f307e6c2ee"
+    },
+    "Resources/en.lproj/conclusion.html": {
+      "bytes": 253,
+      "sha256": "618341707921ec526bb8880be78f5af9e7550f8ffbc621bf15b1b20227b15338"
+    },
+    "Resources/en.lproj/welcome.html": {
+      "bytes": 285,
+      "sha256": "7042b76985ba2fcf77da498bd27a24399a4e4ed476d07d25d666c8e4bceb3844"
+    },
+    "Sources/installer-background-dark.svg": {
+      "bytes": 13378,
+      "sha256": "fe24491644f2c6193b48bc65108c92bf7de942ba93a1f3f19b6f8f79729aa416"
+    },
+    "Sources/installer-background-light.svg": {
+      "bytes": 13379,
+      "sha256": "b4dbf9587022f998fb16d57e73dfe141d8fede631b385f0941c438ff8bbf17ae"
+    },
+    "preview.png": {
+      "bytes": 52766,
+      "sha256": "358a915ab1e1dde3d8eaf01f9dbb13e9950a93527252353a53ad79bbe007309c"
+    }
+  },
+  "light_text_contrast": 15.692,
+  "passed": true,
+  "pixel_scale": 2,
+  "pngs": {
+    "background-darkAqua.png": {
+      "icc_profile": true,
+      "mode": "RGB",
+      "sha256": "513c9cf18b978409ec2c5ed85e08a856abfd38389a503c232dc78c1a412fd366",
+      "size": [
+        1240,
+        836
+      ]
+    },
+    "background.png": {
+      "icc_profile": true,
+      "mode": "RGB",
+      "sha256": "1df7830cbfab4da98f80e5c89a8ed31fc7321a5d95a0e16a305a05f307e6c2ee",
+      "size": [
+        1240,
+        836
+      ]
+    }
+  },
+  "quiet_zone_points": {
+    "height": 326,
+    "width": 350,
+    "x": 238,
+    "y": 46
+  },
+  "schema_version": "1.1",
+  "source_project": {
+    "adapted_in_auralign": [
+      "build.py",
+      "Makefile",
+      "README.md",
+      "manifest.json",
+      "Distribution integration"
+    ],
+    "commit": "bd94520ecf106b7502ad04e19e4997dbb74d05dd",
+    "initial_copy": "12 of 12 files byte-exact before Auralign integration changes",
+    "original_manifest_sha256": "94b89d5d1aae0469c28c22256d745d480ee59bc28863aa4cfbf1314f29acdc68",
+    "production_artwork_modified": false,
+    "source_spec": "src/spec/icon-design.json",
+    "source_spec_sha256": "78e7abce56bb81a0dbf50038cf32ea55326c25872f886a7fbada2b979a453664",
+    "subtree": "installer/pkg-design"
+  }
+}

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" shape-rendering="geometricPrecision" color-interpolation="sRGB">
+  <title>Icon Composer flat layer 7: inactive endpoint and center controls</title>
+
+  <g id="inactive-controls">
+    <circle cx="319.5" cy="172" r="12" fill="#718AB8" stroke="#C8D8F7" stroke-width="1.5"/>
+    <circle cx="319.5" cy="845.5" r="12" fill="#718AB8" stroke="#C8D8F7" stroke-width="1.5"/>
+    <circle cx="704.5" cy="172" r="12" fill="#718AB8" stroke="#C8D8F7" stroke-width="1.5"/>
+    <circle cx="704.5" cy="845.5" r="12" fill="#718AB8" stroke="#C8D8F7" stroke-width="1.5"/>
+    <circle cx="319.5" cy="519.5" r="13" fill="#718AB8" stroke="#C8D8F7" stroke-width="1.5"/>
+    <circle cx="704.5" cy="519.5" r="13" fill="#718AB8" stroke="#C8D8F7" stroke-width="1.5"/>
+  </g>
+</svg>

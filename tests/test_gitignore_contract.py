@@ -145,3 +145,40 @@ def test_distribution_verifier_rejects_model_and_private_artifacts(
             {archive_path: b"synthetic-placeholder"},
             "synthetic",
         )
+
+
+def test_distribution_verifier_accepts_only_reviewed_swift_models_namespace() -> None:
+    reviewed_source = "macos/Auralign/Models/ReadinessProjection.swift"
+    verify_distribution.verify_no_prohibited_content(
+        {reviewed_source: b"reviewed Swift source"},
+        "synthetic",
+    )
+
+    for unreviewed_path in (
+        "macos/Auralign/Models/Unreviewed.swift",
+        "macos/Auralign/Models/weights.safetensors",
+        "macos/OtherApp/Models/ReadinessProjection.swift",
+        "models/ReadinessProjection.swift",
+        "src/models/ReadinessProjection.swift",
+    ):
+        with pytest.raises(RuntimeError, match="private path"):
+            verify_distribution.verify_no_prohibited_content(
+                {unreviewed_path: b"synthetic-placeholder"},
+                "synthetic",
+            )
+
+
+def test_distribution_token_scan_requires_a_real_credential_boundary() -> None:
+    verify_distribution.verify_no_prohibited_content(
+        {
+            "license.txt": b"Asterisk-linking-protocols-exception",
+            "encoded.txt": b"base64prefixaAKIAAQAAAAAABAAHAM0A",
+        },
+        "synthetic",
+    )
+
+    with pytest.raises(RuntimeError, match="token"):
+        verify_distribution.verify_no_prohibited_content(
+            {"payload.txt": b"token=hf_" + b"a" * 26},
+            "synthetic",
+        )

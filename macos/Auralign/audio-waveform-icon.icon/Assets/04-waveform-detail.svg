@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" shape-rendering="geometricPrecision" color-interpolation="sRGB">
+  <title>Icon Composer flat layer 4: waveform top-facing edge</title>
+
+  <defs>
+    <linearGradient id="waveform-fill-gradient" gradientUnits="userSpaceOnUse" x1="78.5" y1="0" x2="945.5" y2="0">
+      <stop offset="0%" stop-color="#25D8F0"/>
+      <stop offset="18%" stop-color="#19B9EE"/>
+      <stop offset="38%" stop-color="#148FEA"/>
+      <stop offset="56%" stop-color="#315FE5"/>
+      <stop offset="72%" stop-color="#5A4BE8"/>
+      <stop offset="86%" stop-color="#8249EF"/>
+      <stop offset="100%" stop-color="#A658EE"/>
+    </linearGradient>
+    <linearGradient id="waveform-edge-gradient" gradientUnits="userSpaceOnUse" x1="78.5" y1="0" x2="945.5" y2="0">
+      <stop offset="0%" stop-color="#A8F6FA"/>
+      <stop offset="25%" stop-color="#9DEEF7"/>
+      <stop offset="45%" stop-color="#8BD9F5"/>
+      <stop offset="58%" stop-color="#AABBF4"/>
+      <stop offset="78%" stop-color="#D4BDF5"/>
+      <stop offset="100%" stop-color="#E4C6F6"/>
+    </linearGradient>
+  </defs>
+  <g id="waveform-top-facing-edge" fill="none" stroke="url(#waveform-edge-gradient)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" opacity="0.68">
+    <path d="M 78.5 465 C 115.5 465 142.227 460.7701 162.5 443.5 C 170.5921 436.6066 175.4844 432.2498 181.5 432.5 C 188.9935 432.8117 193.9597 437.8423 201.5 436 C 210.4561 433.8118 215 419.5 227 419.5 C 237 419.5 243.5 430.5 250 430.5 C 259.5 430.5 264.9833 390.3886 278 388.5 C 288.9867 386.9059 292 401.5 299 401.5 C 307.5 401.5 310.5086 350.2011 324.5 349.5 C 340.0127 348.7228 341.5 411.5 354.5 411.5 C 375.5 411.5 381.5 228 407 228 C 430.5 228 426.5 365 440.5 365 C 449 365 450.5 347.5 460.5 347.5 C 473.5 347.5 476.5 422 493 422 C 501.5 422 505.5 424.5 512.5 424.5 C 521.5 424.5 529 439.5 540.5 439.5 C 551.5 439.5 556.4933 424.75 570.5 424.5 C 578.9986 424.3483 581.5344 428.133 589.5 426 C 596.5323 424.1169 600 399.5 612 399.5 C 626.5 399.5 636.5 430 655.5 430 C 674 430 676.5 313 697 313 C 715.5 313 715 368 728.5 368 C 735.5 368 734.5 357.5 743 357.5 C 756.5 357.5 755.5 416.5 771 416.5 C 780 416.5 779 396 791.5 396 C 805.5 396 808 432.5 823 432.5 C 829 432.5 831.5 433.5 836.5 433.5 C 846.5 433.5 848.7266 450.2068 864 455 C 881.8116 460.5898 906.5 465 945.5 465.5"/>
+    <path d="M 296.5 519.5 C 281.5 519.5 271.4796 552.9606 254 562 C 241.4854 568.4718 235.5 541.5 217.5 541.5 C 202 541.5 201.5 567 189 567 C 180.5 567 177.5 563 170.5 563 C 160.5 563 156.5 574 78.5 574"/>
+    <path d="M 945.5 573.5 C 909 573.5 884.0727 572.2718 864 566 C 854.0348 562.8863 850.5 555 840.5 555 C 830.5 555 828.5 564.5 820.5 564.5 C 806.5 564.5 795.5 519.5 775.5 519.5"/>
+  </g>
+</svg>

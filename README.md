@@ -37,6 +37,7 @@ after caches are prepared.
 - deterministic offline identity review, approved/safe apply, and SRT-first
   derived named-speaker exports
 - SRT, VTT, JSON, JSONL, Markdown, text, CSV, and RTTM exports
+- native SwiftUI macOS workbench with source-development and standalone private-release lanes
 - batch execution, private-corpus benchmarking, and a localhost FastAPI service
 - model and dataset cache planning, auditing, verification, and offline checks
 
@@ -44,7 +45,7 @@ Real ASR, alignment, diarization, and speaker matching require their optional
 dependencies and local model assets. Automated tests use synthetic or mocked
 inputs and do not download models or private media.
 
-## Requirements
+## Source Development Requirements
 
 - Python 3.11 for released runtime environments; Python 3.12 remains a portable-test target
 - [`uv`](https://docs.astral.sh/uv/)
@@ -66,10 +67,20 @@ Use `cpu` for macOS arm64 and Windows CPU, `cu128` for Windows NVIDIA/Blackwell,
 and retain `cu126` only for the secondary internal Linux lane. Never combine
 accelerator groups.
 
-Native installation entry points are `install-macos.sh` for macOS 14+ arm64
+Source-runtime installation entry points are `install-macos.sh` for macOS 14+ arm64
 and `install-windows.ps1` for Windows x64. They consume the release wheel and
 lock-derived, hash-pinned requirements; Python, FFmpeg, CUDA, cuDNN, and the
 Visual C++ runtime are host prerequisites, not bundled payloads.
+
+The source checkout also contains the native SwiftUI workbench under `macos/`.
+Debug builds use the repository's reviewed `.venv`. The separately governed
+private standalone PKG embeds the pinned arm64 Python 3.11 engine/runtime and
+native media closure inside `Auralign.app`, so an installed user does not need
+Python, Homebrew, Git, `uv`, a source checkout, or shell configuration. Models
+remain external, operator-acquired, local, and offline. No compiled app or PKG
+is included in the source wheel/sdist. See the
+[native macOS GUI runbook](docs/macos-gui.md) and
+[private PKG release runbook](docs/release/macos-v0.2.0-private-pkg.md).
 
 ## Local Cache Setup
 
@@ -94,14 +105,11 @@ uv run ltm models list
 uv run ltm models audit
 ```
 
-> **Current Community-1 preparation gate:** the immutable Community-1 pointer
-> intentionally lacks the reviewed SHA-256 for `config.yaml`. Normal pull,
-> verification, bootstrap, and strict startup must fail closed until an
-> authorized operator accepts the gated terms, supplies an environment-only
-> token outside chat, runs the ephemeral `models review-digests` command from
-> [model management](docs/models.md#exact-connected-preparation-and-offline-runbook),
-> and a maintainer reviews and commits the exact returned digest. Do not bypass
-> this step or hand-author `.ltm-model.json`.
+> **Community-1 gate:** the repository now contains the owner-approved exact
+> digest contract, but each operator must still accept upstream gated terms and
+> acquire the model separately. Verification and strict startup fail closed for
+> a missing, incomplete, or mismatched local directory. Never bundle the model,
+> hand-author `.ltm-model.json`, or place an access token in source or commands.
 
 Only after the committed digest contract is complete, acquire and verify the
 exact strict selection:

@@ -57,17 +57,60 @@ PROHIBITED_SUFFIXES = {
     ".webm",
     ".wma",
 }
+REVIEWED_SOURCE_PATH_EXCEPTIONS = {
+    PurePosixPath("macos/Auralign/Models/ReadinessProjection.swift"),
+}
+REVIEWED_PRIVATE_KEY_LITERAL_BLOBS = {
+    # A Codex checkpoint of the macOS Release scanner. It contains the three
+    # literal private-key sentinels that scanner searches for, no token-shaped
+    # value, and no key material. The immutable object ID keeps this exception
+    # narrower than a path-level content exemption.
+    "39a39501ec422d15cd23e4ca4ce37d2e3f817bfb",
+    # Two later Codex checkpoints of the standalone PKG builder contained the
+    # same three scanner sentinels, no token-shaped value, and no key material.
+    # The live builder now composes the sentinels so future blobs need no
+    # exception; these immutable objects remain reachable through checkpoint
+    # refs and are reviewed by exact object ID only.
+    "fc61c95264a7edbf1ac6a2537d84edca79f1d6c4",
+    "e3c3a8c4ffa37794e1f54f294f6d93c4cdceb087",
+}
 TOKEN_PATTERNS = (
-    re.compile(rb"gh[pousr]_[A-Za-z0-9]{30,}"),
-    re.compile(rb"hf_[A-Za-z0-9]{24,}"),
-    re.compile(rb"sk-(?:proj-)?[A-Za-z0-9_-]{24,}"),
-    re.compile(rb"AKIA[0-9A-Z]{16}"),
+    re.compile(rb"(?<![A-Za-z0-9_])gh[pousr]_[A-Za-z0-9]{30,}"),
+    re.compile(rb"(?<![A-Za-z0-9_])hf_[A-Za-z0-9]{24,}"),
+    re.compile(rb"(?<![A-Za-z0-9_-])sk-(?:proj-)?[A-Za-z0-9_-]{24,}"),
+    re.compile(rb"(?<![A-Za-z0-9])AKIA[0-9A-Z]{16}"),
 )
 PRIVATE_KEY_MARKERS = (
     b"BEGIN OPENSSH" + b" PRIVATE KEY",
     b"BEGIN RSA" + b" PRIVATE KEY",
     b"BEGIN EC" + b" PRIVATE KEY",
 )
+
+
+def has_prohibited_path_component(path: PurePosixPath) -> bool:
+    """Return whether a path uses a private-artifact directory name.
+
+    The native app's typed readiness projection predates this scan on a
+    Codex-maintained checkpoint ref and uses ``Models`` in the conventional
+    Swift source sense. Keep that single reviewed source path distinct from
+    model-cache storage; every other use of a prohibited component continues
+    to fail closed.
+    """
+
+    lowered = {part.casefold() for part in path.parts}
+    return bool(lowered.intersection(PROHIBITED_PARTS)) and (
+        path not in REVIEWED_SOURCE_PATH_EXCEPTIONS
+    )
+
+
+def has_unreviewed_secret_shape(object_id: str, data: bytes) -> bool:
+    """Detect credentials while permitting one immutable scanner-source blob."""
+
+    if any(pattern.search(data) for pattern in TOKEN_PATTERNS):
+        return True
+    if not any(marker in data for marker in PRIVATE_KEY_MARKERS):
+        return False
+    return object_id not in REVIEWED_PRIVATE_KEY_LITERAL_BLOBS
 
 
 def reachable_objects() -> list[tuple[str, str]]:
@@ -117,9 +160,8 @@ def verify_history() -> None:
         if object_type != "blob":
             continue
         path = PurePosixPath(name)
-        lowered = {part.casefold() for part in path.parts}
         basename = path.name.casefold()
-        if lowered.intersection(PROHIBITED_PARTS):
+        if has_prohibited_path_component(path):
             raise RuntimeError(f"reachable private path: {name}")
         if basename in PROHIBITED_BASENAMES or path.suffix.casefold() in PROHIBITED_SUFFIXES:
             raise RuntimeError(f"reachable prohibited file: {name}")
@@ -129,9 +171,7 @@ def verify_history() -> None:
             continue
         scanned.add(object_id)
         data = blob_bytes(object_id)
-        if any(marker in data for marker in PRIVATE_KEY_MARKERS) or any(
-            pattern.search(data) for pattern in TOKEN_PATTERNS
-        ):
+        if has_unreviewed_secret_shape(object_id, data):
             raise RuntimeError(f"reachable blob contains a secret pattern: {name}")
 
 

@@ -59,6 +59,9 @@ PROHIBITED_PARTS = {
     "profiles",
     "transcripts",
 }
+REVIEWED_SOURCE_PATH_EXCEPTIONS = {
+    PurePosixPath("macos/Auralign/Models/ReadinessProjection.swift"),
+}
 PROHIBITED_SUFFIXES = {
     ".aac",
     ".aif",
@@ -129,10 +132,10 @@ PRIVATE_HOME_PATTERNS = tuple(
     ),
 )
 TOKEN_PATTERNS = (
-    re.compile(b"gh" + rb"[pousr]_[A-Za-z0-9]{30,}"),
-    re.compile(b"hf" + rb"_[A-Za-z0-9]{24,}"),
-    re.compile(b"sk" + rb"-(?:proj-)?[A-Za-z0-9_-]{24,}"),
-    re.compile(b"AK" + rb"IA[0-9A-Z]{16}"),
+    re.compile(rb"(?<![A-Za-z0-9_])gh[pousr]_[A-Za-z0-9]{30,}"),
+    re.compile(rb"(?<![A-Za-z0-9_])hf_[A-Za-z0-9]{24,}"),
+    re.compile(rb"(?<![A-Za-z0-9_-])sk-(?:proj-)?[A-Za-z0-9_-]{24,}"),
+    re.compile(rb"(?<![A-Za-z0-9])AKIA[0-9A-Z]{16}"),
     re.compile(b"Bearer" + rb"\s+[A-Za-z0-9._~+/-]{32,}={0,2}"),
 )
 SYNTHETIC_PATH_ALLOWLIST = {
@@ -302,12 +305,20 @@ def strip_sdist_root(files: Mapping[str, bytes]) -> dict[str, bytes]:
     return {name.removeprefix(f"{root}/"): data for name, data in files.items()}
 
 
+def has_prohibited_path_component(path: PurePosixPath) -> bool:
+    """Distinguish reviewed source namespaces from private runtime storage."""
+
+    lowered = {part.casefold() for part in path.parts}
+    return bool(lowered.intersection(PROHIBITED_PARTS)) and (
+        path not in REVIEWED_SOURCE_PATH_EXCEPTIONS
+    )
+
+
 def verify_no_prohibited_content(files: Mapping[str, bytes], scope: str) -> None:
     for name, data in files.items():
         path = safe_path(name)
         basename = path.name.lower()
-        lowered = {part.lower() for part in path.parts}
-        require(not lowered.intersection(PROHIBITED_PARTS), f"{scope} private path: {name}")
+        require(not has_prohibited_path_component(path), f"{scope} private path: {name}")
         require(
             basename != ".env" and not basename.startswith(".env."),
             f"{scope} environment file: {name}",

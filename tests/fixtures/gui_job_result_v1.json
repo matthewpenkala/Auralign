@@ -1,0 +1,60 @@
+{
+  "artifact_count": 2,
+  "artifact_scope": "immediate_regular_files",
+  "artifacts": [
+    {
+      "identity": {
+        "device": 14,
+        "inode": 22
+      },
+      "name": "qa_report.json",
+      "size_bytes": 128
+    },
+    {
+      "identity": {
+        "device": 14,
+        "inode": 23
+      },
+      "name": "transcript.txt",
+      "size_bytes": 17
+    }
+  ],
+  "language": "en",
+  "output_directory": "/private/tmp/Auralign Shared Fixture",
+  "output_identity": {
+    "device": 14,
+    "inode": 21
+  },
+  "qa": {
+    "byte_limit": 1048576,
+    "changed_span_count": 0,
+    "error_flag_count": 0,
+    "flag_count": 1,
+    "flags": [
+      {
+        "code": "alignment_gap",
+        "message": "Review one deterministic warning.",
+        "severity": "warning"
+      }
+    ],
+    "info_flag_count": 0,
+    "omitted_flag_count": 0,
+    "overall_quality_summary": "review_warnings",
+    "source_artifact": "qa_report.json",
+    "status": "available",
+    "warning_flag_count": 1
+  },
+  "schema_version": "gui_job_result.v1",
+  "segments": 7,
+  "speaker_turns": 4,
+  "transcript_preview": {
+    "byte_limit": 65536,
+    "displayed_bytes": 17,
+    "source_artifact": "transcript.txt",
+    "source_bytes": 17,
+    "status": "available",
+    "text": "Synthetic preview",
+    "truncated": false
+  },
+  "words": 32
+}

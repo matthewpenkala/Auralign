@@ -20,6 +20,8 @@ The repository classifies tracked paths as follows:
 | Path class | Provenance disposition |
 | --- | --- |
 | `src/`, `tests/`, `docs/`, `examples/`, scripts, configuration, and workflows | Auralign-first-party unless a more specific in-file or registry record applies |
+| `macos/` Swift source, project metadata, and Auralign-owned application assets | Auralign-first-party unless the adjacent asset record or a more specific notice applies |
+| `packaging/` PKG definitions and first-party Installer presentation assets | Auralign-first-party integration; exact imported first-party asset lineage and modifications are recorded in `macos/ASSET_PROVENANCE.md` |
 | `uv.lock` and generated manifests/notices | Machine-maintained output derived from first-party configuration and upstream metadata |
 | `LICENSE` and `LICENSES/` | Standard license text from the PolyForm Project plus Auralign's required notice; not Auralign application code |
 | Declared Python packages and build tools | Referenced, not vendored into the source tree; governed by upstream terms |
