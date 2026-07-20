@@ -634,9 +634,22 @@ def minimum_macos(path: Path) -> tuple[int, int]:
     return int(match.group(1)), int(match.group(2))
 
 
-def install_name(path: Path) -> str | None:
+def install_names(path: Path) -> list[str]:
     rows = quiet_output(["otool", "-D", str(path)]).splitlines()
-    return rows[1].strip() if len(rows) > 1 else None
+    header = re.compile(
+        rf"^{re.escape(str(path))}(?: \(architecture [^)]+\))?:$"
+    )
+    names = [
+        row.strip()
+        for row in rows
+        if row.strip() and header.fullmatch(row.strip()) is None
+    ]
+    return list(dict.fromkeys(names))
+
+
+def install_name(path: Path) -> str | None:
+    names = install_names(path)
+    return names[0] if names else None
 
 
 def linked_libraries(path: Path) -> list[str]:
@@ -671,23 +684,26 @@ def allowed_runtime_rpath(value: str) -> bool:
 
 def normalize_native_install_names(root: Path, evidence: Path) -> dict[str, Any]:
     """Remove build-machine and wheel-placeholder IDs from bundled libraries."""
-    changes: list[dict[str, str]] = []
+    changes: list[dict[str, Any]] = []
     natives = macho_files(root)
     for path in natives:
-        original = install_name(path)
-        if original is None or original.startswith("@"):
+        originals = install_names(path)
+        if not originals or (
+            len(originals) == 1 and originals[0].startswith("@")
+        ):
             continue
         normalized = f"@rpath/{path.name}"
         original_digest = sha256(path)
         run(["install_name_tool", "-id", normalized, str(path)])
         require(
-            install_name(path) == normalized,
+            install_names(path) == [normalized],
             f"native install-name rewrite failed: {path}",
         )
         changes.append(
             {
                 "path": path.relative_to(root).as_posix(),
-                "original_install_name": original,
+                "original_install_name": originals[0],
+                "original_install_names": originals,
                 "normalized_install_name": normalized,
                 "original_sha256": original_digest,
                 "normalized_sha256": sha256(path),

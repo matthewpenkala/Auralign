@@ -144,7 +144,8 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "MACHO_MAGICS" in builder
     assert "normalize_native_install_names(runtime, evidence)" in builder
     assert "auralign-native-install-names.v1" in builder
-    assert '"original_install_name": original' in builder
+    assert '"original_install_name": originals[0]' in builder
+    assert '"original_install_names": originals' in builder
     assert '"normalized_install_name": normalized' in builder
     assert "normalize_native_rpaths(runtime, evidence)" in builder
     assert "auralign-native-rpaths.v1" in builder
@@ -395,6 +396,67 @@ def test_unreachable_third_party_test_credential_module_is_pruned(
     sys.platform != "darwin" or platform.machine() != "arm64",
     reason="requires Apple Silicon and the macOS native toolchain",
 )
+def test_universal_macho_bundle_is_not_misread_as_a_dylib(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "runtime"
+    root.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    source = tmp_path / "fixture.c"
+    source.write_text("int fixture(void) { return 7; }\n", encoding="utf-8")
+    slices: list[Path] = []
+    for architecture in ("arm64", "x86_64"):
+        destination = tmp_path / f"fixture-{architecture}.so"
+        subprocess.run(
+            [
+                "xcrun",
+                "clang",
+                "-arch",
+                architecture,
+                "-mmacosx-version-min=14.0",
+                "-bundle",
+                str(source),
+                "-o",
+                str(destination),
+            ],
+            check=True,
+        )
+        slices.append(destination)
+    bundle = root / "fixture-extension.so"
+    subprocess.run(
+        [
+            "lipo",
+            "-create",
+            *(str(path) for path in slices),
+            "-output",
+            str(bundle),
+        ],
+        check=True,
+    )
+    original_digest = BUILDER_MODULE.sha256(bundle)
+
+    assert BUILDER_MODULE.install_name(bundle) is None
+    result = BUILDER_MODULE.normalize_native_install_names(root, evidence)
+
+    assert result["objects_scanned"] == 1
+    assert result["objects_normalized"] == 0
+    assert BUILDER_MODULE.sha256(bundle) == original_digest
+    assert (
+        subprocess.run(
+            ["lipo", "-archs", str(bundle)],
+            check=True,
+            text=True,
+            capture_output=True,
+        ).stdout.strip()
+        == "x86_64 arm64"
+    )
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin" or platform.machine() != "arm64",
+    reason="requires Apple Silicon and the macOS native toolchain",
+)
 def test_copied_signed_universal_stage_is_normalized_and_resigned(
     tmp_path: Path,
 ) -> None:
@@ -423,7 +485,10 @@ def test_copied_signed_universal_stage_is_normalized_and_resigned(
                 "-mmacosx-version-min=14.0",
                 "-dynamiclib",
                 "-Wl,-headerpad_max_install_names",
-                "-Wl,-install_name,/tmp/upstream/libfixture.dylib",
+                (
+                    "-Wl,-install_name,"
+                    f"/tmp/upstream/{architecture}/libfixture.dylib"
+                ),
                 "-Wl,-rpath,/tmp/upstream",
                 str(c_source),
                 "-o",
@@ -496,7 +561,7 @@ def test_copied_signed_universal_stage_is_normalized_and_resigned(
         [
             "install_name_tool",
             "-change",
-            "/tmp/upstream/libfixture.dylib",
+            "/tmp/upstream/arm64/libfixture.dylib",
             "@loader_path/../lib/libfixture.dylib",
             str(stage / "bin/fixture"),
         ],
