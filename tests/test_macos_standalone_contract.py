@@ -750,23 +750,31 @@ def test_package_definition_is_scriptless_system_only_arm64_macos14() -> None:
     assert 'rglob("Scripts")' not in builder
 
 
-def test_installer_design_is_internalized_exact_and_verification_only() -> None:
+def test_installer_design_is_internalized_adapted_and_verification_only() -> None:
     expected = {
         "Resources/background.png": (
-            51_852,
-            "1df7830cbfab4da98f80e5c89a8ed31fc7321a5d95a0e16a305a05f307e6c2ee",
+            76_961,
+            "b9e1e34a58ce6a6f250cea4fe79db7cdf165f359e9b0fe1efe398496e4bf1014",
         ),
         "Resources/background-darkAqua.png": (
-            52_496,
-            "513c9cf18b978409ec2c5ed85e08a856abfd38389a503c232dc78c1a412fd366",
+            76_966,
+            "c7c9ba8bfed462b8cc5afe84250fc7177f0ee8033de96a3ceeded8206757deef",
         ),
         "Sources/installer-background-light.svg": (
-            13_379,
-            "b4dbf9587022f998fb16d57e73dfe141d8fede631b385f0941c438ff8bbf17ae",
+            19_458,
+            "78701511adef20903dd4c82672b511df1344e6fedf1429d5fcba01d20545bd25",
         ),
         "Sources/installer-background-dark.svg": (
-            13_378,
-            "fe24491644f2c6193b48bc65108c92bf7de942ba93a1f3f19b6f8f79729aa416",
+            19_459,
+            "baae4aa1190d9d95035a827ff9e686964e0ba027191e2e1b9846280c5cb73be2",
+        ),
+        "BrandAssets/auralign-styled-symbol.svg": (
+            36_463,
+            "8ed79fd4430b534862a90d224fd03c6aac8e1fae32c580b6716146c27b8167b7",
+        ),
+        "BrandAssets/auralign-styled-symbol-tight.png": (
+            453_041,
+            "6f556cd43c2c30f3658490da933e1e345a52320f223af47b3de192cae1f63963",
         ),
     }
     for relative, (size, digest) in expected.items():
@@ -778,11 +786,49 @@ def test_installer_design_is_internalized_exact_and_verification_only() -> None:
     verifier = (INSTALLER_DESIGN / "build.py").read_text(encoding="utf-8")
     makefile = (INSTALLER_DESIGN / "Makefile").read_text(encoding="utf-8")
     assert "bd94520ecf106b7502ad04e19e4997dbb74d05dd" in manifest
-    assert '"production_artwork_modified": false' in manifest
+    assert '"production_artwork_modified": true' in manifest
     assert "icon_pipeline" not in verifier
     assert "src/spec/icon-design.json" not in verifier
     assert "rm -rf" not in makefile
     assert "/Users/" not in verifier
+    for appearance in ("light", "dark"):
+        source = (
+            INSTALLER_DESIGN
+            / f"Sources/installer-background-{appearance}.svg"
+        ).read_text(encoding="utf-8")
+        assert 'id="superseded-vector-symbol"' in source
+        assert 'display="none"' in source
+        assert (
+            'id="styled-symbol" x="-30" y="211" width="270" height="222.14"'
+            in source
+        )
+        assert '../BrandAssets/auralign-styled-symbol-tight.png' in source
+        assert 'x="8.5" y="204" width="194" height="224"' not in source
+    brand_manifest = json.loads(
+        (INSTALLER_DESIGN / "BrandAssets/manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert brand_manifest["source_project_commit"] == (
+        "ae319eb89650b9c8b0ce4ce5bac5e8adf2a0bb48"
+    )
+    assert brand_manifest["placement"]["border_or_card"] is False
+    assert brand_manifest["placement"]["intentional_crop"] == [
+        "left",
+        "right",
+        "bottom",
+    ]
+    welcome = (
+        INSTALLER_DESIGN / "Resources/en.lproj/welcome.html"
+    ).read_text(encoding="utf-8")
+    conclusion = (
+        INSTALLER_DESIGN / "Resources/en.lproj/conclusion.html"
+    ).read_text(encoding="utf-8")
+    assert "-apple-system" in welcome
+    assert "-apple-system" in conclusion
+    assert "PolyForm Internal Use License 1.0.0" in welcome
+    assert "installation grants no model access or redistribution" in welcome
+    assert "no telemetry or media" in welcome
 
 
 def test_release_swift_uses_embedded_runtime_and_external_models() -> None:

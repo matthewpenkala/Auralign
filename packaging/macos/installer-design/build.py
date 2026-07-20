@@ -16,6 +16,7 @@ import json
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -103,16 +104,50 @@ def validate_png(path: Path) -> dict[str, object]:
 
 
 def validate_svg(path: Path) -> None:
-    ET.parse(path)
+    root = ET.parse(path).getroot()
     lowered = path.read_text(encoding="utf-8").casefold()
     require("<text" not in lowered, f"Installer background contains SVG text: {path}")
-    require("<image" not in lowered, f"Installer background contains raster image: {path}")
     require("data:image" not in lowered, f"Installer background embeds raster data: {path}")
+    require("/users/" not in lowered and "file:" not in lowered, f"absolute SVG asset path: {path}")
+    images = root.findall(".//{http://www.w3.org/2000/svg}image")
+    require(len(images) == 1, f"unexpected Installer SVG image count: {path}")
+    require(
+        images[0].get("href")
+        == "../BrandAssets/auralign-styled-symbol-tight.png",
+        f"unexpected Installer SVG image source: {path}",
+    )
+    require(
+        {
+            name: images[0].get(name)
+            for name in ("x", "y", "width", "height")
+        }
+        == {"x": "-30", "y": "211", "width": "270", "height": "222.14"},
+        f"unexpected Installer symbol placement: {path}",
+    )
+    require(
+        'x="8.5" y="204" width="194" height="224"' not in lowered,
+        f"superseded Installer artwork card returned: {path}",
+    )
+
+
+def validate_brand_artwork() -> dict[str, object]:
+    manifest_path = HERE / "BrandAssets/manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    require(manifest.get("schema_version") == "1.1", "brand manifest schema drift")
+    require(manifest.get("placement", {}).get("border_or_card") is False, "brand card drift")
+    command = [
+        sys.executable,
+        str(HERE / "BrandAssets/export_brand_artwork.py"),
+    ]
+    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    evidence = json.loads(result.stdout)
+    require(evidence.get("passed") is True, "brand reproduction verification failed")
+    return evidence
 
 
 def validate_manifest() -> dict[str, object]:
     manifest = json.loads((HERE / "manifest.json").read_text(encoding="utf-8"))
-    require(manifest.get("schema_version") == "1.1", "installer manifest schema drift")
+    require(manifest.get("schema_version") == "1.2", "installer manifest schema drift")
     files = manifest.get("files")
     require(isinstance(files, dict), "installer manifest files missing")
     for relative, evidence in files.items():
@@ -128,7 +163,7 @@ def validate_manifest() -> dict[str, object]:
         source.get("commit") == "bd94520ecf106b7502ad04e19e4997dbb74d05dd",
         "installer source commit drift",
     )
-    require(source.get("production_artwork_modified") is False, "artwork modification drift")
+    require(source.get("production_artwork_modified") is True, "artwork modification drift")
     return manifest
 
 
@@ -201,11 +236,13 @@ def validate() -> dict[str, object]:
     }
     for path in sorted((HERE / "Sources").glob("*.svg")):
         validate_svg(path)
+    brand_artwork = validate_brand_artwork()
     validate_distribution_round_trip()
     return {
         "passed": True,
         "source_commit": manifest["source_project"]["commit"],
         "pngs": pngs,
+        "brand_artwork": brand_artwork,
         "distribution_round_trip": True,
     }
 

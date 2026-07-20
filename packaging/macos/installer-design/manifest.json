@@ -1,4 +1,10 @@
 {
+  "brand_label_quiet_zone_points": {
+    "height": 170,
+    "width": 210,
+    "x": 0,
+    "y": 0
+  },
   "brand_rail_width_points": 210,
   "canvas_pixels": [
     1240,
@@ -16,47 +22,75 @@
     "stage": "productbuild"
   },
   "files": {
+    "BrandAssets/README.md": {
+      "bytes": 2522,
+      "sha256": "deebe406c6e9029a58e555305ef325398f04510a90c04893369003c243dd8989"
+    },
+    "BrandAssets/auralign-styled-symbol-tight.png": {
+      "bytes": 453041,
+      "sha256": "6f556cd43c2c30f3658490da933e1e345a52320f223af47b3de192cae1f63963"
+    },
+    "BrandAssets/auralign-styled-symbol.svg": {
+      "bytes": 36463,
+      "sha256": "8ed79fd4430b534862a90d224fd03c6aac8e1fae32c580b6716146c27b8167b7"
+    },
+    "BrandAssets/export_brand_artwork.py": {
+      "bytes": 3884,
+      "sha256": "5150323c258051c16c454c9679465895379f02c33bc14e769c5a81b9707aee03"
+    },
+    "BrandAssets/manifest.json": {
+      "bytes": 3293,
+      "sha256": "93c4b1a8f511433b3f5c676309f947592d1f6d3695bdddfb04ddb18c100e79b6"
+    },
     "Distribution.xml.template": {
       "bytes": 962,
       "sha256": "b188e9b897ca0bece3de6701487417d25c9d4510c78b69e5d84e9d9c0544122f"
     },
     "Resources/background-darkAqua.png": {
-      "bytes": 52496,
-      "sha256": "513c9cf18b978409ec2c5ed85e08a856abfd38389a503c232dc78c1a412fd366"
+      "bytes": 76966,
+      "sha256": "c7c9ba8bfed462b8cc5afe84250fc7177f0ee8033de96a3ceeded8206757deef"
     },
     "Resources/background.png": {
-      "bytes": 51852,
-      "sha256": "1df7830cbfab4da98f80e5c89a8ed31fc7321a5d95a0e16a305a05f307e6c2ee"
+      "bytes": 76961,
+      "sha256": "b9e1e34a58ce6a6f250cea4fe79db7cdf165f359e9b0fe1efe398496e4bf1014"
     },
     "Resources/en.lproj/conclusion.html": {
-      "bytes": 253,
-      "sha256": "618341707921ec526bb8880be78f5af9e7550f8ffbc621bf15b1b20227b15338"
+      "bytes": 777,
+      "sha256": "1e3962bc30f9aa7015e9d92a7233bbc7bb5c5ddfd70ff99af8c565f510a96a87"
     },
     "Resources/en.lproj/welcome.html": {
-      "bytes": 285,
-      "sha256": "7042b76985ba2fcf77da498bd27a24399a4e4ed476d07d25d666c8e4bceb3844"
+      "bytes": 1542,
+      "sha256": "e088ed1fedb2476361e139eb0db85c1e257f3c914ead594edebf95b888cae8b7"
     },
     "Sources/installer-background-dark.svg": {
-      "bytes": 13378,
-      "sha256": "fe24491644f2c6193b48bc65108c92bf7de942ba93a1f3f19b6f8f79729aa416"
+      "bytes": 19459,
+      "sha256": "baae4aa1190d9d95035a827ff9e686964e0ba027191e2e1b9846280c5cb73be2"
     },
     "Sources/installer-background-light.svg": {
-      "bytes": 13379,
-      "sha256": "b4dbf9587022f998fb16d57e73dfe141d8fede631b385f0941c438ff8bbf17ae"
+      "bytes": 19458,
+      "sha256": "78701511adef20903dd4c82672b511df1344e6fedf1429d5fcba01d20545bd25"
     },
     "preview.png": {
-      "bytes": 52766,
-      "sha256": "358a915ab1e1dde3d8eaf01f9dbb13e9950a93527252353a53ad79bbe007309c"
+      "bytes": 70336,
+      "sha256": "c0a48b344daae4283e4a73c07af75b05cd1d060d0ecbc81f8b00fc70fc11981b"
     }
   },
   "light_text_contrast": 15.692,
+  "native_installer_inspection": {
+    "appearance": "Dark Aqua",
+    "date": "2026-07-20",
+    "informational_legal_copy_fully_visible": true,
+    "step_labels_unobstructed": true,
+    "system_font_confirmed": true,
+    "visual_result": "accepted borderless composition with intentional artwork crop"
+  },
   "passed": true,
   "pixel_scale": 2,
   "pngs": {
     "background-darkAqua.png": {
       "icc_profile": true,
       "mode": "RGB",
-      "sha256": "513c9cf18b978409ec2c5ed85e08a856abfd38389a503c232dc78c1a412fd366",
+      "sha256": "c7c9ba8bfed462b8cc5afe84250fc7177f0ee8033de96a3ceeded8206757deef",
       "size": [
         1240,
         836
@@ -65,7 +99,7 @@
     "background.png": {
       "icc_profile": true,
       "mode": "RGB",
-      "sha256": "1df7830cbfab4da98f80e5c89a8ed31fc7321a5d95a0e16a305a05f307e6c2ee",
+      "sha256": "b9e1e34a58ce6a6f250cea4fe79db7cdf165f359e9b0fe1efe398496e4bf1014",
       "size": [
         1240,
         836
@@ -78,21 +112,35 @@
     "x": 238,
     "y": 46
   },
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "source_project": {
     "adapted_in_auralign": [
       "build.py",
       "Makefile",
       "README.md",
       "manifest.json",
-      "Distribution integration"
+      "Distribution integration",
+      "borderless Installer artwork composition",
+      "system-font localized copy and informational legal/privacy notice",
+      "curated styled-symbol source, raster, exporter, and provenance"
     ],
     "commit": "bd94520ecf106b7502ad04e19e4997dbb74d05dd",
-    "initial_copy": "12 of 12 files byte-exact before Auralign integration changes",
+    "initial_copy": "12 of 12 Installer-kit files byte-exact before Auralign integration changes",
     "original_manifest_sha256": "94b89d5d1aae0469c28c22256d745d480ee59bc28863aa4cfbf1314f29acdc68",
-    "production_artwork_modified": false,
-    "source_spec": "src/spec/icon-design.json",
-    "source_spec_sha256": "78e7abce56bb81a0dbf50038cf32ea55326c25872f886a7fbada2b979a453664",
+    "production_artwork_modified": true,
+    "production_artwork_modifications": [
+      "Upper 170-point brand rail remains quiet for native Installer step-label legibility",
+      "Superseded inset card removed",
+      "Exact high-resolution styled symbol enlarged into the rail with intentional left, right, and bottom crop",
+      "Light and Dark Aqua fields balanced toward Installer's native chrome and content material",
+      "Light and Dark Aqua RGB+sRGB PNG resources regenerated from repository-local masters"
+    ],
+    "styled_brand": {
+      "canonical_reference_sha256": "2c1b5ed43a0ae83cb43582bbe34cef1071e44cf257ef5b41edb0480a21dc1e4a",
+      "canonical_svg_sha256": "38a9c73d747e58f5946c8a47505795becda67c7f9ebe8252220a834e85ff0397",
+      "source_project_commit": "ae319eb89650b9c8b0ce4ce5bac5e8adf2a0bb48",
+      "transparent_symbol_sha256": "8ed79fd4430b534862a90d224fd03c6aac8e1fae32c580b6716146c27b8167b7"
+    },
     "subtree": "installer/pkg-design"
   }
 }

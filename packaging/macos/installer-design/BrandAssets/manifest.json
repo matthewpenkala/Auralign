@@ -1,0 +1,102 @@
+{
+  "canonical_sources": {
+    "exports/raster/srgb/audio_waveform_icon_final_1024.png": "2c1b5ed43a0ae83cb43582bbe34cef1071e44cf257ef5b41edb0480a21dc1e4a",
+    "exports/svg/audio_waveform_icon_final_styled_2048.svg": "38a9c73d747e58f5946c8a47505795becda67c7f9ebe8252220a834e85ff0397"
+  },
+  "construction": {
+    "kept_group_ids": [
+      "center-axis",
+      "waveform-contact-shadow-pass",
+      "waveform-local-bloom-pass",
+      "waveform-base",
+      "upper-waveform-depth",
+      "lower-waveform-depth",
+      "waveform-ambient-edge",
+      "waveform-top-facing-edge",
+      "waveform-bottom-facing-edge",
+      "inactive-control-rails",
+      "selected-rail-local-bloom",
+      "selected-orange-rail",
+      "inactive-endpoint-controls-shadows",
+      "inactive-endpoint-controls",
+      "selected-endpoint-controls-shadows",
+      "selected-endpoint-controls",
+      "inactive-center-controls-shadows",
+      "inactive-center-controls",
+      "selected-center-control-local-bloom",
+      "selected-center-control-shadows",
+      "selected-center-control"
+    ],
+    "omitted_group_ids": [
+      "background",
+      "structural-frame-shadow",
+      "structural-frame",
+      "inner-panel",
+      "panel-inner-occlusion"
+    ],
+    "platform_liquid_glass_note": "Apple Icon Composer effects are not exportable as reusable SVG. This asset uses the deterministic styled master's baked gradients, directional edges, local bloom, contact shadows, and control depth."
+  },
+  "files": {
+    "auralign-styled-symbol-tight.png": {
+      "bytes": 453041,
+      "has_alpha": true,
+      "icc_profile": true,
+      "mode": "RGBA",
+      "pixel_size": [
+        1822,
+        1499
+      ],
+      "sha256": "6f556cd43c2c30f3658490da933e1e345a52320f223af47b3de192cae1f63963"
+    },
+    "auralign-styled-symbol.svg": {
+      "bytes": 36463,
+      "sha256": "8ed79fd4430b534862a90d224fd03c6aac8e1fae32c580b6716146c27b8167b7"
+    },
+    "export_brand_artwork.py": {
+      "bytes": 3884,
+      "sha256": "5150323c258051c16c454c9679465895379f02c33bc14e769c5a81b9707aee03"
+    }
+  },
+  "not_retained": [
+    {
+      "name": "auralign-styled-symbol-2048.png",
+      "reason": "Redundant full-canvas intermediate; the deterministic SVG and exact tight raster preserve the production construction.",
+      "sha256": "ec3ecb615321d2b64acfdaaf1662834d3f0653bbc17e87e3a34070e7256ae8da"
+    },
+    {
+      "name": "auralign-styled-symbol-sidebar@2x.png",
+      "reason": "Superseded by the higher-resolution tight raster after the final borderless enlargement.",
+      "sha256": "ae72da0c28e192bb574097ebb03d7aabd5d7740d8b647c45f149adb234ae3157"
+    }
+  ],
+  "passed": true,
+  "placement": {
+    "border_or_card": false,
+    "height_points": 222.14,
+    "intentional_crop": [
+      "left",
+      "right",
+      "bottom"
+    ],
+    "width_points": 270,
+    "x_points": -30,
+    "y_points": 211
+  },
+  "purpose": "Self-contained transparent PKG artwork derived from the owner's preferred deterministic styled icon, without the frame or panel.",
+  "render": {
+    "source_alpha_bounds": [
+      145,
+      306,
+      1903,
+      1741
+    ],
+    "tight_crop": [
+      113,
+      274,
+      1935,
+      1773
+    ]
+  },
+  "schema_version": "1.1",
+  "source_project_commit": "ae319eb89650b9c8b0ce4ce5bac5e8adf2a0bb48"
+}

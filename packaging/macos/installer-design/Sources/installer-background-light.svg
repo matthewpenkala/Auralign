@@ -12,14 +12,56 @@
       <stop offset="0.58" stop-color="#07102A"/>
       <stop offset="1" stop-color="#03071C"/>
     </linearGradient>
+    <linearGradient id="main-glaze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.72"/>
+      <stop offset="0.24" stop-color="#EAF0FF" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#9AADE2" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="signal-surface" cx="50%" cy="16%" r="88%">
+      <stop offset="0" stop-color="#0E1632" stop-opacity="0.88"/>
+      <stop offset="0.5" stop-color="#050D26" stop-opacity="0.76"/>
+      <stop offset="1" stop-color="#01061C" stop-opacity="0.90"/>
+    </radialGradient>
+    <radialGradient id="signal-light-pool" cx="50%" cy="8%" r="68%">
+      <stop offset="0" stop-color="#5B70AD" stop-opacity="0.10"/>
+      <stop offset="0.55" stop-color="#29447D" stop-opacity="0.035"/>
+      <stop offset="1" stop-color="#02051D" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="signal-cyan-ambient" cx="29%" cy="50%" r="48%">
+      <stop offset="0" stop-color="#20C9EA" stop-opacity="0.07"/>
+      <stop offset="0.6" stop-color="#138DD9" stop-opacity="0.018"/>
+      <stop offset="1" stop-color="#07112E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="signal-violet-ambient" cx="73%" cy="50%" r="48%">
+      <stop offset="0" stop-color="#8454F1" stop-opacity="0.08"/>
+      <stop offset="0.6" stop-color="#5533C7" stop-opacity="0.021"/>
+      <stop offset="1" stop-color="#07112E" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="surface-edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F3F8FF" stop-opacity="0.24"/>
+      <stop offset="0.5" stop-color="#7E9BE0" stop-opacity="0.11"/>
+      <stop offset="1" stop-color="#CDA6FF" stop-opacity="0.19"/>
+    </linearGradient>
+    <radialGradient id="inactive-knob" cx="50%" cy="22%" r="74%">
+      <stop offset="0" stop-color="#C8D8F7"/>
+      <stop offset="0.37" stop-color="#718AB8"/>
+      <stop offset="1" stop-color="#344C79"/>
+    </radialGradient>
+    <radialGradient id="selected-knob" cx="50%" cy="22%" r="74%">
+      <stop offset="0" stop-color="#FFF2A0"/>
+      <stop offset="0.34" stop-color="#FFC841"/>
+      <stop offset="0.74" stop-color="#FFAE17"/>
+      <stop offset="1" stop-color="#B85E00"/>
+    </radialGradient>
     <linearGradient id="wave" x1="18" y1="0" x2="228" y2="0"
       gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#28DDF2"/>
-      <stop offset="0.22" stop-color="#19B8EE"/>
-      <stop offset="0.46" stop-color="#1B83EC"/>
-      <stop offset="0.68" stop-color="#554CEB"/>
+      <stop offset="0" stop-color="#25D8F0"/>
+      <stop offset="0.18" stop-color="#19B9EE"/>
+      <stop offset="0.38" stop-color="#148FEA"/>
+      <stop offset="0.56" stop-color="#315FE5"/>
+      <stop offset="0.72" stop-color="#5A4BE8"/>
       <stop offset="0.86" stop-color="#8249EF"/>
-      <stop offset="1" stop-color="#B35AF0"/>
+      <stop offset="1" stop-color="#A658EE"/>
     </linearGradient>
     <radialGradient id="ambient" cx="0" cy="0" r="1"
       gradientTransform="translate(211 24) rotate(90) scale(170 260)"
@@ -27,11 +69,57 @@
       <stop offset="0" stop-color="#6C83C8" stop-opacity="0.12"/>
       <stop offset="1" stop-color="#6C83C8" stop-opacity="0"/>
     </radialGradient>
-    <filter id="wave-bloom" x="-25%" y="-45%" width="150%" height="190%"
+    <radialGradient id="chromatic" cx="0" cy="0" r="1"
+      gradientTransform="translate(594 412) rotate(-128) scale(300 410)"
+      gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7451C9" stop-opacity="0.045"/>
+      <stop offset="1" stop-color="#7451C9" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rail-transition" x1="194" y1="0" x2="226" y2="0"
+      gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#020515" stop-opacity="0"/>
+      <stop offset="0.44" stop-color="#020515" stop-opacity="0.24"/>
+      <stop offset="0.53" stop-color="#F4F7FF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#A2B3E3" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="wave-bloom" filterUnits="userSpaceOnUse"
+      x="6" y="40" width="232" height="174"
       color-interpolation-filters="sRGB">
       <feGaussianBlur stdDeviation="5.5"/>
     </filter>
-    <filter id="amber-bloom" x="-400%" y="-20%" width="900%" height="140%"
+    <filter id="wave-depth" filterUnits="userSpaceOnUse"
+      x="8" y="46" width="228" height="164"
+      color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2.2" result="shadow-blur"/>
+      <feOffset in="shadow-blur" dy="2.4" result="shadow-offset"/>
+      <feColorMatrix in="shadow-offset" type="matrix"
+        values="0 0 0 0 0.004
+                0 0 0 0 0.016
+                0 0 0 0 0.080
+                0 0 0 0.62 0" result="shadow"/>
+      <feOffset in="SourceAlpha" dy="1.2" result="alpha-down"/>
+      <feComposite in="SourceAlpha" in2="alpha-down" operator="out"
+        result="top-edge-mask"/>
+      <feFlood flood-color="#FFFFFF" flood-opacity="0.22"
+        result="top-edge-color"/>
+      <feComposite in="top-edge-color" in2="top-edge-mask" operator="in"
+        result="top-edge"/>
+      <feOffset in="SourceAlpha" dy="-1.2" result="alpha-up"/>
+      <feComposite in="SourceAlpha" in2="alpha-up" operator="out"
+        result="bottom-edge-mask"/>
+      <feFlood flood-color="#07133A" flood-opacity="0.30"
+        result="bottom-edge-color"/>
+      <feComposite in="bottom-edge-color" in2="bottom-edge-mask" operator="in"
+        result="bottom-edge"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="bottom-edge"/>
+        <feMergeNode in="top-edge"/>
+      </feMerge>
+    </filter>
+    <filter id="amber-bloom" filterUnits="userSpaceOnUse"
+      x="110" y="82" width="26" height="253"
       color-interpolation-filters="sRGB">
       <feGaussianBlur stdDeviation="4"/>
     </filter>
@@ -42,8 +130,18 @@
 
   <rect width="620" height="418" fill="url(#main)"/>
   <rect width="620" height="418" fill="url(#ambient)"/>
+  <rect width="620" height="418" fill="url(#chromatic)"/>
+  <rect width="620" height="418" fill="url(#main-glaze)"/>
   <g clip-path="url(#brand-clip)">
     <rect width="211" height="418" fill="url(#rail)"/>
+    <ellipse cx="105" cy="330" rx="166" ry="140"
+      fill="url(#signal-light-pool)" opacity="0.72"/>
+    <ellipse cx="105" cy="330" rx="166" ry="140"
+      fill="url(#signal-cyan-ambient)" opacity="0.92"/>
+    <ellipse cx="105" cy="330" rx="166" ry="140"
+      fill="url(#signal-violet-ambient)" opacity="0.94"/>
+    <g id="superseded-vector-symbol" transform="translate(0 80)"
+      display="none">
     <ellipse cx="96" cy="207" rx="164" ry="132"
       fill="#315FE5" opacity="0.055"/>
     <line x1="0" y1="208.5" x2="258" y2="208.5"
@@ -51,10 +149,23 @@
 
     <g id="inactive-editing-rails" stroke-linecap="round">
       <line x1="76" y1="106" x2="76" y2="311"
-        stroke="#8FA4C9" stroke-width="2.2" opacity="0.42"/>
+        stroke="#1B2947" stroke-width="4.2" opacity="0.72"/>
+      <line x1="76" y1="106" x2="76" y2="311"
+        stroke="#91A7CE" stroke-width="1.7" opacity="0.72"/>
       <line x1="170" y1="106" x2="170" y2="311"
-        stroke="#8FA4C9" stroke-width="2.2" opacity="0.42"/>
-      <g fill="#6E83AC" stroke="#C7D3E9" stroke-width="0.9" opacity="0.78">
+        stroke="#1B2947" stroke-width="4.2" opacity="0.72"/>
+      <line x1="170" y1="106" x2="170" y2="311"
+        stroke="#91A7CE" stroke-width="1.7" opacity="0.72"/>
+      <g fill="#00020D" opacity="0.30" transform="translate(0 1.4)">
+        <circle cx="76" cy="106" r="5.5"/>
+        <circle cx="76" cy="208.5" r="5.5"/>
+        <circle cx="76" cy="311" r="5.5"/>
+        <circle cx="170" cy="106" r="5.5"/>
+        <circle cx="170" cy="208.5" r="5.5"/>
+        <circle cx="170" cy="311" r="5.5"/>
+      </g>
+      <g fill="url(#inactive-knob)" stroke="#DCE8FB"
+        stroke-width="0.9" opacity="0.84">
         <circle cx="76" cy="106" r="5.5"/>
         <circle cx="76" cy="208.5" r="5.5"/>
         <circle cx="76" cy="311" r="5.5"/>
@@ -69,11 +180,11 @@
         <path d="M 18.84 111.6 C 27.72 111.6 34.08 110.52 39 106.44 C 40.92 104.76 42.12 103.68 43.56 103.8 C 45.36 103.8 46.56 105.12 48.36 104.64 C 50.52 104.16 51.6 100.68 54.48 100.68 C 56.88 100.68 58.44 103.32 60 103.32 C 62.28 103.32 63.6 93.72 66.72 93.24 C 69.36 92.88 70.08 96.36 71.76 96.36 C 73.8 96.36 74.52 84 77.88 83.88 C 81.6 83.64 81.96 98.76 85.08 98.76 C 90.12 98.76 91.56 54.72 97.68 54.72 C 103.32 54.72 102.36 87.6 105.72 87.6 C 107.76 87.6 108.12 83.4 110.52 83.4 C 113.64 83.4 114.36 101.28 118.32 101.28 C 120.36 101.28 121.32 101.88 123 101.88 C 125.16 101.88 126.96 105.48 129.72 105.48 C 132.36 105.48 133.56 102 136.92 101.88 C 138.96 101.88 139.56 102.72 141.48 102.24 C 143.16 101.76 144 95.88 146.88 95.88 C 150.36 95.88 152.76 103.2 157.32 103.2 C 161.76 103.2 162.36 75.12 167.28 75.12 C 171.72 75.12 171.6 88.32 174.84 88.32 C 176.52 88.32 176.28 85.8 178.32 85.8 C 181.56 85.8 181.32 99.96 185.04 99.96 C 187.2 99.96 186.96 95.04 189.96 95.04 C 193.32 95.04 193.92 103.8 197.52 103.8 C 198.96 103.8 199.56 104.04 200.76 104.04 C 203.16 104.04 203.64 108.24 207.36 109.2 C 211.56 110.76 217.56 111.6 226.92 111.72 C 218.16 111.72 212.16 111.96 207.36 113.52 C 204.96 114.24 204.12 116.16 201.72 116.16 C 199.32 116.16 198.84 113.88 196.92 113.88 C 193.56 113.88 190.92 124.68 186.12 124.68 L 71.16 124.68 C 67.56 124.68 65.16 116.64 60.96 114.48 C 57.96 112.92 56.52 119.4 52.2 119.4 C 48.48 119.4 48.36 113.28 45.36 113.28 C 43.32 113.28 42.6 114.24 40.92 114.24 C 38.52 114.24 37.56 111.6 18.84 111.6 Z"/>
         <path d="M 18.84 137.76 C 27.72 137.76 34.08 138.84 39 142.92 C 40.92 144.6 42.12 145.68 43.56 145.56 C 45.36 145.56 46.56 144.24 48.36 144.72 C 50.52 145.2 51.6 148.68 54.48 148.68 C 56.88 148.68 58.44 146.04 60 146.04 C 62.28 146.04 63.6 155.64 66.72 156.12 C 69.36 156.48 70.08 153 71.76 153 C 73.8 153 74.52 165.36 77.88 165.48 C 81.6 165.72 81.96 150.6 85.08 150.6 C 90.12 150.6 91.56 194.64 97.68 194.64 C 103.32 194.64 102.36 161.76 105.72 161.76 C 107.76 161.76 108.12 165.96 110.52 165.96 C 113.64 165.96 114.36 148.08 118.32 148.08 C 120.36 148.08 121.32 147.48 123 147.48 C 125.16 147.48 126.96 143.88 129.72 143.88 C 132.36 143.88 133.56 147.36 136.92 147.48 C 138.96 147.48 139.56 146.64 141.48 147.12 C 143.16 147.6 144 153.48 146.88 153.48 C 150.36 153.48 152.76 146.16 157.32 146.16 C 161.76 146.16 162.36 174.24 167.28 174.24 C 171.72 174.24 171.6 161.04 174.84 161.04 C 176.52 161.04 176.28 163.56 178.32 163.56 C 181.56 163.56 181.32 149.4 185.04 149.4 C 187.2 149.4 186.96 154.32 189.96 154.32 C 193.32 154.32 193.92 145.56 197.52 145.56 C 198.96 145.56 199.56 145.32 200.76 145.32 C 203.16 145.32 203.64 141.12 207.36 140.16 C 211.56 138.6 217.56 137.76 226.92 137.64 C 218.16 137.64 212.16 137.4 207.36 135.84 C 204.96 135.12 204.12 133.2 201.72 133.2 C 199.32 133.2 198.84 135.48 196.92 135.48 C 193.56 135.48 190.92 124.68 186.12 124.68 L 71.16 124.68 C 67.56 124.68 65.16 132.72 60.96 134.88 C 57.96 136.44 56.52 129.96 52.2 129.96 C 48.48 129.96 48.36 136.08 45.36 136.08 C 43.32 136.08 42.6 135.12 40.92 135.12 C 38.52 135.12 37.56 137.76 18.84 137.76 Z"/>
       </g>
-      <g fill="url(#wave)">
+      <g fill="url(#wave)" filter="url(#wave-depth)">
         <path d="M 18.84 111.6 C 27.72 111.6 34.08 110.52 39 106.44 C 40.92 104.76 42.12 103.68 43.56 103.8 C 45.36 103.8 46.56 105.12 48.36 104.64 C 50.52 104.16 51.6 100.68 54.48 100.68 C 56.88 100.68 58.44 103.32 60 103.32 C 62.28 103.32 63.6 93.72 66.72 93.24 C 69.36 92.88 70.08 96.36 71.76 96.36 C 73.8 96.36 74.52 84 77.88 83.88 C 81.6 83.64 81.96 98.76 85.08 98.76 C 90.12 98.76 91.56 54.72 97.68 54.72 C 103.32 54.72 102.36 87.6 105.72 87.6 C 107.76 87.6 108.12 83.4 110.52 83.4 C 113.64 83.4 114.36 101.28 118.32 101.28 C 120.36 101.28 121.32 101.88 123 101.88 C 125.16 101.88 126.96 105.48 129.72 105.48 C 132.36 105.48 133.56 102 136.92 101.88 C 138.96 101.88 139.56 102.72 141.48 102.24 C 143.16 101.76 144 95.88 146.88 95.88 C 150.36 95.88 152.76 103.2 157.32 103.2 C 161.76 103.2 162.36 75.12 167.28 75.12 C 171.72 75.12 171.6 88.32 174.84 88.32 C 176.52 88.32 176.28 85.8 178.32 85.8 C 181.56 85.8 181.32 99.96 185.04 99.96 C 187.2 99.96 186.96 95.04 189.96 95.04 C 193.32 95.04 193.92 103.8 197.52 103.8 C 198.96 103.8 199.56 104.04 200.76 104.04 C 203.16 104.04 203.64 108.24 207.36 109.2 C 211.56 110.76 217.56 111.6 226.92 111.72 C 218.16 111.72 212.16 111.96 207.36 113.52 C 204.96 114.24 204.12 116.16 201.72 116.16 C 199.32 116.16 198.84 113.88 196.92 113.88 C 193.56 113.88 190.92 124.68 186.12 124.68 L 71.16 124.68 C 67.56 124.68 65.16 116.64 60.96 114.48 C 57.96 112.92 56.52 119.4 52.2 119.4 C 48.48 119.4 48.36 113.28 45.36 113.28 C 43.32 113.28 42.6 114.24 40.92 114.24 C 38.52 114.24 37.56 111.6 18.84 111.6 Z"/>
         <path d="M 18.84 137.76 C 27.72 137.76 34.08 138.84 39 142.92 C 40.92 144.6 42.12 145.68 43.56 145.56 C 45.36 145.56 46.56 144.24 48.36 144.72 C 50.52 145.2 51.6 148.68 54.48 148.68 C 56.88 148.68 58.44 146.04 60 146.04 C 62.28 146.04 63.6 155.64 66.72 156.12 C 69.36 156.48 70.08 153 71.76 153 C 73.8 153 74.52 165.36 77.88 165.48 C 81.6 165.72 81.96 150.6 85.08 150.6 C 90.12 150.6 91.56 194.64 97.68 194.64 C 103.32 194.64 102.36 161.76 105.72 161.76 C 107.76 161.76 108.12 165.96 110.52 165.96 C 113.64 165.96 114.36 148.08 118.32 148.08 C 120.36 148.08 121.32 147.48 123 147.48 C 125.16 147.48 126.96 143.88 129.72 143.88 C 132.36 143.88 133.56 147.36 136.92 147.48 C 138.96 147.48 139.56 146.64 141.48 147.12 C 143.16 147.6 144 153.48 146.88 153.48 C 150.36 153.48 152.76 146.16 157.32 146.16 C 161.76 146.16 162.36 174.24 167.28 174.24 C 171.72 174.24 171.6 161.04 174.84 161.04 C 176.52 161.04 176.28 163.56 178.32 163.56 C 181.56 163.56 181.32 149.4 185.04 149.4 C 187.2 149.4 186.96 154.32 189.96 154.32 C 193.32 154.32 193.92 145.56 197.52 145.56 C 198.96 145.56 199.56 145.32 200.76 145.32 C 203.16 145.32 203.64 141.12 207.36 140.16 C 211.56 138.6 217.56 137.76 226.92 137.64 C 218.16 137.64 212.16 137.4 207.36 135.84 C 204.96 135.12 204.12 133.2 201.72 133.2 C 199.32 133.2 198.84 135.48 196.92 135.48 C 193.56 135.48 190.92 124.68 186.12 124.68 L 71.16 124.68 C 67.56 124.68 65.16 132.72 60.96 134.88 C 57.96 136.44 56.52 129.96 52.2 129.96 C 48.48 129.96 48.36 136.08 45.36 136.08 C 43.32 136.08 42.6 135.12 40.92 135.12 C 38.52 135.12 37.56 137.76 18.84 137.76 Z"/>
       </g>
-      <g fill="none" stroke-linejoin="round" opacity="0.68">
+      <g fill="none" stroke-linejoin="round" opacity="0.42">
         <path d="M 18.84 111.6 C 27.72 111.6 34.08 110.52 39 106.44 C 40.92 104.76 42.12 103.68 43.56 103.8 C 45.36 103.8 46.56 105.12 48.36 104.64 C 50.52 104.16 51.6 100.68 54.48 100.68 C 56.88 100.68 58.44 103.32 60 103.32 C 62.28 103.32 63.6 93.72 66.72 93.24 C 69.36 92.88 70.08 96.36 71.76 96.36 C 73.8 96.36 74.52 84 77.88 83.88 C 81.6 83.64 81.96 98.76 85.08 98.76 C 90.12 98.76 91.56 54.72 97.68 54.72 C 103.32 54.72 102.36 87.6 105.72 87.6 C 107.76 87.6 108.12 83.4 110.52 83.4 C 113.64 83.4 114.36 101.28 118.32 101.28 C 120.36 101.28 121.32 101.88 123 101.88 C 125.16 101.88 126.96 105.48 129.72 105.48 C 132.36 105.48 133.56 102 136.92 101.88 C 138.96 101.88 139.56 102.72 141.48 102.24 C 143.16 101.76 144 95.88 146.88 95.88 C 150.36 95.88 152.76 103.2 157.32 103.2 C 161.76 103.2 162.36 75.12 167.28 75.12 C 171.72 75.12 171.6 88.32 174.84 88.32 C 176.52 88.32 176.28 85.8 178.32 85.8 C 181.56 85.8 181.32 99.96 185.04 99.96 C 187.2 99.96 186.96 95.04 189.96 95.04 C 193.32 95.04 193.92 103.8 197.52 103.8 C 198.96 103.8 199.56 104.04 200.76 104.04 C 203.16 104.04 203.64 108.24 207.36 109.2 C 211.56 110.76 217.56 111.6 226.92 111.72 C 218.16 111.72 212.16 111.96 207.36 113.52 C 204.96 114.24 204.12 116.16 201.72 116.16 C 199.32 116.16 198.84 113.88 196.92 113.88 C 193.56 113.88 190.92 124.68 186.12 124.68 L 71.16 124.68 C 67.56 124.68 65.16 116.64 60.96 114.48 C 57.96 112.92 56.52 119.4 52.2 119.4 C 48.48 119.4 48.36 113.28 45.36 113.28 C 43.32 113.28 42.6 114.24 40.92 114.24 C 38.52 114.24 37.56 111.6 18.84 111.6 Z" stroke="#B8F8FF" stroke-width="1.15"/>
         <path d="M 18.84 137.76 C 27.72 137.76 34.08 138.84 39 142.92 C 40.92 144.6 42.12 145.68 43.56 145.56 C 45.36 145.56 46.56 144.24 48.36 144.72 C 50.52 145.2 51.6 148.68 54.48 148.68 C 56.88 148.68 58.44 146.04 60 146.04 C 62.28 146.04 63.6 155.64 66.72 156.12 C 69.36 156.48 70.08 153 71.76 153 C 73.8 153 74.52 165.36 77.88 165.48 C 81.6 165.72 81.96 150.6 85.08 150.6 C 90.12 150.6 91.56 194.64 97.68 194.64 C 103.32 194.64 102.36 161.76 105.72 161.76 C 107.76 161.76 108.12 165.96 110.52 165.96 C 113.64 165.96 114.36 148.08 118.32 148.08 C 120.36 148.08 121.32 147.48 123 147.48 C 125.16 147.48 126.96 143.88 129.72 143.88 C 132.36 143.88 133.56 147.36 136.92 147.48 C 138.96 147.48 139.56 146.64 141.48 147.12 C 143.16 147.6 144 153.48 146.88 153.48 C 150.36 153.48 152.76 146.16 157.32 146.16 C 161.76 146.16 162.36 174.24 167.28 174.24 C 171.72 174.24 171.6 161.04 174.84 161.04 C 176.52 161.04 176.28 163.56 178.32 163.56 C 181.56 163.56 181.32 149.4 185.04 149.4 C 187.2 149.4 186.96 154.32 189.96 154.32 C 193.32 154.32 193.92 145.56 197.52 145.56 C 198.96 145.56 199.56 145.32 200.76 145.32 C 203.16 145.32 203.64 141.12 207.36 140.16 C 211.56 138.6 217.56 137.76 226.92 137.64 C 218.16 137.64 212.16 137.4 207.36 135.84 C 204.96 135.12 204.12 133.2 201.72 133.2 C 199.32 133.2 198.84 135.48 196.92 135.48 C 193.56 135.48 190.92 124.68 186.12 124.68 L 71.16 124.68 C 67.56 124.68 65.16 132.72 60.96 134.88 C 57.96 136.44 56.52 129.96 52.2 129.96 C 48.48 129.96 48.36 136.08 45.36 136.08 C 43.32 136.08 42.6 135.12 40.92 135.12 C 38.52 135.12 37.56 137.76 18.84 137.76 Z" stroke="#BFCBFF" stroke-width="0.8" opacity="0.54"/>
       </g>
@@ -81,21 +192,31 @@
 
     <g id="selected-playhead" stroke-linecap="round">
       <line x1="123" y1="92" x2="123" y2="325"
+        stroke="#91500C" stroke-width="5.2" opacity="0.78"/>
+      <line x1="123" y1="92" x2="123" y2="325"
         stroke="#FF9418" stroke-width="5" opacity="0.18"
         filter="url(#amber-bloom)"/>
       <line x1="123" y1="92" x2="123" y2="325"
-        stroke="#FFAE24" stroke-width="3.2"/>
+        stroke="#FFAE17" stroke-width="3.2"/>
       <line x1="123" y1="92" x2="123" y2="325"
         stroke="#FFE292" stroke-width="0.8" opacity="0.82"/>
-      <g fill="#FFC044" stroke="#FFE596" stroke-width="1.1">
+      <g fill="#00020D" opacity="0.30" transform="translate(0 1.4)">
+        <circle cx="123" cy="92" r="6.2"/>
+        <circle cx="123" cy="208.5" r="6.2"/>
+        <circle cx="123" cy="325" r="6.2"/>
+      </g>
+      <g fill="url(#selected-knob)" stroke="#FFC841" stroke-width="1.1">
         <circle cx="123" cy="92" r="6.2"/>
         <circle cx="123" cy="208.5" r="6.2"/>
         <circle cx="123" cy="325" r="6.2"/>
       </g>
     </g>
+    </g>
+    <image id="styled-symbol" x="-30" y="211" width="270" height="222.14"
+      href="../BrandAssets/auralign-styled-symbol-tight.png"/>
 
-    <rect x="202" y="0" width="9" height="418" fill="#020515" opacity="0.24"/>
-    <line x1="210.5" y1="0" x2="210.5" y2="418"
-      stroke="#64728D" stroke-width="1" opacity="0.34"/>
   </g>
+  <rect x="194" y="0" width="32" height="418" fill="url(#rail-transition)"/>
+  <line x1="210.5" y1="0" x2="210.5" y2="418"
+    stroke="#EEF3FF" stroke-width="0.7" opacity="0.17"/>
 </svg>

@@ -75,22 +75,60 @@ kit from source subtree `installer/pkg-design` at immutable source-project commi
 All 12 source-kit files were initially copied byte-for-byte before repository-
 specific integration.
 
-Production artwork remains unchanged:
+The initially internalized production artwork was byte-identical to the source
+kit:
 
-- Light background PNG:
+- original Light background PNG:
   `1df7830cbfab4da98f80e5c89a8ed31fc7321a5d95a0e16a305a05f307e6c2ee`;
-- Dark Aqua background PNG:
+- original Dark Aqua background PNG:
   `513c9cf18b978409ec2c5ed85e08a856abfd38389a503c232dc78c1a412fd366`;
-- Light SVG master:
+- original Light SVG master:
   `b4dbf9587022f998fb16d57e73dfe141d8fede631b385f0941c438ff8bbf17ae`;
-- Dark SVG master:
+- original Dark SVG master:
   `fe24491644f2c6193b48bc65108c92bf7de942ba93a1f3f19b6f8f79729aa416`.
 
-Auralign changed only the repository-local verifier, Makefile, README, manifest,
-real Distribution integration, identifiers, component filename, and package
-builder wiring. The build has no external absolute-path dependency. The two
-1240×836 RGB+sRGB backgrounds are intentionally text-free scaffolds for a
-620×418 Installer canvas; Installer retains native text, controls, focus,
-localization, security, and accessibility. The completed PKG—not a blank
-background—is the visual acceptance artifact. Human IP, provenance, and release
-review remains authoritative.
+After native Installer inspection on 2026-07-20, Auralign intentionally adapted
+the first-party vector masters to keep the upper 170-point brand region quiet
+for Installer's step labels, remove the superseded lower inset card, enlarge the
+exact styled symbol into a borderless lower-rail composition with intentional
+left/right/bottom crop, soften the rail-to-content transition, and balance Dark
+Aqua toward Installer's native chrome and scroll material. The localizable HTML
+uses the macOS system font and includes a concise informational legal/privacy
+summary derived from Auralign's controlling repository documents. It does not
+replace or expand those terms.
+
+The styled symbol is mechanically derived from the owner's preferred
+deterministic icon construction at immutable source-project commit
+`ae319eb89650b9c8b0ce4ce5bac5e8adf2a0bb48`:
+
+- canonical styled SVG SHA-256:
+  `38a9c73d747e58f5946c8a47505795becda67c7f9ebe8252220a834e85ff0397`;
+- preferred 1024-pixel reference SHA-256:
+  `2c1b5ed43a0ae83cb43582bbe34cef1071e44cf257ef5b41edb0480a21dc1e4a`;
+- curated transparent symbol SVG SHA-256:
+  `8ed79fd4430b534862a90d224fd03c6aac8e1fae32c580b6716146c27b8167b7`;
+- curated 1822×1499 RGBA+sRGB raster SHA-256:
+  `6f556cd43c2c30f3658490da933e1e345a52320f223af47b3de192cae1f63963`.
+
+The repository-local exporter reproduces that raster from the curated SVG and
+fails closed on source hash, alpha bounds, crop, dimensions, byte count, or
+output-hash drift. Redundant full-canvas and low-resolution placement variants
+are recorded in the brand manifest but are not retained.
+
+Current adapted production artwork:
+
+- Light background PNG:
+  `b9e1e34a58ce6a6f250cea4fe79db7cdf165f359e9b0fe1efe398496e4bf1014`;
+- Dark Aqua background PNG:
+  `c7c9ba8bfed462b8cc5afe84250fc7177f0ee8033de96a3ceeded8206757deef`;
+- Light SVG master:
+  `78701511adef20903dd4c82672b511df1344e6fedf1429d5fcba01d20545bd25`;
+- Dark SVG master:
+  `baae4aa1190d9d95035a827ff9e686964e0ba027191e2e1b9846280c5cb73be2`.
+
+The build has no external absolute-path dependency. The two 1240×836 RGB+sRGB
+backgrounds remain intentionally text-free scaffolds for a 620×418 Installer
+canvas; Installer retains native text, controls, focus, localization, security,
+and accessibility. The completed PKG—not a blank background—is the visual
+acceptance artifact. Human IP, provenance, and release review remains
+authoritative.

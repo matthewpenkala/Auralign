@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
-PYTHON := python3
+UV := uv
 
 .PHONY: all check
 
 all: check
 
 check:
-	$(PYTHON) build.py --check-only
+	$(UV) run --frozen python build.py --check-only
