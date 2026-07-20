@@ -34,7 +34,12 @@ def test_runtime_samples_marks_large_corpora_cloud_only(tmp_path: Path) -> None:
     assert records["librispeech-full"]["runtime_required"] is False
 
 
-def test_default_dataset_plan_stays_under_65gb(tmp_path: Path) -> None:
+def test_default_dataset_plan_stays_under_65gb(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("local_transcript_max.datasets._free_gb", lambda _path: 200.0)
+    monkeypatch.setattr("local_transcript_max.datasets._same_volume", lambda _a, _b: True)
     plan = dataset_budget_plan(tmp_path, max_local_gb=65, min_free_gb=0)
     assert plan["ok"] is True
     assert plan["projected_local_gb"] < 65
@@ -101,6 +106,8 @@ def test_dataset_plan_cli_uses_ltm_model_cache_by_default(
 ) -> None:
     model_cache = tmp_path / "custom-models"
     monkeypatch.setenv("LTM_MODEL_CACHE", str(model_cache))
+    monkeypatch.setattr("local_transcript_max.datasets._free_gb", lambda _path: 200.0)
+    monkeypatch.setattr("local_transcript_max.datasets._same_volume", lambda _a, _b: True)
     result = CliRunner().invoke(
         app,
         [

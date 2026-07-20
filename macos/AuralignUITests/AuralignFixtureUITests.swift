@@ -280,13 +280,23 @@ final class AuralignFixtureUITests: XCTestCase {
         let compactDetails = element("results.compact-details", in: launched)
         if compactDetails.waitForExistence(timeout: 1) {
             compactDetails.click()
+            // A compact Results layout can place the disclosure below the
+            // visible transcript. Right Arrow is idempotent when it is
+            // already expanded and expands it when the initial click only
+            // brought the control on screen.
+            compactDetails.typeKey(.rightArrow, modifierFlags: [])
         }
-        XCTAssertTrue(
-            element("results.qa", in: launched)
-                .waitForExistence(timeout: 3)
-        )
         let completedScroll = element("results.root", in: launched)
         XCTAssertTrue(completedScroll.waitForExistence(timeout: 3))
+        let qa = element("results.qa", in: launched)
+        var qaScrollAttempts = 0
+        while !qa.exists && qaScrollAttempts < 6 {
+            completedScroll.swipeUp()
+            qaScrollAttempts += 1
+        }
+        XCTAssertTrue(
+            qa.waitForExistence(timeout: 3)
+        )
         for index in 0..<3 {
             let row = element("results.artifact.\(index)", in: launched)
             let actions = element(
