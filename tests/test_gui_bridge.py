@@ -33,6 +33,7 @@ from local_transcript_max.gui_bridge import (
     _decode_transcript_prefix,
     _public_pipeline_failure,
     _require_request_shape,
+    _validate_arguments,
     config_manifest,
     doctor_payload,
     dump_manifest_json,
@@ -1241,10 +1242,15 @@ def test_strict_stdin_rejects_ambiguous_or_non_object_json(payload: bytes) -> No
         ["schema", "--write", "target", "extra"],
     ],
 )
-def test_malformed_bridge_argv_emits_one_usage_error(
+def test_malformed_bridge_argv_fails_validation(
     arguments: list[str],
 ) -> None:
-    completed = _run_bridge(arguments)
+    with pytest.raises(BridgeUsageError):
+        _validate_arguments(arguments)
+
+
+def test_malformed_bridge_subprocess_emits_one_usage_error() -> None:
+    completed = _run_bridge(["unknown"])
     assert completed.returncode == 64
     rows = _protocol_rows(completed)
     assert [row["event"] for row in rows] == ["bridge_error"]

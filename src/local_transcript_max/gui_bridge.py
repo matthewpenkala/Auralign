@@ -1546,6 +1546,7 @@ def main(argv: list[str] | None = None) -> int:
         return 70
     finally:
         protocol.flush()
+        protocol.close()
 
 
 if __name__ == "__main__":

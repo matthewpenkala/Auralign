@@ -282,7 +282,7 @@ final class AuralignFixtureUITests: XCTestCase {
             // The first click can be consumed by XCUITest's automatic scroll
             // when the disclosure starts below the visible transcript.
             compactDetails.click()
-            compactDetails.click()
+            compactDetails.typeKey(.space, modifierFlags: [])
         }
         let completedScroll = element("results.root", in: launched)
         XCTAssertTrue(completedScroll.waitForExistence(timeout: 3))
