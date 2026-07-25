@@ -15,6 +15,7 @@ from typing import Any
 
 from .alignment.forced_alignment import preflight_forced_alignment
 from .asr.faster_whisper_backend import (
+    require_faster_whisper_vad_asset,
     resolve_compute_type,
     resolve_cpu_threads,
     resolve_num_workers,
@@ -126,6 +127,13 @@ def run_startup_probes(config: PipelineConfig) -> list[StartupProbe]:
 
 def _probe_faster_whisper(config: PipelineConfig, *, device: str) -> str:
     from faster_whisper import WhisperModel
+
+    require_faster_whisper_vad_asset(
+        enabled=config.asr.vad_filter,
+        assets_path=importlib.import_module(
+            "faster_whisper.utils"
+        ).get_assets_path(),
+    )
 
     path = require_model("asr", config.asr.model, config.model_cache, offline=config.offline)
     compute_type = resolve_compute_type(config.asr.compute_type, device)

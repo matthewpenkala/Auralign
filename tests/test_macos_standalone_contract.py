@@ -156,9 +156,17 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "auralign-native-backend-pruning.v1" in builder
     assert '"bundled_ffmpeg_major": 7' in builder
     assert "prune_unreachable_third_party_test_content(" in builder
-    assert "auralign-unreachable-test-content-pruning.v1" in builder
+    assert "auralign-unreachable-test-content-pruning.v3" in builder
     assert '"credential_sha256": hashlib.sha256(token).hexdigest()' in builder
     assert "'transformers.testing_utils' in sys.modules" in builder
+    assert '"joblib.test"' in builder
+    assert "prune_unbundled_model_assets(runtime, evidence)" in builder
+    assert "auralign-unbundled-model-assets.v1" in builder
+    assert '"model_weight_files_removed": len(weight_files)' in builder
+    assert "verify_unbundled_model_assets_absent(runtime)" in builder
+    assert "whisperx.alignment" in builder
+    assert "validate_notarization_log(" in builder
+    assert "Apple notarization reported" in builder
     assert "strip_upstream_native_signatures(runtime, evidence)" in builder
     assert "auralign-upstream-signature-stripping.v1" in builder
     assert '"signatures_removed": len(rows)' in builder
@@ -707,27 +715,159 @@ def test_payload_safety_rejects_local_paths_not_upstream_build_metadata(
         verify_payload_safety(candidate, (ROOT,))
 
 
-def test_unreachable_third_party_test_credential_module_is_pruned(
+def test_unreachable_third_party_test_content_is_pruned(
     tmp_path: Path,
 ) -> None:
-    relative = Path("lib/python3.11/site-packages/transformers/testing_utils.py")
-    candidate = tmp_path / relative
-    candidate.parent.mkdir(parents=True)
+    transformers_relative = Path(
+        "lib/python3.11/site-packages/transformers/testing_utils.py"
+    )
+    transformers_candidate = tmp_path / transformers_relative
+    transformers_candidate.parent.mkdir(parents=True)
     credential = b"hf_" + (b"A" * 32)
-    candidate.write_bytes(b'TOKEN = "' + credential + b'"\n')
+    transformers_candidate.write_bytes(b'TOKEN = "' + credential + b'"\n')
+    joblib_relative = Path("lib/python3.11/site-packages/joblib/test")
+    joblib_candidate = tmp_path / joblib_relative
+    (joblib_candidate / "data").mkdir(parents=True)
+    fixture = b"notarization-fixture"
+    (joblib_candidate / "__init__.py").write_bytes(b"")
+    (joblib_candidate / "data/legacy.gz").write_bytes(fixture)
+    networkx_atlas = (
+        tmp_path
+        / "lib/python3.11/site-packages/networkx/generators/atlas.dat.gz"
+    )
+    networkx_atlas.parent.mkdir(parents=True)
+    networkx_atlas.write_bytes(b"sample-atlas")
+    pyannote_sample = (
+        tmp_path / "lib/python3.11/site-packages/pyannote/audio/sample"
+    )
+    pyannote_sample.mkdir(parents=True)
+    (pyannote_sample / "sample.wav").write_bytes(b"fixture-media")
+    for relative in BUILDER_MODULE.REVIEWED_DEVELOPMENT_CONTENT_DIRECTORIES:
+        directory = tmp_path / relative
+        directory.mkdir(parents=True)
+        (directory / "development-only.py").write_bytes(b"fixture")
     evidence = tmp_path / "evidence"
     evidence.mkdir()
 
     result = BUILDER_MODULE.prune_unreachable_third_party_test_content(
         tmp_path,
         evidence,
+        enforce_reviewed_contract=False,
     )
 
-    assert result["files_removed"] == 1
-    assert not candidate.exists()
+    assert result["directories_removed"] == 19
+    assert result["files_removed"] == 22
+    assert not transformers_candidate.exists()
+    assert not joblib_candidate.exists()
+    assert not networkx_atlas.exists()
+    assert not pyannote_sample.exists()
+    for relative in BUILDER_MODULE.REVIEWED_DEVELOPMENT_CONTENT_DIRECTORIES:
+        assert not (tmp_path / relative).exists()
     recorded = (evidence / "unreachable-test-content-pruning.json").read_bytes()
     assert credential not in recorded
     assert hashlib.sha256(credential).hexdigest().encode() in recorded
+    assert hashlib.sha256(fixture).hexdigest().encode() in recorded
+    payload = json.loads(recorded)
+    assert payload["schema_version"] == "auralign-unreachable-test-content-pruning.v3"
+    assert payload["source_wheels_archives_and_repository_untouched"] is True
+    assert all(row["result"] == "absent" for row in payload["removed"])
+
+
+def test_unbundled_model_assets_are_inventory_bound_and_pruned(
+    tmp_path: Path,
+) -> None:
+    site_packages = tmp_path / "lib/python3.11/site-packages"
+    asset_payloads = {
+        "faster_whisper/assets/silero_vad_v6.onnx": b"silero",
+        "onnxruntime/datasets/__init__.py": b"",
+        "onnxruntime/datasets/logreg_iris.onnx": b"iris",
+        "onnxruntime/datasets/mul_1.onnx": b"mul",
+        "onnxruntime/datasets/sigmoid.onnx": b"sigmoid",
+        "torchmetrics/functional/image/dists_models/weights.pt": b"dists",
+        "torchmetrics/functional/image/lpips_models/alex.pth": b"alex",
+        "torchmetrics/functional/image/lpips_models/squeeze.pth": b"squeeze",
+        "torchmetrics/functional/image/lpips_models/vgg.pth": b"vgg",
+        "whisperx/assets/pytorch_model.bin": b"whisperx-vad",
+    }
+    for relative, payload in asset_payloads.items():
+        destination = site_packages / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(payload)
+    retained = site_packages / "whisperx/assets/mel_filters.npz"
+    retained.write_bytes(b"mel-filter-data")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+
+    result = BUILDER_MODULE.prune_unbundled_model_assets(
+        tmp_path,
+        evidence,
+        enforce_retained_data_contract=False,
+    )
+
+    assert result["files_removed"] == 10
+    assert result["model_weight_files_removed"] == 9
+    assert retained.is_file()
+    assert all(not (site_packages / relative).exists() for relative in asset_payloads)
+    payload = json.loads(
+        (evidence / "unbundled-model-assets.json").read_text(encoding="utf-8")
+    )
+    assert payload["schema_version"] == "auralign-unbundled-model-assets.v1"
+    assert payload["source_wheels_archives_and_repository_untouched"] is True
+    assert payload["model_weight_files"] == 9
+    assert payload["result"] == "absent"
+    assert {
+        row["path"]: row["sha256"] for row in payload["files"]
+    } == {
+        (
+            Path("lib/python3.11/site-packages") / relative
+        ).as_posix(): hashlib.sha256(original).hexdigest()
+        for relative, original in asset_payloads.items()
+    }
+
+
+def test_unbundled_model_asset_verification_rejects_unreviewed_weight(
+    tmp_path: Path,
+) -> None:
+    unexpected = (
+        tmp_path
+        / "lib/python3.11/site-packages/unreviewed/assets/unexpected-model.onnx"
+    )
+    unexpected.parent.mkdir(parents=True)
+    unexpected.write_bytes(b"weight")
+
+    with pytest.raises(RuntimeError, match="bundled model-weight paths remain"):
+        BUILDER_MODULE.verify_unbundled_model_assets_absent(tmp_path)
+
+
+def test_notarization_log_must_be_accepted_and_issue_free() -> None:
+    BUILDER_MODULE.validate_notarization_log(
+        {
+            "status": "Accepted",
+            "issues": [],
+        }
+    )
+    BUILDER_MODULE.validate_notarization_log(
+        {
+            "status": "Accepted",
+            "issues": None,
+        }
+    )
+    with pytest.raises(RuntimeError, match="does not report Accepted"):
+        BUILDER_MODULE.validate_notarization_log(
+            {
+                "status": "Invalid",
+                "issues": [],
+            }
+        )
+    with pytest.raises(RuntimeError, match="issue list is missing"):
+        BUILDER_MODULE.validate_notarization_log({"status": "Accepted"})
+    with pytest.raises(RuntimeError, match="reported 1 warning or error"):
+        BUILDER_MODULE.validate_notarization_log(
+            {
+                "status": "Accepted",
+                "issues": [{"severity": "warning"}],
+            }
+        )
 
 
 @pytest.mark.skipif(

@@ -150,11 +150,25 @@ Release mode refuses a dirty worktree, a non-`main` branch, an existing build
 destination, or omission of `--no-cache`. The production lane never reads or
 publishes diagnostic cache entries. It verifies immutable source archives and
 FFmpeg's signing key, builds an arm64-only runtime, validates every dyld edge
-and macOS deployment target, performs privacy and quarantine scans, generates
-the exact runtime SBOM, smokes the native stack and bridge, signs nested code
-inside-out, builds the scriptless product archive with native Installer
-presentation resources, notarizes, staples, re-expands, and reverifies the
-final package.
+and macOS deployment target, and removes reviewed production-unreachable
+test/fixture/sample-data trees, the pyannote example-media fixture, and nine
+upstream package model weights from the copied runtime. It also removes
+exact-hash-bound upstream documentation, recipes, demos, templates, tools,
+benchmarks, and test examples. The exact test, fixture, development-content,
+and file inventories are hash-bound; only four reviewed NumPy, SymPy, and Torch
+public or lazy-compatibility testing API directories needed by traced or
+conservative compatibility paths remain. The removed weights are outside
+Auralign's external model manifest and include the optional faster-whisper
+Silero VAD model; the standalone therefore fails clearly if
+`asr.vad_filter=true`, while the default model-free EnergyVAD path remains
+available. The prune evidence records the original file/tree hashes,
+content-addressed absent result states, and the unchanged source/wheel/archive
+boundary. The builder then performs privacy and quarantine scans, generates
+the exact runtime SBOM, smokes the supported native and Python stack plus
+bridge, signs nested code inside-out, builds the scriptless product archive
+with native Installer presentation resources, and requires an accepted,
+issue-free Apple notarization log before stapling, re-expanding, and
+reverifying the final package.
 
 Diagnostic cache entries are content-addressed development aids only. They are
 fully revalidated, restored only into absent destinations, and labeled as

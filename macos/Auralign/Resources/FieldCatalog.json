@@ -300,7 +300,7 @@
     {
       "key": "asr.vad_filter",
       "title": "ASR VAD filter",
-      "help": "Let faster-whisper apply its own voice-activity filter during decoding, in addition to the pipeline's VAD stage.",
+      "help": "Unavailable in the standalone app because its upstream Silero model is intentionally excluded. Leave this off; Auralign's local EnergyVAD remains active.",
       "section": "asr",
       "disposition": "advanced",
       "requires": [{ "key": "asr.backend", "equals": "faster-whisper" }]

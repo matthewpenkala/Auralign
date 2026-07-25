@@ -136,7 +136,33 @@ embedded interpreter with bytecode-disabled, isolated, sanitized, strictly
 offline process settings. The runtime contains the reviewed CPython, Auralign
 engine, CPU dependency closure, PyAV, Torch-family closure, FFmpeg, FFprobe,
 licenses, notices, and runtime metadata needed by the installed application.
-Models are never part of this bundle.
+Models are never part of this bundle. The builder removes reviewed,
+production-unreachable upstream test, compatibility-fixture, and sample-data
+trees from the copied runtime, including `transformers.testing_utils`,
+`joblib/test`, the NetworkX atlas sample corpus, and pyannote's example
+audio/annotation fixture. It also removes exact-hash-bound upstream
+documentation, SpeechBrain recipes/templates/tools, Lightning demos, NumPy
+examples, and SymPy benchmark/test-example roots. The exact 209 generic
+test-root inventory and 18 additional fixture/development roots are
+content-bound; the runtime retains four reviewed NumPy, SymPy, and Torch public
+or lazy-compatibility `testing` API directories needed by traced or
+conservative compatibility paths, not broad fixture trees. It also removes
+nine upstream package model-weight files that are outside Auralign's external
+model manifest: faster-whisper's optional Silero VAD ONNX, WhisperX's unused
+VAD checkpoint, ONNX Runtime example models, and TorchMetrics image-metric
+weights.
+Candidate-bound evidence inventories every removed file with its original
+hash, records content-addressed absent result states, and confirms that
+repository source, cached wheels, and source archives remain untouched.
+Runtime smoke proves the supported production imports and joblib serialization
+path still work after pruning.
+
+The standalone release does not support faster-whisper's optional
+`asr.vad_filter=true` path because that path requires the excluded Silero model.
+It fails clearly before inference if selected. The default remains `false`, and
+Auralign's model-free local EnergyVAD remains active. This is a deliberate
+standalone limitation, not permission to relabel or silently retain a model
+weight.
 
 Code objects are signed intentionally inside-out: nested Mach-O objects first,
 then the runtime bundle, then the outer application. The package is a
@@ -192,7 +218,9 @@ record, corresponding FFmpeg source archive, and package release manifest. The
 SBOM must describe the exact installed runtime rather than a development
 environment or lock file alone. Required notices and license material must be
 present in the sealed payload and remain consistent with the tracked
-registries.
+registries. Apple notarization acceptance is necessary but not sufficient: the
+candidate is rejected if the notarization log contains any warning or error
+issue, including an archive Apple could not inspect.
 
 Passing tracked compliance checks does not by itself prove the final package.
 Conversely, a generated package manifest cannot amend missing or conflicting

@@ -12,6 +12,7 @@ import pytest
 from local_transcript_max.asr import faster_whisper_backend
 from local_transcript_max.asr.faster_whisper_backend import (
     FasterWhisperBackend,
+    require_faster_whisper_vad_asset,
     resolve_cpu_threads,
     resolve_num_workers,
     validate_compute_type,
@@ -130,6 +131,21 @@ def test_faster_whisper_backend_preserves_constructor_shape_when_unset(
     )
 
     assert captured["kwargs"] == {"device": "cpu", "compute_type": "int8"}
+
+
+def test_faster_whisper_vad_asset_contract_is_explicit_and_fail_closed(
+    tmp_path: Path,
+) -> None:
+    require_faster_whisper_vad_asset(enabled=False, assets_path=tmp_path)
+    with pytest.raises(
+        BackendUnavailableError,
+        match="standalone runtime intentionally excludes",
+    ):
+        require_faster_whisper_vad_asset(enabled=True, assets_path=tmp_path)
+
+    model = tmp_path / "silero_vad_v6.onnx"
+    model.write_bytes(b"reviewed-test-placeholder")
+    require_faster_whisper_vad_asset(enabled=True, assets_path=tmp_path)
 
 
 def test_faster_whisper_backend_reuses_batched_transcriber_for_same_model() -> None:

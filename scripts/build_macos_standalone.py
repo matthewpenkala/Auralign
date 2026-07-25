@@ -862,35 +862,515 @@ def prune_unbundled_native_backends(root: Path, evidence: Path) -> dict[str, Any
     }
 
 
+REVIEWED_TEST_PRUNE_ROOT_COUNT = 209
+REVIEWED_TEST_PRUNE_ROOTS_SHA256 = (
+    "2fab4c61c29ee9f264633f1419e32d266ab3c8fabaf6e9e90b38c22a92aaedee"
+)
+REVIEWED_TEST_PRUNE_FILE_COUNT = 4346
+REVIEWED_TEST_PRUNE_BYTES = 61_897_658
+REVIEWED_TEST_PRUNE_TREE_SHA256 = (
+    "0049ade336176c8c02ab35ef194e6256452e30e2980c148bfa2754b8e2aa5079"
+)
+REVIEWED_SAMPLE_DATA_FILES = {
+    "lib/python3.11/site-packages/networkx/generators/atlas.dat.gz": {
+        "bytes": 8887,
+        "sha256": (
+            "73fc416df0164923607751cb759f4ae81deb5f6550bf25be59c86de3b747e41d"
+        ),
+    },
+}
+REVIEWED_SAMPLE_DATA_DIRECTORIES = {
+    "lib/python3.11/site-packages/pyannote/audio/sample": {
+        "files": 4,
+        "bytes": 964_146,
+        "tree_sha256": (
+            "0fdef21086d733f355b888e1a2fecafa146f0f99d1547afab833a7d1acffc6ea"
+        ),
+    },
+}
+REVIEWED_DEVELOPMENT_CONTENT_DIRECTORIES = {
+    "lib/python3.11/site-packages/docs": {
+        "files": 1,
+        "bytes": 5_813,
+        "tree_sha256": (
+            "a805e8aea0d6bc27a95494b3931f4b41f5accb358570828a4a5613a554af2460"
+        ),
+    },
+    "lib/python3.11/site-packages/lightning/pytorch/demos": {
+        "files": 5,
+        "bytes": 31_143,
+        "tree_sha256": (
+            "19be71252d240636adfcbe2cbf986ba75a77951e6fb9f98dae8062fc9f7163dd"
+        ),
+    },
+    "lib/python3.11/site-packages/numpy/random/_examples": {
+        "files": 7,
+        "bytes": 14_434,
+        "tree_sha256": (
+            "465a05403b9264579a764a487e2ab35a78d8771ccc61d5f58c134a1d8abc0086"
+        ),
+    },
+    "lib/python3.11/site-packages/pytorch_lightning/demos": {
+        "files": 5,
+        "bytes": 31_143,
+        "tree_sha256": (
+            "394cf232a45484ef04008ed8e1793fb2290767151182c39aee2f28cb4dfc5697"
+        ),
+    },
+    "lib/python3.11/site-packages/recipes": {
+        "files": 352,
+        "bytes": 4_532_024,
+        "tree_sha256": (
+            "47826d9e6f73b64969324679436a45e2e57f733b4bb1ae0aef66c08c3faf0a38"
+        ),
+    },
+    "lib/python3.11/site-packages/sympy/benchmarks": {
+        "files": 4,
+        "bytes": 17_080,
+        "tree_sha256": (
+            "ff2b32088c104959ed3773f2f15f18e5364cb9ed68f1dd206004931964e3a89c"
+        ),
+    },
+    "lib/python3.11/site-packages/sympy/core/benchmarks": {
+        "files": 7,
+        "bytes": 2_499,
+        "tree_sha256": (
+            "c2403cb54d1535b070ff0497c4093416dcf14a381ee41e62adb4e2a3d89057f9"
+        ),
+    },
+    "lib/python3.11/site-packages/sympy/functions/elementary/benchmarks": {
+        "files": 2,
+        "bytes": 185,
+        "tree_sha256": (
+            "e2e1fead6b76aedf606354e32e6389d1630990a594821bd7451d2375146535df"
+        ),
+    },
+    "lib/python3.11/site-packages/sympy/functions/special/benchmarks": {
+        "files": 2,
+        "bytes": 164,
+        "tree_sha256": (
+            "87bd6ce80c266454e6ddf5d51a2578741e9f38267eaca0b9d5741cc7d05b75d5"
+        ),
+    },
+    "lib/python3.11/site-packages/sympy/integrals/benchmarks": {
+        "files": 3,
+        "bytes": 701,
+        "tree_sha256": (
+            "3339026111448b63fb84f71d5134cdf9f34ba97f60535364bb6da10d2ab3aa90"
+        ),
+    },
+    "lib/python3.11/site-packages/sympy/matrices/benchmarks": {
+        "files": 2,
+        "bytes": 306,
+        "tree_sha256": (
+            "c758c949709d86a9ccc5e788e868355f01a65c5bc43b5ce2c7564bc673770568"
+        ),
+    },
+    "lib/python3.11/site-packages/sympy/parsing/autolev/test-examples": {
+        "files": 33,
+        "bytes": 31_963,
+        "tree_sha256": (
+            "8be46fc38432e12034115defe433d63b9f825abed75bba944d6b0f950e6890d1"
+        ),
+    },
+    "lib/python3.11/site-packages/sympy/polys/benchmarks": {
+        "files": 4,
+        "bytes": 449_083,
+        "tree_sha256": (
+            "9a816b10ee139187864b3768537a3ce07c6fa10f04ce85cc4631af3bb897822f"
+        ),
+    },
+    "lib/python3.11/site-packages/sympy/series/benchmarks": {
+        "files": 3,
+        "bytes": 380,
+        "tree_sha256": (
+            "f87895fceea4f798bbaaca262f07a076effc3e3fb59888ba74b85901ec6bd4cd"
+        ),
+    },
+    "lib/python3.11/site-packages/sympy/solvers/benchmarks": {
+        "files": 2,
+        "bytes": 288,
+        "tree_sha256": (
+            "607a9dfbd31a60c8a76c7d61b90dd24d39a7b8008afe57e3bb9ae5e20263923b"
+        ),
+    },
+    "lib/python3.11/site-packages/templates": {
+        "files": 19,
+        "bytes": 127_741,
+        "tree_sha256": (
+            "5c00636f53d7ab7386224af7fdee1a7c0d81aa04487e1df37be972016c351c5a"
+        ),
+    },
+    "lib/python3.11/site-packages/tools": {
+        "files": 5,
+        "bytes": 40_934,
+        "tree_sha256": (
+            "75f32ce602e78469d4ec97554ef5685a9ded1c78c486013754004c52f33210a1"
+        ),
+    },
+}
+RETAINED_TESTING_API_DIRECTORIES = {
+    "lib/python3.11/site-packages/numpy/testing",
+    "lib/python3.11/site-packages/sympy/testing",
+    "lib/python3.11/site-packages/torch/_numpy/testing",
+    "lib/python3.11/site-packages/torch/testing",
+}
+
+
 def prune_unreachable_third_party_test_content(
     root: Path,
     evidence: Path,
+    *,
+    enforce_reviewed_contract: bool = True,
 ) -> dict[str, Any]:
-    """Remove an unreachable upstream testing module that embeds a CI token."""
-    relative = Path("lib/python3.11/site-packages/transformers/testing_utils.py")
-    path = root / relative
-    require(path.is_file(), f"expected Transformers testing utility is missing: {relative}")
-    original = path.read_bytes()
-    matches = list(TOKEN_PATTERNS[1].finditer(original))
+    """Remove reviewed upstream test-only content from the copied runtime."""
+    transformers_relative = Path(
+        "lib/python3.11/site-packages/transformers/testing_utils.py"
+    )
+    transformers_path = root / transformers_relative
+    require(
+        transformers_path.is_file(),
+        f"expected Transformers testing utility is missing: {transformers_relative}",
+    )
+    transformers_original = transformers_path.read_bytes()
+    matches = list(TOKEN_PATTERNS[1].finditer(transformers_original))
     require(
         len(matches) == 1,
         "Transformers test-token contract changed; human review is required",
     )
     token = matches[0].group()
     for source in (ROOT / "src").rglob("*.py"):
+        payload = source.read_bytes()
         require(
-            b"transformers.testing_utils" not in source.read_bytes(),
+            b"transformers.testing_utils" not in payload,
             f"production source reaches Transformers testing utility: {source}",
         )
-    path.unlink()
+        require(
+            b"joblib.test" not in payload,
+            f"production source reaches joblib test content: {source}",
+        )
+
+    site_packages = root / "lib/python3.11/site-packages"
+    require(site_packages.is_dir(), "runtime site-packages directory is missing")
+    candidate_names = {"sample_data", "test", "testdata", "testing", "tests"}
+    candidates = sorted(
+        (
+            path
+            for path in site_packages.rglob("*")
+            if path.is_dir()
+            and path.name.casefold() in candidate_names
+            and path.relative_to(root).as_posix()
+            not in RETAINED_TESTING_API_DIRECTORIES
+        ),
+        key=lambda path: (len(path.parts), path.as_posix()),
+    )
+    selected: list[Path] = []
+    for candidate in candidates:
+        if not any(parent in candidate.parents for parent in selected):
+            selected.append(candidate)
+    for relative in (
+        Path("lib/python3.11/site-packages/sklearn/datasets/data"),
+        Path("lib/python3.11/site-packages/sklearn/datasets/descr"),
+        Path("lib/python3.11/site-packages/sklearn/datasets/images"),
+    ):
+        candidate = root / relative
+        if candidate.is_dir() and not any(
+            parent in candidate.parents for parent in selected
+        ):
+            selected.append(candidate)
+    selected.sort(key=lambda path: path.relative_to(root).as_posix())
+    joblib_path = site_packages / "joblib/test"
+    require(joblib_path in selected, "joblib test-content prune target is missing")
+    selected_paths = [
+        target.relative_to(root).as_posix() for target in selected
+    ]
+
+    test_files: list[dict[str, Any]] = []
+    for target in selected:
+        require(
+            not target.is_symlink(),
+            f"test-content symlink requires human review: {target}",
+        )
+        for candidate in sorted(target.rglob("*")):
+            require(
+                not candidate.is_symlink(),
+                f"test-content symlink requires human review: {candidate}",
+            )
+            if candidate.is_file():
+                test_files.append(
+                    {
+                        "path": candidate.relative_to(root).as_posix(),
+                        "bytes": candidate.stat().st_size,
+                        "sha256": sha256(candidate),
+                    }
+                )
+    require(test_files, "test-content inventory is unexpectedly empty")
+    if enforce_reviewed_contract:
+        require(
+            len(selected_paths) == REVIEWED_TEST_PRUNE_ROOT_COUNT,
+            "reviewed test-content root count drift",
+        )
+        require(
+            canonical_json_sha256(selected_paths)
+            == REVIEWED_TEST_PRUNE_ROOTS_SHA256,
+            "reviewed test-content root set drift",
+        )
+        require(
+            len(test_files) == REVIEWED_TEST_PRUNE_FILE_COUNT,
+            "reviewed test-content file count drift",
+        )
+        require(
+            sum(int(row["bytes"]) for row in test_files)
+            == REVIEWED_TEST_PRUNE_BYTES,
+            "reviewed test-content byte count drift",
+        )
+        require(
+            canonical_json_sha256(test_files)
+            == REVIEWED_TEST_PRUNE_TREE_SHA256,
+            "reviewed test-content inventory drift",
+        )
+
+    sample_files: list[dict[str, Any]] = []
+    for relative_string, expected in REVIEWED_SAMPLE_DATA_FILES.items():
+        relative = Path(relative_string)
+        candidate = root / relative
+        require(
+            candidate.is_file() and not candidate.is_symlink(),
+            f"reviewed sample-data prune target is missing: {relative}",
+        )
+        row = {
+            "path": relative.as_posix(),
+            "bytes": candidate.stat().st_size,
+            "sha256": sha256(candidate),
+        }
+        if enforce_reviewed_contract:
+            require(
+                row["bytes"] == expected["bytes"]
+                and row["sha256"] == expected["sha256"],
+                f"reviewed sample-data content drift: {relative}",
+            )
+        sample_files.append(row)
+    sample_directory_files: list[dict[str, Any]] = []
+    sample_directories: list[Path] = []
+    for relative_string, expected in REVIEWED_SAMPLE_DATA_DIRECTORIES.items():
+        relative = Path(relative_string)
+        directory = root / relative
+        require(
+            directory.is_dir() and not directory.is_symlink(),
+            f"reviewed sample-data directory is missing: {relative}",
+        )
+        sample_directories.append(directory)
+        rows: list[dict[str, Any]] = []
+        for candidate in sorted(directory.rglob("*")):
+            require(
+                not candidate.is_symlink(),
+                f"sample-data symlink requires human review: {candidate}",
+            )
+            if candidate.is_file():
+                rows.append(
+                    {
+                        "path": candidate.relative_to(root).as_posix(),
+                        "bytes": candidate.stat().st_size,
+                        "sha256": sha256(candidate),
+                    }
+                )
+        if enforce_reviewed_contract:
+            require(
+                len(rows) == expected["files"],
+                f"reviewed sample-data file count drift: {relative}",
+            )
+            require(
+                sum(int(row["bytes"]) for row in rows) == expected["bytes"],
+                f"reviewed sample-data byte count drift: {relative}",
+            )
+            require(
+                canonical_json_sha256(rows) == expected["tree_sha256"],
+                f"reviewed sample-data inventory drift: {relative}",
+            )
+        sample_directory_files.extend(rows)
+    development_directory_files: list[dict[str, Any]] = []
+    development_directories: list[Path] = []
+    for relative_string, expected in (
+        REVIEWED_DEVELOPMENT_CONTENT_DIRECTORIES.items()
+    ):
+        relative = Path(relative_string)
+        directory = root / relative
+        require(
+            directory.is_dir() and not directory.is_symlink(),
+            f"reviewed development-content directory is missing: {relative}",
+        )
+        development_directories.append(directory)
+        rows = []
+        for candidate in sorted(directory.rglob("*")):
+            require(
+                not candidate.is_symlink(),
+                f"development-content symlink requires human review: {candidate}",
+            )
+            if candidate.is_file():
+                rows.append(
+                    {
+                        "path": candidate.relative_to(root).as_posix(),
+                        "bytes": candidate.stat().st_size,
+                        "sha256": sha256(candidate),
+                    }
+                )
+        if enforce_reviewed_contract:
+            require(
+                len(rows) == expected["files"],
+                f"reviewed development-content file count drift: {relative}",
+            )
+            require(
+                sum(int(row["bytes"]) for row in rows) == expected["bytes"],
+                f"reviewed development-content byte count drift: {relative}",
+            )
+            require(
+                canonical_json_sha256(rows) == expected["tree_sha256"],
+                f"reviewed development-content inventory drift: {relative}",
+            )
+        development_directory_files.extend(rows)
+    for source in (site_packages / "joblib").rglob("*.py"):
+        if joblib_path in source.parents:
+            continue
+        require(
+            b"joblib.test" not in source.read_bytes(),
+            f"joblib production module reaches bundled test content: {source}",
+        )
+
+    transformers_path.unlink()
+    for target in selected:
+        shutil.rmtree(target)
+    for directory in sample_directories:
+        shutil.rmtree(directory)
+    for directory in development_directories:
+        shutil.rmtree(directory)
+    for row in sample_files:
+        (root / row["path"]).unlink()
+    verify_unreachable_third_party_test_content_absent(root)
+    transformers_result = {
+        "path": transformers_relative.as_posix(),
+        "exists": False,
+    }
+    test_results = [
+        {
+            "path": target.relative_to(root).as_posix(),
+            "exists": False,
+        }
+        for target in selected
+    ]
+    sample_results = [
+        {
+            "path": row["path"],
+            "exists": False,
+        }
+        for row in sample_files
+    ]
+    sample_directory_results = [
+        {
+            "path": directory.relative_to(root).as_posix(),
+            "exists": False,
+        }
+        for directory in sample_directories
+    ]
+    development_directory_results = [
+        {
+            "path": directory.relative_to(root).as_posix(),
+            "exists": False,
+        }
+        for directory in development_directories
+    ]
     payload: dict[str, Any] = {
-        "schema_version": "auralign-unreachable-test-content-pruning.v1",
-        "path": relative.as_posix(),
-        "reason": "not reachable from Auralign production entry points",
+        "schema_version": "auralign-unreachable-test-content-pruning.v3",
+        "scope": "copied runtime stage only",
+        "source_wheels_archives_and_repository_untouched": True,
         "credential_sha256": hashlib.sha256(token).hexdigest(),
-        "original_sha256": hashlib.sha256(original).hexdigest(),
-        "original_bytes": len(original),
-        "result": "removed from copied runtime stage",
+        "removed": [
+            {
+                "path": transformers_relative.as_posix(),
+                "reason": "not reachable from Auralign production entry points",
+                "original_sha256": hashlib.sha256(transformers_original).hexdigest(),
+                "original_bytes": len(transformers_original),
+                "result": "absent",
+                "result_state_sha256": canonical_json_sha256(transformers_result),
+            },
+            {
+                "paths": [
+                    target.relative_to(root).as_posix() for target in selected
+                ],
+                "reason": (
+                    "upstream test modules, compatibility fixtures, and sample "
+                    "datasets are not "
+                    "reachable from Auralign production entry points"
+                ),
+                "original_tree_sha256": canonical_json_sha256(test_files),
+                "original_directories": len(selected),
+                "original_files": len(test_files),
+                "original_bytes": sum(int(row["bytes"]) for row in test_files),
+                "files": test_files,
+                "result": "absent",
+                "result_state_sha256": canonical_json_sha256(test_results),
+            },
+            {
+                "paths": [row["path"] for row in sample_files],
+                "reason": (
+                    "upstream public sample corpus is not reachable from "
+                    "Auralign production entry points"
+                ),
+                "original_tree_sha256": canonical_json_sha256(sample_files),
+                "original_files": len(sample_files),
+                "original_bytes": sum(
+                    int(row["bytes"]) for row in sample_files
+                ),
+                "files": sample_files,
+                "result": "absent",
+                "result_state_sha256": canonical_json_sha256(sample_results),
+            },
+            {
+                "paths": [
+                    directory.relative_to(root).as_posix()
+                    for directory in sample_directories
+                ],
+                "reason": (
+                    "upstream media/example fixture is not reachable from "
+                    "Auralign production entry points"
+                ),
+                "original_tree_sha256": canonical_json_sha256(
+                    sample_directory_files
+                ),
+                "original_files": len(sample_directory_files),
+                "original_bytes": sum(
+                    int(row["bytes"]) for row in sample_directory_files
+                ),
+                "files": sample_directory_files,
+                "result": "absent",
+                "result_state_sha256": canonical_json_sha256(
+                    sample_directory_results
+                ),
+            },
+            {
+                "paths": [
+                    directory.relative_to(root).as_posix()
+                    for directory in development_directories
+                ],
+                "reason": (
+                    "upstream documentation, recipes, demos, templates, "
+                    "tools, benchmarks, and test examples are not reachable "
+                    "from Auralign production entry points"
+                ),
+                "original_tree_sha256": canonical_json_sha256(
+                    development_directory_files
+                ),
+                "original_files": len(development_directory_files),
+                "original_bytes": sum(
+                    int(row["bytes"])
+                    for row in development_directory_files
+                ),
+                "files": development_directory_files,
+                "result": "absent",
+                "result_state_sha256": canonical_json_sha256(
+                    development_directory_results
+                ),
+            },
+        ],
     }
     evidence_path = evidence / "unreachable-test-content-pruning.json"
     evidence_path.write_text(
@@ -898,7 +1378,397 @@ def prune_unreachable_third_party_test_content(
         encoding="utf-8",
     )
     return {
-        "files_removed": 1,
+        "directories_removed": (
+            len(selected)
+            + len(sample_directories)
+            + len(development_directories)
+        ),
+        "files_removed": (
+            1
+            + len(test_files)
+            + len(sample_files)
+            + len(sample_directory_files)
+            + len(development_directory_files)
+        ),
+        "evidence_sha256": sha256(evidence_path),
+    }
+
+
+def verify_unreachable_third_party_test_content_absent(root: Path) -> None:
+    site_packages = root / "lib/python3.11/site-packages"
+    forbidden_paths = (
+        Path("lib/python3.11/site-packages/transformers/testing_utils.py"),
+        Path(
+            "lib/python3.11/site-packages/networkx/generators/"
+            "atlas.dat.gz"
+        ),
+        Path("lib/python3.11/site-packages/pyannote/audio/sample"),
+        Path("lib/python3.11/site-packages/sklearn/datasets/data"),
+        Path("lib/python3.11/site-packages/sklearn/datasets/descr"),
+        Path("lib/python3.11/site-packages/sklearn/datasets/images"),
+        *(
+            Path(relative)
+            for relative in REVIEWED_DEVELOPMENT_CONTENT_DIRECTORIES
+        ),
+    )
+    for relative in forbidden_paths:
+        path = root / relative
+        require(
+            not path.exists() and not path.is_symlink(),
+            f"unreachable third-party test content remains: {relative}",
+        )
+    forbidden_directories = sorted(
+        path.relative_to(root).as_posix()
+        for path in site_packages.rglob("*")
+        if path.is_dir()
+        and path.name.casefold()
+        in {"sample_data", "test", "testdata", "testing", "tests"}
+        and path.relative_to(root).as_posix()
+        not in RETAINED_TESTING_API_DIRECTORIES
+    )
+    require(
+        not forbidden_directories,
+        "unreachable third-party test directories remain: "
+        + ", ".join(forbidden_directories),
+    )
+
+
+APPROVED_RUNTIME_DATA = {
+    "lib/python3.11/lib2to3/Grammar3.11.15.final.0.pickle": {
+        "bytes": 15_313,
+        "sha256": (
+            "97c8ed74d091fcfd23498029bb819c29d096c3dcb1326edee5dfb0591ade2e4b"
+        ),
+        "classification": "CPython lib2to3 grammar data",
+    },
+    "lib/python3.11/lib2to3/PatternGrammar3.11.15.final.0.pickle": {
+        "bytes": 1_225,
+        "sha256": (
+            "36ee934395b9209737b13893ddaff05fad8e239c2fdfac29d401d3fceeb30768"
+        ),
+        "classification": "CPython lib2to3 pattern grammar data",
+    },
+    "lib/python3.11/site-packages/scipy/stats/_sobol_direction_numbers.npz": {
+        "bytes": 589_334,
+        "sha256": (
+            "4859931147d42ce465b8605cb277f957d98b839d03194fdf06579357906d193b"
+        ),
+        "classification": "SciPy Sobol direction-number data",
+    },
+    "lib/python3.11/site-packages/whisperx/assets/mel_filters.npz": {
+        "bytes": 4_271,
+        "sha256": (
+            "7450ae70723a5ef9d341e3cee628c7cb0177f36ce42c44b7ed2bf3325f0f6d4c"
+        ),
+        "classification": "WhisperX mel-filter numerical data",
+    },
+    "lib/python3.11/site-packages/sentencepiece/package_data/nfkc.bin": {
+        "bytes": 240_008,
+        "sha256": (
+            "52f11028ff8a7df3e009d94a8b6a54d4a8a17132efb4ccc1c9a0a41e432bd91e"
+        ),
+        "classification": "SentencePiece normalization data",
+    },
+    "lib/python3.11/site-packages/sentencepiece/package_data/nfkc_cf.bin": {
+        "bytes": 247_028,
+        "sha256": (
+            "60833ec11201446659c3549c183b18f024c4007628cc6b3a4e91ae007697b826"
+        ),
+        "classification": "SentencePiece normalization data",
+    },
+    "lib/python3.11/site-packages/sentencepiece/package_data/nmt_nfkc.bin": {
+        "bytes": 240_007,
+        "sha256": (
+            "79372c41389c2b9b29bc171017ab5400e352debd686b02670a42bec709015074"
+        ),
+        "classification": "SentencePiece normalization data",
+    },
+    "lib/python3.11/site-packages/sentencepiece/package_data/nmt_nfkc_cf.bin": {
+        "bytes": 247_027,
+        "sha256": (
+            "22c292c76f503795f30c85d79d30a7f572fff4f49e00392d2d60f4f93e941a1e"
+        ),
+        "classification": "SentencePiece normalization data",
+    },
+}
+APPROVED_RUNTIME_ARCHIVES = {
+    "lib/python3.11/site-packages/dateutil/zoneinfo/dateutil-zoneinfo.tar.gz": {
+        "bytes": 156_400,
+        "sha256": (
+            "d3ea52e7b6e968de0d884df1288193596fa95b803db4f92a18279a7398004475"
+        ),
+        "classification": "python-dateutil timezone data",
+    },
+}
+APPROVED_RUNTIME_LEGAL_ARCHIVES = {
+    "Legal/ffmpeg-7.1.5.tar.xz": {
+        "bytes": 11_050_340,
+        "sha256": (
+            "de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f"
+        ),
+        "classification": "FFmpeg LGPL corresponding source",
+    },
+}
+APPROVED_RUNTIME_PATH_CONFIGURATION = {
+    "lib/python3.11/site-packages/distutils-precedence.pth": {
+        "bytes": 151,
+        "sha256": (
+            "2638ce9e2500e572a5e0de7faed6661eb569d1b696fcba07b0dd223da5f5d224"
+        ),
+        "classification": "setuptools distutils path-configuration hook",
+    },
+}
+REVIEWED_MODEL_PRUNE_FILE_COUNT = 10
+REVIEWED_MODEL_PRUNE_WEIGHT_COUNT = 9
+REVIEWED_MODEL_PRUNE_BYTES = 19_002_009
+REVIEWED_MODEL_PRUNE_TREE_SHA256 = (
+    "45a98bce78625742c9b2f837c213212c0b2e2b3566afcc50154e7ed878e787aa"
+)
+
+
+def _is_model_weight_path(relative: Path) -> bool:
+    if relative == Path(
+        "lib/python3.11/site-packages/distutils-precedence.pth"
+    ):
+        return False
+    return (
+        relative.suffix.casefold()
+        in {
+            ".bin",
+            ".ckpt",
+            ".gguf",
+            ".h5",
+            ".hdf5",
+            ".mar",
+            ".mlmodel",
+            ".onnx",
+            ".pb",
+            ".pt",
+            ".pth",
+            ".safetensors",
+            ".tflite",
+        }
+        or relative.suffix.casefold() == ".mlpackage"
+    )
+
+
+def verify_unbundled_model_assets_absent(
+    root: Path,
+    *,
+    enforce_retained_data_contract: bool = True,
+) -> list[dict[str, Any]]:
+    site_packages = root / "lib/python3.11/site-packages"
+    require(site_packages.is_dir(), "runtime site-packages directory is missing")
+    approved_binary_data = {
+        relative
+        for relative in APPROVED_RUNTIME_DATA
+        if Path(relative).suffix.casefold() == ".bin"
+    }
+    prohibited = sorted(
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if (path.is_file() or path.is_dir())
+        and _is_model_weight_path(path.relative_to(root))
+        and path.relative_to(root).as_posix() not in approved_binary_data
+    )
+    require(
+        not prohibited,
+        "bundled model-weight paths remain: " + ", ".join(prohibited),
+    )
+    if not enforce_retained_data_contract:
+        return []
+
+    approved_data = dict(APPROVED_RUNTIME_DATA)
+    observed_serialized_data = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file()
+        and path.suffix.casefold()
+        in {".bin", ".npy", ".npz", ".pickle", ".pkl"}
+    }
+    require(
+        observed_serialized_data == set(approved_data),
+        "serialized runtime data inventory drift: "
+        + ", ".join(
+            sorted(observed_serialized_data.symmetric_difference(approved_data))
+        ),
+    )
+    approved_archives = dict(APPROVED_RUNTIME_ARCHIVES)
+    if (root / "Legal").is_dir():
+        approved_archives.update(APPROVED_RUNTIME_LEGAL_ARCHIVES)
+    observed_archives = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file()
+        and path.name.casefold().endswith(
+            (".7z", ".bz2", ".gz", ".tar", ".tgz", ".xz", ".zip")
+        )
+    }
+    require(
+        observed_archives == set(approved_archives),
+        "embedded runtime archive inventory drift: "
+        + ", ".join(
+            sorted(observed_archives.symmetric_difference(approved_archives))
+        ),
+    )
+    retained: list[dict[str, Any]] = []
+    for relative, expected in sorted(
+        {
+            **approved_data,
+            **approved_archives,
+            **APPROVED_RUNTIME_PATH_CONFIGURATION,
+        }.items()
+    ):
+        path = root / relative
+        observed = {
+            "path": relative,
+            "bytes": path.stat().st_size,
+            "sha256": sha256(path),
+            "classification": expected["classification"],
+        }
+        require(
+            observed["bytes"] == expected["bytes"]
+            and observed["sha256"] == expected["sha256"],
+            f"approved runtime data content drift: {relative}",
+        )
+        retained.append(observed)
+    return retained
+
+
+def prune_unbundled_model_assets(
+    root: Path,
+    evidence: Path,
+    *,
+    enforce_retained_data_contract: bool = True,
+) -> dict[str, Any]:
+    """Remove upstream model weights that are outside Auralign's model manifest."""
+    for source in (ROOT / "src").rglob("*.py"):
+        payload = source.read_bytes()
+        for marker in (
+            b"onnxruntime.datasets",
+            b"torchmetrics.functional.image.dists_models",
+            b"torchmetrics.functional.image.lpips_models",
+            b"whisperx.vads",
+        ):
+            require(
+                marker not in payload,
+                f"production source reaches unbundled upstream model asset: {source}",
+            )
+    faster_whisper_backend = (
+        ROOT / "src/local_transcript_max/asr/faster_whisper_backend.py"
+    ).read_bytes()
+    require(
+        b"require_faster_whisper_vad_asset" in faster_whisper_backend
+        and b"silero_vad_v6.onnx" in faster_whisper_backend
+        and b"standalone runtime intentionally excludes" in faster_whisper_backend,
+        "faster-whisper VAD model exclusion is not fail-closed",
+    )
+    targets = (
+        Path(
+            "lib/python3.11/site-packages/faster_whisper/assets/"
+            "silero_vad_v6.onnx"
+        ),
+        Path("lib/python3.11/site-packages/onnxruntime/datasets"),
+        Path(
+            "lib/python3.11/site-packages/torchmetrics/functional/image/"
+            "dists_models"
+        ),
+        Path(
+            "lib/python3.11/site-packages/torchmetrics/functional/image/"
+            "lpips_models"
+        ),
+        Path("lib/python3.11/site-packages/whisperx/assets/pytorch_model.bin"),
+    )
+    files: list[dict[str, Any]] = []
+    for relative in targets:
+        target = root / relative
+        require(
+            target.is_file() or target.is_dir(),
+            f"expected upstream model asset is missing: {relative}",
+        )
+        require(
+            not target.is_symlink(),
+            f"upstream model-asset symlink requires human review: {relative}",
+        )
+        candidates = [target] if target.is_file() else sorted(target.rglob("*"))
+        for candidate in candidates:
+            require(
+                not candidate.is_symlink(),
+                f"upstream model-asset symlink requires human review: {candidate}",
+            )
+            if candidate.is_file():
+                files.append(
+                    {
+                        "path": candidate.relative_to(root).as_posix(),
+                        "bytes": candidate.stat().st_size,
+                        "sha256": sha256(candidate),
+                        "model_weight": _is_model_weight_path(
+                            candidate.relative_to(root)
+                        ),
+                    }
+                )
+    weight_files = [row for row in files if row["model_weight"]]
+    require(
+        len(weight_files) == REVIEWED_MODEL_PRUNE_WEIGHT_COUNT,
+        "upstream bundled-model contract changed; human review is required",
+    )
+    if enforce_retained_data_contract:
+        require(
+            len(files) == REVIEWED_MODEL_PRUNE_FILE_COUNT,
+            "reviewed bundled-model file count drift",
+        )
+        require(
+            sum(int(row["bytes"]) for row in files)
+            == REVIEWED_MODEL_PRUNE_BYTES,
+            "reviewed bundled-model byte count drift",
+        )
+        require(
+            canonical_json_sha256(files)
+            == REVIEWED_MODEL_PRUNE_TREE_SHA256,
+            "reviewed bundled-model inventory drift",
+        )
+    for relative in targets:
+        target = root / relative
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    retained_data = verify_unbundled_model_assets_absent(
+        root,
+        enforce_retained_data_contract=enforce_retained_data_contract,
+    )
+    result_states = [
+        {
+            "path": relative.as_posix(),
+            "exists": False,
+        }
+        for relative in targets
+    ]
+    payload: dict[str, Any] = {
+        "schema_version": "auralign-unbundled-model-assets.v1",
+        "scope": "copied runtime stage only",
+        "source_wheels_archives_and_repository_untouched": True,
+        "reason": (
+            "model weights remain external and only reviewed manifest models "
+            "may establish runtime readiness"
+        ),
+        "original_tree_sha256": canonical_json_sha256(files),
+        "original_files": len(files),
+        "original_bytes": sum(int(row["bytes"]) for row in files),
+        "model_weight_files": len(weight_files),
+        "files": files,
+        "result": "absent",
+        "result_state_sha256": canonical_json_sha256(result_states),
+        "retained_non_model_data": retained_data,
+    }
+    evidence_path = evidence / "unbundled-model-assets.json"
+    evidence_path.write_text(
+        json.dumps(payload, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "files_removed": len(files),
+        "model_weight_files_removed": len(weight_files),
         "evidence_sha256": sha256(evidence_path),
     }
 
@@ -1468,6 +2338,8 @@ def verify_app_topology(app: Path) -> None:
         (app_runtime_root(app) / "bin/python3").is_file(),
         "embedded Python launcher missing",
     )
+    verify_unreachable_third_party_test_content_absent(app_runtime_root(app))
+    verify_unbundled_model_assets_absent(app_runtime_root(app))
     require(not (contents / "PlugIns").exists(), "application plug-ins are prohibited")
     verify_installable_payload_modes(app)
 
@@ -1682,6 +2554,8 @@ def runtime_inventory(runtime: Path, output_path: Path) -> None:
 
 
 def runtime_smoke(runtime: Path, *, label: str) -> dict[str, str]:
+    verify_unreachable_third_party_test_content_absent(runtime)
+    verify_unbundled_model_assets_absent(runtime)
     python = runtime / "bin/python3"
     ffmpeg = runtime / "bin/ffmpeg"
     ffprobe = runtime / "bin/ffprobe"
@@ -1753,6 +2627,132 @@ def runtime_smoke(runtime: Path, *, label: str) -> dict[str, str]:
             reachability.stdout.strip() == "False",
             f"{label}: production entry point reached Transformers testing utility",
         )
+        joblib = run(
+            embedded_python_command(
+                python,
+                "-I",
+                "-c",
+                (
+                    "import joblib,json,os,sys,tempfile;"
+                    "handle=tempfile.NamedTemporaryFile(delete=False);"
+                    "path=handle.name;handle.close();"
+                    "joblib.dump({'ok':True},path);"
+                    "value=joblib.load(path);os.unlink(path);"
+                    "print(json.dumps({"
+                    "'version':joblib.__version__,"
+                    "'round_trip':value=={'ok':True},"
+                    "'test_reachable':any("
+                    "name=='joblib.test' or name.startswith('joblib.test.') "
+                    "for name in sys.modules)}))"
+                ),
+            ),
+            cwd=home,
+            env=environment,
+            capture=True,
+        )
+        joblib_result = json.loads(joblib.stdout)
+        require(
+            joblib_result.get("round_trip") is True,
+            f"{label}: joblib round-trip smoke failed",
+        )
+        require(
+            joblib_result.get("test_reachable") is False,
+            f"{label}: production joblib smoke reached bundled test content",
+        )
+        production_dependencies = run(
+            embedded_python_command(
+                python,
+                "-I",
+                "-c",
+                (
+                    "import importlib,json;"
+                    "names=('faster_whisper','onnxruntime','pyannote.audio',"
+                    "'speechbrain.inference.speaker','torchaudio','torchmetrics',"
+                    "'whisperx.alignment');"
+                    "modules={name:importlib.import_module(name) for name in names};"
+                    "print(json.dumps({name:getattr(module,'__version__','imported') "
+                    "for name,module in modules.items()},sort_keys=True))"
+                ),
+            ),
+            cwd=home,
+            env=environment,
+            capture=True,
+        )
+        production_dependency_versions = json.loads(production_dependencies.stdout)
+        require(
+            set(production_dependency_versions)
+            == {
+                "faster_whisper",
+                "onnxruntime",
+                "pyannote.audio",
+                "speechbrain.inference.speaker",
+                "torchaudio",
+                "torchmetrics",
+                "whisperx.alignment",
+            },
+            f"{label}: production dependency import smoke drift",
+        )
+        retained_data = run(
+            embedded_python_command(
+                python,
+                "-I",
+                "-c",
+                (
+                    "import importlib,json,numpy as np,sentencepiece,whisperx\n"
+                    "from dateutil.zoneinfo import get_zonefile_instance\n"
+                    "from lib2to3.refactor import RefactoringTool\n"
+                    "from pathlib import Path\n"
+                    "from scipy.stats import qmc\n"
+                    "from local_transcript_max.asr.faster_whisper_backend "
+                    "import require_faster_whisper_vad_asset\n"
+                    "from local_transcript_max.errors import "
+                    "BackendUnavailableError\n"
+                    "mel_path=Path(whisperx.__file__).parent/"
+                    "'assets/mel_filters.npz'\n"
+                    "mel=np.load(mel_path)['mel_80']\n"
+                    "sobol=qmc.Sobol(d=2,scramble=False).random_base2(m=2)\n"
+                    "zones=get_zonefile_instance().zones\n"
+                    "sentencepiece.SetDataDir(str(Path(sentencepiece.__file__)."
+                    "parent/'package_data'))\n"
+                    "normalized=sentencepiece.SentencePieceNormalizer("
+                    "rule_name='nmt_nfkc').normalize('ＡＢＣ')\n"
+                    "RefactoringTool([])\n"
+                    "assets_path=Path(importlib.import_module("
+                    "'faster_whisper.utils').get_assets_path())\n"
+                    "require_faster_whisper_vad_asset("
+                    "enabled=False,assets_path=assets_path)\n"
+                    "vad_blocked=False\n"
+                    "try:\n"
+                    " require_faster_whisper_vad_asset("
+                    "enabled=True,assets_path=assets_path)\n"
+                    "except BackendUnavailableError:\n"
+                    " vad_blocked=True\n"
+                    "result={'mel_shape':list(mel.shape),"
+                    "'sobol_finite':bool(np.isfinite(sobol).all()),"
+                    "'denver_zone':zones.get('America/Denver') is not None,"
+                    "'sentencepiece_normalized':normalized,"
+                    "'vad_false_supported':True,"
+                    "'vad_true_blocked':vad_blocked}\n"
+                    "print(json.dumps(result,sort_keys=True))"
+                ),
+            ),
+            cwd=home,
+            env=environment,
+            capture=True,
+        )
+        retained_data_result = json.loads(retained_data.stdout)
+        require(
+            retained_data_result
+            == {
+                "denver_zone": True,
+                "mel_shape": [80, 201],
+                "sentencepiece_normalized": "ABC",
+                "sobol_finite": True,
+                "vad_false_supported": True,
+                "vad_true_blocked": True,
+            },
+            f"{label}: retained runtime data smoke drift",
+        )
         ffmpeg_version = run(
             [str(ffmpeg), "-version"],
             cwd=home,
@@ -1799,6 +2799,17 @@ def runtime_smoke(runtime: Path, *, label: str) -> dict[str, str]:
             "bridge_protocol": str(payload["protocol"]),
             "python": str(payload.get("python", "")),
             "transformers_testing_utils_reachable": reachability.stdout.strip(),
+            "joblib_version": str(joblib_result.get("version", "")),
+            "joblib_round_trip": str(joblib_result["round_trip"]),
+            "joblib_test_reachable": str(joblib_result["test_reachable"]),
+            "production_dependency_imports": json.dumps(
+                production_dependency_versions,
+                sort_keys=True,
+            ),
+            "retained_runtime_data": json.dumps(
+                retained_data_result,
+                sort_keys=True,
+            ),
         }
 
 
@@ -2518,6 +3529,7 @@ def build_runtime(
         runtime,
         evidence,
     )
+    unbundled_model_assets = prune_unbundled_model_assets(runtime, evidence)
     native_backend_pruning = prune_unbundled_native_backends(runtime, evidence)
     upstream_signature_stripping = strip_upstream_native_signatures(runtime, evidence)
     native_install_names = normalize_native_install_names(runtime, evidence)
@@ -2573,6 +3585,7 @@ def build_runtime(
         },
         "pure_python_sdist_builds": pure_python_sdist_builds,
         "unreachable_test_content_pruning": unreachable_test_content_pruning,
+        "unbundled_model_assets": unbundled_model_assets,
         "native_backend_pruning": native_backend_pruning,
         "upstream_signature_stripping": upstream_signature_stripping,
         "native_install_names": native_install_names,
@@ -2967,6 +3980,26 @@ def build_package(
     return package
 
 
+def validate_notarization_log(payload: Any) -> None:
+    require(isinstance(payload, dict), "Apple notarization log is not an object")
+    require(
+        payload.get("status") == "Accepted",
+        "Apple notarization log does not report Accepted",
+    )
+    require("issues" in payload, "Apple notarization issue list is missing")
+    issues = payload["issues"]
+    require(
+        issues is None or isinstance(issues, list),
+        "Apple notarization issue list is malformed",
+    )
+    if issues is None:
+        return
+    require(
+        not issues,
+        f"Apple notarization reported {len(issues)} warning or error issue(s)",
+    )
+
+
 def notarize(package: Path, profile: str, evidence: Path) -> None:
     submission = run(
         [
@@ -3005,6 +4038,7 @@ def notarize(package: Path, profile: str, evidence: Path) -> None:
         capture=True,
     )
     (evidence / "notarization-log.json").write_text(log.stdout, encoding="utf-8")
+    validate_notarization_log(json.loads(log.stdout))
     run(["xcrun", "stapler", "staple", "-v", str(package)])
     run(["xcrun", "stapler", "validate", "-v", str(package)])
 

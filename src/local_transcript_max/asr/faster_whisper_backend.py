@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import time
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,24 @@ from local_transcript_max.schemas import (
     StageTiming,
     VADRegion,
 )
+
+
+def require_faster_whisper_vad_asset(
+    *,
+    enabled: bool,
+    assets_path: str | Path,
+) -> None:
+    """Fail clearly when the optional upstream VAD weight is not installed."""
+
+    if not enabled:
+        return
+    model_path = Path(assets_path) / "silero_vad_v6.onnx"
+    if not model_path.is_file():
+        raise BackendUnavailableError(
+            "faster-whisper vad_filter requires its bundled Silero VAD model, "
+            "which the Auralign standalone runtime intentionally excludes. "
+            "Set asr.vad_filter=false; Auralign's local EnergyVAD remains active."
+        )
 
 
 class FasterWhisperBackend:
@@ -49,6 +68,11 @@ class FasterWhisperBackend:
                 "faster-whisper is not installed. Run: uv sync --extra asr"
             )
         from faster_whisper import WhisperModel
+
+        require_faster_whisper_vad_asset(
+            enabled=config.asr.vad_filter,
+            assets_path=import_module("faster_whisper.utils").get_assets_path(),
+        )
 
         batched_pipeline_factory: Any | None = None
         if config.asr.batched:

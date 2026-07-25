@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import json
 import socket
+import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 from pydantic import ValidationError
@@ -34,6 +36,7 @@ from local_transcript_max.doctor import (
     required_inference_dependencies,
     run_doctor,
 )
+from local_transcript_max.errors import BackendUnavailableError
 from local_transcript_max.gui_bridge import (
     MODEL_STATUS_SCHEMA_VERSION,
     ModelStatusCompleteness,
@@ -293,6 +296,26 @@ def test_doctor_startup_evidence_fails_closed_on_missing_probe(
     assert report.startup_evidence.observed_count == 0
     assert completeness.status == "error"
     assert report.ok is False
+
+
+def test_startup_probe_rejects_excluded_faster_whisper_vad_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    faster_whisper = ModuleType("faster_whisper")
+    faster_whisper.WhisperModel = object
+    utils = ModuleType("faster_whisper.utils")
+    utils.get_assets_path = lambda: str(tmp_path)
+    monkeypatch.setitem(sys.modules, "faster_whisper", faster_whisper)
+    monkeypatch.setitem(sys.modules, "faster_whisper.utils", utils)
+    config = PipelineConfig()
+    config.asr.vad_filter = True
+
+    with pytest.raises(
+        BackendUnavailableError,
+        match="standalone runtime intentionally excludes",
+    ):
+        startup_module._probe_faster_whisper(config, device="cpu")
 
 
 def test_startup_evidence_schema_rejects_unknown_versions_and_false_counts() -> None:
