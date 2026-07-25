@@ -45,6 +45,12 @@ canonical sources for implementation details and operational policy.
 - [Auralign 0.2.0 private macOS PKG](release/macos-v0.2.0-private-pkg.md):
   standalone runtime, Developer ID signing, notarization, installation, and
   private-release parity.
+- [Auralign 0.2.1 private macOS PKG](release/macos-v0.2.1-private-pkg.md):
+  current patch-release runtime, signing, notarization, installation, and
+  private-release parity contract.
+- [Auralign 0.2.1 macOS release and redesign dossier](release/macos-v0.2.1-dossier.md):
+  implemented workbench, accessibility and visual evidence boundaries, runtime
+  layout, provenance, privacy, and final-candidate acceptance.
 
 ## Safety
 

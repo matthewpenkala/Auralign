@@ -80,7 +80,7 @@ Python, Homebrew, Git, `uv`, a source checkout, or shell configuration. Models
 remain external, operator-acquired, local, and offline. No compiled app or PKG
 is included in the source wheel/sdist. See the
 [native macOS GUI runbook](docs/macos-gui.md) and
-[private PKG release runbook](docs/release/macos-v0.2.0-private-pkg.md).
+[private PKG release runbook](docs/release/macos-v0.2.1-private-pkg.md).
 
 ## Local Cache Setup
 

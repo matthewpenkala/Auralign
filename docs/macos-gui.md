@@ -111,7 +111,7 @@ requires the checked-in standalone builder, clean exact-commit source, complete
 license/SBOM/native closure, inside-out Developer ID signing, a scriptless
 Developer ID Installer PKG, Apple notarization, stapling, final package/runtime
 smoke tests, and private-release hash parity. See
-[the private PKG runbook](release/macos-v0.2.0-private-pkg.md).
+[the private PKG runbook](release/macos-v0.2.1-private-pkg.md).
 
 ## Job Ownership And Privacy
 

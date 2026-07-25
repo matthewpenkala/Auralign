@@ -412,7 +412,7 @@ bundle_executable="$(
   || fail "unexpected Release minimum system version: $minimum_system"
 [[ "$package_type" == "APPL" ]] \
   || fail "unexpected Release package type: $package_type"
-[[ "$short_version" == "0.2.0" ]] \
+[[ "$short_version" == "0.2.1" ]] \
   || fail "unexpected Release short version: $short_version"
 [[ "$bundle_version" == "1" ]] \
   || fail "unexpected Release bundle version: $bundle_version"

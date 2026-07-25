@@ -21,6 +21,7 @@ import os
 import platform
 import plistlib
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -147,6 +148,31 @@ def no_bytecode_environment(
 
 def embedded_python_command(executable: Path, *arguments: str) -> list[str]:
     return [str(executable), "-B", *arguments]
+
+
+def write_embedded_python_launcher(executable: Path, destination: Path) -> Path:
+    """Write a temporary interpreter proxy that forces both bytecode controls."""
+
+    require(
+        executable.is_file(),
+        f"embedded Python executable is missing: {executable}",
+    )
+    require(
+        not destination.exists() and not destination.is_symlink(),
+        f"refusing to overwrite embedded Python launcher: {destination}",
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        (
+            "#!/bin/sh\n"
+            "set -eu\n"
+            "export PYTHONDONTWRITEBYTECODE=1\n"
+            f"exec {shlex.quote(str(executable.absolute()))} -B -I \"$@\"\n"
+        ),
+        encoding="utf-8",
+    )
+    destination.chmod(0o700)
+    return destination
 
 
 def sha256(path: Path) -> str:
@@ -328,7 +354,11 @@ def verified_cache_payload(
     payload = entry / "payload"
     require(manifest_path.is_file(), f"incomplete cache manifest: {entry}")
     require(payload.is_dir() and not payload.is_symlink(), f"incomplete cache payload: {entry}")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"malformed cache manifest: {entry}") from exc
+    require(isinstance(manifest, dict), f"malformed cache manifest: {entry}")
     require(
         manifest.get("schema_version") == DIAGNOSTIC_CACHE_SCHEMA_VERSION,
         f"cache schema drift: {entry}",
@@ -1773,28 +1803,36 @@ def runtime_smoke(runtime: Path, *, label: str) -> dict[str, str]:
 
 
 def write_runtime_sbom(runtime: Path, evidence: Path, sources: dict[str, Any]) -> Path:
-    destination = evidence / "Auralign-0.2.0-1-macos-arm64.cdx.json"
-    run(
-        [
-            "uv",
-            "run",
-            "--frozen",
-            "cyclonedx-py",
-            "environment",
-            str(runtime / "bin/python3"),
-            "--gather-license-texts",
-            "--output-reproducible",
-            "--short-PURLs",
-            "--spec-version",
-            "1.6",
-            "--output-format",
-            "JSON",
-            "--output-file",
-            str(destination),
-            "--validate",
-        ],
-        env=no_bytecode_environment(),
+    destination = evidence / (
+        f"Auralign-{sources['product_version']}-{sources['build_number']}"
+        "-macos-arm64.cdx.json"
     )
+    with tempfile.TemporaryDirectory(prefix="auralign-sbom-python-") as raw:
+        launcher = write_embedded_python_launcher(
+            runtime / "bin/python3",
+            Path(raw) / "python",
+        )
+        run(
+            [
+                "uv",
+                "run",
+                "--frozen",
+                "cyclonedx-py",
+                "environment",
+                str(launcher),
+                "--gather-license-texts",
+                "--output-reproducible",
+                "--short-PURLs",
+                "--spec-version",
+                "1.6",
+                "--output-format",
+                "JSON",
+                "--output-file",
+                str(destination),
+                "--validate",
+            ],
+            env=no_bytecode_environment(),
+        )
     payload = json.loads(destination.read_text(encoding="utf-8"))
     components = payload.get("components")
     require(isinstance(components, list), "runtime SBOM has no components")
@@ -3048,9 +3086,12 @@ def write_release_manifest(
         work / "evidence/signed-app-manifest.json",
         signed_app_manifest,
     )
-    runtime_sbom = work / "Auralign-0.2.0-1-macos-arm64.cdx.json"
+    runtime_sbom = work / (
+        f"Auralign-{sources['product_version']}-{sources['build_number']}"
+        "-macos-arm64.cdx.json"
+    )
     shutil.copy2(
-        work / "evidence/Auralign-0.2.0-1-macos-arm64.cdx.json",
+        work / "evidence" / runtime_sbom.name,
         runtime_sbom,
     )
     ffmpeg_source = work / sources["ffmpeg"]["asset"]

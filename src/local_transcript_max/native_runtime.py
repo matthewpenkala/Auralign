@@ -57,13 +57,14 @@ def probe_torchcodec() -> str:
     dylibs = _reviewed_ffmpeg_library_directory(Path(av.__file__).resolve().parent)
     libraries, aliases_complete = _reviewed_ffmpeg_libraries(dylibs)
 
-    environment: dict[str, str] | None = None
+    environment = {
+        key: value for key, value in os.environ.items() if not key.startswith("DYLD_")
+    }
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
     if dylibs.name == ".dylibs":
-        environment = os.environ.copy()
-        environment["PYTHONDONTWRITEBYTECODE"] = "1"
         environment["DYLD_LIBRARY_PATH"] = str(dylibs)
 
-    if environment is not None and not aliases_complete:
+    if not aliases_complete:
         with tempfile.TemporaryDirectory(prefix="auralign-ffmpeg7-aliases-") as temporary:
             alias_directory = Path(temporary)
             for name, library in zip(PYAV_FFMPEG7_ALIASES, libraries, strict=True):
@@ -115,7 +116,7 @@ def _reviewed_ffmpeg_libraries(dylibs: Path) -> tuple[list[Path], bool]:
 
 
 def _run_torchcodec_probe(
-    libraries: list[Path], environment: dict[str, str] | None
+    libraries: list[Path], environment: dict[str, str]
 ) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(

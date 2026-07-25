@@ -13,6 +13,7 @@ import binascii
 import hashlib
 import html.parser
 import json
+import os
 import shutil
 import struct
 import subprocess
@@ -137,9 +138,18 @@ def validate_brand_artwork() -> dict[str, object]:
     require(manifest.get("placement", {}).get("border_or_card") is False, "brand card drift")
     command = [
         sys.executable,
+        "-B",
         str(HERE / "BrandAssets/export_brand_artwork.py"),
     ]
-    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    environment = os.environ.copy()
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    result = subprocess.run(
+        command,
+        check=True,
+        capture_output=True,
+        env=environment,
+        text=True,
+    )
     evidence = json.loads(result.stdout)
     require(evidence.get("passed") is True, "brand reproduction verification failed")
     return evidence
@@ -197,7 +207,7 @@ def validate_distribution_round_trip() -> None:
                 "--identifier",
                 "com.auralign.studio.pkg.design-validation",
                 "--version",
-                "0.2.0.1",
+                "0.2.1.1",
                 str(component),
             ],
             check=True,

@@ -9,9 +9,9 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import platform
 import plistlib
-import re
 import shutil
 import stat
 import subprocess
@@ -44,7 +44,7 @@ def test_runtime_sources_are_exact_and_models_remain_external() -> None:
     )
 
     assert sources["schema_version"] == "auralign-macos-runtime-sources.v1"
-    assert sources["product_version"] == "0.2.0"
+    assert sources["product_version"] == "0.2.1"
     assert sources["build_number"] == "1"
     assert sources["architecture"] == "arm64"
     assert sources["minimum_macos"] == "14.0"
@@ -178,6 +178,14 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "_resolve_dependency(" in builder
     assert "runtime_smoke(" in builder
     assert '"PYTHONDONTWRITEBYTECODE": "1"' in builder
+    assert "write_embedded_python_launcher(" in builder
+    assert "export PYTHONDONTWRITEBYTECODE=1" in builder
+    assert ' -B -I \\"$@\\"' in builder
+    assert '"Auralign-0.2.0-1-macos-arm64.cdx.json"' not in builder
+    assert builder.count(
+        "f\"Auralign-{sources['product_version']}-{sources['build_number']}\""
+    ) == 3
+    assert builder.count('"-macos-arm64.cdx.json"') == 2
     assert builder.count("prune_runtime(runtime)") == 4
     assert "install_hash_locked_pure_python_sdists(" in builder
     assert '"SOURCE_DATE_EPOCH"' in builder
@@ -205,40 +213,330 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "pip install" not in builder
 
 
-def test_diagnostic_cache_is_atomic_content_addressed_and_fail_closed(
+@pytest.mark.skipif(os.name == "nt", reason="the release launcher is POSIX-only")
+def test_embedded_python_launcher_forces_both_bytecode_controls(
     tmp_path: Path,
 ) -> None:
-    cache = tmp_path / "cache"
-    source = tmp_path / "source"
-    source.mkdir()
-    (source / "payload.txt").write_text("verified\n", encoding="utf-8")
-    key_inputs = {
+    executable = tmp_path / "runtime with spaces/bin/python3"
+    executable.parent.mkdir(parents=True)
+    executable.write_text(
+        (
+            "#!/bin/sh\n"
+            "printf '%s\\n' \"$PYTHONDONTWRITEBYTECODE\"\n"
+            "printf '%s\\n' \"$@\"\n"
+        ),
+        encoding="utf-8",
+    )
+    executable.chmod(0o700)
+    launcher = BUILDER_MODULE.write_embedded_python_launcher(
+        executable,
+        tmp_path / "launcher/python",
+    )
+
+    completed = subprocess.run(
+        [str(launcher), "-c", "pass"],
+        check=True,
+        capture_output=True,
+        env={},
+        text=True,
+    )
+
+    assert completed.stdout.splitlines() == [
+        "1",
+        "-B",
+        "-I",
+        "-c",
+        "pass",
+    ]
+    assert stat.S_IMODE(launcher.stat().st_mode) == 0o700
+    with pytest.raises(RuntimeError, match="refusing to overwrite"):
+        BUILDER_MODULE.write_embedded_python_launcher(executable, launcher)
+
+
+def _diagnostic_cache_inputs() -> dict[str, object]:
+    return {
         "schema_version": BUILDER_MODULE.DIAGNOSTIC_CACHE_SCHEMA_VERSION,
-        "stage": "test",
-        "input_sha256": hashlib.sha256(b"input").hexdigest(),
+        "stage": "runtime",
+        "source_revision": "a" * 40,
+        "source_tree_sha256": "b" * 64,
+        "runtime_sources_sha256": "c" * 64,
+        "requirements_sha256": "d" * 64,
+        "builder_sha256": "e" * 64,
+        "normalization_implementation_version": "fixture.v1",
+        "toolchain": {
+            "xcode": "fixture",
+            "macos_sdk_version": "fixture",
+        },
     }
 
+
+def _publish_diagnostic_cache_fixture(
+    root: Path,
+) -> tuple[Path, Path, dict[str, object]]:
+    cache = root / "cache"
+    source = root / "source"
+    source.mkdir(parents=True)
+    (source / "payload.txt").write_text("verified\n", encoding="utf-8")
+    key_inputs = _diagnostic_cache_inputs()
     published = BUILDER_MODULE.publish_cache_payload(
         cache,
-        "test",
+        "runtime",
         key_inputs,
         {"fixture": source},
     )
+    return cache, published, key_inputs
+
+
+def test_diagnostic_cache_is_atomic_content_addressed_and_fail_closed(
+    tmp_path: Path,
+) -> None:
+    cache, published, key_inputs = _publish_diagnostic_cache_fixture(tmp_path)
     assert (published / "fixture/payload.txt").read_text(encoding="utf-8") == "verified\n"
     key = BUILDER_MODULE.canonical_json_sha256(key_inputs)
     manifest = json.loads(
-        (cache / "test" / key / "manifest.json").read_text(encoding="utf-8")
+        (cache / "runtime" / key / "manifest.json").read_text(encoding="utf-8")
     )
     assert manifest["key"] == key
     assert manifest["key_inputs"] == key_inputs
     assert manifest["payload_inventory"] == BUILDER_MODULE.inventory_rows(
-        cache / "test" / key / "payload"
+        cache / "runtime" / key / "payload"
     )
-    assert not list((cache / "test").glob(f".{key}.*"))
+    assert not list((cache / "runtime").glob(f".{key}.*"))
 
     (published / "fixture/payload.txt").write_text("tampered\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="cache payload hash or mode drift"):
-        BUILDER_MODULE.verified_cache_payload(cache, "test", key_inputs)
+        BUILDER_MODULE.verified_cache_payload(cache, "runtime", key_inputs)
+
+
+def test_diagnostic_cache_rejects_missing_malformed_or_incomplete_entries(
+    tmp_path: Path,
+) -> None:
+    key_inputs = _diagnostic_cache_inputs()
+    key = BUILDER_MODULE.canonical_json_sha256(key_inputs)
+
+    missing_manifest = tmp_path / "missing/cache/runtime" / key
+    (missing_manifest / "payload").mkdir(parents=True)
+    with pytest.raises(RuntimeError, match="incomplete cache manifest"):
+        BUILDER_MODULE.verified_cache_payload(
+            tmp_path / "missing/cache",
+            "runtime",
+            key_inputs,
+        )
+
+    malformed_manifest = tmp_path / "malformed/cache/runtime" / key
+    (malformed_manifest / "payload").mkdir(parents=True)
+    (malformed_manifest / "manifest.json").write_text("{", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="malformed cache manifest"):
+        BUILDER_MODULE.verified_cache_payload(
+            tmp_path / "malformed/cache",
+            "runtime",
+            key_inputs,
+        )
+
+    non_object_manifest = tmp_path / "non-object/cache/runtime" / key
+    (non_object_manifest / "payload").mkdir(parents=True)
+    (non_object_manifest / "manifest.json").write_text("[]\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="malformed cache manifest"):
+        BUILDER_MODULE.verified_cache_payload(
+            tmp_path / "non-object/cache",
+            "runtime",
+            key_inputs,
+        )
+
+    missing_payload = tmp_path / "missing-payload/cache/runtime" / key
+    missing_payload.mkdir(parents=True)
+    (missing_payload / "manifest.json").write_text("{}\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="incomplete cache payload"):
+        BUILDER_MODULE.verified_cache_payload(
+            tmp_path / "missing-payload/cache",
+            "runtime",
+            key_inputs,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement", "message"),
+    [
+        ("schema_version", "wrong-schema", "cache schema drift"),
+        ("stage", "native", "cache stage drift"),
+        ("key", "0" * 64, "cache key drift"),
+        ("key_inputs", {"unexpected": True}, "cache input manifest drift"),
+    ],
+)
+def test_diagnostic_cache_rejects_manifest_identity_drift(
+    tmp_path: Path,
+    field: str,
+    replacement: object,
+    message: str,
+) -> None:
+    cache, published, key_inputs = _publish_diagnostic_cache_fixture(
+        tmp_path / field
+    )
+    manifest_path = published.parent / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest[field] = replacement
+    manifest_path.write_text(
+        json.dumps(manifest, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match=message):
+        BUILDER_MODULE.verified_cache_payload(cache, "runtime", key_inputs)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "source_revision",
+        "source_tree_sha256",
+        "runtime_sources_sha256",
+        "toolchain",
+    ],
+)
+def test_diagnostic_cache_input_mismatch_forces_cache_miss(
+    tmp_path: Path,
+    field: str,
+) -> None:
+    cache, _published, key_inputs = _publish_diagnostic_cache_fixture(tmp_path)
+    changed = json.loads(json.dumps(key_inputs))
+    changed[field] = {"changed": True} if field == "toolchain" else "f" * 64
+
+    assert (
+        BUILDER_MODULE.verified_cache_payload(cache, "runtime", changed)
+        is None
+    )
+
+
+def test_diagnostic_cache_ignores_partial_stage_and_recomputes(
+    tmp_path: Path,
+) -> None:
+    cache = tmp_path / "cache"
+    key_inputs = _diagnostic_cache_inputs()
+    key = BUILDER_MODULE.canonical_json_sha256(key_inputs)
+    stage_root = cache / "runtime"
+    partial = stage_root / f".{key}.interrupted"
+    (partial / "payload").mkdir(parents=True)
+
+    assert (
+        BUILDER_MODULE.verified_cache_payload(cache, "runtime", key_inputs)
+        is None
+    )
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "payload.txt").write_text("recomputed\n", encoding="utf-8")
+    published = BUILDER_MODULE.publish_cache_payload(
+        cache,
+        "runtime",
+        key_inputs,
+        {"fixture": source},
+    )
+
+    assert (published / "fixture/payload.txt").read_text(encoding="utf-8") == (
+        "recomputed\n"
+    )
+    assert partial.is_dir()
+
+
+def test_release_cli_rejects_omitted_no_cache_before_runtime_build(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache = tmp_path / "diagnostic-cache"
+    work = tmp_path / "work"
+    monkeypatch.setattr(BUILDER_MODULE, "require_host", lambda: None)
+    monkeypatch.setattr(BUILDER_MODULE, "load_sources", lambda: {})
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "verify_packaging_contract",
+        lambda _sources: None,
+    )
+
+    def unexpected_build(*_args: object, **_kwargs: object) -> Path:
+        pytest.fail("release runtime build started without --no-cache")
+
+    monkeypatch.setattr(BUILDER_MODULE, "build_runtime", unexpected_build)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(BUILDER),
+            "--work-dir",
+            str(work),
+            "--cache-dir",
+            str(cache),
+        ],
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Developer ID release builds require --no-cache",
+    ):
+        BUILDER_MODULE.main()
+
+    assert work.is_dir()
+    assert not cache.exists()
+
+
+def test_release_cli_no_cache_bypasses_diagnostic_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class StopAfterCacheDecision(Exception):
+        pass
+
+    cache = tmp_path / "diagnostic-cache"
+    work = tmp_path / "work"
+    observed: dict[str, object] = {}
+    monkeypatch.setattr(BUILDER_MODULE, "require_host", lambda: None)
+    monkeypatch.setattr(BUILDER_MODULE, "load_sources", lambda: {})
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "verify_packaging_contract",
+        lambda _sources: None,
+    )
+
+    def stop_build(
+        work_root: Path,
+        sources: dict[str, object],
+        *,
+        allow_dirty: bool,
+        cache_root: Path | None,
+    ) -> Path:
+        observed.update(
+            {
+                "work": work_root,
+                "sources": sources,
+                "allow_dirty": allow_dirty,
+                "cache_root": cache_root,
+            }
+        )
+        raise StopAfterCacheDecision
+
+    monkeypatch.setattr(BUILDER_MODULE, "build_runtime", stop_build)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(BUILDER),
+            "--work-dir",
+            str(work),
+            "--cache-dir",
+            str(cache),
+            "--no-cache",
+        ],
+    )
+
+    with pytest.raises(StopAfterCacheDecision):
+        BUILDER_MODULE.main()
+
+    assert observed == {
+        "work": work.resolve(),
+        "sources": {},
+        "allow_dirty": False,
+        "cache_root": None,
+    }
+    assert not cache.exists()
 
 
 def test_installable_payload_modes_are_normalized_and_fail_closed(
@@ -718,7 +1016,7 @@ def test_package_definition_is_scriptless_system_only_arm64_macos14() -> None:
     assert allowed is not None and allowed.attrib["min"] == "14.0"
     assert package is not None
     assert package.attrib["id"] == "com.auralign.studio.pkg.app"
-    assert package.attrib["version"] == "0.2.0.1"
+    assert package.attrib["version"] == "0.2.1.1"
     background = root.find("background")
     dark_background = root.find("background-darkAqua")
     welcome = root.find("welcome")
@@ -791,6 +1089,8 @@ def test_installer_design_is_internalized_adapted_and_verification_only() -> Non
     assert "src/spec/icon-design.json" not in verifier
     assert "rm -rf" not in makefile
     assert "/Users/" not in verifier
+    assert 'sys.executable,\n        "-B",' in verifier
+    assert 'environment["PYTHONDONTWRITEBYTECODE"] = "1"' in verifier
     for appearance in ("light", "dark"):
         source = (
             INSTALLER_DESIGN
@@ -861,4 +1161,5 @@ def test_release_swift_uses_embedded_runtime_and_external_models() -> None:
     assert 'key.hasPrefix("DYLD_")' in bridge
     assert "#if DEBUG" in settings
     assert "never acquires gated assets" in settings
-    assert re.search(r"MARKETING_VERSION = 0\.2\.0;", project)
+    assert project.count("MARKETING_VERSION = 0.2.1;") == 6
+    assert "MARKETING_VERSION = 0.2.0;" not in project

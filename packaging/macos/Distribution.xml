@@ -32,6 +32,6 @@
   <choice id="com.auralign.studio.pkg.app" visible="false">
     <pkg-ref id="com.auralign.studio.pkg.app"/>
   </choice>
-  <pkg-ref id="com.auralign.studio.pkg.app" version="0.2.0.1"
+  <pkg-ref id="com.auralign.studio.pkg.app" version="0.2.1.1"
     onConclusion="none">Auralign-component.pkg</pkg-ref>
 </installer-gui-script>

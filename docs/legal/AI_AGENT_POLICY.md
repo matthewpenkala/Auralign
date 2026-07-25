@@ -79,6 +79,22 @@ hash parity, and private-visibility checks remain mandatory. Credentials must
 come from the operator's Keychain or Apple tooling and must never be committed
 or placed in command-line arguments.
 
+## Owner-Authorized Private macOS 0.2.1 Patch Release
+
+On 2026-07-25, the repository owner explicitly authorized this continuation run
+to synchronize the reviewed patch source to the existing private `main`, create
+and push the nonconflicting private macOS `macos-v0.2.1` tag, and publish the
+exact Developer ID signed, Apple-notarized, stapled Auralign 0.2.1 PKG plus its
+allowlisted provenance artifacts to that same private repository. The existing
+`macos-v0.2.0` tag and release are immutable and must not be moved, overwritten,
+or repurposed.
+
+This authorization has the same fail-closed private-repository, artifact,
+credential, model, media, history, visibility, signing, notarization,
+installation, and hash-parity boundaries as the 0.2.0 authorization above. It
+does not authorize public exposure or any artifact outside the reviewed macOS
+release allowlist.
+
 ## Escalation
 
 Stop and request owner review when evidence conflicts, an upstream license is

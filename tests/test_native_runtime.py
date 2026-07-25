@@ -31,6 +31,8 @@ def test_macos_torchcodec_probe_scopes_dyld_to_reviewed_wheel_libraries(
     av.__file__ = str(package / "__init__.py")
     monkeypatch.setitem(__import__("sys").modules, "av", av)
     monkeypatch.setattr("local_transcript_max.native_runtime.platform.system", lambda: "Darwin")
+    monkeypatch.setenv("DYLD_LIBRARY_PATH", "/unreviewed")
+    monkeypatch.setenv("DYLD_INSERT_LIBRARIES", "/unreviewed/injected.dylib")
     observed: dict[str, object] = {}
 
     def completed(command: list[str], **kwargs: object) -> SimpleNamespace:
@@ -53,6 +55,7 @@ def test_macos_torchcodec_probe_scopes_dyld_to_reviewed_wheel_libraries(
     environment = kwargs["env"]
     assert isinstance(environment, dict)
     assert environment["DYLD_LIBRARY_PATH"] == str(dylibs.resolve())
+    assert "DYLD_INSERT_LIBRARIES" not in environment
     assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
 
 
@@ -74,6 +77,8 @@ def test_macos_torchcodec_probe_accepts_standalone_runtime_library_layout(
     monkeypatch.setitem(sys.modules, "av", av)
     monkeypatch.setattr("local_transcript_max.native_runtime.sys.executable", str(executable))
     monkeypatch.setattr("local_transcript_max.native_runtime.platform.system", lambda: "Darwin")
+    monkeypatch.setenv("DYLD_LIBRARY_PATH", "/unreviewed")
+    monkeypatch.setenv("DYLD_INSERT_LIBRARIES", "/unreviewed/injected.dylib")
     observed: dict[str, object] = {}
 
     def completed(command: list[str], **kwargs: object) -> SimpleNamespace:
@@ -84,9 +89,16 @@ def test_macos_torchcodec_probe_accepts_standalone_runtime_library_layout(
     monkeypatch.setattr("local_transcript_max.native_runtime.subprocess.run", completed)
 
     assert probe_torchcodec() == "0.7.0"
+    command = observed["command"]
+    assert isinstance(command, list)
+    assert command[:4] == [str(executable), "-B", "-I", "-c"]
     kwargs = observed["kwargs"]
     assert isinstance(kwargs, dict)
-    assert kwargs["env"] is None
+    environment = kwargs["env"]
+    assert isinstance(environment, dict)
+    assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
+    assert "DYLD_LIBRARY_PATH" not in environment
+    assert "DYLD_INSERT_LIBRARIES" not in environment
 
 
 def test_macos_torchcodec_probe_supports_fully_versioned_pyav_wheel_libraries(
