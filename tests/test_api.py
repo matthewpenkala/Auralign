@@ -44,6 +44,23 @@ def test_models_pull_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     assert response["results"][0]["status"] == "dry_run"
 
 
+def test_models_pull_mlx_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    reset_store(tmp_path, monkeypatch)
+    response = server_app.models_pull(
+        server_app.ModelPullRequest(asr_mlx="mlx-tiny", cache_dir=str(tmp_path))
+    )
+    assert response["results"][0]["status"] == "dry_run"
+    assert response["results"][0]["key"] == "mlx-tiny"
+    assert response["results"][0]["model_id"] == "mlx-community/whisper-tiny-mlx"
+
+
+def test_models_pull_schema_uses_all_instead_of_legacy_include_optional() -> None:
+    fields = server_app.ModelPullRequest.model_fields
+
+    assert "all_models" in fields
+    assert "include_optional" not in fields
+
+
 def test_models_pull_gated_dry_run_does_not_require_token(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

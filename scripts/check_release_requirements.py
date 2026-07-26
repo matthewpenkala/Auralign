@@ -26,7 +26,7 @@ TARGETS = {
     "requirements/linux-cu126-py311.txt": ("cu126", ("full",), False),
     "requirements/macos-app-arm64-cpu-py311.txt": (
         "cpu",
-        ("asr", "diarization", "alignment", "speaker-id"),
+        ("asr", "mlx", "diarization", "alignment", "speaker-id"),
         True,
     ),
 }

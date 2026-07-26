@@ -92,8 +92,8 @@ class TranscribeRequest(BaseModel):
 
 class ModelPullRequest(BaseModel):
     all_models: bool = False
-    include_optional: bool = False
     asr: str | None = None
+    asr_mlx: str | None = None
     diarization: str | None = None
     alignment: str | None = None
     speaker_id: str | None = None
@@ -140,8 +140,8 @@ def models() -> list[dict[str, object]]:
 def models_pull(request: ModelPullRequest) -> dict[str, object]:
     entries = selected_entries(
         all_models=request.all_models,
-        include_optional=request.include_optional,
         asr=request.asr,
+        asr_mlx=request.asr_mlx,
         diarization=request.diarization,
         alignment=request.alignment,
         speaker_embedding=request.speaker_id,

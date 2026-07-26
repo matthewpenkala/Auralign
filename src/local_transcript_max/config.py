@@ -26,6 +26,8 @@ from .errors import LTMError
 from .utils import env_flag, safe_repo_dir
 
 PresetName = Literal["max", "balanced", "fast", "cpu"]
+ProductModelClassification = Literal["production", "optional", "evaluation-only", "blocked"]
+ModelDelivery = Literal["system-component", "native-download", "unavailable"]
 
 
 @dataclass(frozen=True)
@@ -37,6 +39,7 @@ class ModelEntry:
     required_files: tuple[str, ...] = ()
     any_required_files: tuple[str, ...] = ()
     expected_sha256: tuple[tuple[str, str], ...] = ()
+    expected_size: tuple[tuple[str, int], ...] = ()
     aliases: tuple[str, ...] = ()
     revision: str | None = None
     optional: bool = False
@@ -51,6 +54,14 @@ class ModelEntry:
     redistribution_status: str = "blocked"
     review_status: str = "unverified"
     reviewed_at: str | None = None
+    product_classification: ProductModelClassification = "blocked"
+    blocker: str | None = "No production clearance has been recorded."
+    backend_compatibility: str = ""
+    modification_status: str = "unreviewed"
+    package_bundle_id: str | None = None
+    package_bundle_version: str | None = None
+    package_relative_path: str | None = None
+    delivery: ModelDelivery = "unavailable"
 
     @property
     def directory_name(self) -> str:
@@ -78,6 +89,37 @@ class ModelEntry:
 
         return dict(self.expected_sha256)
 
+    @property
+    def expected_size_map(self) -> dict[str, int]:
+        """Return repository-reviewed byte counts when they are available."""
+
+        return dict(self.expected_size)
+
+    @property
+    def production_selectable(self) -> bool:
+        """Return whether every release-critical model authority is complete."""
+
+        return (
+            self.product_classification in {"production", "optional"}
+            and self.blocker is None
+            and self.revision is not None
+            and len(self.revision) == 40
+            and bool(self.runtime_files)
+            and set(self.expected_digest_map) == set(self.runtime_files)
+            and set(self.expected_size_map) == set(self.runtime_files)
+            and all(size > 0 for size in self.expected_size_map.values())
+            and self.license_expression != "NOASSERTION"
+            and self.runtime_status.startswith("approved_local")
+            and self.redistribution_status.startswith("permitted_")
+            and self.review_status.startswith("verified")
+            and bool(self.backend_compatibility)
+            and self.modification_status != "unreviewed"
+            and bool(self.package_bundle_id)
+            and bool(self.package_bundle_version)
+            and bool(self.package_relative_path)
+            and self.delivery != "unavailable"
+        )
+
     def pull_command(self, cache_dir: str = "models") -> str:
         if not self.pullable:
             return (
@@ -92,44 +134,164 @@ class ModelEntry:
         return f"ltm models verify {self.selection_flag} {self.key} --cache-dir {cache_dir}"
 
 
+@dataclass(frozen=True)
+class MlxModelAuthority:
+    revision: str
+    config_size: int
+    config_sha256: str
+    weight_filename: str
+    weight_size: int
+    weight_sha256: str
+
+
+MLX_MODEL_AUTHORITIES = {
+    "mlx-community/whisper-tiny-mlx": MlxModelAuthority(
+        revision="6caf9c55601caafbe6508a8b0d216bdf4783c4e8",
+        config_size=262,
+        config_sha256="aaff20ce8f69beddee3fe0cc1e08f4e92f58586cb9f12ba00a6f73cbfec1cb1c",
+        weight_filename="weights.npz",
+        weight_size=74_418_540,
+        weight_sha256="0e03a5993d6eea43b07ee2dcc772b0e4cef5bb227257dacc24bf289387d49186",
+    ),
+    "mlx-community/whisper-tiny.en-mlx": MlxModelAuthority(
+        revision="5f4dafbb28e62a53c1b10426ff7eed36ca733bf7",
+        config_size=262,
+        config_sha256="452e616242261333a661bc86db762b3720d6cc7e2eccd3d8e19a631871c26dd9",
+        weight_filename="weights.npz",
+        weight_size=74_417_804,
+        weight_sha256="4627203f0807d6496dda0d200e893b04ff24c98e73aa51c485c06203a0330b17",
+    ),
+    "mlx-community/whisper-base-mlx": MlxModelAuthority(
+        revision="1e3e249fb8d01c655324bd6841b1deadffd6d04c",
+        config_size=262,
+        config_sha256="737220a6d958b3ad48e78f840fa991556266983c84ea2ca40e413389c62e4c2f",
+        weight_filename="weights.npz",
+        weight_size=143_724_204,
+        weight_sha256="2f57d5f3ef473054c638961f90716f4ee415e8108de81313eccb2c5fd62eff0b",
+    ),
+    "mlx-community/whisper-base.en-mlx": MlxModelAuthority(
+        revision="aa0678c3466ed62c5c6114ec600a0e1f96820089",
+        config_size=262,
+        config_sha256="b0f55e86f8092c1188306dc346742253f759aecea0da7b00ae526e566fd53b14",
+        weight_filename="weights.npz",
+        weight_size=143_723_132,
+        weight_sha256="b6c8ee500656e04e8e57c2949a5253f0dda002ba36cd1561846574dbcf01132e",
+    ),
+    "mlx-community/whisper-small-mlx": MlxModelAuthority(
+        revision="45f3915923c7a79a5a5b5a7d909d39aeb0e5630e",
+        config_size=266,
+        config_sha256="e8f58e638208af66d5d5d67801259dc7a12d199e971967a9f9d33a8e3635668e",
+        weight_filename="weights.npz",
+        weight_size=481_307_592,
+        weight_sha256="55b6674c9b339702d486e2b1573839a66f8ec8f821ed2886993ef717a86b09f5",
+    ),
+    "mlx-community/whisper-small.en-mlx": MlxModelAuthority(
+        revision="52a88bf6e98b114a210c21bb83e22d6e1505cb73",
+        config_size=266,
+        config_sha256="40028e43687458e79ba89cc16bf14184c5414a5cbc00fd511f8f78d138647afd",
+        weight_filename="weights.npz",
+        weight_size=481_306_200,
+        weight_sha256="1bb29b030aca711a035f7a084a0eefac6251ecc2bdd356fa748858fbad082f5a",
+    ),
+    "mlx-community/whisper-medium-mlx": MlxModelAuthority(
+        revision="7fc08c4eac4c316526498f147dfdee6f6303f975",
+        config_size=268,
+        config_sha256="3ff0b3f17a5a3a614327ffd835a3c8f6c78f39cbd39e84dbff4b0ae267c4d2e4",
+        weight_filename="weights.npz",
+        weight_size=1_524_924_912,
+        weight_sha256="10b597c2bcb1bcc38b2d3d24cd4f0885f461a7cd70e8444d6ad5a763ece549ea",
+    ),
+    "mlx-community/whisper-medium.en-mlx": MlxModelAuthority(
+        revision="8d0335069b551e8586b8a4680674403d9417dfe4",
+        config_size=268,
+        config_sha256="20f1b6b70cab52e6669c2a095fd3bcc16aa25c7e367d29060f876d4728832b45",
+        weight_filename="weights.npz",
+        weight_size=1_524_923_056,
+        weight_sha256="66cda8c3df03af0b922764620d46734240ab82c54348c5848238c8604bdadbdb",
+    ),
+    "mlx-community/whisper-large-v1-mlx": MlxModelAuthority(
+        revision="e2cb9fbf9c7aefad760be1dc9b48c075b21288c8",
+        config_size=268,
+        config_sha256="77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b",
+        weight_filename="weights.npz",
+        weight_size=3_083_149_200,
+        weight_sha256="56824c4ff897d62ba53a84a1738b0b33b237970a7451d5f933de5f2aef5140cf",
+    ),
+    "mlx-community/whisper-large-v2-mlx": MlxModelAuthority(
+        revision="cce86229e2765266197fef869ce9f7e2550067ab",
+        config_size=268,
+        config_sha256="77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b",
+        weight_filename="weights.npz",
+        weight_size=3_083_149_424,
+        weight_sha256="c9888a2d03b4e9906c2864151f56dc21e58d617938da0eb818152e3f99adc3f1",
+    ),
+    "mlx-community/whisper-large-v3-mlx": MlxModelAuthority(
+        revision="49e6aa286ad60c14352c404340ded53710378a11",
+        config_size=269,
+        config_sha256="34982ce6ae286095000f82ae9583b3431639e8b092bf60c961f203745e6500e3",
+        weight_filename="weights.npz",
+        weight_size=3_083_520_416,
+        weight_sha256="05ff791ce3630fae47e7c51004e9666204d786246ec07cac6110af768099b40d",
+    ),
+    "mlx-community/whisper-large-v3-turbo": MlxModelAuthority(
+        revision="a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+        config_size=268,
+        config_sha256="b34fc29e4e11e0a25e812775dd67f4dd16fc2c8eb43d28ae25ff7d660ecb6379",
+        weight_filename="weights.safetensors",
+        weight_size=1_613_977_612,
+        weight_sha256="951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6",
+    ),
+}
+
 MLX_REVISIONS = {
-    "mlx-community/whisper-tiny-mlx": "6caf9c55601caafbe6508a8b0d216bdf4783c4e8",
-    "mlx-community/whisper-tiny.en-mlx": "5f4dafbb28e62a53c1b10426ff7eed36ca733bf7",
-    "mlx-community/whisper-base-mlx": "1e3e249fb8d01c655324bd6841b1deadffd6d04c",
-    "mlx-community/whisper-base.en-mlx": "aa0678c3466ed62c5c6114ec600a0e1f96820089",
-    "mlx-community/whisper-small-mlx": "45f3915923c7a79a5a5b5a7d909d39aeb0e5630e",
-    "mlx-community/whisper-small.en-mlx": "52a88bf6e98b114a210c21bb83e22d6e1505cb73",
-    "mlx-community/whisper-medium-mlx": "7fc08c4eac4c316526498f147dfdee6f6303f975",
-    "mlx-community/whisper-medium.en-mlx": "8d0335069b551e8586b8a4680674403d9417dfe4",
-    "mlx-community/whisper-large-mlx": "9310354911111f2406ead1478e0139d9c6ea3acc",
-    "mlx-community/whisper-large-v2-mlx": "cce86229e2765266197fef869ce9f7e2550067ab",
-    "mlx-community/whisper-large-v3-mlx": "49e6aa286ad60c14352c404340ded53710378a11",
-    "mlx-community/whisper-large-v3-turbo": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+    model_id: authority.revision
+    for model_id, authority in MLX_MODEL_AUTHORITIES.items()
 }
 
 
 def mlx_model_entry(key: str, model_id: str, aliases: tuple[str, ...] = ()) -> ModelEntry:
-    verified = model_id == "mlx-community/whisper-large-v3-mlx"
+    authority = MLX_MODEL_AUTHORITIES[model_id]
+    package_key = key.replace(".", "-")
     return ModelEntry(
         key=key,
         role="asr-mlx",
         model_id=model_id,
-        required_files=("config.json",),
-        any_required_files=("weights.safetensors", "weights.npz"),
+        required_files=("config.json", authority.weight_filename),
+        expected_sha256=(
+            ("config.json", authority.config_sha256),
+            (authority.weight_filename, authority.weight_sha256),
+        ),
+        expected_size=(
+            ("config.json", authority.config_size),
+            (authority.weight_filename, authority.weight_size),
+        ),
         aliases=aliases,
         directory_aliases=(key, *(alias for alias in aliases if "/" not in alias)),
         optional=True,
-        pullable=False,
-        revision=MLX_REVISIONS[model_id],
-        license_expression="MIT" if verified else "NOASSERTION",
+        revision=authority.revision,
+        license_expression="MIT",
         source_url=f"https://huggingface.co/{model_id}",
         terms_url=f"https://huggingface.co/{model_id}",
-        attribution="MLX Community model conversion; upstream model terms also apply.",
-        acquisition_status="manual_only",
-        runtime_status="approved_local" if verified else "local_evaluation_only",
-        redistribution_status="permitted_with_license_terms" if verified else "blocked",
-        review_status="verified" if verified else "blocked_missing_publisher_license",
-        reviewed_at="2026-07-10",
+        attribution=(
+            "MLX Community conversion of the corresponding OpenAI Whisper MIT model; "
+            "mlx-whisper conversion/runtime source is MIT."
+        ),
+        acquisition_status="approved_exact_pinned_files",
+        runtime_status="approved_local_real_inference",
+        redistribution_status="permitted_with_mit_chain_and_owner_clearance",
+        review_status="verified_exact_files_inference_and_upstream_mit_chain",
+        reviewed_at="2026-07-25",
+        product_classification="optional",
+        blocker=None,
+        backend_compatibility=(
+            "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real "
+            "network-denied local inference passed"
+        ),
+        modification_status="unmodified exact pinned conversion files",
+        package_bundle_id=f"com.auralign.studio.modelpack.{package_key}.v1",
+        package_bundle_version="1.0.0",
+        package_relative_path=f"models/{safe_repo_dir(model_id)}",
+        delivery="native-download",
     )
 
 
@@ -158,6 +320,13 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
                 "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
             ),
         ),
+        expected_size=(
+            ("model.bin", 3_087_284_237),
+            ("config.json", 2_394),
+            ("tokenizer.json", 2_480_617),
+            ("preprocessor_config.json", 340),
+            ("vocabulary.json", 1_068_114),
+        ),
         aliases=("max", "whisper-large-v3"),
         revision="edaa852ec7e145841d8ffdb056a99866b5f0a478",
         license_expression="MIT",
@@ -169,61 +338,180 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         redistribution_status="permitted_with_license_terms",
         review_status="verified",
         reviewed_at="2026-07-10",
+        product_classification="production",
+        blocker=None,
+        backend_compatibility="faster-whisper CTranslate2 CPU runtime",
+        modification_status="unmodified exact pinned runtime files",
+        package_bundle_id="com.auralign.studio.modelpack.large-v3.v1",
+        package_bundle_version="1.0.0",
+        package_relative_path="models/Systran--faster-whisper-large-v3",
+        delivery="native-download",
     ),
     "turbo": ModelEntry(
         key="turbo",
         role="asr",
-        model_id="mobiuslabsgmbh/faster-whisper-large-v3-turbo",
-        required_files=("model.bin", "config.json", "tokenizer.json", "preprocessor_config.json"),
+        model_id="dropbox-dash/faster-whisper-large-v3-turbo",
+        required_files=(
+            "model.bin",
+            "config.json",
+            "tokenizer.json",
+            "preprocessor_config.json",
+            "vocabulary.json",
+        ),
+        expected_sha256=(
+            ("model.bin", "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da"),
+            ("config.json", "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e"),
+            ("tokenizer.json", "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd"),
+            (
+                "preprocessor_config.json",
+                "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            ),
+            (
+                "vocabulary.json",
+                "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            ),
+        ),
+        expected_size=(
+            ("model.bin", 1_617_884_929),
+            ("config.json", 2_263),
+            ("tokenizer.json", 2_710_337),
+            ("preprocessor_config.json", 340),
+            ("vocabulary.json", 1_068_114),
+        ),
         aliases=(
             "large-v3-turbo",
-            "dropbox-dash/faster-whisper-large-v3-turbo",
+            "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
         ),
         revision="0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
         optional=True,
         license_expression="MIT",
-        source_url="https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo",
-        terms_url="https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo",
-        attribution="Mobius Labs faster-whisper conversion; upstream Whisper terms also apply.",
-        acquisition_status="approved",
-        runtime_status="approved_local",
+        source_url="https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo",
+        terms_url="https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo",
+        attribution="Dropbox Dash faster-whisper conversion of OpenAI Whisper large-v3-turbo.",
+        acquisition_status="approved_exact_pinned_files",
+        runtime_status="approved_local_real_inference",
         redistribution_status="permitted_with_license_terms",
-        review_status="verified",
-        reviewed_at="2026-07-10",
+        review_status="verified_exact_files_and_inference",
+        reviewed_at="2026-07-25",
+        product_classification="production",
+        blocker=None,
+        backend_compatibility=(
+            "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; multilingual; "
+            "real local int8_float32 inference passed"
+        ),
+        modification_status="unmodified exact pinned runtime files",
+        package_bundle_id="com.auralign.studio.modelpack.turbo.v1",
+        package_bundle_version="1.0.0",
+        package_relative_path="models/dropbox-dash--faster-whisper-large-v3-turbo",
+        delivery="native-download",
     ),
     "distil-large-v3": ModelEntry(
         key="distil-large-v3",
         role="asr",
         model_id="Systran/faster-distil-whisper-large-v3",
-        required_files=("model.bin", "config.json", "tokenizer.json", "preprocessor_config.json"),
+        required_files=(
+            "model.bin",
+            "config.json",
+            "tokenizer.json",
+            "preprocessor_config.json",
+            "vocabulary.json",
+        ),
+        expected_sha256=(
+            ("model.bin", "b79368e19b6623813609431a6e5ee309a71506701ebc49fd7820e692dec7c5f5"),
+            ("config.json", "90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21"),
+            ("tokenizer.json", "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca"),
+            (
+                "preprocessor_config.json",
+                "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            ),
+            (
+                "vocabulary.json",
+                "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            ),
+        ),
+        expected_size=(
+            ("model.bin", 1_512_927_867),
+            ("config.json", 2_690),
+            ("tokenizer.json", 2_480_617),
+            ("preprocessor_config.json", 340),
+            ("vocabulary.json", 1_068_114),
+        ),
         revision="c3058b475261292e64a0412df1d2681c06260fab",
         optional=True,
         license_expression="MIT",
         source_url="https://huggingface.co/Systran/faster-distil-whisper-large-v3",
         terms_url="https://huggingface.co/Systran/faster-distil-whisper-large-v3",
         attribution="SYSTRAN CTranslate2 conversion of Distil-Whisper.",
-        acquisition_status="approved",
-        runtime_status="approved_local",
+        acquisition_status="approved_exact_pinned_files",
+        runtime_status="approved_local_real_inference",
         redistribution_status="permitted_with_license_terms",
-        review_status="verified",
-        reviewed_at="2026-07-10",
+        review_status="verified_exact_files_and_inference",
+        reviewed_at="2026-07-25",
+        product_classification="optional",
+        blocker=None,
+        backend_compatibility=(
+            "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; English-only; "
+            "real local int8_float32 inference passed"
+        ),
+        modification_status="unmodified exact pinned runtime files",
+        package_bundle_id="com.auralign.studio.modelpack.distil-large-v3.v1",
+        package_bundle_version="1.0.0",
+        package_relative_path="models/Systran--faster-distil-whisper-large-v3",
+        delivery="native-download",
     ),
     "distil-large-v3.5": ModelEntry(
         key="distil-large-v3.5",
         role="asr",
         model_id="distil-whisper/distil-large-v3.5-ct2",
-        required_files=("model.bin", "config.json", "tokenizer.json", "preprocessor_config.json"),
+        required_files=(
+            "model.bin",
+            "config.json",
+            "tokenizer.json",
+            "preprocessor_config.json",
+            "vocabulary.json",
+        ),
+        expected_sha256=(
+            ("model.bin", "c58b88b8585ffcd2135fddaaf421ce72cb223b32edea70d156aed1dea319a119"),
+            ("config.json", "90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21"),
+            ("tokenizer.json", "b3c8202bbf06d8ee4232c5984baa563784ac4737e2e7fdc42fa180200d3cfcdb"),
+            (
+                "preprocessor_config.json",
+                "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+            ),
+            (
+                "vocabulary.json",
+                "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+            ),
+        ),
+        expected_size=(
+            ("model.bin", 1_512_927_867),
+            ("config.json", 2_690),
+            ("tokenizer.json", 2_480_645),
+            ("preprocessor_config.json", 340),
+            ("vocabulary.json", 1_068_114),
+        ),
         revision="9793ccc07920e0f830e1dba0343efcdf0ef8c903",
         optional=True,
         license_expression="MIT",
         source_url="https://huggingface.co/distil-whisper/distil-large-v3.5-ct2",
         terms_url="https://huggingface.co/distil-whisper/distil-large-v3.5-ct2",
         attribution="Distil-Whisper CTranslate2 conversion.",
-        acquisition_status="approved",
-        runtime_status="approved_local",
+        acquisition_status="approved_exact_pinned_files",
+        runtime_status="approved_local_real_inference",
         redistribution_status="permitted_with_license_terms",
-        review_status="verified",
-        reviewed_at="2026-07-10",
+        review_status="verified_exact_files_and_inference",
+        reviewed_at="2026-07-25",
+        product_classification="production",
+        blocker=None,
+        backend_compatibility=(
+            "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; English-only; "
+            "real local int8_float32 inference passed"
+        ),
+        modification_status="unmodified exact pinned runtime files",
+        package_bundle_id="com.auralign.studio.modelpack.distil-large-v3-5.v1",
+        package_bundle_version="1.0.0",
+        package_relative_path="models/distil-whisper--distil-large-v3.5-ct2",
+        delivery="native-download",
     ),
     "mlx-tiny": mlx_model_entry(
         "mlx-tiny",
@@ -267,8 +555,14 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
     ),
     "mlx-large": mlx_model_entry(
         "mlx-large",
-        "mlx-community/whisper-large-mlx",
-        aliases=("large", "large-v1", "whisper-large-mlx", "mlx-community/whisper-large-mlx"),
+        "mlx-community/whisper-large-v1-mlx",
+        aliases=(
+            "large",
+            "large-v1",
+            "whisper-large-mlx",
+            "whisper-large-v1-mlx",
+            "mlx-community/whisper-large-mlx",
+        ),
     ),
     "mlx-large-v2": mlx_model_entry(
         "mlx-large-v2",
@@ -322,6 +616,13 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
                 "325f1ce8e48f7e55e9c8aa47e05d2766b7c48c4b25b8de8dd751e7a4cc5fbe8f",
             ),
         ),
+        expected_size=(
+            ("config.yaml", 444),
+            ("segmentation/pytorch_model.bin", 5_906_507),
+            ("embedding/pytorch_model.bin", 26_646_242),
+            ("plda/plda.npz", 133_852),
+            ("plda/xvec_transform.npz", 134_376),
+        ),
         aliases=("pyannote-community-1",),
         revision="3533c8cf8e369892e6b79ff1bf80f7b0286a54ee",
         license_expression="CC-BY-4.0",
@@ -333,6 +634,14 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         redistribution_status="permitted_with_attribution_and_gated_terms",
         review_status="verified_gated",
         reviewed_at="2026-07-20",
+        product_classification="production",
+        blocker=None,
+        backend_compatibility="pyannote.audio CPU diarization runtime",
+        modification_status="unmodified exact pinned runtime files",
+        package_bundle_id="com.auralign.studio.models.bootstrap.v1",
+        package_bundle_version="1.0.0",
+        package_relative_path=("models/pyannote--speaker-diarization-community-1"),
+        delivery="system-component",
     ),
     "en": ModelEntry(
         key="en",
@@ -361,6 +670,13 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
                 "8aa76ab2243c81747a1f832954586bc566090c83a0ac167df6f31f0fa917d74a",
             ),
         ),
+        expected_size=(
+            ("config.json", 1_596),
+            ("preprocessor_config.json", 159),
+            ("tokenizer_config.json", 163),
+            ("vocab.json", 291),
+            ("model.safetensors", 377_607_901),
+        ),
         aliases=("auto", "english"),
         optional=True,
         revision="22aad52d435eb6dbaf354bdad9b0da84ce7d6156",
@@ -373,6 +689,14 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         redistribution_status="permitted_with_license_terms",
         review_status="verified",
         reviewed_at="2026-07-10",
+        product_classification="production",
+        blocker=None,
+        backend_compatibility="WhisperX wav2vec2 forced-alignment CPU runtime",
+        modification_status="unmodified exact pinned runtime files",
+        package_bundle_id="com.auralign.studio.models.bootstrap.v1",
+        package_bundle_version="1.0.0",
+        package_relative_path="models/facebook--wav2vec2-base-960h",
+        delivery="system-component",
     ),
     "ecapa": ModelEntry(
         key="ecapa",
@@ -409,6 +733,14 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
             ),
             ("config.json", "15ff7afad09adec0936c31493a7397c13f855914f4579a8393fe82649778a664"),
         ),
+        expected_size=(
+            ("hyperparams.yaml", 1_919),
+            ("embedding_model.ckpt", 83_316_686),
+            ("classifier.ckpt", 5_534_328),
+            ("mean_var_norm_emb.ckpt", 1_921),
+            ("label_encoder.txt", 128_619),
+            ("config.json", 51),
+        ),
         aliases=("speechbrain-ecapa",),
         optional=True,
         revision="0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
@@ -421,6 +753,14 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         redistribution_status="permitted_with_license_terms",
         review_status="verified_with_training_data_caveat",
         reviewed_at="2026-07-10",
+        product_classification="production",
+        blocker=None,
+        backend_compatibility="SpeechBrain ECAPA-TDNN CPU runtime",
+        modification_status="unmodified exact pinned runtime files",
+        package_bundle_id="com.auralign.studio.models.bootstrap.v1",
+        package_bundle_version="1.0.0",
+        package_relative_path=("models/speechbrain--spkrec-ecapa-voxceleb"),
+        delivery="system-component",
     ),
 }
 
@@ -712,7 +1052,7 @@ def required_model_requests(config: PipelineConfig) -> tuple[tuple[str, str], ..
         requests.append(("asr", config.asr.model))
     if diarization_runtime_enabled(config.diarization):
         requests.append(("diarization", config.diarization.model))
-    if config.alignment.enabled and config.alignment.backend == "forced":
+    if config.alignment.enabled and config.alignment.backend in {"auto", "forced"}:
         requests.append(("alignment", config.alignment.model or "auto"))
     if config.speaker_id.mode == "auto":
         requests.append(("speaker-embedding", config.speaker_id.model))
@@ -785,7 +1125,9 @@ def preset_config(preset: PresetName, cwd: Path | None = None) -> PipelineConfig
         config.asr.compute_type = "int8_float32"
     elif preset == "fast":
         config.asr.model = "distil-large-v3.5"
+        config.asr.language = "en"
         config.asr.beam_size = 1
+        config.asr.compute_type = "int8"
         config.alignment.backend = "fallback"
     elif preset == "cpu":
         config.asr.model = "turbo"

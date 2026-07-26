@@ -26,6 +26,10 @@ struct FieldRowView: View {
         guard let role = field.modelRole, let key = effective.stringValue else { return nil }
         return config.manifest.resolveModel(role: role, value: key)
     }
+    private var selectedChoicePresentation: FieldCatalog.ChoicePresentation? {
+        guard let value = effective.stringValue else { return nil }
+        return entry.choicePresentations?[value]
+    }
     private var unmetRequirement: FieldCatalog.Requirement? {
         entry.unmetRequirement(in: config.effectiveConfig)
     }
@@ -253,6 +257,16 @@ struct FieldRowView: View {
         } else if entry.disposition == .readonly {
             parts.append("This field is read-only.")
         }
+        if let selectedChoicePresentation {
+            parts.append(selectedChoicePresentation.help)
+        }
+        if let selectedModelEntry {
+            parts.append(
+                model.modelSetup.productSummary(for: selectedModelEntry)
+            )
+        } else if field.modelRole != nil, let value = effective.stringValue {
+            parts.append("\(value) is absent from the reviewed model manifest.")
+        }
         if let localBoundsError {
             parts.append(localBoundsError)
         }
@@ -344,15 +358,34 @@ struct FieldRowView: View {
                 Divider()
             }
             ForEach(field.choices ?? [], id: \.self) { choice in
-                Text(choice).tag(choice)
+                enumChoiceLabel(choice)
+                    .tag(choice)
             }
         }
         .labelsHidden()
         .pickerStyle(.menu)
         .fixedSize()
         .accessibilityFocused($accessibilityFocused)
+        .accessibilityValue(
+            Text(
+                selectedChoicePresentation?.accessibilityLabel
+                    ?? effective.displayText
+            )
+        )
         .accessibilityHint(Text(controlAccessibilityHint))
         .accessibilityIdentifier(AccessibilityIdentifier.fieldControl(field.key))
+    }
+
+    @ViewBuilder
+    private func enumChoiceLabel(_ choice: String) -> some View {
+        if let presentation = entry.choicePresentations?[choice] {
+            Text(presentation.label)
+                .accessibilityLabel(
+                    Text(presentation.accessibilityLabel)
+                )
+        } else {
+            Text(choice)
+        }
     }
 
     private var enumBinding: Binding<String> {
@@ -376,21 +409,40 @@ struct FieldRowView: View {
                 Divider()
             }
             ForEach(choices) { choice in
-                Text("\(choice.key) — \(choice.policyLabel)")
+                Text(
+                    "\(model.modelSetup.displayName(for: choice)) — "
+                        + model.modelSetup.installationLabel(for: choice)
+                )
+                    .accessibilityLabel(
+                        Text(
+                            model.modelSetup.accessibilityLabel(for: choice)
+                                + ". "
+                                + model.modelSetup.installationLabel(for: choice)
+                        )
+                    )
                     .tag(choice.key)
-                    .disabled(!choice.isRuntimeSelectable)
             }
             if !current.isEmpty, !choices.contains(where: { $0.key == current }) {
                 Divider()
                 if let selectedModelEntry {
-                    Text(
-                        "\(current) — alias for \(selectedModelEntry.key)"
-                            + " · \(selectedModelEntry.policyLabel)"
-                    )
-                    .tag(current)
-                    .disabled(!selectedModelEntry.isRuntimeSelectable)
+                    if selectedModelEntry.isRuntimeSelectable {
+                        Text(
+                            "\(model.modelSetup.displayName(for: selectedModelEntry))"
+                                + " — current alias \(current)"
+                        )
+                        .tag(current)
+                    } else {
+                        Text(
+                            "Unavailable current value — "
+                                + model.modelSetup.displayName(
+                                    for: selectedModelEntry
+                                )
+                        )
+                        .tag(current)
+                        .disabled(true)
+                    }
                 } else {
-                    Text("\(current) — unknown (blocked)")
+                    Text("Unavailable current value — \(current)")
                         .tag(current)
                         .disabled(true)
                 }
@@ -399,8 +451,19 @@ struct FieldRowView: View {
         .labelsHidden()
         .pickerStyle(.menu)
         .fixedSize()
-        .help(selectedModelEntry?.policyExplanation ?? "Choose a reviewed model.")
+        .help(
+            selectedModelEntry.map {
+                model.modelSetup.productSummary(for: $0)
+            } ?? "Choose an exact verified local model."
+        )
         .accessibilityFocused($accessibilityFocused)
+        .accessibilityValue(
+            Text(
+                selectedModelEntry.map {
+                    model.modelSetup.displayName(for: $0)
+                } ?? current
+            )
+        )
         .accessibilityHint(Text(controlAccessibilityHint))
         .accessibilityIdentifier(AccessibilityIdentifier.fieldControl(field.key))
     }

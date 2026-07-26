@@ -43,8 +43,8 @@
       "sha256": "93c4b1a8f511433b3f5c676309f947592d1f6d3695bdddfb04ddb18c100e79b6"
     },
     "Distribution.xml.template": {
-      "bytes": 962,
-      "sha256": "b188e9b897ca0bece3de6701487417d25c9d4510c78b69e5d84e9d9c0544122f"
+      "bytes": 1318,
+      "sha256": "cd209237bb0c4a6c13f136a5395da1b6b07e80d033ab1b79c7c7343074a50eae"
     },
     "Resources/background-darkAqua.png": {
       "bytes": 76966,
@@ -55,12 +55,20 @@
       "sha256": "b9e1e34a58ce6a6f250cea4fe79db7cdf165f359e9b0fe1efe398496e4bf1014"
     },
     "Resources/en.lproj/conclusion.html": {
-      "bytes": 777,
-      "sha256": "1e3962bc30f9aa7015e9d92a7233bbc7bb5c5ddfd70ff99af8c565f510a96a87"
+      "bytes": 1079,
+      "sha256": "78753fe767d94ee306a86282ac15206ac952d83b24bb1f2056bb6d225b6299a0"
+    },
+    "Resources/en.lproj/license.html": {
+      "bytes": 8412,
+      "sha256": "673135374c4999963bf3b79814ace055bad095c0864b7eb1a2e028164bd25b58"
+    },
+    "Resources/en.lproj/readme.html": {
+      "bytes": 1674,
+      "sha256": "63456dbdc4688d0d95a6dcc08fb4b8f610b8a864307afd806d33857c937dcd2f"
     },
     "Resources/en.lproj/welcome.html": {
-      "bytes": 1542,
-      "sha256": "e088ed1fedb2476361e139eb0db85c1e257f3c914ead594edebf95b888cae8b7"
+      "bytes": 2087,
+      "sha256": "8f9af65d9162ac3fa75f172648f185812d223b4d3b4a7104cc7faa543da73e6b"
     },
     "Sources/installer-background-dark.svg": {
       "bytes": 19459,

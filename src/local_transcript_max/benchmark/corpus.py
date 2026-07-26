@@ -551,7 +551,6 @@ def expand_job_matrix(
     compute_types: list[str],
     asr_backends: list[str],
     asr_mlx_model: str | None,
-    asr_mlx_model_path: Path | None,
     diarization_devices: list[str],
     alignment_devices: list[str],
     infer_speakers: bool,
@@ -663,7 +662,6 @@ def expand_job_matrix(
                                         verbose=verbose,
                                         asr_backend=asr_backend,
                                         asr_mlx_model=asr_mlx_model,
-                                        asr_mlx_model_path=asr_mlx_model_path,
                                         diarization_device=diarization_device,
                                         alignment_device=alignment_device,
                                         asr_cpu_threads=None,
@@ -702,9 +700,6 @@ def expand_job_matrix(
                                             "asr_compute_type": compute_type,
                                             "asr_device": asr_device,
                                             "asr_mlx_model": asr_mlx_model,
-                                            "asr_mlx_model_path": str(asr_mlx_model_path)
-                                            if asr_mlx_model_path
-                                            else None,
                                             "compute_type_support": support_metadata,
                                             "diarization_device": diarization_device,
                                             "alignment_device": alignment_device,
@@ -747,7 +742,6 @@ def build_transcribe_command(
     verbose: bool,
     asr_backend: str = "faster-whisper",
     asr_mlx_model: str | None = None,
-    asr_mlx_model_path: Path | None = None,
     diarization_device: str | None = None,
     alignment_device: str | None = None,
     asr_cpu_threads: int | None,
@@ -778,8 +772,6 @@ def build_transcribe_command(
     ]
     if asr_mlx_model is not None:
         command.extend(["--asr-mlx-model", asr_mlx_model])
-    if asr_mlx_model_path is not None:
-        command.extend(["--asr-mlx-model-path", str(asr_mlx_model_path)])
     if diarization_device is not None:
         command.extend(["--diarization-device", diarization_device])
     if alignment_device is not None:
@@ -844,7 +836,6 @@ def write_matrix_config(
     *,
     asr_backend: str | None,
     asr_mlx_model: str | None,
-    asr_mlx_model_path: Path | None,
     compute_type: str | None,
     diarization_device: str | None,
     alignment_device: str | None,
@@ -855,8 +846,6 @@ def write_matrix_config(
         payload.setdefault("asr", {})["backend"] = asr_backend
     if asr_mlx_model is not None:
         payload.setdefault("asr", {})["mlx_model"] = asr_mlx_model
-    if asr_mlx_model_path is not None:
-        payload.setdefault("asr", {})["mlx_model_path"] = str(asr_mlx_model_path)
     if compute_type is not None:
         payload.setdefault("asr", {})["compute_type"] = compute_type
     if asr_device is not None:
@@ -893,11 +882,6 @@ def execute_jobs(
                 config_path,
                 asr_backend=cast(str | None, job.get("asr_backend")),
                 asr_mlx_model=cast(str | None, job.get("asr_mlx_model")),
-                asr_mlx_model_path=(
-                    Path(str(job["asr_mlx_model_path"]))
-                    if job.get("asr_mlx_model_path")
-                    else None
-                ),
                 compute_type=cast(str | None, job.get("asr_compute_type")),
                 diarization_device=cast(str | None, job.get("diarization_device")),
                 alignment_device=cast(str | None, job.get("alignment_device")),
@@ -1275,7 +1259,6 @@ def run_corpus_harness(
     compute_types: list[str],
     asr_backends: list[str],
     asr_mlx_model: str | None,
-    asr_mlx_model_path: Path | None,
     diarization_devices: list[str],
     alignment_devices: list[str],
     recursive: bool,
@@ -1329,7 +1312,6 @@ def run_corpus_harness(
         compute_types=compute_types,
         asr_backends=asr_backends,
         asr_mlx_model=asr_mlx_model,
-        asr_mlx_model_path=asr_mlx_model_path,
         diarization_devices=diarization_devices,
         alignment_devices=alignment_devices,
         infer_speakers=infer_speakers,
@@ -1361,7 +1343,6 @@ def run_corpus_harness(
         compute_types=compute_types,
         asr_backends=asr_backends,
         asr_mlx_model=asr_mlx_model,
-        asr_mlx_model_path=asr_mlx_model_path,
         diarization_devices=diarization_devices,
         alignment_devices=alignment_devices,
         asr_batched=asr_batched,
@@ -1386,7 +1367,6 @@ def build_corpus_report(
     compute_types: list[str],
     asr_backends: list[str],
     asr_mlx_model: str | None,
-    asr_mlx_model_path: Path | None,
     diarization_devices: list[str],
     alignment_devices: list[str],
     asr_batched: bool,
@@ -1429,7 +1409,6 @@ def build_corpus_report(
             "compute_types": compute_types,
             "asr_backends": asr_backends,
             "asr_mlx_model": asr_mlx_model,
-            "asr_mlx_model_path": str(asr_mlx_model_path) if asr_mlx_model_path else None,
             "diarization_devices": diarization_devices,
             "alignment_devices": alignment_devices,
             "asr_batched": asr_batched,

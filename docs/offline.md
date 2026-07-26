@@ -15,11 +15,29 @@ explicitly allowed.
 LTM_OFFLINE=1 ltm doctor
 ```
 
-When required models are missing, doctor and transcribe fail fast with the exact
-online pull command. Offline mode does not call Hugging Face metadata endpoints
-or attempt opportunistic downloads. A pullable cache is also rejected when its
-`.ltm-model.json` linkage marker is missing or does not match the manifest's
-immutable model ID and revision.
+Offline mode does not call Hugging Face metadata endpoints or attempt
+opportunistic downloads. In a source-development cache lane, a missing required
+model fails fast with the exact maintainer pull command, and a pullable cache is
+rejected when its private `.ltm-model.json` linkage marker does not match the
+manifest's immutable model ID and revision.
+
+The installed 0.3.0 product has two fail-closed resource contracts:
+
+- the root-owned `com.auralign.studio.models.bootstrap.v1` version `1.0.0`
+  component, containing Community-1, English alignment, ECAPA, and deterministic
+  corpus-free Punkt; and
+- the selected exact per-user ASR pack below
+  `~/Library/Application Support/com.auralign.studio/Models/Packs/<pack-id>/<version>/`.
+
+The signed native model manager may perform an explicit connected setup before
+offline processing. It downloads only revision-bound public files from its
+sealed catalog with no token, verifies exact paths, sizes, hashes, licenses,
+notices, provenance, CycloneDX SBOM, permissions, and completion marker in a
+private stage, then atomically publishes the pack. It never downloads during
+doctor, readiness, or transcription. Missing or altered bootstrap content
+requires package repair/reinstall; a missing or altered ASR pack is repaired
+through **Complete Offline Setup** or an exact offline import. Arbitrary
+directories and floating repository IDs are never trusted.
 
 Doctor evaluates dependencies and models required by the active configuration;
 missing packages for a selected ASR, diarization, forced-alignment, or speaker-ID
@@ -34,23 +52,11 @@ a model or calls a service. ECAPA evidence is usable only when an existing
 current-job `speaker_map.json` proves a healthy local production backend;
 backend absence/failure remains non-evidence.
 
-MLX ASR is local-only even when `LTM_OFFLINE` is unset. When using
-`asr.backend: mlx-whisper`, set `asr.mlx_model_path`,
-`LTM_ASR_MLX_MODEL_PATH`, or `--asr-mlx-model-path` to an existing converted MLX
-model directory containing `config.json` and `weights.safetensors` or
-`weights.npz`. The runtime refuses remote repo IDs so `mlx-whisper` cannot fall
-back to Hugging Face downloads during transcription.
-
-The experimental MLX VAD-windowed mode is also local-only. It uses `vad.json`
-speech regions as window hints, writes temporary WAV chunks under the system temp
-directory, restores timestamps to the canonical timeline, and still uses only
-the resolved local MLX model path.
-
-If the converted MLX directory is outside the cache, import it explicitly:
-
-```bash
-uv run ltm models import-mlx /path/to/converted-mlx-whisper --cache-dir models
-```
+MLX ASR is supported on Apple Silicon only through one of the twelve exact
+verified MLX packs. Selecting `mlx-whisper` without the matching valid pack
+fails before pipeline execution; it never triggers a runtime download or
+silently falls back to CTranslate2. See
+[Apple Silicon](apple-silicon.md#mlx-and-mps-runtime-boundary).
 
 Use `ltm models audit` before and after model pulls to confirm whether each
 configured model is offline-usable:
@@ -104,7 +110,12 @@ reviewed model cache and the source tree to the production air-gapped machine,
 preserving hidden
 `.ltm-model.json` linkage files. Do not copy `.hf-cache`, `.env`, shell history,
 token stores, media, or generated output. A different pyannote operator must
-accept the upstream gate and acquire their own copy. See
+complete the upstream gate for a direct maintainer pull. This cache-transfer
+workflow is not the installed 0.3.0 recipient path: the product PKG installs
+the exact cleared, attributed bootstrap component, and the native app installs
+or imports the selected verified ASR pack. No recipient token is needed, but
+the first native pack setup needs a connection unless an exact pack is already
+installed or imported. See
 [`models.md`](models.md#exact-connected-preparation-and-offline-runbook) for the
 safe transfer sequence. Dataset sample acquisition remains blocked until exact
 provenance and license are verified.

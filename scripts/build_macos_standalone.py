@@ -4,12 +4,15 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
-"""Build, verify, sign, package, and notarize the standalone macOS application.
+"""Build, verify, sign, package, and notarize the standalone macOS product.
 
-The shipped product is one scriptless PKG containing one self-contained app.
-Models remain outside both artifacts. Release mode fails closed unless the
-source tree is clean, both Developer ID identities are supplied, notarization
-is accepted, and the exact final package is stapled and reverified.
+The shipped product is one scriptless PKG containing an independently versioned
+self-contained application component and exact verified bootstrap-model
+component. Cleared ASR models that exceed release-host asset limits are
+delivered later by the signed native app through exact verified per-user packs.
+Release mode fails closed unless the source tree is clean, both Developer ID
+identities are supplied, notarization is accepted, and the exact final package
+is stapled and reverified.
 """
 
 from __future__ import annotations
@@ -31,9 +34,30 @@ import tempfile
 import tomllib
 import urllib.request
 import xml.etree.ElementTree as ET
+from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, cast
+
+from local_transcript_max.config import MODEL_MANIFEST
+from local_transcript_max.model_bundle import (
+    BOOTSTRAP_MODEL_KEYS,
+    MODEL_BUNDLE_COMPLETION_FILENAME,
+    MODEL_BUNDLE_IDENTIFIER,
+    MODEL_BUNDLE_MANIFEST_FILENAME,
+    MODEL_BUNDLE_PROVENANCE_FILENAME,
+    MODEL_BUNDLE_VERIFICATION_FILENAME,
+    MODEL_BUNDLE_VERSION,
+    assemble_model_bundle,
+    verify_model_bundle,
+)
+from local_transcript_max.model_delivery import (
+    MODEL_DELIVERY_CATALOG_SCHEMA_VERSION,
+    MODEL_DELIVERY_CATALOG_VERSION,
+    NORMAL_PRESET_MODELS,
+    dump_model_delivery_catalog,
+    model_delivery_catalog_sha256,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES_PATH = ROOT / "packaging/macos/runtime-sources.toml"
@@ -43,13 +67,34 @@ COMPONENT_PLIST_PATH = ROOT / "packaging/macos/component.plist"
 DISTRIBUTION_PATH = ROOT / "packaging/macos/Distribution.xml"
 INSTALLER_RESOURCES_PATH = ROOT / "packaging/macos/installer-design/Resources"
 PROJECT_PATH = ROOT / "macos/Auralign.xcodeproj"
+MODEL_DELIVERY_CATALOG_PATH = (
+    ROOT / "macos/Auralign/Resources/model_delivery_catalog.json"
+)
 SCHEME = "Auralign"
 RUNTIME_DIRECTORY_NAME = "AuralignEngineRuntime"
 RUNTIME_BUNDLE_NAME = f"{RUNTIME_DIRECTORY_NAME}.bundle"
 RUNTIME_BUNDLE_IDENTIFIER = "com.auralign.studio.engine-runtime"
 APP_IDENTIFIER = "com.auralign.studio"
-RECEIPT_IDENTIFIER = "com.auralign.studio.pkg.app"
+APP_RECEIPT_IDENTIFIER = "com.auralign.studio.pkg.app"
+MODEL_RECEIPT_IDENTIFIER = "com.auralign.studio.pkg.models.bootstrap-v1"
+APP_COMPONENT_FILENAME = "Auralign-application-component.pkg"
+MODEL_COMPONENT_FILENAME = "Auralign-offline-models-component.pkg"
+GITHUB_RELEASE_ASSET_MAX_BYTES = 2 * 1024**3
+MODEL_INSTALL_PARENT = Path(
+    "Library/Application Support/com.auralign.studio/Models"
+)
+INSTALLER_RESOURCE_RELATIVE_PATHS = (
+    Path("background.png"),
+    Path("background-darkAqua.png"),
+    Path("en.lproj/welcome.html"),
+    Path("en.lproj/readme.html"),
+    Path("en.lproj/license.html"),
+    Path("en.lproj/conclusion.html"),
+)
 DIAGNOSTIC_CACHE_SCHEMA_VERSION = "auralign-macos-diagnostic-cache.v1"
+DIAGNOSTIC_CACHE_DIRECTORY_MODE = 0o555
+DIAGNOSTIC_CACHE_FILE_MODE = 0o444
+DIAGNOSTIC_CACHE_EXECUTABLE_MODE = 0o555
 NORMALIZATION_IMPLEMENTATION_VERSION = "auralign-macho-normalization.v3"
 SYSTEM_LIBRARY_PREFIXES = ("/System/Library/", "/usr/lib/")
 MACHO_MAGICS = {
@@ -111,6 +156,7 @@ def run(
     cwd: Path = ROOT,
     env: dict[str, str] | None = None,
     capture: bool = False,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     print("+", " ".join(command), flush=True)
     return subprocess.run(
@@ -120,11 +166,17 @@ def run(
         check=True,
         text=True,
         capture_output=capture,
+        timeout=timeout,
     )
 
 
-def output(command: list[str], *, cwd: Path = ROOT) -> str:
-    return run(command, cwd=cwd, capture=True).stdout.strip()
+def output(
+    command: list[str],
+    *,
+    cwd: Path = ROOT,
+    env: dict[str, str] | None = None,
+) -> str:
+    return run(command, cwd=cwd, env=env, capture=True).stdout.strip()
 
 
 def quiet_output(command: list[str], *, cwd: Path = ROOT) -> str:
@@ -217,25 +269,277 @@ def load_sources() -> dict[str, Any]:
 
 
 def verify_packaging_contract(sources: dict[str, Any]) -> None:
-    distribution = ET.parse(DISTRIBUTION_PATH).getroot()
-    package = distribution.find("pkg-ref")
-    require(package is not None, "Distribution package reference missing")
-    require(package.attrib.get("id") == RECEIPT_IDENTIFIER, "Distribution receipt drift")
-    require(
-        package.attrib.get("version")
-        == f"{sources['product_version']}.{sources['build_number']}",
-        "Distribution version drift",
-    )
-    require(
-        (package.text or "").strip() == "Auralign-component.pkg",
-        "Distribution component filename drift",
+    verify_distribution_contract(
+        DISTRIBUTION_PATH,
+        sources=sources,
+        productbuild_normalized=False,
     )
     run(
         [
             sys.executable,
+            "-B",
             str(ROOT / "packaging/macos/installer-design/build.py"),
             "--check-only",
+        ],
+        env=no_bytecode_environment(),
+    )
+    verify_installer_resources(INSTALLER_RESOURCES_PATH)
+
+
+def verify_distribution_contract(
+    path: Path,
+    *,
+    sources: dict[str, Any],
+    productbuild_normalized: bool,
+) -> None:
+    """Verify the exact reviewed Installer semantics.
+
+    ``productbuild`` rewrites insignificant XML formatting, prefixes embedded
+    component references with ``#``, adds numeric size attributes, and appends
+    one empty ``bundle-version`` record per component. Those four documented
+    transformations are accepted for an expanded product archive; every
+    security-, presentation-, choice-, receipt-, and version-bearing field
+    remains exact and unexpected nodes or attributes fail closed.
+    """
+
+    root = ET.parse(path).getroot()
+    require(
+        root.tag == "installer-gui-script"
+        and root.attrib == {"minSpecVersion": "2"},
+        "Distribution root contract drift",
+    )
+    expected_counts = Counter(
+        {
+            "title": 1,
+            "organization": 1,
+            "domains": 1,
+            "options": 1,
+            "allowed-os-versions": 1,
+            "background": 1,
+            "background-darkAqua": 1,
+            "welcome": 1,
+            "readme": 1,
+            "license": 1,
+            "conclusion": 1,
+            "choices-outline": 1,
+            "choice": 3,
+            "pkg-ref": 4 if productbuild_normalized else 2,
+        }
+    )
+    require(
+        Counter(child.tag for child in root) == expected_counts,
+        "Distribution top-level element set drift",
+    )
+
+    def one(tag: str) -> ET.Element:
+        matches = root.findall(tag)
+        require(len(matches) == 1, f"Distribution {tag} multiplicity drift")
+        return matches[0]
+
+    title = one("title")
+    organization = one("organization")
+    require(
+        title.attrib == {} and (title.text or "").strip() == "Auralign",
+        "Distribution title drift",
+    )
+    require(
+        organization.attrib == {}
+        and (organization.text or "").strip() == APP_IDENTIFIER,
+        "Distribution organization drift",
+    )
+    require(
+        one("domains").attrib
+        == {
+            "enable_localSystem": "true",
+            "enable_currentUserHome": "false",
+            "enable_anywhere": "false",
+        },
+        "Distribution install-domain contract drift",
+    )
+    require(
+        one("options").attrib
+        == {
+            "customize": "never",
+            "require-scripts": "false",
+            "rootVolumeOnly": "true",
+            "hostArchitectures": "arm64",
+        },
+        "Distribution options contract drift",
+    )
+    allowed = one("allowed-os-versions")
+    require(allowed.attrib == {}, "Distribution allowed-OS attributes drift")
+    os_versions = list(allowed)
+    require(
+        len(os_versions) == 1
+        and os_versions[0].tag == "os-version"
+        and os_versions[0].attrib == {"min": "14.0"}
+        and len(os_versions[0]) == 0,
+        "Distribution minimum macOS contract drift",
+    )
+
+    presentation = {
+        "background": {
+            "file": "background.png",
+            "alignment": "bottomleft",
+            "scaling": "tofit",
+        },
+        "background-darkAqua": {
+            "file": "background-darkAqua.png",
+            "alignment": "bottomleft",
+            "scaling": "tofit",
+        },
+        "welcome": {"file": "welcome.html", "mime-type": "text/html"},
+        "readme": {"file": "readme.html", "mime-type": "text/html"},
+        "license": {"file": "license.html", "mime-type": "text/html"},
+        "conclusion": {"file": "conclusion.html", "mime-type": "text/html"},
+    }
+    for tag, attributes in presentation.items():
+        element = one(tag)
+        require(
+            element.attrib == attributes and len(element) == 0,
+            f"Distribution {tag} presentation contract drift",
+        )
+
+    outline = one("choices-outline")
+    outline_lines = list(outline)
+    require(
+        outline.attrib == {}
+        and len(outline_lines) == 1
+        and outline_lines[0].tag == "line"
+        and outline_lines[0].attrib == {"choice": "default"},
+        "Distribution choices outline drift",
+    )
+    component_lines = list(outline_lines[0])
+    require(
+        [line.tag for line in component_lines] == ["line", "line"]
+        and [line.attrib for line in component_lines]
+        == [
+            {"choice": APP_RECEIPT_IDENTIFIER},
+            {"choice": MODEL_RECEIPT_IDENTIFIER},
         ]
+        and all(len(line) == 0 for line in component_lines),
+        "Distribution component choice order drift",
+    )
+
+    choices = {choice.attrib.get("id"): choice for choice in root.findall("choice")}
+    require(
+        set(choices) == {
+            "default",
+            APP_RECEIPT_IDENTIFIER,
+            MODEL_RECEIPT_IDENTIFIER,
+        },
+        "Distribution choice set drift",
+    )
+    require(
+        choices["default"].attrib == {"id": "default"}
+        and len(choices["default"]) == 0,
+        "Distribution default choice drift",
+    )
+    for identifier in (APP_RECEIPT_IDENTIFIER, MODEL_RECEIPT_IDENTIFIER):
+        choice = choices[identifier]
+        references = list(choice)
+        require(
+            choice.attrib == {"id": identifier, "visible": "false"}
+            and len(references) == 1
+            and references[0].tag == "pkg-ref"
+            and references[0].attrib == {"id": identifier}
+            and len(references[0]) == 0,
+            f"Distribution choice contract drift: {identifier}",
+        )
+
+    package_contracts = {
+        APP_RECEIPT_IDENTIFIER: (
+            f"{sources['product_version']}.{sources['build_number']}",
+            APP_COMPONENT_FILENAME,
+        ),
+        MODEL_RECEIPT_IDENTIFIER: (
+            MODEL_BUNDLE_VERSION,
+            MODEL_COMPONENT_FILENAME,
+        ),
+    }
+    primary_packages: dict[str, ET.Element] = {}
+    generated_packages: dict[str, ET.Element] = {}
+    for package in root.findall("pkg-ref"):
+        identifier = package.attrib.get("id")
+        require(
+            identifier in package_contracts,
+            "Distribution contains an unexpected component reference",
+        )
+        if "version" in package.attrib:
+            require(identifier not in primary_packages, "duplicate Distribution component")
+            primary_packages[identifier] = package
+        else:
+            require(identifier not in generated_packages, "duplicate generated component record")
+            generated_packages[identifier] = package
+    require(
+        set(primary_packages) == set(package_contracts),
+        "Distribution primary component receipt set drift",
+    )
+    require(
+        set(generated_packages)
+        == (set(package_contracts) if productbuild_normalized else set()),
+        "Distribution productbuild component metadata set drift",
+    )
+    for identifier, (version, filename) in package_contracts.items():
+        package = primary_packages[identifier]
+        expected_attributes = {
+            "id": identifier,
+            "version": version,
+            "onConclusion": "none",
+        }
+        expected_text = filename
+        if productbuild_normalized:
+            expected_attributes |= {
+                "installKBytes": package.attrib.get("installKBytes", ""),
+                "updateKBytes": package.attrib.get("updateKBytes", ""),
+            }
+            require(
+                expected_attributes["installKBytes"].isdigit()
+                and expected_attributes["updateKBytes"].isdigit(),
+                f"Distribution component size metadata is invalid: {identifier}",
+            )
+            expected_text = f"#{filename}"
+        require(
+            package.attrib == expected_attributes
+            and (package.text or "").strip() == expected_text
+            and len(package) == 0,
+            f"Distribution primary component contract drift: {identifier}",
+        )
+        if productbuild_normalized:
+            generated = generated_packages[identifier]
+            generated_children = list(generated)
+            require(
+                generated.attrib == {"id": identifier}
+                and not (generated.text or "").strip()
+                and len(generated_children) == 1
+                and generated_children[0].tag == "bundle-version"
+                and generated_children[0].attrib == {}
+                and len(generated_children[0]) == 0,
+                f"Distribution generated component metadata drift: {identifier}",
+            )
+
+
+def verify_installer_resources(resources: Path) -> None:
+    expected_files = {path.as_posix() for path in INSTALLER_RESOURCE_RELATIVE_PATHS}
+    expected_directories = {"en.lproj"}
+    actual_files: set[str] = set()
+    actual_directories: set[str] = set()
+    for candidate in resources.rglob("*"):
+        relative = candidate.relative_to(resources).as_posix()
+        metadata = candidate.lstat()
+        require(
+            not stat.S_ISLNK(metadata.st_mode),
+            f"installer presentation resource must not be a symbolic link: {relative}",
+        )
+        if stat.S_ISDIR(metadata.st_mode):
+            actual_directories.add(relative)
+        elif stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1:
+            actual_files.add(relative)
+        else:
+            raise RuntimeError(f"installer presentation resource is irregular: {relative}")
+    require(
+        actual_directories == expected_directories and actual_files == expected_files,
+        "installer presentation resource allowlist drift",
     )
 
 
@@ -265,6 +569,17 @@ def require_clean_main() -> str:
     )
     revision = output(["git", "rev-parse", "--verify", "HEAD^{commit}"])
     require(re.fullmatch(r"[0-9a-f]{40}", revision) is not None, "invalid Git revision")
+    remote_revision = output(
+        ["git", "rev-parse", "--verify", "refs/remotes/origin/main^{commit}"]
+    )
+    require(
+        re.fullmatch(r"[0-9a-f]{40}", remote_revision) is not None,
+        "invalid origin/main Git revision",
+    )
+    require(
+        revision == remote_revision,
+        "release requires local main and fetched origin/main to match exactly",
+    )
     return revision
 
 
@@ -280,13 +595,15 @@ def source_revision(allow_dirty: bool) -> tuple[str, str]:
             "run",
             "--frozen",
             "python",
+            "-B",
             "-c",
             (
                 "from local_transcript_max.code_provenance import "
                 "_source_tree_sha256; from pathlib import Path; "
                 "print(_source_tree_sha256(Path.cwd()))"
             ),
-        ]
+        ],
+        env=no_bytecode_environment(),
     )
     require(re.fullmatch(r"[0-9a-f]{64}", tree) is not None, "invalid source-tree digest")
     return revision, tree
@@ -354,6 +671,7 @@ def verified_cache_payload(
     payload = entry / "payload"
     require(manifest_path.is_file(), f"incomplete cache manifest: {entry}")
     require(payload.is_dir() and not payload.is_symlink(), f"incomplete cache payload: {entry}")
+    verify_diagnostic_cache_seal(entry, payload, manifest_path)
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -374,6 +692,99 @@ def verified_cache_payload(
         f"cache payload hash or mode drift: {entry}",
     )
     return payload
+
+
+def seal_diagnostic_cache_payload(payload: Path) -> None:
+    """Seal one private cache payload while preserving executable file bits."""
+
+    root_metadata = payload.lstat()
+    require(
+        stat.S_ISDIR(root_metadata.st_mode) and not stat.S_ISLNK(root_metadata.st_mode),
+        f"diagnostic cache payload root is unsafe: {payload}",
+    )
+    owner = (root_metadata.st_uid, root_metadata.st_gid)
+    device = root_metadata.st_dev
+    directories = [payload]
+    for path in sorted(payload.rglob("*")):
+        metadata = path.lstat()
+        require(
+            metadata.st_dev == device
+            and (metadata.st_uid, metadata.st_gid) == owner,
+            f"diagnostic cache payload ownership or filesystem drift: {path}",
+        )
+        if stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
+            directories.append(path)
+            continue
+        require(
+            stat.S_ISREG(metadata.st_mode)
+            and not stat.S_ISLNK(metadata.st_mode)
+            and metadata.st_nlink == 1,
+            f"diagnostic cache payload contains a linked or irregular entry: {path}",
+        )
+        path.chmod(
+            DIAGNOSTIC_CACHE_EXECUTABLE_MODE
+            if stat.S_IMODE(metadata.st_mode) & 0o111
+            else DIAGNOSTIC_CACHE_FILE_MODE
+        )
+    for directory in sorted(
+        directories,
+        key=lambda candidate: len(candidate.parts),
+        reverse=True,
+    ):
+        directory.chmod(DIAGNOSTIC_CACHE_DIRECTORY_MODE)
+
+
+def verify_diagnostic_cache_seal(
+    entry: Path,
+    payload: Path,
+    manifest_path: Path,
+) -> None:
+    """Verify one published cache entry is exact, read-only, and self-contained."""
+
+    require(
+        {child.name for child in entry.iterdir()} == {"manifest.json", "payload"},
+        f"diagnostic cache entry contains unexpected paths: {entry}",
+    )
+    entry_metadata = entry.lstat()
+    require(
+        stat.S_ISDIR(entry_metadata.st_mode)
+        and not stat.S_ISLNK(entry_metadata.st_mode)
+        and stat.S_IMODE(entry_metadata.st_mode) == DIAGNOSTIC_CACHE_DIRECTORY_MODE,
+        f"diagnostic cache entry is not sealed: {entry}",
+    )
+    owner = (entry_metadata.st_uid, entry_metadata.st_gid)
+    device = entry_metadata.st_dev
+    for path in [payload, manifest_path, *sorted(payload.rglob("*"))]:
+        metadata = path.lstat()
+        require(
+            metadata.st_dev == device
+            and (metadata.st_uid, metadata.st_gid) == owner,
+            f"diagnostic cache entry ownership or filesystem drift: {path}",
+        )
+        if stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
+            require(
+                stat.S_IMODE(metadata.st_mode) == DIAGNOSTIC_CACHE_DIRECTORY_MODE,
+                f"diagnostic cache directory is mutable: {path}",
+            )
+            continue
+        require(
+            stat.S_ISREG(metadata.st_mode)
+            and not stat.S_ISLNK(metadata.st_mode)
+            and metadata.st_nlink == 1,
+            f"diagnostic cache entry contains a linked or irregular file: {path}",
+        )
+        expected_modes = (
+            {DIAGNOSTIC_CACHE_FILE_MODE}
+            if path == manifest_path
+            else {
+                DIAGNOSTIC_CACHE_FILE_MODE,
+                DIAGNOSTIC_CACHE_EXECUTABLE_MODE,
+            }
+        )
+        require(
+            stat.S_IMODE(metadata.st_mode) in expected_modes,
+            f"diagnostic cache file is mutable or has an invalid mode: {path}",
+        )
 
 
 def publish_cache_payload(
@@ -406,6 +817,7 @@ def publish_cache_payload(
                 shutil.copytree(source, destination, symlinks=True)
             else:
                 shutil.copy2(source, destination, follow_symlinks=False)
+        seal_diagnostic_cache_payload(payload)
         manifest = {
             "schema_version": DIAGNOSTIC_CACHE_SCHEMA_VERSION,
             "stage": stage,
@@ -417,6 +829,8 @@ def publish_cache_payload(
             json.dumps(manifest, sort_keys=True, indent=2) + "\n",
             encoding="utf-8",
         )
+        (temporary / "manifest.json").chmod(DIAGNOSTIC_CACHE_FILE_MODE)
+        temporary.chmod(DIAGNOSTIC_CACHE_DIRECTORY_MODE)
         entry = stage_root / key
         require(not entry.exists(), f"ambiguous concurrent cache entry: {entry}")
         os.replace(temporary, entry)
@@ -426,6 +840,19 @@ def publish_cache_payload(
         return verified
     finally:
         if temporary.exists():
+            for path in sorted(
+                temporary.rglob("*"),
+                key=lambda candidate: len(candidate.parts),
+                reverse=True,
+            ):
+                try:
+                    path.chmod(
+                        0o700 if path.is_dir() and not path.is_symlink() else 0o600,
+                        follow_symlinks=False,
+                    )
+                except OSError:
+                    pass
+            temporary.chmod(0o700)
             shutil.rmtree(temporary)
 
 
@@ -435,14 +862,32 @@ def restore_cache_item(source: Path, destination: Path) -> None:
         f"refusing to overwrite cache restore destination: {destination}",
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
+    source_inventory_before = inventory_rows(source) if source.is_dir() else None
+    source_mode_before = stat.S_IMODE(source.lstat().st_mode)
     if source.is_dir() and not source.is_symlink():
         shutil.copytree(source, destination, symlinks=True)
     else:
         shutil.copy2(source, destination, follow_symlinks=False)
+    require(
+        source_mode_before == stat.S_IMODE(source.lstat().st_mode),
+        f"cache source mode changed during restore: {source}",
+    )
+    if source_inventory_before is not None:
+        require(
+            source_inventory_before == inventory_rows(source)
+            and source_inventory_before == inventory_rows(destination),
+            f"cache source changed during restore: {source}",
+        )
+    else:
+        require(
+            sha256(source) == sha256(destination),
+            f"cache source changed during restore: {source}",
+        )
 
 
 def merge_cached_evidence(source: Path, destination: Path) -> None:
     require(source.is_dir(), f"cached evidence directory missing: {source}")
+    source_inventory = inventory_rows(source)
     destination.mkdir(parents=True, exist_ok=True)
     for path in sorted(source.rglob("*")):
         relative = path.relative_to(source)
@@ -471,6 +916,10 @@ def merge_cached_evidence(source: Path, destination: Path) -> None:
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target, follow_symlinks=False)
+    require(
+        source_inventory == inventory_rows(source),
+        f"cached evidence changed during restore: {source}",
+    )
 
 
 def download(
@@ -1749,8 +2198,9 @@ def prune_unbundled_model_assets(
         "scope": "copied runtime stage only",
         "source_wheels_archives_and_repository_untouched": True,
         "reason": (
-            "model weights remain external and only reviewed manifest models "
-            "may establish runtime readiness"
+            "model weights remain outside the signed app runtime; the separate "
+            "bootstrap component and exact verified native packs alone may "
+            "establish runtime readiness"
         ),
         "original_tree_sha256": canonical_json_sha256(files),
         "original_files": len(files),
@@ -2322,6 +2772,16 @@ def verify_app_topology(app: Path) -> None:
     observed = {path.name for path in contents.iterdir()}
     require(observed <= allowed, f"unexpected application topology: {sorted(observed - allowed)}")
     require((contents / "MacOS/Auralign").is_file(), "application executable missing")
+    expected_catalog = dump_model_delivery_catalog().encode("utf-8")
+    require(
+        MODEL_DELIVERY_CATALOG_PATH.read_bytes() == expected_catalog,
+        "source model-delivery catalog drift",
+    )
+    require(
+        (contents / "Resources/model_delivery_catalog.json").read_bytes()
+        == expected_catalog,
+        "signed application model-delivery catalog drift",
+    )
     runtime_bundle = app_runtime_bundle(app)
     require(runtime_bundle.is_dir(), "embedded engine bundle missing")
     with (runtime_bundle / "Contents/Info.plist").open("rb") as handle:
@@ -2492,6 +2952,18 @@ def prune_runtime(runtime: Path) -> None:
             path.unlink()
     for path in (runtime / "lib/python3.11/lib-dynload").glob("_tkinter*.so"):
         path.unlink()
+
+
+def verify_no_python_cache_artifacts(root: Path) -> None:
+    offenders = [
+        path.relative_to(root).as_posix()
+        for path in sorted(root.rglob("*"))
+        if path.name == "__pycache__" or path.suffix == ".pyc"
+    ]
+    require(
+        not offenders,
+        "embedded-Python probe left bytecode residue: " + ", ".join(offenders[:10]),
+    )
 
 
 def inventory_rows(root: Path) -> list[dict[str, Any]]:
@@ -2666,7 +3138,8 @@ def runtime_smoke(runtime: Path, *, label: str) -> dict[str, str]:
                 "-c",
                 (
                     "import importlib,json;"
-                    "names=('faster_whisper','onnxruntime','pyannote.audio',"
+                    "names=('faster_whisper','mlx.core','mlx_whisper','onnxruntime',"
+                    "'pyannote.audio',"
                     "'speechbrain.inference.speaker','torchaudio','torchmetrics',"
                     "'whisperx.alignment');"
                     "modules={name:importlib.import_module(name) for name in names};"
@@ -2683,6 +3156,8 @@ def runtime_smoke(runtime: Path, *, label: str) -> dict[str, str]:
             set(production_dependency_versions)
             == {
                 "faster_whisper",
+                "mlx.core",
+                "mlx_whisper",
                 "onnxruntime",
                 "pyannote.audio",
                 "speechbrain.inference.speaker",
@@ -2810,6 +3285,341 @@ def runtime_smoke(runtime: Path, *, label: str) -> dict[str, str]:
                 retained_data_result,
                 sort_keys=True,
             ),
+        }
+
+
+def model_runtime_smoke(
+    runtime: Path,
+    model_bundle: Path,
+    *,
+    label: str,
+) -> dict[str, Any]:
+    """Verify a staged package component through the embedded release engine.
+
+    This build-time probe calls the deterministic bundle verifier directly. It
+    deliberately does not route a temporary extraction directory through the
+    normal model-cache resolver, whose only marker-free authority is the exact
+    installed system path.
+    """
+
+    bundle_record = verify_model_bundle(model_bundle)
+    model_cache = model_bundle / "models"
+    require(
+        model_cache.is_dir() and not model_cache.is_symlink(),
+        f"{label}: verified bundle has no model cache directory",
+    )
+    python = runtime / "bin/python3"
+    require(python.is_file(), f"{label}: embedded Python is missing")
+    with tempfile.TemporaryDirectory(prefix="auralign-model-runtime-smoke-") as raw:
+        private = Path(raw)
+        home = private / "home"
+        cache = private / "cache"
+        temporary = private / "tmp"
+        for directory in (home, cache, temporary):
+            directory.mkdir(mode=0o700)
+        environment = {
+            "HOME": str(home),
+            "PATH": f"{runtime / 'bin'}:/usr/bin:/bin:/usr/sbin:/sbin",
+            "PYTHONUNBUFFERED": "1",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONNOUSERSITE": "1",
+            "LTM_OFFLINE": "1",
+            "AURALIGN_BUILDER_VERIFIED_MODEL_BUNDLE": str(model_bundle),
+            "HF_HUB_OFFLINE": "1",
+            "HF_HUB_DISABLE_TELEMETRY": "1",
+            "TRANSFORMERS_OFFLINE": "1",
+            "DO_NOT_TRACK": "1",
+            "TOKENIZERS_PARALLELISM": "false",
+            "TMPDIR": str(temporary),
+            "XDG_CACHE_HOME": str(cache),
+            "HF_HOME": str(cache / "HuggingFace"),
+        }
+        completed = run(
+            embedded_python_command(
+                python,
+                "-I",
+                "-c",
+                (
+                    "import json;"
+                    "import os;"
+                    "from pathlib import Path;"
+                    "from local_transcript_max.config import MODEL_MANIFEST;"
+                    "from local_transcript_max.model_bundle import "
+                    "STRICT_MODEL_KEYS,verify_model_bundle;"
+                    "root=Path(os.environ['AURALIGN_BUILDER_VERIFIED_MODEL_BUNDLE']);"
+                    "identity=verify_model_bundle(root);"
+                    "print(json.dumps({"
+                    "'count':len(STRICT_MODEL_KEYS),"
+                    "'bundle_id':identity['bundle_id'],"
+                    "'bundle_version':identity['bundle_version'],"
+                    "'manifest_sha256':identity['manifest_sha256'],"
+                    "'models':[{'role':MODEL_MANIFEST[key].role,'key':key,"
+                    "'revision':MODEL_MANIFEST[key].revision,'present':True} "
+                    "for key in STRICT_MODEL_KEYS]},sort_keys=True))"
+                ),
+            ),
+            cwd=home,
+            env=environment,
+            capture=True,
+        )
+    runtime_record = json.loads(completed.stdout)
+    require(
+        runtime_record.get("count") == len(BOOTSTRAP_MODEL_KEYS),
+        f"{label}: embedded engine did not verify every packaged bootstrap model",
+    )
+    require(
+        all(
+            isinstance(row, dict) and row.get("present") is True
+            for row in runtime_record.get("models", [])
+        ),
+        f"{label}: embedded engine reported a non-ready model",
+    )
+    require(
+        runtime_record.get("bundle_id") == MODEL_BUNDLE_IDENTIFIER
+        and runtime_record.get("bundle_version") == MODEL_BUNDLE_VERSION
+        and runtime_record.get("manifest_sha256") == bundle_record["manifest_sha256"],
+        f"{label}: embedded engine model-bundle identity drift",
+    )
+    verify_model_bundle(model_bundle)
+    verify_no_python_cache_artifacts(runtime)
+    verify_no_python_cache_artifacts(model_bundle)
+    return {
+        "label": label,
+        "bundle": bundle_record,
+        "runtime": runtime_record,
+    }
+
+
+def model_inference_smoke(
+    runtime: Path,
+    model_bundle: Path,
+    *,
+    label: str,
+) -> dict[str, Any]:
+    """Run bounded real inference through every packaged bootstrap model.
+
+    ASR choices are delivered as separately verified native-download packs and
+    are exercised by the installed pack/readiness lane. This probe is scoped to
+    the exact bytes actually present in the scriptless PKG.
+    """
+
+    bundle_record = verify_model_bundle(model_bundle)
+    model_cache = model_bundle / "models"
+    python = runtime / "bin/python3"
+    ffmpeg = runtime / "bin/ffmpeg"
+    for executable in (python, ffmpeg):
+        require(executable.is_file(), f"{label}: embedded runtime executable is missing")
+    say = Path("/usr/bin/say")
+    require(say.is_file(), f"{label}: macOS synthetic-speech tool is unavailable")
+    with tempfile.TemporaryDirectory(prefix="auralign-model-inference-smoke-") as raw:
+        private = Path(raw)
+        home = private / "home"
+        cache = private / "cache"
+        temporary = private / "tmp"
+        for directory in (home, cache, temporary):
+            directory.mkdir(mode=0o700)
+        aiff = private / "synthetic-private-free.aiff"
+        audio = private / "synthetic-private-free.wav"
+        run(
+            [
+                str(say),
+                "--voice",
+                "Samantha",
+                "--output-file",
+                str(aiff),
+                (
+                    "Auralign verifies that every local model runs offline. "
+                    "This synthetic voice contains no private media. "
+                    "Auralign verification is complete."
+                ),
+            ],
+            cwd=home,
+            timeout=60,
+        )
+        run(
+            [
+                str(ffmpeg),
+                "-nostdin",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(aiff),
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-c:a",
+                "pcm_s16le",
+                str(audio),
+            ],
+            cwd=home,
+            timeout=60,
+        )
+        environment = {
+            "HOME": str(home),
+            "PATH": f"{runtime / 'bin'}:/usr/bin:/bin:/usr/sbin:/sbin",
+            "PYTHONUNBUFFERED": "1",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONNOUSERSITE": "1",
+            "LTM_OFFLINE": "1",
+            "LTM_MODEL_CACHE": str(model_cache),
+            "HF_HUB_OFFLINE": "1",
+            "HF_HUB_DISABLE_TELEMETRY": "1",
+            "TRANSFORMERS_OFFLINE": "1",
+            "PYANNOTE_METRICS_ENABLED": "false",
+            "DO_NOT_TRACK": "1",
+            "TOKENIZERS_PARALLELISM": "false",
+            "TMPDIR": str(temporary),
+            "XDG_CACHE_HOME": str(cache),
+            "HF_HOME": str(cache / "HuggingFace"),
+        }
+        program = """
+import json
+import os
+import resource
+import wave
+from pathlib import Path
+from local_transcript_max import models as model_cache_authority
+from local_transcript_max.model_bundle import (
+    MODEL_BUNDLE_IDENTIFIER,
+    STRICT_MODEL_KEYS,
+    verify_model_bundle,
+)
+
+staged_model_bundle = Path(os.environ["AURALIGN_BUILDER_VERIFIED_MODEL_BUNDLE"])
+staged_identity = verify_model_bundle(staged_model_bundle)
+assert staged_identity["bundle_id"] == MODEL_BUNDLE_IDENTIFIER
+assert staged_identity["model_keys"] == list(STRICT_MODEL_KEYS)
+model_cache_authority.INSTALLED_MODEL_BUNDLE_ROOT = staged_model_bundle
+
+from local_transcript_max.alignment.forced_alignment import WhisperXForcedAlignment
+from local_transcript_max.config import MODEL_MANIFEST, preset_config
+from local_transcript_max.diarization.pyannote_backend import PyannoteDiarizationBackend
+from local_transcript_max.schemas import ASRResult, ASRSegment
+from local_transcript_max.speaker_id.embeddings import extract_embedding
+
+audio = Path(os.environ["AURALIGN_SMOKE_AUDIO"])
+model_cache = Path(os.environ["LTM_MODEL_CACHE"])
+with wave.open(str(audio), "rb") as handle:
+    duration = handle.getnframes() / handle.getframerate()
+config = preset_config("cpu", cwd=Path(os.environ["HOME"]))
+config.offline = True
+config.model_cache = model_cache
+config.asr.language = "en"
+config.asr.word_timestamps = True
+config.asr.vad_filter = False
+config.diarization.enabled = True
+config.diarization.backend = "pyannote"
+config.diarization.model = "community-1"
+config.diarization.device = "cpu"
+config.diarization.num_speakers = 1
+config.alignment.enabled = True
+config.alignment.backend = "forced"
+config.alignment.language = "en"
+config.alignment.model = "en"
+config.alignment.device = "cpu"
+config.speaker_id.mode = "auto"
+config.speaker_id.model = "ecapa"
+config.speaker_id.device = "cpu"
+
+manual = ASRResult(
+    segments=[
+        ASRSegment(
+            id=0,
+            start=0.0,
+            end=duration,
+            text="Auralign verifies that every local model runs offline",
+        )
+    ],
+    language="en",
+)
+aligner = WhisperXForcedAlignment()
+words = aligner.align(audio, manual, config)
+timestamped_words = [
+    word for word in words if word.start is not None and word.end is not None
+]
+diarization = PyannoteDiarizationBackend().diarize(audio, config)
+assert diarization.model is not None
+assert diarization.model.revision == MODEL_MANIFEST["community-1"].revision
+embedding_backend, embedding = extract_embedding(audio, cache_dir=model_cache)
+payload = {
+    "schema_version": "auralign-packaged-bootstrap-inference-smoke.v1",
+    "offline": config.offline,
+    "alignment": {
+        "key": "en",
+        "revision": MODEL_MANIFEST["en"].revision,
+        "words": len(words),
+        "timestamped_words": len(timestamped_words),
+        "inference_seconds": aligner.last_inference_seconds,
+    },
+    "diarization": {
+        "key": "community-1",
+        "revision": diarization.model.revision,
+        "turns": len(diarization.turns),
+        "inference_seconds": diarization.metadata["timing"]["inference_seconds"],
+    },
+    "speaker_embedding": {
+        "key": "ecapa",
+        "revision": MODEL_MANIFEST["ecapa"].revision,
+        "backend": embedding_backend,
+        "dimensions": len(embedding),
+    },
+    "process_max_rss": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
+}
+print("AURALIGN_SMOKE_JSON=" + json.dumps(payload, sort_keys=True))
+""".strip()
+        inference_environment = dict(environment)
+        inference_environment["AURALIGN_SMOKE_AUDIO"] = str(audio)
+        inference_environment["AURALIGN_BUILDER_VERIFIED_MODEL_BUNDLE"] = str(
+            model_bundle
+        )
+        completed = run(
+            embedded_python_command(python, "-I", "-c", program),
+            cwd=home,
+            env=inference_environment,
+            capture=True,
+            timeout=15 * 60,
+        )
+        rows = [
+            line.removeprefix("AURALIGN_SMOKE_JSON=")
+            for line in completed.stdout.splitlines()
+            if line.startswith("AURALIGN_SMOKE_JSON=")
+        ]
+        require(len(rows) == 1, f"{label}: packaged inference evidence was not singular")
+        inference = json.loads(rows[0])
+        require(
+            inference.get("schema_version")
+            == "auralign-packaged-bootstrap-inference-smoke.v1",
+            f"{label}: packaged inference evidence schema drift",
+        )
+        require(inference.get("offline") is True, f"{label}: inference was not offline")
+        require(
+            inference.get("alignment", {}).get("timestamped_words", 0) > 0,
+            f"{label}: forced alignment produced no timestamped word",
+        )
+        require(
+            inference.get("diarization", {}).get("turns", 0) > 0,
+            f"{label}: diarization produced no synthetic-speech turn",
+        )
+        require(
+            inference.get("speaker_embedding", {}).get("backend")
+            == "speechbrain-ecapa"
+            and inference.get("speaker_embedding", {}).get("dimensions") == 192,
+            f"{label}: ECAPA inference contract drift",
+        )
+        verify_model_bundle(model_bundle)
+        verify_no_python_cache_artifacts(runtime)
+        verify_no_python_cache_artifacts(model_bundle)
+        return {
+            "label": label,
+            "synthetic_input": {
+                "kind": "macos-system-voice-private-free-v1",
+                "sha256": sha256(audio),
+            },
+            "bundle": bundle_record,
+            "inference": inference,
         }
 
 
@@ -2971,6 +3781,39 @@ def write_runtime_sbom(runtime: Path, evidence: Path, sources: dict[str, Any]) -
         {"name": name, "value": value}
         for name, value in (
             ("auralign:commit", str(build_info["source_revision"])),
+            (
+                "auralign:native-model-pack-catalog-schema",
+                MODEL_DELIVERY_CATALOG_SCHEMA_VERSION,
+            ),
+            (
+                "auralign:native-model-pack-catalog-version",
+                MODEL_DELIVERY_CATALOG_VERSION,
+            ),
+            (
+                "auralign:native-model-pack-catalog-sha256",
+                model_delivery_catalog_sha256(),
+            ),
+            (
+                "auralign:native-model-pack-count",
+                str(
+                    sum(
+                        entry.delivery == "native-download"
+                        for entry in MODEL_MANIFEST.values()
+                    )
+                ),
+            ),
+            (
+                "auralign:native-model-pack-normal-presets",
+                json.dumps(
+                    NORMAL_PRESET_MODELS,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            ),
+            (
+                "auralign:native-model-pack-sbom-contract",
+                "CycloneDX-1.6-per-pack",
+            ),
             ("auralign:platform", "darwin-arm64-cpu-app"),
             ("auralign:profile", "cpu"),
             ("auralign:python-version", str(sources["python"]["version"])),
@@ -3008,6 +3851,208 @@ def write_runtime_sbom(runtime: Path, evidence: Path, sources: dict[str, Any]) -
     )
     verify_payload_safety(destination, (ROOT, runtime))
     return destination
+
+
+def augment_product_sbom_with_models(
+    runtime_sbom: Path,
+    model_bundle: Path,
+) -> None:
+    """Extend the reproducible runtime SBOM with exact packaged model bytes.
+
+    Native-download packs are governed by the app's sealed delivery catalog and
+    receive their own deterministic pack records when acquired. They are not
+    represented as installed PKG bytes before acquisition.
+    """
+
+    verify_model_bundle(model_bundle)
+    payload = json.loads(runtime_sbom.read_text(encoding="utf-8"))
+    components = payload.get("components")
+    dependencies = payload.get("dependencies")
+    metadata = payload.get("metadata")
+    require(isinstance(components, list), "product SBOM component list is invalid")
+    require(isinstance(dependencies, list), "product SBOM dependency graph is invalid")
+    require(isinstance(metadata, dict), "product SBOM metadata is invalid")
+    existing_refs = {
+        str(component.get("bom-ref"))
+        for component in components
+        if isinstance(component, dict)
+    }
+    runtime_components = [
+        component
+        for component in components
+        if isinstance(component, dict)
+        and re.sub(r"[-_.]+", "-", str(component.get("name", "")).casefold())
+        == "local-transcript-max"
+    ]
+    require(
+        len(runtime_components) == 1,
+        "product SBOM must contain exactly one local-transcript-max runtime",
+    )
+    runtime_reference = runtime_components[0].get("bom-ref")
+    require(
+        isinstance(runtime_reference, str) and runtime_reference,
+        "product SBOM runtime reference is invalid",
+    )
+    runtime_dependency_rows = [
+        row
+        for row in dependencies
+        if isinstance(row, dict) and row.get("ref") == runtime_reference
+    ]
+    require(
+        len(runtime_dependency_rows) == 1,
+        "product SBOM runtime dependency row is missing or duplicated",
+    )
+    raw_runtime_depends_on = runtime_dependency_rows[0].get("dependsOn")
+    require(
+        isinstance(raw_runtime_depends_on, list)
+        and all(isinstance(reference, str) for reference in raw_runtime_depends_on),
+        "product SBOM runtime dependency targets are invalid",
+    )
+    runtime_depends_on = cast(list[str], raw_runtime_depends_on)
+    model_references: list[str] = []
+    for key in BOOTSTRAP_MODEL_KEYS:
+        entry = MODEL_MANIFEST[key]
+        require(
+            entry.revision is not None,
+            f"product SBOM model revision is missing: {key}",
+        )
+        model_directory = model_bundle / "models" / entry.directory_name
+        require(
+            model_directory.is_dir() and not model_directory.is_symlink(),
+            f"product SBOM model directory is missing: {key}",
+        )
+        actual_files = {
+            relative: sha256(model_directory / relative)
+            for relative in entry.runtime_files
+        }
+        require(
+            actual_files == entry.expected_digest_map,
+            f"product SBOM model digest contract drift: {key}",
+        )
+        aggregate = canonical_json_sha256(
+            {
+                "model_id": entry.model_id,
+                "revision": entry.revision,
+                "files": actual_files,
+            }
+        )
+        reference = f"model:{entry.model_id}@{entry.revision}"
+        require(reference not in existing_refs, f"duplicate model SBOM reference: {key}")
+        components.append(
+            {
+                "bom-ref": reference,
+                "type": "machine-learning-model",
+                "group": entry.model_id.split("/", 1)[0],
+                "name": entry.model_id.split("/", 1)[-1],
+                "version": entry.revision,
+                "description": entry.attribution,
+                "hashes": [{"alg": "SHA-256", "content": aggregate}],
+                "licenses": [
+                    {
+                        "license": {
+                            "acknowledgement": "declared",
+                            "id": entry.license_expression,
+                        }
+                    }
+                ],
+                "externalReferences": [
+                    {"type": "website", "url": entry.source_url},
+                    {"type": "license", "url": entry.terms_url},
+                ],
+                "properties": [
+                    {"name": "auralign:model-key", "value": entry.key},
+                    {"name": "auralign:model-role", "value": entry.role},
+                    {
+                        "name": "auralign:model-gated-acquisition",
+                        "value": str(entry.gated).lower(),
+                    },
+                    {
+                        "name": "auralign:model-bundle-id",
+                        "value": MODEL_BUNDLE_IDENTIFIER,
+                    },
+                    {
+                        "name": "auralign:model-bundle-version",
+                        "value": MODEL_BUNDLE_VERSION,
+                    },
+                    {
+                        "name": "auralign:model-file-manifest-sha256",
+                        "value": aggregate,
+                    },
+                ],
+            }
+        )
+        dependencies.append({"ref": reference, "dependsOn": []})
+        existing_refs.add(reference)
+        model_references.append(reference)
+    require(
+        not set(model_references) & set(runtime_depends_on),
+        "product SBOM runtime already contains model dependency references",
+    )
+    runtime_depends_on.extend(model_references)
+    runtime_depends_on.sort()
+    components.sort(key=lambda row: str(row.get("bom-ref", "")))
+    dependencies.sort(key=lambda row: str(row.get("ref", "")))
+    properties = metadata.get("properties")
+    require(isinstance(properties, list), "product SBOM metadata properties are invalid")
+    kind_properties = [
+        property_row
+        for property_row in properties
+        if isinstance(property_row, dict)
+        and property_row.get("name") == "auralign:sbom-kind"
+    ]
+    require(
+        len(kind_properties) == 1,
+        "product SBOM kind property is missing or duplicated",
+    )
+    kind_properties[0]["value"] = "complete-product"
+    require(
+        not any(
+            isinstance(property_row, dict)
+            and property_row.get("name")
+            in {"auralign:model-bundle-id", "auralign:model-bundle-version"}
+            for property_row in properties
+        ),
+        "product SBOM already contains model-bundle properties",
+    )
+    properties.extend(
+        [
+            {
+                "name": "auralign:model-bundle-id",
+                "value": MODEL_BUNDLE_IDENTIFIER,
+            },
+            {
+                "name": "auralign:model-bundle-version",
+                "value": MODEL_BUNDLE_VERSION,
+            },
+        ]
+    )
+    properties.sort(
+        key=lambda item: (str(item.get("name", "")), str(item.get("value", "")))
+    )
+    require(
+        all(
+            isinstance(component, dict)
+            and component.get("bom-ref")
+            and component.get("licenses")
+            for component in components
+        ),
+        "product SBOM contains an unlicensed or unbound component",
+    )
+    runtime_sbom.write_text(
+        json.dumps(payload, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    verify_payload_safety(runtime_sbom, (ROOT, model_bundle))
+    run(
+        [
+            sys.executable,
+            "-B",
+            str(ROOT / "scripts/validate_product_sbom.py"),
+            str(runtime_sbom),
+        ],
+        env=no_bytecode_environment(),
+        capture=True,
+    )
 
 
 def install_hash_locked_pure_python_sdists(
@@ -3220,6 +4265,15 @@ def build_runtime(
             runtime = extraction / "python"
             restore_cache_item(cached_runtime / "runtime", runtime)
             merge_cached_evidence(cached_runtime / "evidence", evidence)
+            require(
+                verified_cache_payload(
+                    cache_root,
+                    "runtime",
+                    runtime_cache_inputs,
+                )
+                == cached_runtime,
+                "diagnostic runtime cache changed during restore",
+            )
             build_info = json.loads(
                 (runtime / "release-build.json").read_text(encoding="utf-8")
             )
@@ -3396,6 +4450,15 @@ def build_runtime(
         restore_cache_item(cached_native / "ffmpeg-prefix", ffmpeg_prefix)
         restore_cache_item(cached_native / "pyav-wheel", pyav_wheels)
         merge_cached_evidence(cached_native / "evidence", evidence)
+        require(
+            verified_cache_payload(
+                cache_root,
+                "native",
+                native_cache_inputs,
+            )
+            == cached_native,
+            "diagnostic native cache changed during restore",
+        )
     else:
         fresh_directory(ffmpeg_prefix)
         configured = run(
@@ -3602,6 +4665,25 @@ def build_runtime(
             "authoritative_release_evidence": False,
         },
         "models_included": False,
+        "models": {
+            "app_bundle_included": False,
+            "separate_component_required": True,
+            "bundle_identifier": MODEL_BUNDLE_IDENTIFIER,
+            "bundle_version": MODEL_BUNDLE_VERSION,
+            "component_receipt_identifier": MODEL_RECEIPT_IDENTIFIER,
+            "bootstrap_model_keys": list(BOOTSTRAP_MODEL_KEYS),
+            "native_pack_catalog": {
+                "schema_version": MODEL_DELIVERY_CATALOG_SCHEMA_VERSION,
+                "catalog_version": MODEL_DELIVERY_CATALOG_VERSION,
+                "sha256": model_delivery_catalog_sha256(),
+                "normal_presets": dict(NORMAL_PRESET_MODELS),
+                "model_keys": [
+                    key
+                    for key, entry in MODEL_MANIFEST.items()
+                    if entry.delivery == "native-download"
+                ],
+            },
+        },
     }
     (runtime / "release-build.json").write_text(
         json.dumps(build_info, sort_keys=True, indent=2) + "\n",
@@ -3853,8 +4935,9 @@ def verify_expanded_package(
     destination: Path,
     *,
     signed_app: Path,
+    model_bundle: Path,
     sources: dict[str, Any],
-) -> Path:
+) -> tuple[Path, Path]:
     require(not destination.exists(), f"refusing to reuse expansion destination: {destination}")
     destination.parent.mkdir(parents=True, exist_ok=True)
     expanded = destination
@@ -3872,35 +4955,109 @@ def verify_expanded_package(
         "installer scripts are prohibited: "
         + ", ".join(str(path) for path in installer_script_directories),
     )
-    component = expanded / "Auralign-component.pkg"
-    payload_app = component / "Payload/Applications/Auralign.app"
+    component_names = {
+        candidate.name for candidate in sorted(expanded.glob("*.pkg"))
+    }
+    require(
+        component_names == {APP_COMPONENT_FILENAME, MODEL_COMPONENT_FILENAME},
+        f"expanded package component set drift: {sorted(component_names)}",
+    )
+    app_component = expanded / APP_COMPONENT_FILENAME
+    model_component = expanded / MODEL_COMPONENT_FILENAME
+    for component, label in (
+        (app_component, "application component"),
+        (model_component, "offline-model component"),
+    ):
+        require(
+            {child.name for child in component.iterdir()}
+            == {"Bom", "PackageInfo", "Payload"},
+            f"{label} expanded archive contains unexpected top-level entries",
+        )
+    verify_component_bom(
+        app_component,
+        label="application component",
+        required_prefix="Applications/Auralign.app",
+        require_read_only=False,
+    )
+    verify_component_bom(
+        model_component,
+        label="offline-model component",
+        required_prefix=(
+            MODEL_INSTALL_PARENT / MODEL_BUNDLE_IDENTIFIER
+        ).as_posix(),
+        require_read_only=True,
+    )
+    payload_app = app_component / "Payload/Applications/Auralign.app"
+    payload_model_bundle = (
+        model_component
+        / "Payload"
+        / MODEL_INSTALL_PARENT
+        / MODEL_BUNDLE_IDENTIFIER
+    )
     require(payload_app.is_dir(), "expanded package payload is missing Auralign.app")
-    package_info = component / "PackageInfo"
-    require(package_info.is_file(), "expanded component PackageInfo is missing")
-    package_root = ET.parse(package_info).getroot()
+    require(
+        payload_model_bundle.is_dir(),
+        "expanded package payload is missing the exact offline model bundle",
+    )
+    verify_component_payload_layout(
+        app_component / "Payload",
+        label="application component",
+        required_prefix="Applications/Auralign.app",
+    )
+    verify_component_payload_layout(
+        model_component / "Payload",
+        label="offline-model component",
+        required_prefix=(
+            MODEL_INSTALL_PARENT / MODEL_BUNDLE_IDENTIFIER
+        ).as_posix(),
+    )
+    app_package_info = app_component / "PackageInfo"
+    model_package_info = model_component / "PackageInfo"
+    require(app_package_info.is_file(), "expanded app component PackageInfo is missing")
+    require(
+        model_package_info.is_file(),
+        "expanded model component PackageInfo is missing",
+    )
+    app_package_root = ET.parse(app_package_info).getroot()
+    model_package_root = ET.parse(model_package_info).getroot()
     expected_version = f"{sources['product_version']}.{sources['build_number']}"
     require(
-        package_root.attrib.get("identifier") == RECEIPT_IDENTIFIER,
-        "component receipt identifier drift",
+        app_package_root.attrib.get("identifier") == APP_RECEIPT_IDENTIFIER,
+        "application component receipt identifier drift",
     )
     require(
-        package_root.attrib.get("version") == expected_version,
-        "component receipt version drift",
+        app_package_root.attrib.get("version") == expected_version,
+        "application component receipt version drift",
+    )
+    require(
+        model_package_root.attrib.get("identifier") == MODEL_RECEIPT_IDENTIFIER,
+        "model component receipt identifier drift",
+    )
+    require(
+        model_package_root.attrib.get("version") == MODEL_BUNDLE_VERSION,
+        "model component receipt version drift",
     )
     require(
         inventory_rows(payload_app) == inventory_rows(signed_app),
         "expanded package application bytes or modes differ from signed app",
     )
+    require(
+        inventory_rows(payload_model_bundle) == inventory_rows(model_bundle),
+        "expanded package model bytes or modes differ from verified model bundle",
+    )
+    verify_model_bundle(payload_model_bundle)
+    distribution = expanded / "Distribution"
+    require(distribution.is_file(), "expanded package Distribution is missing")
+    verify_distribution_contract(
+        distribution,
+        sources=sources,
+        productbuild_normalized=True,
+    )
     expanded_resources = expanded / "Resources"
-    for relative in (
-        Path("background.png"),
-        Path("background-darkAqua.png"),
-        Path("en.lproj/welcome.html"),
-        Path("en.lproj/conclusion.html"),
-    ):
+    verify_installer_resources(expanded_resources)
+    for relative in INSTALLER_RESOURCE_RELATIVE_PATHS:
         expected = INSTALLER_RESOURCES_PATH / relative
         observed = expanded_resources / relative
-        require(observed.is_file(), f"installer presentation resource missing: {relative}")
         require(
             sha256(observed) == sha256(expected),
             f"installer presentation resource drift: {relative}",
@@ -3908,39 +5065,171 @@ def verify_expanded_package(
     verify_app_topology(payload_app)
     verify_native_closure(payload_app)
     verify_payload_safety(payload_app, (ROOT, package.parent))
-    return payload_app
+    verify_payload_safety(payload_model_bundle, (ROOT, package.parent))
+    return payload_app, payload_model_bundle
+
+
+def verify_component_bom(
+    component: Path,
+    *,
+    label: str,
+    required_prefix: str,
+    require_read_only: bool,
+) -> list[dict[str, str]]:
+    """Verify component ownership and immutable model modes from its BOM."""
+
+    bom = component / "Bom"
+    require(bom.is_file(), f"{label} BOM is missing")
+    listing = run(["lsbom", "-p", "fmug", str(bom)], capture=True)
+    rows: list[dict[str, str]] = []
+    normalized_prefix = required_prefix.removeprefix("./").rstrip("/")
+    matched_prefix = False
+    for raw_line in listing.stdout.splitlines():
+        if not raw_line:
+            continue
+        fields = raw_line.split("\t")
+        require(len(fields) == 4, f"{label} BOM row is malformed")
+        path, mode, uid, gid = fields
+        normalized_path = path.removeprefix("./").rstrip("/")
+        inside_required_prefix = (
+            normalized_path == normalized_prefix
+            or normalized_path.startswith(normalized_prefix + "/")
+        )
+        is_required_ancestor = (
+            normalized_path == "."
+            or normalized_prefix.startswith(normalized_path + "/")
+        )
+        require(
+            inside_required_prefix or is_required_ancestor,
+            f"{label} BOM contains a path outside its exact payload: {path}",
+        )
+        if inside_required_prefix:
+            matched_prefix = True
+        require(uid == "0" and gid == "0", f"{label} BOM is not root:wheel owned")
+        if require_read_only and inside_required_prefix:
+            require(
+                mode in {"40555", "100444"},
+                f"{label} BOM contains a mutable or irregular model entry: {path}",
+            )
+        rows.append(
+            {
+                "path": normalized_path,
+                "mode": mode,
+                "uid": uid,
+                "gid": gid,
+            }
+        )
+    require(rows, f"{label} BOM is empty")
+    require(matched_prefix, f"{label} BOM omits its required payload prefix")
+    return rows
+
+
+def verify_component_payload_layout(
+    payload_root: Path,
+    *,
+    label: str,
+    required_prefix: str,
+) -> None:
+    """Reject every expanded payload entry outside one exact component tree."""
+
+    require(
+        payload_root.is_dir() and not payload_root.is_symlink(),
+        f"{label} expanded Payload is missing or unsafe",
+    )
+    normalized_prefix = required_prefix.removeprefix("./").rstrip("/")
+    require(
+        normalized_prefix
+        and PurePosixPath(normalized_prefix).is_absolute() is False
+        and ".." not in PurePosixPath(normalized_prefix).parts,
+        f"{label} required payload prefix is unsafe",
+    )
+    matched_prefix = False
+    for path in [payload_root, *sorted(payload_root.rglob("*"))]:
+        metadata = path.lstat()
+        relative = "." if path == payload_root else path.relative_to(payload_root).as_posix()
+        inside_required_prefix = (
+            relative == normalized_prefix
+            or relative.startswith(normalized_prefix + "/")
+        )
+        is_required_ancestor = (
+            relative == "." or normalized_prefix.startswith(relative + "/")
+        )
+        require(
+            inside_required_prefix or is_required_ancestor,
+            f"{label} expanded Payload contains an unexpected path: {relative}",
+        )
+        require(
+            not stat.S_ISLNK(metadata.st_mode)
+            and (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)),
+            f"{label} expanded Payload contains an irregular entry: {relative}",
+        )
+        if relative == normalized_prefix:
+            require(
+                stat.S_ISDIR(metadata.st_mode),
+                f"{label} required payload root is not a directory",
+            )
+            matched_prefix = True
+    require(matched_prefix, f"{label} expanded Payload omits its required root")
 
 
 def build_package(
     work: Path,
     app: Path,
+    model_bundle: Path,
     sources: dict[str, Any],
     installer_identity: str | None,
     *,
     structure_only: bool,
 ) -> Path:
-    root = fresh_directory(work / "pkgroot")
-    applications = root / "Applications"
+    app_root = fresh_directory(work / "app-pkgroot")
+    applications = app_root / "Applications"
     applications.mkdir()
     shutil.copytree(app, applications / "Auralign.app", symlinks=True)
-    component = work / "Auralign-component.pkg"
+    model_root = fresh_directory(work / "model-pkgroot")
+    installed_models = model_root / MODEL_INSTALL_PARENT
+    installed_models.mkdir(parents=True)
+    packaged_model_bundle = installed_models / MODEL_BUNDLE_IDENTIFIER
+    shutil.copytree(model_bundle, packaged_model_bundle, symlinks=False)
+    require(
+        inventory_rows(packaged_model_bundle) == inventory_rows(model_bundle),
+        "model component staging changed verified model bytes or modes",
+    )
+    verify_model_bundle(packaged_model_bundle)
+    app_component = work / APP_COMPONENT_FILENAME
+    model_component = work / MODEL_COMPONENT_FILENAME
     version = f"{sources['product_version']}.{sources['build_number']}"
     run(
         [
             "pkgbuild",
             "--root",
-            str(root),
+            str(app_root),
             "--component-plist",
             str(COMPONENT_PLIST_PATH),
             "--identifier",
-            RECEIPT_IDENTIFIER,
+            APP_RECEIPT_IDENTIFIER,
             "--version",
             version,
             "--install-location",
             "/",
             "--ownership",
             "recommended",
-            str(component),
+            str(app_component),
+        ]
+    )
+    run(
+        [
+            "pkgbuild",
+            "--root",
+            str(model_root),
+            "--identifier",
+            MODEL_RECEIPT_IDENTIFIER,
+            "--version",
+            MODEL_BUNDLE_VERSION,
+            "--install-location",
+            "/",
+            "--ownership",
+            "recommended",
+            str(model_component),
         ]
     )
     name = (
@@ -3963,10 +5252,15 @@ def build_package(
         command.extend(["--sign", str(installer_identity), "--timestamp"])
     command.append(str(package))
     run(command)
-    expanded_app = verify_expanded_package(
+    require(
+        package.stat().st_size < GITHUB_RELEASE_ASSET_MAX_BYTES,
+        "final product PKG exceeds GitHub's per-release-asset size limit",
+    )
+    expanded_app, expanded_model_bundle = verify_expanded_package(
         package,
         work / "expanded-pkg",
         signed_app=app,
+        model_bundle=model_bundle,
         sources=sources,
     )
     smoke = runtime_smoke(
@@ -3977,6 +5271,25 @@ def build_package(
         json.dumps(smoke, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
     )
+    model_smoke = model_runtime_smoke(
+        app_runtime_root(expanded_app),
+        expanded_model_bundle,
+        label="expanded-package-models",
+    )
+    (work / "evidence/package-model-smoke.json").write_text(
+        json.dumps(model_smoke, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    if structure_only:
+        inference_smoke = model_inference_smoke(
+            app_runtime_root(expanded_app),
+            expanded_model_bundle,
+            label="expanded-structure-only-package-model-inference",
+        )
+        (work / "evidence/diagnostic-package-model-inference-smoke.json").write_text(
+            json.dumps(inference_smoke, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
     return package
 
 
@@ -4047,6 +5360,7 @@ def verify_final_package(
     package: Path,
     *,
     app: Path,
+    model_bundle: Path,
     sources: dict[str, Any],
     expected_team: str | None,
     structure_only: bool,
@@ -4077,11 +5391,32 @@ def verify_final_package(
         ),
         "final package payload listing omits Auralign.app",
     )
-    payload_app = verify_expanded_package(
+    expected_model_payload = (
+        MODEL_INSTALL_PARENT / MODEL_BUNDLE_IDENTIFIER
+    ).as_posix()
+    require(
+        any(
+            path.removeprefix("./").rstrip("/") == expected_model_payload
+            for path in payload_files
+        ),
+        "final package payload listing omits the exact offline model bundle",
+    )
+    payload_app, payload_model_bundle = verify_expanded_package(
         package,
         package.parent / "expanded-final-pkg",
         signed_app=app,
+        model_bundle=model_bundle,
         sources=sources,
+    )
+    run(
+        [
+            "spctl",
+            "--assess",
+            "--type",
+            "execute",
+            "--verbose=4",
+            str(payload_app),
+        ]
     )
     verify_app_signatures(
         payload_app,
@@ -4096,12 +5431,33 @@ def verify_final_package(
         json.dumps(smoke, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
     )
+    model_smoke = model_runtime_smoke(
+        app_runtime_root(payload_app),
+        payload_model_bundle,
+        label="final-stapled-package-models",
+    )
+    (package.parent / "evidence/final-package-model-smoke.json").write_text(
+        json.dumps(model_smoke, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    inference_smoke = model_inference_smoke(
+        app_runtime_root(payload_app),
+        payload_model_bundle,
+        label="final-stapled-package-model-inference",
+    )
+    (
+        package.parent / "evidence/final-package-model-inference-smoke.json"
+    ).write_text(
+        json.dumps(inference_smoke, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def write_release_manifest(
     work: Path,
     runtime: Path,
     app: Path,
+    model_bundle: Path,
     package: Path,
     sources: dict[str, Any],
     *,
@@ -4130,9 +5486,28 @@ def write_release_manifest(
     )
     ffmpeg_source = work / sources["ffmpeg"]["asset"]
     shutil.copy2(work / "downloads" / sources["ffmpeg"]["asset"], ffmpeg_source)
+    verified_model_bundle = verify_model_bundle(model_bundle)
+    model_artifacts: list[Path] = []
+    for name in (
+        MODEL_BUNDLE_MANIFEST_FILENAME,
+        MODEL_BUNDLE_VERIFICATION_FILENAME,
+        MODEL_BUNDLE_PROVENANCE_FILENAME,
+        MODEL_BUNDLE_COMPLETION_FILENAME,
+    ):
+        source = model_bundle / name
+        destination = work / name
+        shutil.copy2(source, destination)
+        model_artifacts.append(destination)
+    model_inventory = work / "model-bundle-inventory.json"
+    write_inventory(
+        model_bundle,
+        model_inventory,
+        schema_version="auralign-macos-model-bundle-inventory.v1",
+    )
+    model_artifacts.append(model_inventory)
     build_info = json.loads((runtime / "release-build.json").read_text(encoding="utf-8"))
     payload = {
-        "schema_version": "auralign-macos-pkg-release.v1",
+        "schema_version": "auralign-macos-pkg-release.v2",
         "release_ready": not structure_only,
         "product_version": sources["product_version"],
         "build_number": sources["build_number"],
@@ -4145,6 +5520,10 @@ def write_release_manifest(
         },
         "app": {
             "identifier": APP_IDENTIFIER,
+            "component_receipt_identifier": APP_RECEIPT_IDENTIFIER,
+            "component_version": (
+                f"{sources['product_version']}.{sources['build_number']}"
+            ),
             "runtime_bundle": RUNTIME_BUNDLE_NAME,
             "runtime_bundle_identifier": RUNTIME_BUNDLE_IDENTIFIER,
             "runtime_relative_path": (
@@ -4154,6 +5533,41 @@ def write_release_manifest(
             "main_executable_sha256": sha256(app / "Contents/MacOS/Auralign"),
             "code_directory_hash": app_signature.get("CDHash"),
             "team_identifier": app_signature.get("TeamIdentifier"),
+        },
+        "models": {
+            "included": True,
+            "inclusion_scope": "bootstrap-component-only",
+            "component_receipt_identifier": MODEL_RECEIPT_IDENTIFIER,
+            "component_version": MODEL_BUNDLE_VERSION,
+            "bundle_identifier": MODEL_BUNDLE_IDENTIFIER,
+            "install_path": (
+                "/" + (MODEL_INSTALL_PARENT / MODEL_BUNDLE_IDENTIFIER).as_posix()
+            ),
+            "inventory_sha256": canonical_json_sha256(
+                inventory_rows(model_bundle)
+            ),
+            "verification": verified_model_bundle,
+            "artifacts": [
+                {
+                    "name": artifact.name,
+                    "bytes": artifact.stat().st_size,
+                    "sha256": sha256(artifact),
+                }
+                for artifact in model_artifacts
+            ],
+            "native_packs": {
+                "included_in_pkg": False,
+                "delivery": "signed-native-exact-verified-per-user-packs",
+                "catalog_schema_version": MODEL_DELIVERY_CATALOG_SCHEMA_VERSION,
+                "catalog_version": MODEL_DELIVERY_CATALOG_VERSION,
+                "catalog_sha256": model_delivery_catalog_sha256(),
+                "normal_presets": dict(NORMAL_PRESET_MODELS),
+                "model_keys": [
+                    key
+                    for key, entry in MODEL_MANIFEST.items()
+                    if entry.delivery == "native-download"
+                ],
+            },
         },
         "runtime_build_info_sha256": sha256(runtime / "release-build.json"),
         "runtime_manifest": {
@@ -4176,7 +5590,8 @@ def write_release_manifest(
             "bytes": ffmpeg_source.stat().st_size,
             "sha256": sha256(ffmpeg_source),
         },
-        "models_included": False,
+        "models_included": True,
+        "models_included_scope": "bootstrap-component-only",
         "expected_team_identifier": expected_team,
         "installer_design": {
             "source_commit": "bd94520ecf106b7502ad04e19e4997dbb74d05dd",
@@ -4199,6 +5614,7 @@ def write_release_manifest(
         runtime_sbom,
         runtime_manifest,
         signed_app_manifest,
+        *model_artifacts,
         release_manifest,
     ]
     (work / "SHA256SUMS").write_text(
@@ -4229,6 +5645,15 @@ def main() -> int:
         action="store_true",
         help="Disable every diagnostic cache for an authoritative clean build.",
     )
+    parser.add_argument(
+        "--model-cache",
+        type=Path,
+        help=(
+            "Explicit ignored acquisition cache containing the three exact "
+            "bootstrap models plus deterministic Punkt inputs. Private markers "
+            "and cache metadata are verified but never copied into the package."
+        ),
+    )
     parser.add_argument("--developer-application-identity")
     parser.add_argument("--developer-installer-identity")
     parser.add_argument("--notary-profile")
@@ -4238,18 +5663,62 @@ def main() -> int:
         help="Build an ad-hoc signed, unmistakably non-release test package.",
     )
     args = parser.parse_args()
+    if not args.structure_only:
+        require(args.no_cache, "Developer ID release builds require --no-cache")
+        # Fail before creating or populating the authoritative output tree.
+        # build_runtime() deliberately rechecks the clean source and captures
+        # its exact tree digest immediately before runtime assembly.
+        require_clean_main()
+    require(
+        args.model_cache is not None,
+        "Every standalone build requires an explicit --model-cache.",
+    )
     require_host()
     sources = load_sources()
     verify_packaging_contract(sources)
     work = fresh_directory(args.work_dir.expanduser().resolve())
-    if not args.structure_only:
-        require(args.no_cache, "Developer ID release builds require --no-cache")
     cache_root = None if args.no_cache else args.cache_dir.expanduser().resolve()
+    source_model_cache = args.model_cache.expanduser().resolve()
+    model_license_inputs = fresh_directory(work / "model-license-inputs")
+    for license_name in ("MIT.txt", "Apache-2.0.txt", "CC-BY-4.0.txt"):
+        shutil.copy2(
+            ROOT / "packaging/macos/model-licenses" / license_name,
+            model_license_inputs / license_name,
+        )
+    model_bundle_parent = fresh_directory(work / "model-bundle")
+    model_bundle_path = model_bundle_parent / MODEL_BUNDLE_IDENTIFIER
+    model_bundle = assemble_model_bundle(
+        source_model_cache,
+        model_bundle_path,
+        license_directory=model_license_inputs,
+        notices_path=ROOT / "THIRD_PARTY_NOTICES.md",
+    )
+    require(
+        model_bundle == verify_model_bundle(model_bundle_path),
+        "model bundle assembly and independent verification records differ",
+    )
+    verify_payload_safety(
+        model_bundle_path,
+        (ROOT, work, source_model_cache),
+    )
     runtime = build_runtime(
         work,
         sources,
         allow_dirty=args.structure_only,
         cache_root=cache_root,
+    )
+    augment_product_sbom_with_models(
+        work
+        / "evidence"
+        / (
+            f"Auralign-{sources['product_version']}-{sources['build_number']}"
+            "-macos-arm64.cdx.json"
+        ),
+        model_bundle_path,
+    )
+    (work / "evidence/model-bundle-assembly.json").write_text(
+        json.dumps(model_bundle, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
     )
     app = copy_app_with_runtime(work, runtime, sources)
     expected_team: str | None = None
@@ -4310,6 +5779,7 @@ def main() -> int:
     package = build_package(
         work,
         app,
+        model_bundle_path,
         sources,
         args.developer_installer_identity,
         structure_only=args.structure_only,
@@ -4320,6 +5790,7 @@ def main() -> int:
     verify_final_package(
         package,
         app=app,
+        model_bundle=model_bundle_path,
         sources=sources,
         expected_team=expected_team,
         structure_only=args.structure_only,
@@ -4328,6 +5799,7 @@ def main() -> int:
         work,
         runtime,
         app,
+        model_bundle_path,
         package,
         sources,
         structure_only=args.structure_only,

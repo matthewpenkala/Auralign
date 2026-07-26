@@ -78,12 +78,19 @@ def render() -> str:
             "## Models And Datasets",
             "",
             "| Kind/key | Immutable revision | License | Acquisition | Runtime | "
-            "Redistribution | Review |",
-            "| --- | --- | --- | --- | --- | --- | --- |",
+            "Redistribution | Product class | Delivery | Pack identity | Review |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
     )
     for row in sorted(asset_rows, key=lambda item: (item["kind"], item["key"])):
         effective = asset_defaults | row
+        pack_id = effective.get("package_bundle_id", "—")
+        pack_version = effective.get("package_bundle_version", "")
+        pack_identity = (
+            f"{pack_id}@{pack_version}"
+            if pack_version
+            else pack_id
+        )
         lines.append(
             "| "
             + " | ".join(
@@ -95,6 +102,9 @@ def render() -> str:
                     effective["acquisition_status"],
                     effective["runtime_status"],
                     effective["redistribution_status"],
+                    effective.get("product_classification", "—"),
+                    effective.get("delivery", "—"),
+                    pack_identity,
                     effective["review_status"],
                 )
             )

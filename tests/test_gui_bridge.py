@@ -166,9 +166,7 @@ def test_manifest_has_exact_shipped_field_shape_and_control_projection() -> None
     assert dict(Counter(_control_projection(field) for field in fields)) == (
         EXPECTED_CONTROL_COUNTS
     )
-    assert {
-        field["key"] for field in fields if field.get("model_role") is not None
-    } == {
+    assert {field["key"] for field in fields if field.get("model_role") is not None} == {
         "asr.model",
         "asr.mlx_model",
         "diarization.model",
@@ -201,15 +199,12 @@ def test_field_catalog_has_exact_sections_dispositions_and_readonly_field() -> N
     assert catalog["catalog_version"] == "gui_field_catalog.v1"
     assert section_ids == EXPECTED_SECTION_IDS
     assert len(set(section_ids)) == 10
-    assert dict(Counter(field["disposition"] for field in fields)) == (
-        EXPECTED_DISPOSITION_COUNTS
-    )
-    assert [
-        field["key"] for field in fields if field["disposition"] == "readonly"
-    ] == ["redecode.write_repaired_transcript"]
+    assert dict(Counter(field["disposition"] for field in fields)) == (EXPECTED_DISPOSITION_COUNTS)
+    assert [field["key"] for field in fields if field["disposition"] == "readonly"] == [
+        "redecode.write_repaired_transcript"
+    ]
     assert all(
-        any(field["section"] == section_id for field in fields)
-        for section_id in section_ids
+        any(field["section"] == section_id for field in fields) for section_id in section_ids
     )
 
 
@@ -237,10 +232,7 @@ def test_manifest_is_deterministic_and_versioned() -> None:
 
 
 def test_manifest_carries_authoritative_model_policy_metadata() -> None:
-    models = {
-        (entry["role"], entry["key"]): entry
-        for entry in config_manifest()["model_manifest"]
-    }
+    models = {(entry["role"], entry["key"]): entry for entry in config_manifest()["model_manifest"]}
     assert set(models) == {(entry.role, entry.key) for entry in MODEL_MANIFEST.values()}
     for source in MODEL_MANIFEST.values():
         entry = models[(source.role, source.key)]
@@ -249,6 +241,8 @@ def test_manifest_carries_authoritative_model_policy_metadata() -> None:
         assert entry["required_files"] == list(source.required_files)
         assert entry["any_required_files"] == list(source.any_required_files)
         assert entry["runtime_files"] == list(source.runtime_files)
+        assert entry["expected_sha256"] == source.expected_digest_map
+        assert entry["expected_size"] == source.expected_size_map
         assert entry["revision"] == source.revision
         assert entry["license_expression"] == source.license_expression
         assert entry["acquisition_status"] == source.acquisition_status
@@ -256,6 +250,15 @@ def test_manifest_carries_authoritative_model_policy_metadata() -> None:
         assert entry["redistribution_status"] == source.redistribution_status
         assert entry["review_status"] == source.review_status
         assert entry["reviewed_at"] == source.reviewed_at
+        assert entry["product_classification"] == source.product_classification
+        assert entry["product_selectable"] is source.production_selectable
+        assert entry["blocker"] == source.blocker
+        assert entry["backend_compatibility"] == source.backend_compatibility
+        assert entry["modification_status"] == source.modification_status
+        assert entry["package_bundle_id"] == source.package_bundle_id
+        assert entry["package_bundle_version"] == source.package_bundle_version
+        assert entry["package_relative_path"] == source.package_relative_path
+        assert entry["delivery"] == source.delivery
         assert entry["source_url"] == source.source_url
         assert entry["terms_url"] == source.terms_url
         assert entry["attribution"] == source.attribution
@@ -291,15 +294,66 @@ def test_presets_are_complete_configs() -> None:
 
 
 def test_validate_reports_structured_errors() -> None:
-    result = validate_payload(
-        {"config": {"diarization": {"min_speakers": 9, "max_speakers": 2}}}
-    )
+    result = validate_payload({"config": {"diarization": {"min_speakers": 9, "max_speakers": 2}}})
     assert result["ok"] is False
     assert any(error["loc"] == ["diarization"] for error in result["errors"])
 
     ok = validate_payload({"config": PipelineConfig().model_dump(mode="json")})
     assert ok["ok"] is True
     assert PipelineConfig.model_validate(ok["config"]) == PipelineConfig()
+
+
+def test_product_manifest_exposes_both_backends_and_all_nineteen_operational_models() -> None:
+    manifest = config_manifest()
+    backend = next(field for field in manifest["fields"] if field["key"] == "asr.backend")
+    assert backend["choices"] == ["faster-whisper", "mlx-whisper"]
+    selectable = {
+        (entry["role"], entry["key"])
+        for entry in manifest["model_manifest"]
+        if entry["product_selectable"]
+    }
+    assert selectable == {
+        (entry.role, entry.key) for entry in MODEL_MANIFEST.values()
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutation", "loc"),
+    [
+        ({"asr": {"model": "not-a-reviewed-model"}}, ["model_policy", "asr"]),
+        (
+            {"asr": {"backend": "mlx-whisper", "mlx_model": "not-a-reviewed-model"}},
+            ["model_policy", "asr-mlx"],
+        ),
+        (
+            {"asr": {"backend": "mlx-whisper", "mlx_model_path": "/tmp/arbitrary-model"}},
+            ["model_policy", "asr-mlx", "path"],
+        ),
+        ({"asr": {"vad_filter": True}}, ["model_policy", "asr", "vad_filter"]),
+    ],
+)
+def test_validate_rejects_unknown_or_unsupported_product_model_paths(
+    mutation: dict[str, Any],
+    loc: list[str],
+) -> None:
+    config = PipelineConfig().model_dump(mode="json")
+    for section, values in mutation.items():
+        config[section].update(values)
+
+    result = validate_payload({"config": config})
+
+    assert result["ok"] is False
+    matching = [error for error in result["errors"] if error["loc"] == loc]
+    assert len(matching) == 1
+    assert matching[0]["type"] == (
+        "model_policy_blocked"
+        if tuple(loc)
+        in {
+            ("model_policy", "asr", "vad_filter"),
+            ("model_policy", "asr-mlx", "path"),
+        }
+        else "model_policy_unknown"
+    )
 
 
 def test_probe_rejects_missing_path(tmp_path: Path) -> None:
@@ -316,9 +370,7 @@ def test_invalid_doctor_config_error_does_not_leak_values(tmp_path: Path) -> Non
 
     private = str(tmp_path / "secret-location")
     with pytest.raises(BridgeUsageError) as excinfo:
-        _require_config(
-            {"config": {"model_cache": private, "asr": {"beam_size": "not-a-number"}}}
-        )
+        _require_config({"config": {"model_cache": private, "asr": {"beam_size": "not-a-number"}}})
     message = str(excinfo.value)
     assert private not in message
     assert "asr.beam_size" in message
@@ -402,9 +454,7 @@ def test_models_payload_is_private_policy_complete_and_configuration_aware(
     )
 
     assert str(private_cache) not in payload["model_cache"]
-    statuses = {
-        (status["role"], status["key"]): status for status in payload["models"]
-    }
+    statuses = {(status["role"], status["key"]): status for status in payload["models"]}
     for source in MODEL_MANIFEST.values():
         status = statuses[(source.role, source.key)]
         assert status["aliases"] == list(source.aliases)
@@ -412,20 +462,30 @@ def test_models_payload_is_private_policy_complete_and_configuration_aware(
         assert status["required_files"] == list(source.required_files)
         assert status["any_required_files"] == list(source.any_required_files)
         assert status["runtime_files"] == list(source.runtime_files)
+        assert status["expected_sha256"] == source.expected_digest_map
+        assert status["expected_size"] == source.expected_size_map
         assert status["revision"] == source.revision
         assert status["license_expression"] == source.license_expression
         assert status["runtime_status"] == source.runtime_status
         assert status["redistribution_status"] == source.redistribution_status
         assert status["review_status"] == source.review_status
+        assert status["product_classification"] == source.product_classification
+        assert status["product_selectable"] is source.production_selectable
+        assert status["blocker"] == source.blocker
+        assert status["backend_compatibility"] == source.backend_compatibility
+        assert status["modification_status"] == source.modification_status
+        assert status["package_bundle_id"] == source.package_bundle_id
+        assert status["package_bundle_version"] == source.package_bundle_version
+        assert status["package_relative_path"] == source.package_relative_path
+        assert status["delivery"] == source.delivery
         assert status["attribution"] == source.attribution
         assert isinstance(status["revision_verified"], bool)
 
-    selected = {
-        identity for identity, status in statuses.items() if status["selected_for_config"]
-    }
+    selected = {identity for identity, status in statuses.items() if status["selected_for_config"]}
     assert selected == {
         ("asr", "large-v3"),
         ("diarization", "community-1"),
+        ("alignment", "en"),
         ("speaker-embedding", "ecapa"),
     }
 
@@ -673,6 +733,38 @@ def test_run_transcribe_rejects_invalid_config(tmp_path: Path) -> None:
     )
     assert code == 2
     assert events[0][0] == "config_invalid"
+    assert not (tmp_path / "job").exists()
+
+
+def test_run_transcribe_rejects_unknown_product_model_before_output_or_pipeline(
+    tmp_path: Path,
+) -> None:
+    input_file = tmp_path / "input.wav"
+    input_file.write_bytes(b"RIFF")
+    events: list[tuple[str, dict[str, Any]]] = []
+    config = PipelineConfig().model_dump(mode="json")
+    config["asr"]["model"] = "not-a-reviewed-model"
+
+    code = run_transcribe(
+        {
+            "input": str(input_file),
+            "output_root": str(tmp_path),
+            "out_dir": str(tmp_path / "job"),
+            "config": config,
+        },
+        lambda name, payload: events.append((name, payload)),
+        transcribe=lambda *args, **kwargs: pytest.fail("must not run"),
+    )
+
+    assert code == 2
+    assert len(events) == 1
+    assert events[0][0] == "config_invalid"
+    errors = events[0][1]["errors"]
+    assert len(errors) == 1
+    assert errors[0]["loc"] == ["model_policy", "asr"]
+    assert errors[0]["type"] == "model_policy_unknown"
+    assert "not-a-reviewed-model" in errors[0]["message"]
+    assert "Unknown asr model" in errors[0]["message"]
     assert not (tmp_path / "job").exists()
 
 
@@ -1179,9 +1271,7 @@ def _run_bridge(
 
 def _protocol_rows(completed: subprocess.CompletedProcess[bytes]) -> list[dict[str, Any]]:
     return [
-        json.loads(line)
-        for line in completed.stdout.decode("utf-8").splitlines()
-        if line.strip()
+        json.loads(line) for line in completed.stdout.decode("utf-8").splitlines() if line.strip()
     ]
 
 

@@ -6,12 +6,24 @@ SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 # Accuracy
 
-`large-v3` is the max-accuracy default. Turbo and Distil profiles prioritize
-speed and real-time factor. Denoising and vocal separation are opt-in because
-they can help or hurt ASR and diarization depending on source audio.
+Normal 0.3.0 presets map to tested exact local packs: `max` uses
+`large-v3`, `balanced` and `cpu` use `turbo`, and `fast` uses the English-only
+`distil-large-v3.5`. `distil-large-v3` and all twelve MLX models remain
+available as optional advanced selections after their exact packs are
+installed. A model choice changes quality, language coverage, speed, and
+memory behavior; the GUI describes those tradeoffs and invalidates stale
+readiness when the effective model changes. Denoising and vocal separation
+remain opt-in because they can help or hurt ASR and diarization depending on
+source audio.
 
-For production meeting work, use `balanced` as the normal first pass when
-throughput matters. Escalate to `max` for high-stakes excerpts, poor audio,
+The optional faster-whisper Silero VAD asset is not in the verified 0.3.0 model
+component, so `asr.vad_filter: true` is rejected rather than silently
+downloading or approximating that model. The normal pipeline continues to use
+Auralign's local model-free EnergyVAD.
+
+For multilingual meeting work, use `balanced` as the normal first pass when
+throughput matters. Use `fast` only for English material. Escalate to `max`
+for high-stakes excerpts, poor audio,
 names, numbers, or any passage that QA/manual review flags as suspicious. Local
 rough-reference benchmarks are useful for relative decisions, but YouTube
 auto-caption rips are not ground truth and should not be used as absolute

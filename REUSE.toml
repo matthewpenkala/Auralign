@@ -44,3 +44,33 @@ path = "uv.lock"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 Matthew Penkala"
 SPDX-License-Identifier = "LicenseRef-PolyForm-Internal-Use-1.0.0"
+
+# Byte-identical package copies of the canonical third-party license texts are
+# release inputs, not Auralign source. Reference each exact license identifier
+# without attributing their legal text to an Auralign copyright holder.
+[[annotations]]
+path = [
+  "LICENSES/MIT.txt",
+  "packaging/macos/model-licenses/MIT.txt",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = [
+  "LICENSES/Apache-2.0.txt",
+  "packaging/macos/model-licenses/Apache-2.0.txt",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  "LICENSES/CC-BY-4.0.txt",
+  "packaging/macos/model-licenses/CC-BY-4.0.txt",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "CC-BY-4.0"

@@ -148,14 +148,19 @@ def test_distribution_verifier_rejects_model_and_private_artifacts(
 
 
 def test_distribution_verifier_accepts_only_reviewed_swift_models_namespace() -> None:
-    reviewed_source = "macos/Auralign/Models/ReadinessProjection.swift"
-    verify_distribution.verify_no_prohibited_content(
-        {reviewed_source: b"reviewed Swift source"},
-        "synthetic",
-    )
+    for reviewed_source in (
+        "macos/Auralign/Models/ReadinessProjection.swift",
+        "macos/Auralign/Models/ModelDeliveryCatalog.swift",
+        "macos/Auralign/Models/ModelPackStore.swift",
+    ):
+        verify_distribution.verify_no_prohibited_content(
+            {reviewed_source: b"reviewed Swift source"},
+            "synthetic",
+        )
 
     for unreviewed_path in (
-        "macos/Auralign/Models/Unreviewed.swift",
+        "macos/Auralign/Models/Nested/Unreviewed.swift",
+        "macos/Auralign/Models/README.md",
         "macos/Auralign/Models/weights.safetensors",
         "macos/OtherApp/Models/ReadinessProjection.swift",
         "models/ReadinessProjection.swift",

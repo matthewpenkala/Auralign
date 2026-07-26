@@ -52,6 +52,7 @@ struct ReadinessDecision: Equatable {
         case refresh
         case openSettings
         case showFirstConfigurationIssue
+        case completeOfflineSetup(String?)
         case showModel(String)
         case showCheck(String)
     }

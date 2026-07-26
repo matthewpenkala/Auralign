@@ -343,9 +343,16 @@ struct AuralignApp: App {
                     model.selectedSection = .results
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
-                .disabled(!model.job.hasResultSurface)
+                    .disabled(!model.job.hasResultSurface)
             }
+            ModelSetupCommands(controller: model.modelSetup)
         }
+        Window("Complete Offline Setup", id: "offline-setup") {
+            ModelSetupView(controller: model.modelSetup)
+                .modifier(AuralignAccessibilityEnvironmentModifier())
+                .background(WindowRoleMarker(role: .modelSetup))
+        }
+        .defaultSize(width: 860, height: 720)
         Settings {
             settingsContent
                 .environmentObject(model)
@@ -398,6 +405,36 @@ struct AuralignApp: App {
         #else
         SettingsView()
         #endif
+    }
+}
+
+private struct ModelSetupCommands: Commands {
+    @ObservedObject var controller: ModelSetupController
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandMenu("Models") {
+            Button("Complete Offline Setup…") {
+                openWindow(id: "offline-setup")
+            }
+            .keyboardShortcut("m", modifiers: [.command, .shift])
+            .accessibilityIdentifier(AccessibilityIdentifier.modelSetupOpen)
+
+            Divider()
+
+            Button("Install Required Models") {
+                openWindow(id: "offline-setup")
+                controller.installRequired()
+            }
+            .disabled(
+                !controller.needsOfflineSetup || controller.hasActiveDownloads
+            )
+
+            Button("Pause Model Downloads") {
+                controller.pauseActiveDownloads()
+            }
+            .disabled(!controller.hasActiveDownloads)
+        }
     }
 }
 

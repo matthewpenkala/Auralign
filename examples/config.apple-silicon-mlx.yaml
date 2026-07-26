@@ -2,16 +2,15 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
-# Compatibility alias for the conservative Apple Silicon MLX topology.
-# Prefer config.apple-silicon.yaml for new production jobs.
-# Requires an existing converted MLX model directory; runtime downloads are disabled.
+# Supported Apple Silicon MLX topology. The signed macOS app resolves the exact
+# verified per-user pack through its fixed Application Support trust contract.
+# Source development may instead use an ignored, verified model cache.
 preset: max
 model_cache: models
 offline: true
 asr:
   backend: mlx-whisper
   mlx_model: mlx-large-v3
-  mlx_model_path: models/mlx-community--whisper-large-v3-mlx
   mlx_fp16: true
   mlx_vad_windowed: false
   vad_filter: false

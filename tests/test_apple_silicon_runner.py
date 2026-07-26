@@ -31,7 +31,7 @@ from local_transcript_max.configuration_evidence import (
     configuration_evidence,
 )
 from local_transcript_max.errors import LTMError
-from local_transcript_max.models import model_checkpoint_sha256
+from local_transcript_max.models import ModelStatus, model_checkpoint_sha256
 from local_transcript_max.runtime_policy import HostCapabilities
 from local_transcript_max.utils import sha256_file, write_json
 
@@ -173,9 +173,9 @@ class _FakeTranscriber:
                 "models": [
                     {
                         "role": "asr-mlx",
-                        "model_id": "mlx-community/whisper-large-v3-mlx",
-                        "revision": None,
-                        "revision_verified": False,
+                        "model_id": entry.model_id,
+                        "revision": entry.revision,
+                        "revision_verified": True,
                         "checkpoint_sha256": checkpoint_sha256,
                     },
                     {
@@ -355,14 +355,23 @@ def _speaker_validator(job_dir: Path, expected_speakers: int) -> object:
 def _execute(
     request: AppleSiliconCanaryRequest,
     transcriber: _FakeTranscriber,
+    monkeypatch: pytest.MonkeyPatch,
     *,
     condition_probe: Any = _condition,
 ) -> Any:
     model_path = request.config.asr.mlx_model_path
     assert model_path is not None
+    entry = resolve_model_entry("asr-mlx", request.config.asr.mlx_model)
+    assert entry is not None
     model_path.mkdir(parents=True, exist_ok=True)
-    (model_path / "config.json").write_text("{}", encoding="utf-8")
-    (model_path / "weights.npz").write_bytes(b"fake model checkpoint")
+    for relative_path in entry.runtime_files:
+        target = model_path / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"manifest-shaped fake model checkpoint")
+    monkeypatch.setattr(
+        "local_transcript_max.asr.mlx_whisper_backend.mlx_model_status",
+        _verified_mlx_status,
+    )
     return run_apple_silicon_canary(
         request,
         transcribe=transcriber,
@@ -372,6 +381,29 @@ def _execute(
         version_resolver=_version,
         code_revision=_REVISION,
         condition_probe=condition_probe,
+    )
+
+
+def _verified_mlx_status(config: PipelineConfig) -> ModelStatus:
+    entry = resolve_model_entry("asr-mlx", config.asr.mlx_model)
+    assert entry is not None
+    model_path = config.asr.mlx_model_path
+    assert model_path is not None
+    return ModelStatus(
+        entry=entry,
+        path=model_path,
+        exists=True,
+        files_complete=True,
+        present=True,
+        missing_files=(),
+        zero_size_files=(),
+        mismatched_size_files=(),
+        inaccessible_files=(),
+        unexpected_files=(),
+        token_required=entry.gated,
+        token_present=False,
+        revision_verified=True,
+        provenance_problem="",
     )
 
 
@@ -529,7 +561,7 @@ def test_runner_executes_bound_warmups_and_measured_runs_and_promotes(
     request.input_file.write_bytes(b"private media bytes")
     transcriber = _FakeTranscriber()
 
-    result = _execute(request, transcriber)
+    result = _execute(request, transcriber, monkeypatch)
 
     assert result.status == "completed"
     assert result.evidence is not None
@@ -575,8 +607,10 @@ def test_runner_executes_bound_warmups_and_measured_runs_and_promotes(
         for model in result.evidence.baseline_runs[0].binding.models
         if model.role == "asr"
     )
-    assert asr_binding.revision is None
-    assert asr_binding.revision_verified is False
+    entry = resolve_model_entry("asr-mlx", request.config.asr.mlx_model)
+    assert entry is not None
+    assert asr_binding.revision == entry.revision
+    assert asr_binding.revision_verified is True
     assert asr_binding.checkpoint_sha256 is not None
     assert {
         row.package for row in result.evidence.baseline_runs[0].binding.runtime_versions
@@ -601,7 +635,11 @@ def test_explicit_override_cannot_hide_candidate_cpu_fallback(
     request = _request(tmp_path, explicit_mps_override=True)
     request.input_file.write_bytes(b"private media bytes")
 
-    result = _execute(request, _FakeTranscriber(candidate_fallback=True))
+    result = _execute(
+        request,
+        _FakeTranscriber(candidate_fallback=True),
+        monkeypatch,
+    )
 
     assert result.decision is not None
     assert result.decision.outcome is CanaryOutcome.MPS_FELL_BACK_TO_CPU
@@ -616,7 +654,11 @@ def test_mismatched_source_binding_is_preserved_as_inconclusive(
     request = _request(tmp_path)
     request.input_file.write_bytes(b"private media bytes")
 
-    result = _execute(request, _FakeTranscriber(mismatch_source_hash=True))
+    result = _execute(
+        request,
+        _FakeTranscriber(mismatch_source_hash=True),
+        monkeypatch,
+    )
 
     assert result.decision is not None
     assert result.decision.outcome is CanaryOutcome.BENCHMARK_INCONCLUSIVE
@@ -645,7 +687,11 @@ def test_candidate_neural_component_cpu_evidence_is_inconclusive(
     request = _request(tmp_path)
     request.input_file.write_bytes(b"private media bytes")
 
-    result = _execute(request, _FakeTranscriber(candidate_component_cpu=True))
+    result = _execute(
+        request,
+        _FakeTranscriber(candidate_component_cpu=True),
+        monkeypatch,
+    )
 
     assert result.decision is not None
     assert result.decision.outcome is CanaryOutcome.BENCHMARK_INCONCLUSIVE
@@ -664,7 +710,11 @@ def test_missing_pyannote_component_evidence_is_inconclusive(
     request = _request(tmp_path)
     request.input_file.write_bytes(b"private media bytes")
 
-    result = _execute(request, _FakeTranscriber(include_component_devices=False))
+    result = _execute(
+        request,
+        _FakeTranscriber(include_component_devices=False),
+        monkeypatch,
+    )
 
     assert result.decision is not None
     assert result.decision.outcome is CanaryOutcome.BENCHMARK_INCONCLUSIVE
@@ -707,7 +757,7 @@ def test_partial_pyannote_component_evidence_is_inconclusive(
             write_json(metadata_path, metadata)
             return result
 
-    result = _execute(request, PartialComponentTranscriber())
+    result = _execute(request, PartialComponentTranscriber(), monkeypatch)
 
     assert result.decision is not None
     assert result.decision.outcome is CanaryOutcome.BENCHMARK_INCONCLUSIVE
@@ -729,7 +779,11 @@ def test_missing_mlx_metal_evidence_is_inconclusive(
     request = _request(tmp_path)
     request.input_file.write_bytes(b"private media bytes")
 
-    result = _execute(request, _FakeTranscriber(mlx_metal_available=False))
+    result = _execute(
+        request,
+        _FakeTranscriber(mlx_metal_available=False),
+        monkeypatch,
+    )
 
     assert result.decision is not None
     assert result.decision.outcome is CanaryOutcome.BENCHMARK_INCONCLUSIVE
@@ -755,6 +809,7 @@ def test_serious_thermal_state_invalidates_completed_measurements(
     result = _execute(
         request,
         _FakeTranscriber(),
+        monkeypatch,
         condition_probe=lambda: {
             **_condition(),
             "thermal_state": "serious",
@@ -796,6 +851,7 @@ def test_stable_power_mode_is_sufficient_when_low_power_flag_is_unavailable(
     result = _execute(
         request,
         _FakeTranscriber(),
+        monkeypatch,
         condition_probe=lambda: {
             **_condition(),
             "low_power_mode": None,
@@ -827,6 +883,7 @@ def test_power_source_change_invalidates_canary_runs(
     result = _execute(
         request,
         _FakeTranscriber(),
+        monkeypatch,
         condition_probe=changing_condition,
     )
 
@@ -851,6 +908,21 @@ def test_existing_output_path_is_rejected_before_execution(
     request = _request(tmp_path)
     request.input_file.write_bytes(b"private media bytes")
     request.output_dir.mkdir()
+    monkeypatch.setattr(
+        "local_transcript_max.asr.mlx_whisper_backend.mlx_model_status",
+        lambda _config: pytest.fail(
+            "model validation must not run for an existing output path"
+        ),
+    )
 
     with pytest.raises(LTMError, match="must not already exist"):
-        _execute(request, _FakeTranscriber())
+        run_apple_silicon_canary(
+            request,
+            transcribe=_FakeTranscriber(),
+            speaker_validator=_speaker_validator,
+            backend_factory=_backend_factory,
+            capabilities=_host(),
+            version_resolver=_version,
+            code_revision=_REVISION,
+            condition_probe=_condition,
+        )

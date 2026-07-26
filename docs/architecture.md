@@ -57,8 +57,13 @@ validated across the CLI, pipeline, API, benchmarks, and tests.
 
 - Canonical local audio is the shared timeline for VAD, ASR, alignment, and
   diarization.
-- Default ASR consumes canonical audio. Experimental MLX VAD-windowed ASR may
-  use VAD regions as local window hints but must restore canonical timestamps.
+- Supported CTranslate2 and MLX ASR backends consume canonical audio from an
+  exact verified local pack. Neither backend resolves a floating repository ID
+  or downloads during transcription.
+- The normal product also rejects faster-whisper's optional
+  `asr.vad_filter=true` selector because the corresponding Silero asset is not
+  in the verified model component. Auralign's local model-free EnergyVAD
+  remains the supported canonical-audio gate.
 - Core ASR, alignment, diarization, and speaker-matching inference stays local.
   Optional transcript cleanup may use an explicitly approved non-local endpoint
   outside offline mode and then sends transcript text across that trust boundary.
@@ -167,3 +172,26 @@ uv run pytest -q
 uv run ruff check .
 uv run mypy src/local_transcript_max
 ```
+
+## Installed macOS Trust Topology
+
+The 0.3.0 product separates executable code, shared bootstrap resources, and
+per-user ASR packs:
+
+```text
+/Applications/Auralign.app
+/Library/Application Support/com.auralign.studio/Models/
+  com.auralign.studio.models.bootstrap.v1/
+~/Library/Application Support/com.auralign.studio/Models/Packs/
+  <pack-id>/<version>/
+```
+
+The scriptless PKG installs the signed app/runtime and the root-owned bootstrap
+component. The app's native model manager uses its signed catalog and
+`URLSession` to obtain one of sixteen public ASR packs, verifies the complete
+immutable contract in a private staging directory, and atomically publishes
+only a valid pack. Runtime resolution accepts only the expected bundle or pack
+identity and version; wrong revisions, missing or extra files, hash/size
+mismatches, links, unsafe permissions, malformed metadata, or partial
+publication remain readiness blockers. The network is never part of normal
+transcription.

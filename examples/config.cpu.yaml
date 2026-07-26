@@ -14,4 +14,6 @@ diarization:
   device: cpu
   enabled: true
 alignment:
-  backend: fallback
+  backend: auto
+  model: en
+  enabled: true

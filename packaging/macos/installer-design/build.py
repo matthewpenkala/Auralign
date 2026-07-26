@@ -26,8 +26,10 @@ HERE = Path(__file__).resolve().parent
 PIXEL_SIZE = (1240, 836)
 EXPECTED_TOKENS = {
     "@@PRODUCT_NAME@@",
-    "@@PACKAGE_ID@@",
-    "@@COMPONENT_PACKAGE@@",
+    "@@APP_PACKAGE_ID@@",
+    "@@APP_COMPONENT_PACKAGE@@",
+    "@@MODEL_PACKAGE_ID@@",
+    "@@MODEL_COMPONENT_PACKAGE@@",
 }
 
 
@@ -188,14 +190,19 @@ def validate_distribution_round_trip() -> None:
     require("<script" not in template.casefold(), "Installer JavaScript is prohibited")
     with tempfile.TemporaryDirectory(prefix="auralign-pkg-design-") as raw:
         temporary = Path(raw)
-        component = temporary / "Auralign-component.pkg"
+        app_component = temporary / "Auralign-application-component.pkg"
+        model_component = temporary / "Auralign-offline-models-component.pkg"
         package = temporary / "Auralign.pkg"
         distribution = temporary / "Distribution.xml"
         rendered = template
         for token, value in {
             "@@PRODUCT_NAME@@": "Auralign",
-            "@@PACKAGE_ID@@": "com.auralign.studio.pkg.design-validation",
-            "@@COMPONENT_PACKAGE@@": component.name,
+            "@@APP_PACKAGE_ID@@":
+                "com.auralign.studio.pkg.design-validation.app",
+            "@@APP_COMPONENT_PACKAGE@@": app_component.name,
+            "@@MODEL_PACKAGE_ID@@":
+                "com.auralign.studio.pkg.design-validation.models",
+            "@@MODEL_COMPONENT_PACKAGE@@": model_component.name,
         }.items():
             rendered = rendered.replace(token, value)
         distribution.write_text(rendered, encoding="utf-8", newline="\n")
@@ -205,10 +212,24 @@ def validate_distribution_round_trip() -> None:
                 "pkgbuild",
                 "--nopayload",
                 "--identifier",
-                "com.auralign.studio.pkg.design-validation",
+                "com.auralign.studio.pkg.design-validation.app",
                 "--version",
-                "0.2.1.1",
-                str(component),
+                "0.3.0.1",
+                str(app_component),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            [
+                "pkgbuild",
+                "--nopayload",
+                "--identifier",
+                "com.auralign.studio.pkg.design-validation.models",
+                "--version",
+                "1.0.0",
+                str(model_component),
             ],
             check=True,
             capture_output=True,
@@ -237,6 +258,8 @@ def validate() -> dict[str, object]:
     ET.parse(HERE / "Distribution.xml.template")
     for path in (
         HERE / "Resources/en.lproj/welcome.html",
+        HERE / "Resources/en.lproj/readme.html",
+        HERE / "Resources/en.lproj/license.html",
         HERE / "Resources/en.lproj/conclusion.html",
     ):
         validate_html(path)

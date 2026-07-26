@@ -99,9 +99,7 @@ _REQUEST_KEYS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     "probe": (frozenset({"path"}), frozenset({"path"})),
     "transcribe": (
         frozenset({"input", "output_root", "out_dir", "config"}),
-        frozenset(
-            {"input", "output_root", "out_dir", "config", "debug_report"}
-        ),
+        frozenset({"input", "output_root", "out_dir", "config", "debug_report"}),
     ),
 }
 
@@ -229,9 +227,7 @@ class ResultQAProjection(BaseModel):
     status: Literal["available", "disabled", "missing", "invalid", "oversized"]
     source_artifact: Literal["qa_report.json"] = "qa_report.json"
     byte_limit: Literal[1048576] = 1048576
-    overall_quality_summary: (
-        Literal["no_deterministic_warnings", "review_warnings"] | None
-    )
+    overall_quality_summary: Literal["no_deterministic_warnings", "review_warnings"] | None
     flag_count: int | None = Field(default=None, ge=0, le=MAX_RESULT_COUNT)
     error_flag_count: int | None = Field(default=None, ge=0, le=MAX_RESULT_COUNT)
     warning_flag_count: int | None = Field(default=None, ge=0, le=MAX_RESULT_COUNT)
@@ -257,21 +253,13 @@ class ResultQAProjection(BaseModel):
             assert self.warning_flag_count is not None
             assert self.info_flag_count is not None
             if (
-                self.error_flag_count
-                + self.warning_flag_count
-                + self.info_flag_count
+                self.error_flag_count + self.warning_flag_count + self.info_flag_count
                 != self.flag_count
             ):
                 raise ValueError("QA severity counts do not match the flag count")
-            projected_error_count = sum(
-                flag.severity == "error" for flag in self.flags
-            )
-            projected_warning_count = sum(
-                flag.severity == "warning" for flag in self.flags
-            )
-            projected_info_count = sum(
-                flag.severity == "info" for flag in self.flags
-            )
+            projected_error_count = sum(flag.severity == "error" for flag in self.flags)
+            projected_warning_count = sum(flag.severity == "warning" for flag in self.flags)
+            projected_info_count = sum(flag.severity == "info" for flag in self.flags)
             if (
                 projected_error_count > self.error_flag_count
                 or projected_warning_count > self.warning_flag_count
@@ -280,11 +268,7 @@ class ResultQAProjection(BaseModel):
                 raise ValueError("QA projected severities exceed their totals")
             if self.flag_count != len(self.flags) + self.omitted_flag_count:
                 raise ValueError("QA omitted flag count is inconsistent")
-            expected_overall = (
-                "review_warnings"
-                if self.flag_count
-                else "no_deterministic_warnings"
-            )
+            expected_overall = "review_warnings" if self.flag_count else "no_deterministic_warnings"
             if self.overall_quality_summary != expected_overall:
                 raise ValueError("QA overall summary is inconsistent")
         elif self.status == "disabled":
@@ -380,8 +364,7 @@ class JobResultEnvelope(BaseModel):
                 not self.language
                 or len(self.language.encode("utf-8")) > 32
                 or not all(
-                    character.isalnum() or character in {"-", "_"}
-                    for character in self.language
+                    character.isalnum() or character in {"-", "_"} for character in self.language
                 )
             ):
                 raise ValueError("result language is invalid")
@@ -503,6 +486,9 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 for error in exc.errors(include_url=False, include_input=False)
             ],
         }
+    policy_errors = _product_model_policy_errors(config)
+    if policy_errors:
+        return {"ok": False, "errors": policy_errors}
     return {"ok": True, "config": config.model_dump(mode="json")}
 
 
@@ -585,6 +571,8 @@ def _model_contract(entry: ModelEntry) -> dict[str, Any]:
         "required_files": list(entry.required_files),
         "any_required_files": list(entry.any_required_files),
         "runtime_files": list(entry.runtime_files),
+        "expected_sha256": entry.expected_digest_map,
+        "expected_size": entry.expected_size_map,
         "gated": entry.gated,
         "optional": entry.optional,
         "pullable": entry.pullable,
@@ -595,10 +583,71 @@ def _model_contract(entry: ModelEntry) -> dict[str, Any]:
         "redistribution_status": entry.redistribution_status,
         "review_status": entry.review_status,
         "reviewed_at": entry.reviewed_at,
+        "product_classification": entry.product_classification,
+        "product_selectable": entry.production_selectable,
+        "blocker": entry.blocker,
+        "backend_compatibility": entry.backend_compatibility,
+        "modification_status": entry.modification_status,
+        "package_bundle_id": entry.package_bundle_id,
+        "package_bundle_version": entry.package_bundle_version,
+        "package_relative_path": entry.package_relative_path,
+        "delivery": entry.delivery,
         "source_url": entry.source_url,
         "terms_url": entry.terms_url,
         "attribution": entry.attribution,
     }
+
+
+def _product_model_policy_errors(config: PipelineConfig) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    if config.asr.mlx_model_path is not None:
+        errors.append(
+            {
+                "loc": ["model_policy", "asr-mlx", "path"],
+                "message": (
+                    "The production product resolves MLX models only through its exact "
+                    "verified native model-pack contract; arbitrary model paths are not "
+                    "accepted."
+                ),
+                "type": "model_policy_blocked",
+            }
+        )
+    if config.asr.vad_filter:
+        errors.append(
+            {
+                "loc": ["model_policy", "asr", "vad_filter"],
+                "message": (
+                    "asr.vad_filter is unavailable in the production product because "
+                    "its upstream Silero model is not part of the verified model "
+                    "component; Auralign's local EnergyVAD remains active."
+                ),
+                "type": "model_policy_blocked",
+            }
+        )
+    for role, value in required_model_requests(config):
+        entry = resolve_model_entry(role, value)
+        if entry is None:
+            errors.append(
+                {
+                    "loc": ["model_policy", role],
+                    "message": f"Unknown {role} model '{value}'.",
+                    "type": "model_policy_unknown",
+                }
+            )
+            continue
+        if not entry.production_selectable:
+            blocker = entry.blocker or "release-critical model authority is incomplete"
+            errors.append(
+                {
+                    "loc": ["model_policy", role],
+                    "message": (
+                        f"{role} model '{entry.key}' is unavailable in the production "
+                        f"product: {blocker}"
+                    ),
+                    "type": "model_policy_blocked",
+                }
+            )
+    return errors
 
 
 def _selected_model_ids(payload: dict[str, Any]) -> set[tuple[str, str]]:
@@ -642,13 +691,9 @@ def _require_request_shape(command: str, payload: dict[str, Any]) -> None:
     observed = frozenset(payload)
     missing = sorted(required - observed)
     if missing:
-        raise BridgeUsageError(
-            f"{command} payload requires: {', '.join(missing)}"
-        )
+        raise BridgeUsageError(f"{command} payload requires: {', '.join(missing)}")
     if not observed.issubset(allowed):
-        raise BridgeUsageError(
-            f"{command} payload contains unsupported fields"
-        )
+        raise BridgeUsageError(f"{command} payload contains unsupported fields")
 
 
 def _configuration_leaf_keys(
@@ -775,11 +820,10 @@ def _prepare_output_directory(
     output_descriptor: int | None = None
     try:
         opened_root_metadata = os.fstat(root_descriptor)
-        if (
-            not stat.S_ISDIR(opened_root_metadata.st_mode)
-            or (opened_root_metadata.st_dev, opened_root_metadata.st_ino)
-            != (root_metadata.st_dev, root_metadata.st_ino)
-        ):
+        if not stat.S_ISDIR(opened_root_metadata.st_mode) or (
+            opened_root_metadata.st_dev,
+            opened_root_metadata.st_ino,
+        ) != (root_metadata.st_dev, root_metadata.st_ino):
             raise BridgeUsageError("transcribe output_root changed during authorization")
         try:
             os.mkdir(output.name, mode=0o700, dir_fd=root_descriptor)
@@ -849,9 +893,7 @@ def _verify_accepted_output(accepted: AcceptedOutputDirectory) -> os.stat_result
         else:
             output_metadata = output_path_metadata
     except OSError as exc:
-        raise ResultContractError(
-            "completed job directory authority is unavailable"
-        ) from exc
+        raise ResultContractError("completed job directory authority is unavailable") from exc
     root_identity = _completed_filesystem_identity(root_metadata)
     output_identity = _completed_filesystem_identity(output_metadata)
     if (
@@ -897,9 +939,7 @@ def _open_result_artifact(
             metadata = candidate.lstat()
             descriptor = os.open(candidate, flags)
     except OSError as exc:
-        raise ResultContractError(
-            "completed job artifact changed during publication"
-        ) from exc
+        raise ResultContractError("completed job artifact changed during publication") from exc
     try:
         opened_metadata = os.fstat(descriptor)
         expected = artifact.identity
@@ -912,9 +952,7 @@ def _open_result_artifact(
             or metadata.st_size != artifact.size_bytes
             or opened_metadata.st_size != artifact.size_bytes
         ):
-            raise ResultContractError(
-                "completed job artifact changed during publication"
-            )
+            raise ResultContractError("completed job artifact changed during publication")
         return descriptor
     except BaseException:
         os.close(descriptor)
@@ -945,13 +983,9 @@ def _read_result_artifact_prefix(
             or _completed_filesystem_identity(final_metadata) != artifact.identity
             or final_metadata.st_size != artifact.size_bytes
         ):
-            raise ResultContractError(
-                "completed job artifact changed while it was being read"
-            )
+            raise ResultContractError("completed job artifact changed while it was being read")
     except OSError as exc:
-        raise ResultContractError(
-            "completed job artifact could not be read safely"
-        ) from exc
+        raise ResultContractError("completed job artifact could not be read safely") from exc
     finally:
         os.close(descriptor)
     return b"".join(chunks)
@@ -968,24 +1002,14 @@ def _result_qa_projection(
     artifact = artifacts.get("qa_report.json")
     if not enabled:
         if artifact is None or artifact.size_bytes > MAX_RESULT_QA_BYTES:
-            raise ResultContractError(
-                "disabled QA did not publish its expected empty report"
-            )
+            raise ResultContractError("disabled QA did not publish its expected empty report")
         data = _read_result_artifact_prefix(accepted, artifact, MAX_RESULT_QA_BYTES)
         try:
             disabled_report = QAReport.model_validate_json(data, strict=True)
         except ValidationError as exc:
-            raise ResultContractError(
-                "disabled QA report is malformed"
-            ) from exc
-        if (
-            disabled_report.flags
-            or disabled_report.changed_spans
-            or disabled_report.summary
-        ):
-            raise ResultContractError(
-                "disabled QA report contains unsupported evidence"
-            )
+            raise ResultContractError("disabled QA report is malformed") from exc
+        if disabled_report.flags or disabled_report.changed_spans or disabled_report.summary:
+            raise ResultContractError("disabled QA report contains unsupported evidence")
         return ResultQAProjection(
             status="disabled",
             overall_quality_summary=None,
@@ -1030,9 +1054,7 @@ def _result_qa_projection(
         require_summary_count("error_flag_count", error_count)
         require_summary_count("warning_flag_count", warning_count)
         overall = summary.get("overall_quality_summary")
-        expected_overall = (
-            "review_warnings" if report.flags else "no_deterministic_warnings"
-        )
+        expected_overall = "review_warnings" if report.flags else "no_deterministic_warnings"
         if overall != expected_overall:
             raise ValueError("QA overall summary is inconsistent")
         projected = [
@@ -1077,9 +1099,7 @@ def _decode_transcript_prefix(data: bytes, *, source_bytes: int) -> str:
                 return data[:-trimmed_count].decode("utf-8")
             except UnicodeDecodeError:
                 continue
-        raise ResultContractError(
-            "completed transcript preview is not valid UTF-8"
-        ) from original
+        raise ResultContractError("completed transcript preview is not valid UTF-8") from original
 
 
 def _result_transcript_preview(
@@ -1131,16 +1151,12 @@ def _completed_result_envelope(
     artifacts: list[ResultArtifact] = []
     entry_count = 0
     scan_target: int | Path = (
-        accepted.output_descriptor
-        if accepted.output_descriptor is not None
-        else accepted.path
+        accepted.output_descriptor if accepted.output_descriptor is not None else accepted.path
     )
     try:
         entries = os.scandir(scan_target)
     except OSError as exc:
-        raise ResultContractError(
-            "completed job artifacts could not be enumerated"
-        ) from exc
+        raise ResultContractError("completed job artifacts could not be enumerated") from exc
     with entries:
         for entry in entries:
             entry_count += 1
@@ -1156,19 +1172,13 @@ def _completed_result_envelope(
                     "completed job contains an unreadable artifact entry"
                 ) from exc
             if stat.S_ISLNK(metadata.st_mode):
-                raise ResultContractError(
-                    "completed job contains an unsafe artifact link"
-                )
+                raise ResultContractError("completed job contains an unsafe artifact link")
             if stat.S_ISDIR(metadata.st_mode):
                 continue
             if not stat.S_ISREG(metadata.st_mode):
-                raise ResultContractError(
-                    "completed job contains an unsafe artifact type"
-                )
+                raise ResultContractError("completed job contains an unsafe artifact type")
             if len(artifacts) >= MAX_RESULT_ARTIFACTS:
-                raise ResultContractError(
-                    "completed job contains too many file artifacts"
-                )
+                raise ResultContractError("completed job contains too many file artifacts")
             try:
                 artifact = ResultArtifact(
                     name=name,
@@ -1176,9 +1186,7 @@ def _completed_result_envelope(
                     identity=_completed_filesystem_identity(metadata),
                 )
             except (UnicodeError, ValidationError) as exc:
-                raise ResultContractError(
-                    "completed job contains an invalid artifact"
-                ) from exc
+                raise ResultContractError("completed job contains an invalid artifact") from exc
             descriptor = _open_result_artifact(accepted, artifact)
             os.close(descriptor)
             artifacts.append(artifact)
@@ -1258,6 +1266,10 @@ def run_transcribe(
             },
         )
         return 2
+    policy_errors = _product_model_policy_errors(config)
+    if policy_errors:
+        emit("config_invalid", {"errors": policy_errors})
+        return 2
     accepted = _prepare_output_directory(payload.get("output_root"), out_value)
     debug_report_path = accepted.path / "debug_report.json" if debug_report else None
     try:
@@ -1270,6 +1282,7 @@ def run_transcribe(
             },
         )
         try:
+
             def safe_progress(
                 event: str,
                 event_payload: dict[str, Any],
@@ -1312,9 +1325,7 @@ def run_transcribe(
                 {
                     "type": "ResultContractError",
                     "code": "result_contract_invalid",
-                    "message": (
-                        "The completed job output could not be verified safely."
-                    ),
+                    "message": ("The completed job output could not be verified safely."),
                     "remediation": (
                         "Preserve the partial local output and start a fresh job after "
                         "reviewing the output destination."
@@ -1360,9 +1371,7 @@ def _public_pipeline_failure(exc: Exception) -> dict[str, Any]:
     return {
         "type": "InternalEngineError",
         "code": "internal_engine_failure",
-        "message": (
-            "The local engine stopped because of an unexpected internal error."
-        ),
+        "message": ("The local engine stopped because of an unexpected internal error."),
         "remediation": "Enable the debug report and retry for a redacted local trace.",
     }
 
@@ -1443,11 +1452,7 @@ def _validate_arguments(arguments: list[str]) -> str:
     if command == "schema":
         if len(arguments) == 1:
             return command
-        if (
-            len(arguments) == 3
-            and arguments[1] == "--write"
-            and bool(arguments[2])
-        ):
+        if len(arguments) == 3 and arguments[1] == "--write" and bool(arguments[2]):
             return command
         raise BridgeUsageError("schema command arguments are invalid")
     if len(arguments) != 1:
@@ -1462,9 +1467,7 @@ def _establish_owned_process_group() -> None:
         os.setpgrp()
     except OSError as exc:
         if os.getpgrp() != os.getpid():
-            raise BridgeUsageError(
-                "bridge process ownership could not be established"
-            ) from exc
+            raise BridgeUsageError("bridge process ownership could not be established") from exc
 
 
 def _install_sigterm_handler() -> None:
@@ -1538,9 +1541,7 @@ def main(argv: list[str] | None = None) -> int:
             "bridge_error",
             {
                 "type": "BridgeInternalError",
-                "message": (
-                    "The bridge stopped because of an unexpected internal error."
-                ),
+                "message": ("The bridge stopped because of an unexpected internal error."),
             },
         )
         return 70

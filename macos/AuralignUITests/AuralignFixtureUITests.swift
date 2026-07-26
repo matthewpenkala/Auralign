@@ -97,7 +97,7 @@ final class AuralignFixtureUITests: XCTestCase {
         )
     }
 
-    func testParameterLibraryExposesAllFieldsAndExactKeySearch() {
+    func testParameterLibraryExposesAllProductFieldsAndExactKeySearch() {
         let launched = FixtureApplication.launch("selected-run-plan")
         app = launched
 
@@ -107,7 +107,7 @@ final class AuralignFixtureUITests: XCTestCase {
 
         let count = element("parameters.count", in: launched)
         XCTAssertTrue(count.waitForExistence(timeout: 3))
-        XCTAssertTrue(accessibilityText(count).contains("112 of 112"))
+        XCTAssertTrue(accessibilityText(count).contains("110 of 110"))
 
         let search = element("parameters.search", in: launched)
         XCTAssertTrue(search.exists)

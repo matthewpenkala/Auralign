@@ -29,6 +29,7 @@ from local_transcript_max.asr.mlx_whisper_backend import (
 )
 from local_transcript_max.config import load_config, resolve_model_entry
 from local_transcript_max.errors import BackendUnavailableError, ModelCacheError
+from local_transcript_max.models import ModelStatus
 from local_transcript_max.schemas import VADRegion
 
 
@@ -230,7 +231,33 @@ def test_resolve_asr_threading_preserves_unset_and_positive_values() -> None:
         resolve_num_workers(0)
 
 
-def test_mlx_model_path_validation_accepts_required_weight_alternatives(tmp_path: Path) -> None:
+def _verified_mlx_status(config) -> ModelStatus:
+    entry = resolve_model_entry("asr-mlx", config.asr.mlx_model)
+    assert entry is not None
+    model_path = config.asr.mlx_model_path
+    if model_path is None:
+        model_path = config.model_cache / entry.directory_name
+    return ModelStatus(
+        entry=entry,
+        path=model_path,
+        exists=True,
+        files_complete=True,
+        present=True,
+        missing_files=(),
+        zero_size_files=(),
+        mismatched_size_files=(),
+        inaccessible_files=(),
+        unexpected_files=(),
+        token_required=entry.gated,
+        token_present=False,
+        revision_verified=True,
+        provenance_problem="",
+    )
+
+
+def test_mlx_model_path_validation_rejects_unreviewed_weight_alternative(
+    tmp_path: Path,
+) -> None:
     config = load_config(cwd=tmp_path)
     config.asr.backend = "mlx-whisper"
     entry = resolve_model_entry("asr-mlx", "mlx-large-v3")
@@ -245,22 +272,21 @@ def test_mlx_model_path_validation_accepts_required_weight_alternatives(tmp_path
     (model_dir / "config.json").write_text("{}", encoding="utf-8")
     status = mlx_model_status(config)
     assert status.present is False
-    assert "weights.safetensors or weights.npz" in status.missing_files
+    assert "weights.npz" in status.missing_files
 
-    (model_dir / "weights.safetensors").write_bytes(b"")
+    (model_dir / "weights.safetensors").write_bytes(b"not-reviewed")
     status = mlx_model_status(config)
     assert status.present is False
-    assert status.zero_size_files == ("weights.safetensors",)
+    assert status.unexpected_files == ("weights.safetensors",)
+    with pytest.raises(ModelCacheError, match="linked or non-allowlisted content"):
+        resolve_mlx_model_path(config)
 
-    (model_dir / "weights.safetensors").write_bytes(b"ok")
-    assert resolve_mlx_model_path(config) == model_dir
-
-    npz_dir = tmp_path / "npz-model"
-    npz_dir.mkdir()
-    (npz_dir / "config.json").write_text("{}", encoding="utf-8")
-    (npz_dir / "weights.npz").write_bytes(b"ok")
-    config.asr.mlx_model_path = npz_dir
-    assert resolve_mlx_model_path(config) == npz_dir
+    (model_dir / "weights.safetensors").unlink()
+    (model_dir / "weights.npz").write_bytes(b"manifest filename, invalid bytes")
+    status = mlx_model_status(config)
+    assert status.present is False
+    assert status.mismatched_size_files == ("config.json", "weights.npz")
+    assert status.revision_verified is False
 
 
 def test_mlx_model_path_validation_rejects_unknown_model(tmp_path: Path) -> None:
@@ -489,7 +515,7 @@ def test_mlx_backend_uses_local_path_and_never_repo_id(
     model_dir = tmp_path / "models" / entry.directory_name
     model_dir.mkdir(parents=True)
     (model_dir / "config.json").write_text("{}", encoding="utf-8")
-    (model_dir / "weights.safetensors").write_bytes(b"ok")
+    (model_dir / "weights.npz").write_bytes(b"manifest-shaped fake weights")
     audio_path = tmp_path / "audio.wav"
     audio_path.write_bytes(b"not-real-audio")
 
@@ -518,6 +544,10 @@ def test_mlx_backend_uses_local_path_and_never_repo_id(
         "local_transcript_max.asr.mlx_whisper_backend.importlib.util.find_spec",
         lambda name: object() if name == "mlx_whisper" else None,
     )
+    monkeypatch.setattr(
+        "local_transcript_max.asr.mlx_whisper_backend.mlx_model_status",
+        _verified_mlx_status,
+    )
 
     result = MlxWhisperBackend().transcribe(audio_path, config)
 
@@ -529,8 +559,8 @@ def test_mlx_backend_uses_local_path_and_never_repo_id(
     assert "beam_size" not in kwargs
     assert result.model is not None
     assert result.model.role == "asr-mlx"
-    assert result.model.revision is None
-    assert result.model.revision_verified is False
+    assert result.model.revision == entry.revision
+    assert result.model.revision_verified is True
     assert result.model.checkpoint_sha256 is not None
     assert result.config["backend"] == "mlx-whisper"
     assert result.config["runtime_downloads_disabled"] is True
@@ -552,7 +582,7 @@ def test_mlx_backend_vad_windowed_offsets_chunk_timestamps(
     model_dir = tmp_path / "models" / entry.directory_name
     model_dir.mkdir(parents=True)
     (model_dir / "config.json").write_text("{}", encoding="utf-8")
-    (model_dir / "weights.safetensors").write_bytes(b"ok")
+    (model_dir / "weights.npz").write_bytes(b"manifest-shaped fake weights")
     audio_path = tmp_path / "audio.wav"
     write_silent_wav(audio_path, duration_seconds=2.0)
     monkeypatch.setattr(
@@ -591,6 +621,10 @@ def test_mlx_backend_vad_windowed_offsets_chunk_timestamps(
     monkeypatch.setattr(
         "local_transcript_max.asr.mlx_whisper_backend.importlib.util.find_spec",
         lambda name: object() if name == "mlx_whisper" else None,
+    )
+    monkeypatch.setattr(
+        "local_transcript_max.asr.mlx_whisper_backend.mlx_model_status",
+        _verified_mlx_status,
     )
 
     result = MlxWhisperBackend().transcribe(

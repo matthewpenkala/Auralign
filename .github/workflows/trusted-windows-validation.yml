@@ -27,6 +27,8 @@ jobs:
       github.actor == github.repository_owner
     runs-on: [self-hosted, Windows, X64, auralign-gpu]
     timeout-minutes: 240
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
     strategy:
       fail-fast: true
       max-parallel: 1
@@ -135,7 +137,7 @@ jobs:
         run: |
           $runtime = Join-Path $env:RUNNER_TEMP "auralign-${{ inputs.approved_sha }}-${{ matrix.profile }}"
           $python = Join-Path $runtime '.venv\Scripts\python.exe'
-          & $python scripts/run_trusted_platform_validation.py `
+          & $python -B scripts/run_trusted_platform_validation.py `
             --profile '${{ matrix.profile }}' `
             --config '${{ matrix.config }}'
           if ($LASTEXITCODE -ne 0) { throw 'trusted model validation failed' }
@@ -151,14 +153,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'locked SBOM tool provisioning failed' }
           $toolPython = Join-Path $toolRuntime 'Scripts\python.exe'
           $output = Join-Path $env:LTM_ACCEPTANCE_EVIDENCE_DIR '${{ matrix.platform }}.cdx.json'
-          & $toolPython scripts/generate_environment_sbom.py `
+          & $toolPython -B scripts/generate_environment_sbom.py `
             --python $python `
             --platform '${{ matrix.platform }}' `
             --profile '${{ matrix.profile }}' `
             --commit '${{ inputs.approved_sha }}' `
             --output $output
           if ($LASTEXITCODE -ne 0) { throw 'native dependency SBOM generation failed' }
-          & $toolPython scripts/validate_dependency_sbom.py $output `
+          & $toolPython -B scripts/validate_dependency_sbom.py $output `
             --profile '${{ matrix.profile }}' `
             --platform '${{ matrix.platform }}' `
             --commit '${{ inputs.approved_sha }}'

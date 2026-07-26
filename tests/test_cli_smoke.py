@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 import local_transcript_max.cli as cli_module
 from local_transcript_max.benchmark.corpus import MediaProbe
 from local_transcript_max.cli import app
+from local_transcript_max.config import preset_config
 from local_transcript_max.doctor import DoctorReport
 from local_transcript_max.platform_security import ensure_private_directory, ensure_private_file
 from local_transcript_max.schemas import Transcript
@@ -160,6 +161,75 @@ def test_models_dry_run() -> None:
     )
     assert result.exit_code == 0
     assert "Systran/faster-whisper-large-v3" in result.stdout
+
+
+def test_models_mlx_dry_run_uses_exact_role_selector() -> None:
+    result = CliRunner().invoke(
+        app,
+        [
+            "models",
+            "pull",
+            "--asr-mlx",
+            "mlx-tiny",
+            "--cache-dir",
+            "models",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "asr-mlx:mlx-tiny" in result.stdout
+    assert "mlx-community/whisper-tiny-mlx" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("backend", "selector", "expected_asr"),
+    [
+        ("faster-whisper", "turbo", "turbo"),
+        ("mlx-whisper", "mlx-tiny", "mlx-tiny"),
+    ],
+)
+def test_prepare_runtime_uses_exact_effective_model_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+    selector: str,
+    expected_asr: str,
+) -> None:
+    config = preset_config("balanced")
+    config.offline = True
+    config.model_cache = tmp_path / "models"
+    config.asr.backend = backend
+    if backend == "mlx-whisper":
+        config.asr.mlx_model = selector
+    else:
+        config.asr.model = selector
+    captured: list[str] = []
+
+    monkeypatch.setattr(cli_module, "_config", lambda *_args, **_kwargs: config)
+    monkeypatch.setattr(
+        cli_module,
+        "preflight_runtime_preparation",
+        lambda entries, *_args, **_kwargs: captured.extend(entry.key for entry in entries),
+    )
+    monkeypatch.setattr(cli_module, "ensure_pull_preconditions", lambda *_args: None)
+    monkeypatch.setattr(
+        cli_module,
+        "pull_model",
+        lambda entry, *_args, **_kwargs: config.model_cache / entry.directory_name,
+    )
+    monkeypatch.setattr(cli_module, "prepare_generated_punkt", lambda *_args: None)
+    monkeypatch.setattr(cli_module, "verify_entries", lambda *_args: [])
+    monkeypatch.setattr(cli_module, "write_model_audit", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        cli_module,
+        "_run_doctor_without_upstream_stderr",
+        lambda *_args, **_kwargs: DoctorReport(ok=True, offline=True),
+    )
+
+    result = CliRunner().invoke(app, ["prepare-runtime"])
+
+    assert result.exit_code == 0, result.output
+    assert captured == [expected_asr, "community-1", "en", "ecapa"]
 
 
 def test_serve_rejects_network_bind_without_explicit_flag() -> None:
@@ -521,7 +591,10 @@ def test_transcribe_explicit_mlx_vad_window_flags_override_config_file(
     assert config.asr.mlx_vad_window_padding_seconds == 0.1
 
 
-def test_transcribe_asr_backend_env_survives_cli_defaults(tmp_path, monkeypatch) -> None:
+def test_transcribe_accepts_verified_mlx_backend_from_environment(
+    tmp_path,
+    monkeypatch,
+) -> None:
     captured = {}
 
     def fake_transcribe_file(input_file, out_dir, config, debug_report_path=None):
@@ -530,6 +603,7 @@ def test_transcribe_asr_backend_env_survives_cli_defaults(tmp_path, monkeypatch)
 
     monkeypatch.setattr("local_transcript_max.cli.transcribe_file", fake_transcribe_file)
     monkeypatch.setenv("LTM_ASR_BACKEND", "mlx-whisper")
+    monkeypatch.setenv("LTM_ASR_MLX_MODEL", "mlx-tiny")
     monkeypatch.setenv("LTM_ASR_MLX_FP16", "0")
     monkeypatch.setenv("LTM_ASR_MLX_VAD_WINDOWED", "1")
     audio_path = tmp_path / "input.wav"
@@ -541,10 +615,104 @@ def test_transcribe_asr_backend_env_survives_cli_defaults(tmp_path, monkeypatch)
     )
 
     assert result.exit_code == 0
-    config = captured["config"]
-    assert config.asr.backend == "mlx-whisper"
-    assert config.asr.mlx_fp16 is False
-    assert config.asr.mlx_vad_windowed is True
+    assert captured["config"].asr.backend == "mlx-whisper"
+    assert captured["config"].asr.mlx_model == "mlx-tiny"
+    assert captured["config"].asr.mlx_fp16 is False
+    assert captured["config"].asr.mlx_vad_windowed is True
+
+
+def test_transcribe_help_exposes_verified_mlx_selector_but_not_arbitrary_path() -> None:
+    result = CliRunner().invoke(app, ["transcribe", "--help"])
+
+    assert result.exit_code == 0
+    assert "--asr-backend" in result.stdout
+    assert "faster-whisper" in result.stdout
+    assert "mlx-whisper" in result.stdout
+    assert "--asr-mlx-model" in result.stdout
+    assert "--asr-mlx-model-path" not in result.stdout
+    assert "--asr-mlx-fp16" not in result.stdout
+    assert "--asr-mlx-vad-windowed" not in result.stdout
+
+
+def test_model_and_benchmark_help_expose_only_exact_selection_contracts() -> None:
+    pull_help = CliRunner().invoke(app, ["models", "pull", "--help"])
+    verify_help = CliRunner().invoke(app, ["models", "verify", "--help"])
+    benchmark_help = CliRunner().invoke(app, ["benchmark-corpus", "--help"])
+
+    assert pull_help.exit_code == 0
+    assert verify_help.exit_code == 0
+    assert benchmark_help.exit_code == 0
+    assert "--all" in pull_help.stdout
+    assert "--all" in verify_help.stdout
+    assert "--include-optional" not in pull_help.stdout
+    assert "--include-optional" not in verify_help.stdout
+    assert "--asr-mlx-model" in benchmark_help.stdout
+    assert "--asr-mlx-model-path" not in benchmark_help.stdout
+
+
+def test_transcribe_rejects_unknown_asr_model_from_config_before_pipeline(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    called = False
+
+    def fake_transcribe_file(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("unknown product selection must not reach the pipeline")
+
+    monkeypatch.setattr("local_transcript_max.cli.transcribe_file", fake_transcribe_file)
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+    config_path = tmp_path / "unknown.yaml"
+    config_path.write_text("asr:\n  model: not-a-reviewed-model\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--config",
+            str(config_path),
+            "--out",
+            str(tmp_path / "out"),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Unknown asr model" in result.stderr
+    assert called is False
+
+
+def test_transcribe_rejects_unbundled_silero_vad_from_config(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "local_transcript_max.cli.transcribe_file",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("unbundled Silero selector must not reach the pipeline")
+        ),
+    )
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+    config_path = tmp_path / "silero.yaml"
+    config_path.write_text("asr:\n  vad_filter: true\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--config",
+            str(config_path),
+            "--out",
+            str(tmp_path / "out"),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Silero model is not part of the verified model component" in result.stderr
 
 
 def test_transcribe_device_flags_override_config(tmp_path, monkeypatch) -> None:

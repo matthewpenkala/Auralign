@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
+import hashlib
 from dataclasses import replace
 from pathlib import Path
 
@@ -79,7 +80,7 @@ def test_models_audit_reports_configured_ids_and_token_state(tmp_path: Path, mon
         if "pyannote/speaker-diarization-community-1" in row
     )
     community_columns = community_row.split("\t")
-    assert community_columns[3].startswith("<model-cache>:")
+    assert community_columns[3] == "<local-model-path>"
     assert community_columns[7] == "yes"
     assert community_columns[8] == "yes"
     assert community_columns[9] == "no"
@@ -126,7 +127,9 @@ def test_models_audit_reports_configured_mlx_model_path(tmp_path: Path, monkeypa
     assert "mlx-turbo" in mlx_row["directory_aliases"]
 
 
-def test_models_import_mlx_cli_copies_valid_local_directory(tmp_path: Path) -> None:
+def test_models_import_mlx_cli_rejects_wrong_weight_variant_without_copy(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "mlx-source"
     source.mkdir()
     (source / "config.json").write_text("{}", encoding="utf-8")
@@ -138,10 +141,9 @@ def test_models_import_mlx_cli_copies_valid_local_directory(tmp_path: Path) -> N
         ["models", "import-mlx", str(source), "--cache-dir", str(cache_dir)],
     )
 
-    assert result.exit_code == 0
-    assert "asr-mlx:mlx-large-v3" in result.stdout
-    assert (cache_dir / "mlx-community--whisper-large-v3-mlx" / "config.json").exists()
-    assert (cache_dir / "mlx-community--whisper-large-v3-mlx" / "weights.safetensors").exists()
+    assert result.exit_code == 1
+    assert "MLX model source is incomplete" in result.stderr
+    assert not cache_dir.exists()
 
 
 def test_pull_preconditions_block_incomplete_gated_digest_before_asr_download(
@@ -197,14 +199,18 @@ def test_community_1_manifest_has_owner_reviewed_complete_digest_contract() -> N
     assert set(entry.expected_digest_map) == set(entry.runtime_files)
 
 
-def test_model_audit_payload_includes_optional_classification(tmp_path: Path) -> None:
+def test_model_audit_payload_distinguishes_product_and_selection_classification(
+    tmp_path: Path,
+) -> None:
     payload = audit_payload(tmp_path, include_optional=True)
     records = {(row["role"], row["key"]): row for row in payload["models"]}
-    assert records[("alignment", "en")]["classification"] == "optional"
+    assert records[("alignment", "en")]["classification"] == "production"
+    assert records[("alignment", "en")]["selection_requirement"] == "optional"
     assert records[("alignment", "en")]["model_id"] == "facebook/wav2vec2-base-960h"
     assert records[("alignment", "en")]["any_required_files"] == []
     assert records[("alignment", "en")]["runtime_file_allowlist"][-1] == "model.safetensors"
-    assert records[("speaker-embedding", "ecapa")]["classification"] == "optional"
+    assert records[("speaker-embedding", "ecapa")]["classification"] == "production"
+    assert records[("speaker-embedding", "ecapa")]["selection_requirement"] == "optional"
     assert records[("speaker-embedding", "ecapa")]["runtime_file_allowlist"] == [
         "hyperparams.yaml",
         "embedding_model.ckpt",
@@ -217,11 +223,19 @@ def test_model_audit_payload_includes_optional_classification(tmp_path: Path) ->
         records[("speaker-embedding", "ecapa")]["runtime_file_allowlist"]
     )
     assert records[("asr-mlx", "mlx-large-v3-turbo")]["classification"] == "optional"
-    assert records[("asr-mlx", "mlx-large-v3-turbo")]["pullable"] is False
-    assert records[("asr-mlx", "mlx-large-v3-turbo")]["any_required_files"] == [
+    assert records[("asr-mlx", "mlx-large-v3-turbo")]["selection_requirement"] == "optional"
+    assert records[("asr-mlx", "mlx-large-v3-turbo")]["pullable"] is True
+    assert records[("asr-mlx", "mlx-large-v3-turbo")]["any_required_files"] == []
+    assert records[("asr-mlx", "mlx-large-v3-turbo")]["runtime_file_allowlist"] == [
+        "config.json",
         "weights.safetensors",
-        "weights.npz",
     ]
+    assert set(
+        records[("asr-mlx", "mlx-large-v3-turbo")]["expected_sha256"]
+    ) == set(records[("asr-mlx", "mlx-large-v3-turbo")]["runtime_file_allowlist"])
+    assert set(
+        records[("asr-mlx", "mlx-large-v3-turbo")]["expected_size"]
+    ) == set(records[("asr-mlx", "mlx-large-v3-turbo")]["runtime_file_allowlist"])
 
 
 def test_models_verify_fails_and_writes_audit_for_missing_cache(tmp_path: Path) -> None:
@@ -232,10 +246,6 @@ def test_models_verify_fails_and_writes_audit_for_missing_cache(tmp_path: Path) 
 
 
 def test_models_verify_can_target_the_exact_strict_lane(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(
-        "local_transcript_max.models._repository_digest_contract_problem",
-        lambda _entry: None,
-    )
     cache_dir = tmp_path / "models"
     for role, key in (
         ("asr", "large-v3"),
@@ -245,7 +255,13 @@ def test_models_verify_can_target_the_exact_strict_lane(tmp_path: Path, monkeypa
     ):
         entry = resolve_model_entry(role, key)
         assert entry is not None
-        entry = replace(entry, expected_sha256=())
+        entry = replace(
+            entry,
+            expected_sha256=tuple(
+                (relative, hashlib.sha256(b"ok").hexdigest()) for relative in entry.runtime_files
+            ),
+            expected_size=tuple((relative, len(b"ok")) for relative in entry.runtime_files),
+        )
         monkeypatch.setitem(MODEL_MANIFEST, key, entry)
         model_dir = cache_dir / entry.directory_name
         model_dir.mkdir(parents=True)
@@ -298,18 +314,25 @@ def test_speaker_id_pull_alias_is_supported() -> None:
     assert "speechbrain/spkrec-ecapa-voxceleb" in result.stdout
 
 
-def test_pull_refuses_manifest_entry_with_incomplete_repository_digest_contract(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_pull_refuses_blocked_manifest_entry_before_network(tmp_path: Path, monkeypatch) -> None:
     entry = resolve_model_entry("asr", "turbo")
     assert entry is not None
+    blocked_entry = replace(
+        entry,
+        product_classification="blocked",
+        blocker="synthetic unresolved rights review",
+        package_bundle_id=None,
+        package_bundle_version=None,
+        package_relative_path=None,
+        delivery="unavailable",
+    )
     monkeypatch.setattr(
         "local_transcript_max.models.snapshot_download",
         lambda **_kwargs: (_ for _ in ()).throw(AssertionError("network must not be used")),
     )
 
-    with pytest.raises(ModelCacheError, match="repository digest contract incomplete"):
-        pull_model(entry, tmp_path)
+    with pytest.raises(ModelCacheError, match="unavailable in the production product"):
+        pull_model(blocked_entry, tmp_path)
 
 
 def test_strict_community_cache_cannot_verify_with_synthetic_missing_config_digest(

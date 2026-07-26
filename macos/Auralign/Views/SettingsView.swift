@@ -7,8 +7,8 @@ import SwiftUI
 /// Local engine and model-storage settings.
 ///
 /// Debug exposes checkout selection for development. Release always uses the
-/// signed, included engine and exposes only the separately acquired model
-/// directory; the installer never downloads models or writes into the app.
+/// signed, included engine plus the immutable model component installed at its
+/// fixed system location; neither can be redirected from the product UI.
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
 
@@ -119,7 +119,8 @@ struct SettingsView: View {
             }
 
             Section("Models") {
-                LabeledContent("Local Model Directory") {
+#if DEBUG
+                LabeledContent("Development Model Directory") {
                     VStack(alignment: .trailing, spacing: 8) {
                         Text(abbreviatedModelCachePath)
                             .lineLimit(2)
@@ -127,7 +128,8 @@ struct SettingsView: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                             .help(model.engineLocation.modelCacheDisplayPath)
                             .accessibilityLabel(
-                                "Local model directory, \(abbreviatedModelCachePath)"
+                                "Development model directory, "
+                                    + abbreviatedModelCachePath
                             )
                             .accessibilityIdentifier(
                                 AccessibilityIdentifier.settingsModelCache
@@ -135,7 +137,7 @@ struct SettingsView: View {
                         HStack(spacing: 8) {
                             Button("Choose…") {
                                 if let url = LocalFilePanel.chooseDirectory(
-                                    message: "Choose the verified Auralign model directory"
+                                    message: "Choose a verified development model directory"
                                 ) {
                                     model.updateModelCache(url)
                                 }
@@ -145,8 +147,8 @@ struct SettingsView: View {
                                 AccessibilityIdentifier.settingsChooseModelCache
                             )
                             .help(
-                                "Use a model directory prepared by the documented "
-                                    + "connected-acquisition workflow."
+                                "Use an ignored directory prepared by the documented "
+                                    + "development acquisition workflow."
                             )
                             .disabled(
                                 model.workMutationLocked || model.isPresentationFixture
@@ -167,12 +169,50 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 Text(
-                    "Models remain external, user-owned, and separately verified. "
-                        + "Auralign runs offline and never acquires gated assets during "
-                        + "installation or application startup."
+                    "Debug overrides are for controlled development only. They are "
+                        + "excluded from Release builds and never become product trust."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+#else
+                LabeledContent("Offline Model Bundle") {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        AuralignStatusBadge(
+                            text: model.engineLocation.modelBundlePresentationMessage,
+                            tone: model.engineLocation.modelBundleDiagnosis == .ready
+                                ? .success : .failure,
+                            symbol: model.engineLocation.modelBundleDiagnosis == .ready
+                                ? "checkmark.seal.fill"
+                                : "xmark.octagon.fill"
+                        )
+                        Text(abbreviatedModelComponentPath)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                            .help(model.engineLocation.modelComponentRoot.path)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(
+                        "Installed model component, "
+                            + model.engineLocation.modelBundlePresentationMessage
+                            + " Location, \(model.engineLocation.modelComponentRoot.path)"
+                    )
+                    .accessibilityIdentifier(
+                        AccessibilityIdentifier.settingsModelCache
+                    )
+                }
+                Text(
+                    "The signed installer supplies the exact pinned model component "
+                        + "as root-owned, read-only files. Auralign verifies its identity, "
+                        + "completion records, revisions, and hashes before work begins; "
+                        + "normal use is offline and requires no Hugging Face account, "
+                        + "token, Terminal, or developer tools."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+#endif
             }
         }
         .formStyle(.grouped)
@@ -196,6 +236,11 @@ struct SettingsView: View {
 
     private var abbreviatedModelCachePath: String {
         (model.engineLocation.modelCacheDisplayPath as NSString)
+            .abbreviatingWithTildeInPath
+    }
+
+    private var abbreviatedModelComponentPath: String {
+        (model.engineLocation.modelComponentRoot.path as NSString)
             .abbreviatingWithTildeInPath
     }
 

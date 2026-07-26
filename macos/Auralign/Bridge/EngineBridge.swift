@@ -47,8 +47,8 @@ final class EngineBridge {
                 message: "Unsupported one-shot engine bridge command."
             )
         }
-        guard location.isReady else {
-            throw BridgeError(message: location.diagnosis.message)
+        guard location.isRuntimeReady else {
+            throw BridgeError(message: location.runtimeDiagnosis.message)
         }
         let inputData = try input?.encodedData()
         try Self.requireBoundedRequest(inputData)
@@ -294,8 +294,8 @@ final class EngineBridge {
     }
 
     func startTranscription(payload: JSONValue) throws -> RunningJob {
-        guard location.isReady else {
-            throw BridgeError(message: location.diagnosis.message)
+        guard location.isRuntimeReady else {
+            throw BridgeError(message: location.runtimeDiagnosis.message)
         }
         // Encode before process launch. A non-finite or otherwise unencodable
         // payload must never create a child that the caller cannot own.
@@ -521,13 +521,6 @@ final class EngineBridge {
         ] {
             try preparePrivateOwnedDirectory(directory)
         }
-        if let configuredModelCacheRoot = location.configuredModelCacheRoot,
-           !EngineLocation.isUsableExternalModelDirectory(
-                configuredModelCacheRoot
-           ) {
-            throw BridgeError(message: EngineLocation.Diagnosis
-                .invalidConfiguredModelCache.message)
-        }
     }
 
     private func preparePrivateOwnedDirectory(_ directory: URL) throws {
@@ -587,9 +580,14 @@ final class EngineBridge {
             "PYTHONUNBUFFERED": "1",
             "PYTHONNOUSERSITE": "1",
             "LTM_OFFLINE": "1",
+            "LTM_INSTALLED_PRODUCT": "1",
             "LTM_MODEL_CACHE": (
                 location.modelCacheRoot
             ).path,
+            "LTM_SYSTEM_MODEL_BUNDLE_ROOT":
+                EngineLocation.trustedModelComponentRoot.path,
+            "LTM_USER_MODEL_PACKS_ROOT":
+                EngineLocation.userModelPacksRoot.path,
             "HF_HUB_OFFLINE": "1",
             "HF_HUB_DISABLE_TELEMETRY": "1",
             "TRANSFORMERS_OFFLINE": "1",

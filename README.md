@@ -29,7 +29,8 @@ after caches are prepared.
 ## Current Capabilities
 
 - FFmpeg inspection and canonical-audio preparation
-- faster-whisper ASR and native Apple Silicon MLX ASR
+- four verified faster-whisper/CTranslate2 ASR choices and twelve verified
+  MLX/Apple-Silicon ASR choices, all available through exact local packs
 - actual WhisperX forced alignment; non-strict configurations report any timestamp fallback
 - local pyannote diarization and deterministic candidate scoring
 - word-to-speaker fusion, QA, targeted re-decode candidates, and speaker checks
@@ -76,19 +77,42 @@ The source checkout also contains the native SwiftUI workbench under `macos/`.
 Debug builds use the repository's reviewed `.venv`. The separately governed
 private standalone PKG embeds the pinned arm64 Python 3.11 engine/runtime and
 native media closure inside `Auralign.app`, so an installed user does not need
-Python, Homebrew, Git, `uv`, a source checkout, or shell configuration. Models
-remain external, operator-acquired, local, and offline. No compiled app or PKG
-is included in the source wheel/sdist. See the
-[native macOS GUI runbook](docs/macos-gui.md) and
-[private PKG release runbook](docs/release/macos-v0.2.1-private-pkg.md).
+Python, Homebrew, Git, `uv`, Xcode, Command Line Tools, a source checkout, a
+virtual environment, or shell configuration.
 
-## Local Cache Setup
+The successor 0.3.0 release contract adds a separate root-owned bootstrap
+component, `com.auralign.studio.models.bootstrap.v1` version `1.0.0`, below
+`/Library/Application Support/com.auralign.studio/Models/`. It contains only
+the exact Community-1 diarization, English alignment, and ECAPA speaker models
+plus deterministic corpus-free English Punkt resources. The app bundle remains
+free of model weights.
+
+ASR weights are too large for the private release host's per-asset limit, so
+the signed application completes setup through a native, nonmodal model
+manager. It downloads one of sixteen owner-cleared, revision-pinned public ASR
+packs from URLs sealed in the app; verifies every path, size, SHA-256, license,
+notice, provenance record, CycloneDX SBOM, and completion record; and
+atomically publishes it under
+`~/Library/Application Support/com.auralign.studio/Models/Packs/<pack-id>/<version>/`.
+There are no Installer network scripts and these public packs require no token.
+A recipient needs one connected setup pass unless the selected exact pack is
+already installed or imported. Normal processing is strictly local and offline
+only after that pack verifies.
+
+Mutable user state remains separately under the user's Library. No compiled
+app, PKG, model weight, model cache, or token is included in the source
+wheel/sdist or Git repository. See the
+[native macOS GUI runbook](docs/macos-gui.md) and
+[private 0.3.0 PKG release runbook](docs/release/macos-v0.3.0-private-pkg.md).
+
+## Source-Development Local Cache Setup
 
 The private GitHub repository contains verified pointers, immutable revisions,
 compliance metadata, and setup commands—not model weights or gated-model
-rights. Each authorized operator acquires models separately under upstream
-terms; weights, Hugging Face caches, tokens, and audit output remain local and
-ignored.
+rights. This section is for source development and maintainer-controlled model
+preparation. Each operator acquires models under upstream terms; weights,
+Hugging Face caches, tokens, and audit output remain local and ignored. It is
+not the recipient path for the 0.3.0 product PKG.
 
 Keep model and Hugging Face caches inside ignored project directories:
 
@@ -105,11 +129,13 @@ uv run ltm models list
 uv run ltm models audit
 ```
 
-> **Community-1 gate:** the repository now contains the owner-approved exact
-> digest contract, but each operator must still accept upstream gated terms and
-> acquire the model separately. Verification and strict startup fail closed for
-> a missing, incomplete, or mismatched local directory. Never bundle the model,
-> hand-author `.ltm-model.json`, or place an access token in source or commands.
+> **Community-1 evidence:** the pinned model card and official repository API
+> declare CC-BY-4.0, the pinned tree has no standalone `LICENSE`, and the
+> Hugging Face gate is an acquisition/contact mechanism. A direct upstream pull
+> still requires completing that flow and using a read token. Matthew Penkala's
+> 2026-07-25 project decision narrowly clears the exact attributed bytes for the
+> private 0.3.0 model component; it is not a legal opinion or a change to
+> upstream terms.
 
 Only after the committed digest contract is complete, acquire and verify the
 exact strict selection:
@@ -128,13 +154,20 @@ LTM_OFFLINE=1 uv run ltm doctor --startup \
 ```
 
 Pyannote Community-1 is gated. Each operator must personally accept its Hugging
-Face terms and supply a read-scoped `HF_TOKEN` or `LTM_HF_TOKEN` only in the
-local shell; never commit, echo, log, or pass it as a CLI argument.
+Face acquisition/contact flow and supply a read-scoped `HF_TOKEN` or
+`LTM_HF_TOKEN` only in the local shell for a direct upstream pull; never commit,
+echo, log, or pass it as a CLI argument.
 The combined model pull checks gated access before downloading unrelated assets
 so it does not leave a half-prepared cache. Each pinned pull writes a local
 `.ltm-model.json` v2 provenance marker with file hashes; verification rereads
 every allowlisted runtime file and fails when bytes, revision, or repository
 manifest identity differ.
+
+The 0.3.0 product PKG never contains that private marker, raw cache metadata,
+or a token. Its root-owned bootstrap component and each per-user ASR pack use
+deterministic privacy-safe manifest/verification/provenance/completion records,
+complete license texts and notices, CycloneDX SBOMs, and the same exact file
+digests. Acquisition and build tools remain maintainer-only.
 
 `bootstrap.sh` and `bootstrap.ps1` are thin wrappers around the same
 `ltm prepare-runtime` command. Preparation pulls exactly the four strict models,
@@ -148,7 +181,7 @@ backend startup. Alignment and ECAPA failures are fatal:
 
 See the exact connected/offline runbook and authorized cache-transfer rules in
 [model management](docs/models.md), plus [offline operation](docs/offline.md),
-before preparing a production machine.
+before preparing a maintainer/source-development machine.
 
 ## Transcription
 
@@ -169,15 +202,27 @@ uv run ltm inspect outputs/job_001
 uv run ltm validate-speakers outputs/job_001 --expected-speakers <N>
 ```
 
-`balanced` is the recommended first pass for routine long meetings. Escalate
-selected high-stakes or QA-flagged material to `max`. Turbo, Distil, batched
-faster-whisper, MLX, and explicit MPS device settings are opt-in performance
-paths and should be validated against the same representative media before use.
-For native Apple Silicon, follow the
-[Apple Silicon runbook](docs/apple-silicon.md): its conservative optimized
-topology uses local MLX Whisper `large-v3` FP16 for ASR, real WhisperX forced
-alignment on CPU, and pyannote diarization on CPU. MPS diarization remains an
-explicit evidence-gated canary rather than an automatic default.
+Normal 0.3.0 presets deliberately select tested local packs:
+
+| Preset | ASR model | Intended tradeoff |
+| --- | --- | --- |
+| `max` | `large-v3` | highest-quality general-purpose CTranslate2 path |
+| `balanced` | `turbo` | faster multilingual balance |
+| `fast` | `distil-large-v3.5` | fastest normal English path |
+| `cpu` | `turbo` | CPU-focused low-latency path |
+
+The strict `community-1`, `en`, and `ecapa` assets remain installed for
+diarization, forced alignment, and speaker embedding. All four CTranslate2 and
+all twelve MLX entries have exact immutable revisions, file/size/SHA-256
+contracts, license and redistribution records, local real-inference evidence,
+and versioned pack identities. The four entries above are production preset
+choices; `distil-large-v3` and the twelve MLX models are truthful optional
+advanced choices. No production-visible selector is pointer-only.
+
+The optional faster-whisper Silero asset is not part of the verified model
+component. Normal CLI/bridge validation rejects `asr.vad_filter: true`, and the
+standalone GUI does not offer it as an enabled product choice. Auralign's local
+model-free EnergyVAD remains active.
 
 The canonical job keeps raw and derived stages separate. Important artifacts
 include:

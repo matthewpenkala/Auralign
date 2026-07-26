@@ -56,8 +56,10 @@ Agents must never:
   distribute packages, containers, models, datasets, or validation evidence;
 - push source unless the user explicitly requests it and the dynamic private-
   collaborator preflight in `scripts/check_private_push_authorization.py` passes;
-- weaken a compliance, security, privacy, provenance, or release gate to obtain
-  a passing result.
+- bypass a current compliance, security, privacy, provenance, or release
+  contract merely to obtain a passing result. Obsolete or architecture-specific
+  internal gates may be revised when the replacement tests the authorized
+  current contract at equal or better fidelity.
 
 ## Owner-Authorized Private macOS Release For This Run
 
@@ -94,6 +96,62 @@ credential, model, media, history, visibility, signing, notarization,
 installation, and hash-parity boundaries as the 0.2.0 authorization above. It
 does not authorize public exposure or any artifact outside the reviewed macOS
 release allowlist.
+
+## Owner-Authorized Private macOS 0.3.0 Model-Inclusive Release
+
+On 2026-07-25, repository owner Matthew Penkala made the project release
+decision to authorize the successor private macOS `0.3.0` architecture and all
+nineteen exact model entries recorded in `compliance/external_assets.toml`.
+This is a project authorization and technical-scope decision, not legal advice,
+a legal opinion, a waiver, or a change to any upstream term. The immutable
+`macos-v0.2.0` and `macos-v0.2.1` tags, releases, artifacts, and historical
+release documents remain unchanged.
+
+After all applicable gates pass, the authorization permits reviewed source
+synchronization to the existing private `main`, creation and normal push of a
+new `macos-v0.3.0` tag, and publication of the exact Developer ID signed,
+Apple-notarized, stapled product PKG plus only the privacy-safe artifacts
+allowlisted by the 0.3.0 runbook.
+
+The scriptless PKG contains:
+
+- the sealed arm64 Auralign application, standalone Python engine, exact native
+  dependency closure, and reviewed FFmpeg/PyAV closure; and
+- root-owned bootstrap component
+  `com.auralign.studio.models.bootstrap.v1` version `1.0.0`, containing only
+  exact Community-1, English alignment, ECAPA, deterministic corpus-free Punkt,
+  licenses, notices, provenance, CycloneDX SBOM, and completion records.
+
+The sixteen exact owner-cleared public ASR choices—four CTranslate2 and twelve
+MLX—are delivered after installation by the signed app's native model manager
+because their bytes cannot fit the private release host's per-asset limit. They
+use revision-bound URLs from a sealed catalog, require no token, stage
+privately, verify complete path/size/hash/license/notice/provenance/SBOM
+contracts, and publish atomically below the current user's Application
+Support. No Installer script or normal transcription path performs a download.
+
+The normal preset mapping is `max=large-v3`, `balanced=turbo`,
+`fast=distil-large-v3.5`, and `cpu=turbo`. `distil-large-v3` and all twelve
+MLX entries are optional advanced choices. Every visible choice must remain
+fully exact and operational; no pointer-only selector may be represented as
+supported.
+
+This authorization does not permit public visibility, loose model release
+assets, raw Hugging Face or development caches, access tokens, `.env` files,
+operator-local `.ltm-model.json` or `model_audit.json` records, private paths,
+media, transcripts, raw validation evidence, containers, datasets, a different
+repository, force-push, or history rewrite. Model bytes must never be committed
+to Git. Acquisition/build tools remain maintainer-only. Recipients need no
+Python, `uv`, Git, Xcode, Command Line Tools, Homebrew, checkout, virtual
+environment, compiler, package manager, token copying, or Terminal; one
+connected pack setup is required unless the exact selected pack is already
+installed/imported, after which processing is strictly offline.
+
+The exact external-asset records, attribution, notices, SBOMs, installation
+topology, private visibility, signing, notarization, stapling,
+install/reinstall, model integrity, strict-offline startup, real inference, and
+local/published hash-parity gates remain mandatory. Unknown, mismatched,
+linked, partial, extra, or unreviewed content fails closed.
 
 ## Escalation
 

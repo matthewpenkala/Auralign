@@ -17,6 +17,7 @@ private enum ReadinessEvidenceSelection: Hashable {
 struct ReadinessView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.auralignReduceMotion) private var reduceMotion
+    @Environment(\.openWindow) private var openWindow
 
     @State private var selectedEvidence: ReadinessEvidenceSelection?
     @State private var passedExpanded = false
@@ -49,6 +50,20 @@ struct ReadinessView: View {
         }
         .navigationTitle("Runtime & Models")
         .toolbar {
+            if model.modelSetup.needsOfflineSetup {
+                ToolbarItem {
+                    Button {
+                        openWindow(id: "offline-setup")
+                    } label: {
+                        Label(
+                            "Complete Offline Setup",
+                            systemImage: "arrow.down.circle"
+                        )
+                    }
+                    .help("Install and verify the model packs required by normal presets.")
+                    .accessibilityIdentifier(AccessibilityIdentifier.modelSetupOpen)
+                }
+            }
             ToolbarItem {
                 Button {
                     model.requestReadinessRefresh()
@@ -67,7 +82,8 @@ struct ReadinessView: View {
             title: "Runtime & Models",
             subtitle:
                 "Accepted local evidence for the exact effective configuration. "
-                + "No model acquisition occurs here.",
+                + "Explicit setup can install exact verified model packs; "
+                + "readiness and processing never download automatically.",
             symbol: "cpu"
         ) {
             if model.isRunningDoctor {
@@ -154,6 +170,15 @@ struct ReadinessView: View {
             Button("Show Invalid Parameter") {
                 _ = model.navigateToFirstConfigurationError()
             }
+            .controlSize(.small)
+            .accessibilityIdentifier(AccessibilityIdentifier.readinessRecovery)
+        case .completeOfflineSetup:
+            Button {
+                openWindow(id: "offline-setup")
+            } label: {
+                Label("Complete Offline Setup", systemImage: "arrow.down.circle")
+            }
+            .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .accessibilityIdentifier(AccessibilityIdentifier.readinessRecovery)
         case .showModel(let identifier):
@@ -808,9 +833,10 @@ struct ReadinessView: View {
                 Text("Local-first runtime")
                     .font(.callout.weight(.semibold))
                 Text(
-                    "Readiness checks run against the selected local checkout and cache. "
-                        + "Auralign does not upload media, send telemetry, download models "
-                        + "automatically, or acquire gated access."
+                    "Readiness checks and normal processing use verified local files only. "
+                        + "Auralign downloads public model data only after an explicit "
+                        + "Complete Offline Setup action; it does not upload media, send "
+                        + "telemetry, or acquire gated access."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)

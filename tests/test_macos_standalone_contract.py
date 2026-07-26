@@ -38,13 +38,11 @@ BUILDER_SPEC.loader.exec_module(BUILDER_MODULE)
 verify_payload_safety = BUILDER_MODULE.verify_payload_safety
 
 
-def test_runtime_sources_are_exact_and_models_remain_external() -> None:
-    sources = tomllib.loads(
-        (PACKAGING / "runtime-sources.toml").read_text(encoding="utf-8")
-    )
+def test_runtime_sources_are_exact_for_model_inclusive_successor() -> None:
+    sources = tomllib.loads((PACKAGING / "runtime-sources.toml").read_text(encoding="utf-8"))
 
     assert sources["schema_version"] == "auralign-macos-runtime-sources.v1"
-    assert sources["product_version"] == "0.2.1"
+    assert sources["product_version"] == "0.3.0"
     assert sources["build_number"] == "1"
     assert sources["architecture"] == "arm64"
     assert sources["minimum_macos"] == "14.0"
@@ -53,28 +51,20 @@ def test_runtime_sources_are_exact_and_models_remain_external() -> None:
         "version": "3.11.15",
         "release": "20260510",
         "source_revision": "f0ae464f527498d6c4b13f19977447d603cd5edd",
-        "asset": (
-            "cpython-3.11.15+20260510-aarch64-apple-darwin-install_only.tar.gz"
-        ),
+        "asset": ("cpython-3.11.15+20260510-aarch64-apple-darwin-install_only.tar.gz"),
         "url": (
             "https://github.com/astral-sh/python-build-standalone/releases/download/"
             "20260510/cpython-3.11.15%2B20260510-aarch64-apple-darwin-"
             "install_only.tar.gz"
         ),
-        "sha256": (
-            "03bcedae9b19a48888d7dc8ba064f73f6efaaf2b13f6a8e1a1bcc062df13e855"
-        ),
-        "metadata_asset": (
-            "cpython-3.11.15+20260510-aarch64-apple-darwin-pgo+lto-full.tar.zst"
-        ),
+        "sha256": ("03bcedae9b19a48888d7dc8ba064f73f6efaaf2b13f6a8e1a1bcc062df13e855"),
+        "metadata_asset": ("cpython-3.11.15+20260510-aarch64-apple-darwin-pgo+lto-full.tar.zst"),
         "metadata_url": (
             "https://github.com/astral-sh/python-build-standalone/releases/download/"
             "20260510/cpython-3.11.15%2B20260510-aarch64-apple-darwin-"
             "pgo%2Blto-full.tar.zst"
         ),
-        "metadata_sha256": (
-            "0fdbc1a816bb04d0c8244c51ef623372f92870c6e8f7e6c603575976cbb0d1ea"
-        ),
+        "metadata_sha256": ("0fdbc1a816bb04d0c8244c51ef623372f92870c6e8f7e6c603575976cbb0d1ea"),
         "build_options": "pgo+lto",
         "apple_sdk_deployment_target": "11.0",
         "project_license_expression": "MPL-2.0",
@@ -106,9 +96,7 @@ def test_runtime_sources_are_exact_and_models_remain_external() -> None:
             "name": "antlr4-python3-runtime",
             "version": "4.9.3",
             "asset": "antlr4-python3-runtime-4.9.3.tar.gz",
-            "sha256": (
-                "f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b"
-            ),
+            "sha256": ("f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b"),
         }
     ]
 
@@ -122,7 +110,10 @@ def test_standalone_requirements_are_hash_locked_and_scope_limited() -> None:
     assert "whisperx==" in requirements
     assert "pyannote-audio==" in requirements
     assert "speechbrain==" in requirements
-    for prohibited in ("fastapi==", "uvicorn==", "mlx==", "pyinstaller=="):
+    assert "mlx==0.31.2" in requirements
+    assert "mlx-metal==0.31.2" in requirements
+    assert "mlx-whisper==0.4.3" in requirements
+    for prohibited in ("fastapi==", "uvicorn==", "pyinstaller=="):
         assert prohibited not in requirements.lower()
     assert "/Users/" not in requirements
     assert ".venv" not in requirements
@@ -134,6 +125,10 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "python-build-standalone" in builder
     assert "PyInstaller" not in builder
     assert "require_clean_main()" in builder
+    assert 'refs/remotes/origin/main^{commit}' in builder
+    assert "local main and fetched origin/main to match exactly" in builder
+    assert "GITHUB_RELEASE_ASSET_MAX_BYTES = 2 * 1024**3" in builder
+    assert "final product PKG exceeds GitHub's per-release-asset size limit" in builder
     assert '"-I"' in builder
     assert '"--prefix=/"' in builder
     assert '"--disable-network"' in builder
@@ -164,6 +159,8 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "auralign-unbundled-model-assets.v1" in builder
     assert '"model_weight_files_removed": len(weight_files)' in builder
     assert "verify_unbundled_model_assets_absent(runtime)" in builder
+    assert "'mlx.core'" in builder
+    assert "'mlx_whisper'" in builder
     assert "whisperx.alignment" in builder
     assert "validate_notarization_log(" in builder
     assert "Apple notarization reported" in builder
@@ -190,15 +187,20 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "export PYTHONDONTWRITEBYTECODE=1" in builder
     assert ' -B -I \\"$@\\"' in builder
     assert '"Auralign-0.2.0-1-macos-arm64.cdx.json"' not in builder
-    assert builder.count(
-        "f\"Auralign-{sources['product_version']}-{sources['build_number']}\""
-    ) == 3
-    assert builder.count('"-macos-arm64.cdx.json"') == 2
+    assert (
+        builder.count("f\"Auralign-{sources['product_version']}-{sources['build_number']}\"") == 4
+    )
+    assert builder.count('"-macos-arm64.cdx.json"') == 3
     assert builder.count("prune_runtime(runtime)") == 4
     assert "install_hash_locked_pure_python_sdists(" in builder
     assert '"SOURCE_DATE_EPOCH"' in builder
     assert "pure-python-sdist-builds.json" in builder
     assert "verify_expanded_package(" in builder
+    assert "verify_component_bom(" in builder
+    assert '"lsbom", "-p", "fmug"' in builder
+    assert "model_inference_smoke(" in builder
+    assert "auralign-packaged-bootstrap-inference-smoke.v1" in builder
+    assert "AURALIGN_SMOKE_JSON=" in builder
     assert "signed-app-manifest.json" in builder
     assert "INSTALLER_RESOURCES_PATH" in builder
     assert '"--resources"' in builder
@@ -228,11 +230,7 @@ def test_embedded_python_launcher_forces_both_bytecode_controls(
     executable = tmp_path / "runtime with spaces/bin/python3"
     executable.parent.mkdir(parents=True)
     executable.write_text(
-        (
-            "#!/bin/sh\n"
-            "printf '%s\\n' \"$PYTHONDONTWRITEBYTECODE\"\n"
-            "printf '%s\\n' \"$@\"\n"
-        ),
+        ("#!/bin/sh\nprintf '%s\\n' \"$PYTHONDONTWRITEBYTECODE\"\nprintf '%s\\n' \"$@\"\n"),
         encoding="utf-8",
     )
     executable.chmod(0o700)
@@ -301,18 +299,24 @@ def test_diagnostic_cache_is_atomic_content_addressed_and_fail_closed(
     cache, published, key_inputs = _publish_diagnostic_cache_fixture(tmp_path)
     assert (published / "fixture/payload.txt").read_text(encoding="utf-8") == "verified\n"
     key = BUILDER_MODULE.canonical_json_sha256(key_inputs)
-    manifest = json.loads(
-        (cache / "runtime" / key / "manifest.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((cache / "runtime" / key / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["key"] == key
     assert manifest["key_inputs"] == key_inputs
     assert manifest["payload_inventory"] == BUILDER_MODULE.inventory_rows(
         cache / "runtime" / key / "payload"
     )
     assert not list((cache / "runtime").glob(f".{key}.*"))
+    entry = cache / "runtime" / key
+    assert stat.S_IMODE(entry.stat().st_mode) == 0o555
+    assert stat.S_IMODE(published.stat().st_mode) == 0o555
+    cached_file = published / "fixture/payload.txt"
+    assert stat.S_IMODE(cached_file.stat().st_mode) == 0o444
+    with pytest.raises(PermissionError):
+        cached_file.write_text("tampered\n", encoding="utf-8")
 
-    (published / "fixture/payload.txt").write_text("tampered\n", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="cache payload hash or mode drift"):
+    cached_file.chmod(0o644)
+    cached_file.write_text("tampered\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="mutable or has an invalid mode"):
         BUILDER_MODULE.verified_cache_payload(cache, "runtime", key_inputs)
 
 
@@ -334,6 +338,9 @@ def test_diagnostic_cache_rejects_missing_malformed_or_incomplete_entries(
     malformed_manifest = tmp_path / "malformed/cache/runtime" / key
     (malformed_manifest / "payload").mkdir(parents=True)
     (malformed_manifest / "manifest.json").write_text("{", encoding="utf-8")
+    (malformed_manifest / "payload").chmod(0o555)
+    (malformed_manifest / "manifest.json").chmod(0o444)
+    malformed_manifest.chmod(0o555)
     with pytest.raises(RuntimeError, match="malformed cache manifest"):
         BUILDER_MODULE.verified_cache_payload(
             tmp_path / "malformed/cache",
@@ -344,6 +351,9 @@ def test_diagnostic_cache_rejects_missing_malformed_or_incomplete_entries(
     non_object_manifest = tmp_path / "non-object/cache/runtime" / key
     (non_object_manifest / "payload").mkdir(parents=True)
     (non_object_manifest / "manifest.json").write_text("[]\n", encoding="utf-8")
+    (non_object_manifest / "payload").chmod(0o555)
+    (non_object_manifest / "manifest.json").chmod(0o444)
+    non_object_manifest.chmod(0o555)
     with pytest.raises(RuntimeError, match="malformed cache manifest"):
         BUILDER_MODULE.verified_cache_payload(
             tmp_path / "non-object/cache",
@@ -377,16 +387,16 @@ def test_diagnostic_cache_rejects_manifest_identity_drift(
     replacement: object,
     message: str,
 ) -> None:
-    cache, published, key_inputs = _publish_diagnostic_cache_fixture(
-        tmp_path / field
-    )
+    cache, published, key_inputs = _publish_diagnostic_cache_fixture(tmp_path / field)
     manifest_path = published.parent / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest[field] = replacement
+    manifest_path.chmod(0o644)
     manifest_path.write_text(
         json.dumps(manifest, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
     )
+    manifest_path.chmod(0o444)
 
     with pytest.raises(RuntimeError, match=message):
         BUILDER_MODULE.verified_cache_payload(cache, "runtime", key_inputs)
@@ -409,10 +419,7 @@ def test_diagnostic_cache_input_mismatch_forces_cache_miss(
     changed = json.loads(json.dumps(key_inputs))
     changed[field] = {"changed": True} if field == "toolchain" else "f" * 64
 
-    assert (
-        BUILDER_MODULE.verified_cache_payload(cache, "runtime", changed)
-        is None
-    )
+    assert BUILDER_MODULE.verified_cache_payload(cache, "runtime", changed) is None
 
 
 def test_diagnostic_cache_ignores_partial_stage_and_recomputes(
@@ -425,10 +432,7 @@ def test_diagnostic_cache_ignores_partial_stage_and_recomputes(
     partial = stage_root / f".{key}.interrupted"
     (partial / "payload").mkdir(parents=True)
 
-    assert (
-        BUILDER_MODULE.verified_cache_payload(cache, "runtime", key_inputs)
-        is None
-    )
+    assert BUILDER_MODULE.verified_cache_payload(cache, "runtime", key_inputs) is None
 
     source = tmp_path / "source"
     source.mkdir()
@@ -440,9 +444,7 @@ def test_diagnostic_cache_ignores_partial_stage_and_recomputes(
         {"fixture": source},
     )
 
-    assert (published / "fixture/payload.txt").read_text(encoding="utf-8") == (
-        "recomputed\n"
-    )
+    assert (published / "fixture/payload.txt").read_text(encoding="utf-8") == ("recomputed\n")
     assert partial.is_dir()
 
 
@@ -473,6 +475,8 @@ def test_release_cli_rejects_omitted_no_cache_before_runtime_build(
             str(work),
             "--cache-dir",
             str(cache),
+            "--model-cache",
+            str(tmp_path / "models"),
         ],
     )
 
@@ -482,7 +486,7 @@ def test_release_cli_rejects_omitted_no_cache_before_runtime_build(
     ):
         BUILDER_MODULE.main()
 
-    assert work.is_dir()
+    assert not work.exists()
     assert not cache.exists()
 
 
@@ -497,11 +501,35 @@ def test_release_cli_no_cache_bypasses_diagnostic_cache(
     work = tmp_path / "work"
     observed: dict[str, object] = {}
     monkeypatch.setattr(BUILDER_MODULE, "require_host", lambda: None)
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "require_clean_main",
+        lambda: "f0ae464f527498d6c4b13f19977447d603cd5edd",
+    )
     monkeypatch.setattr(BUILDER_MODULE, "load_sources", lambda: {})
     monkeypatch.setattr(
         BUILDER_MODULE,
         "verify_packaging_contract",
         lambda _sources: None,
+    )
+    model_identity = {
+        "bundle_id": "com.auralign.studio.models.bootstrap.v1",
+        "bundle_version": "1.0.0",
+    }
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "assemble_model_bundle",
+        lambda *_args, **_kwargs: model_identity,
+    )
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "verify_model_bundle",
+        lambda _path: model_identity,
+    )
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "verify_payload_safety",
+        lambda *_args, **_kwargs: None,
     )
 
     def stop_build(
@@ -531,6 +559,8 @@ def test_release_cli_no_cache_bypasses_diagnostic_cache(
             str(work),
             "--cache-dir",
             str(cache),
+            "--model-cache",
+            str(tmp_path / "models"),
             "--no-cache",
         ],
     )
@@ -545,6 +575,193 @@ def test_release_cli_no_cache_bypasses_diagnostic_cache(
         "cache_root": None,
     }
     assert not cache.exists()
+
+
+def test_release_cli_rejects_dirty_source_before_creating_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work = tmp_path / "authoritative-work"
+    model_cache = tmp_path / "models"
+    model_cache.mkdir()
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "require_clean_main",
+        lambda: (_ for _ in ()).throw(RuntimeError("release requires a clean index")),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(BUILDER),
+            "--work-dir",
+            str(work),
+            "--model-cache",
+            str(model_cache),
+            "--no-cache",
+        ],
+    )
+
+    with pytest.raises(RuntimeError, match="release requires a clean index"):
+        BUILDER_MODULE.main()
+
+    assert not work.exists()
+
+
+def test_component_bom_requires_root_wheel_and_read_only_model_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    component = tmp_path / "models.pkg"
+    component.mkdir()
+    (component / "Bom").write_bytes(b"fixture")
+    prefix = (
+        "Library/Application Support/com.auralign.studio/Models/"
+        "com.auralign.studio.models.bootstrap.v1"
+    )
+    listing = "\n".join(
+        [
+            ".\t40755\t0\t0",
+            "./Library\t40755\t0\t0",
+            f"./{prefix}\t40555\t0\t0",
+            f"./{prefix}/models/model.bin\t100444\t0\t0",
+        ]
+    )
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=listing + "\n",
+            stderr="",
+        ),
+    )
+
+    rows = BUILDER_MODULE.verify_component_bom(
+        component,
+        label="offline-model component",
+        required_prefix=prefix,
+        require_read_only=True,
+    )
+
+    assert rows[-1] == {
+        "path": f"{prefix}/models/model.bin",
+        "mode": "100444",
+        "uid": "0",
+        "gid": "0",
+    }
+
+
+@pytest.mark.parametrize(
+    ("payload_row", "message"),
+    [
+        (
+            "Library/Application Support/com.auralign.studio/Models/"
+            "com.auralign.studio.models.bootstrap.v1\t40755\t0\t0",
+            "mutable or irregular",
+        ),
+        (
+            "Library/Application Support/com.auralign.studio/Models/"
+            "com.auralign.studio.models.bootstrap.v1\t40555\t501\t20",
+            "not root:wheel",
+        ),
+    ],
+)
+def test_component_bom_rejects_mutable_or_non_root_model_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    payload_row: str,
+    message: str,
+) -> None:
+    component = tmp_path / "models.pkg"
+    component.mkdir()
+    (component / "Bom").write_bytes(b"fixture")
+    prefix = (
+        "Library/Application Support/com.auralign.studio/Models/"
+        "com.auralign.studio.models.bootstrap.v1"
+    )
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=f".\t40755\t0\t0\n{payload_row}\n",
+            stderr="",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match=message):
+        BUILDER_MODULE.verify_component_bom(
+            component,
+            label="offline-model component",
+            required_prefix=prefix,
+            require_read_only=True,
+        )
+
+
+def test_component_bom_rejects_entries_outside_exact_component_tree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    component = tmp_path / "models.pkg"
+    component.mkdir()
+    (component / "Bom").write_bytes(b"fixture")
+    prefix = (
+        "Library/Application Support/com.auralign.studio/Models/"
+        "com.auralign.studio.models.bootstrap.v1"
+    )
+    listing = "\n".join(
+        [
+            ".\t40755\t0\t0",
+            "./Library\t40755\t0\t0",
+            f"./{prefix}\t40555\t0\t0",
+            "./Library/unreviewed.txt\t100444\t0\t0",
+        ]
+    )
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=listing + "\n",
+            stderr="",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="outside its exact payload"):
+        BUILDER_MODULE.verify_component_bom(
+            component,
+            label="offline-model component",
+            required_prefix=prefix,
+            require_read_only=True,
+        )
+
+
+def test_expanded_component_payload_layout_rejects_sibling_content(
+    tmp_path: Path,
+) -> None:
+    payload = tmp_path / "Payload"
+    required = payload / "Applications/Auralign.app"
+    required.mkdir(parents=True)
+    (required / "Contents").mkdir()
+
+    BUILDER_MODULE.verify_component_payload_layout(
+        payload,
+        label="application component",
+        required_prefix="Applications/Auralign.app",
+    )
+
+    unexpected = payload / "Applications/unreviewed.txt"
+    unexpected.write_text("unexpected\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="unexpected path"):
+        BUILDER_MODULE.verify_component_payload_layout(
+            payload,
+            label="application component",
+            required_prefix="Applications/Auralign.app",
+        )
 
 
 def test_installable_payload_modes_are_normalized_and_fail_closed(
@@ -575,10 +792,12 @@ def test_installable_payload_modes_are_normalized_and_fail_closed(
     assert stat.S_IMODE(private_file.stat().st_mode) == 0o644
     assert stat.S_IMODE(executable.stat().st_mode) == 0o755
     assert result["schema_version"] == "auralign-installable-payload-modes.v1"
-    assert {
-        row["path"]
-        for row in result["changes"]
-    } == {".", "bin/tool", "private", "private/metadata.json"}
+    assert {row["path"] for row in result["changes"]} == {
+        ".",
+        "bin/tool",
+        "private",
+        "private/metadata.json",
+    }
     BUILDER_MODULE.verify_installable_payload_modes(payload)
 
     private_file.chmod(0o646)
@@ -718,9 +937,7 @@ def test_payload_safety_rejects_local_paths_not_upstream_build_metadata(
 def test_unreachable_third_party_test_content_is_pruned(
     tmp_path: Path,
 ) -> None:
-    transformers_relative = Path(
-        "lib/python3.11/site-packages/transformers/testing_utils.py"
-    )
+    transformers_relative = Path("lib/python3.11/site-packages/transformers/testing_utils.py")
     transformers_candidate = tmp_path / transformers_relative
     transformers_candidate.parent.mkdir(parents=True)
     credential = b"hf_" + (b"A" * 32)
@@ -731,15 +948,10 @@ def test_unreachable_third_party_test_content_is_pruned(
     fixture = b"notarization-fixture"
     (joblib_candidate / "__init__.py").write_bytes(b"")
     (joblib_candidate / "data/legacy.gz").write_bytes(fixture)
-    networkx_atlas = (
-        tmp_path
-        / "lib/python3.11/site-packages/networkx/generators/atlas.dat.gz"
-    )
+    networkx_atlas = tmp_path / "lib/python3.11/site-packages/networkx/generators/atlas.dat.gz"
     networkx_atlas.parent.mkdir(parents=True)
     networkx_atlas.write_bytes(b"sample-atlas")
-    pyannote_sample = (
-        tmp_path / "lib/python3.11/site-packages/pyannote/audio/sample"
-    )
+    pyannote_sample = tmp_path / "lib/python3.11/site-packages/pyannote/audio/sample"
     pyannote_sample.mkdir(parents=True)
     (pyannote_sample / "sample.wav").write_bytes(b"fixture-media")
     for relative in BUILDER_MODULE.REVIEWED_DEVELOPMENT_CONTENT_DIRECTORIES:
@@ -808,19 +1020,15 @@ def test_unbundled_model_assets_are_inventory_bound_and_pruned(
     assert result["model_weight_files_removed"] == 9
     assert retained.is_file()
     assert all(not (site_packages / relative).exists() for relative in asset_payloads)
-    payload = json.loads(
-        (evidence / "unbundled-model-assets.json").read_text(encoding="utf-8")
-    )
+    payload = json.loads((evidence / "unbundled-model-assets.json").read_text(encoding="utf-8"))
     assert payload["schema_version"] == "auralign-unbundled-model-assets.v1"
     assert payload["source_wheels_archives_and_repository_untouched"] is True
     assert payload["model_weight_files"] == 9
     assert payload["result"] == "absent"
-    assert {
-        row["path"]: row["sha256"] for row in payload["files"]
-    } == {
-        (
-            Path("lib/python3.11/site-packages") / relative
-        ).as_posix(): hashlib.sha256(original).hexdigest()
+    assert {row["path"]: row["sha256"] for row in payload["files"]} == {
+        (Path("lib/python3.11/site-packages") / relative).as_posix(): hashlib.sha256(
+            original
+        ).hexdigest()
         for relative, original in asset_payloads.items()
     }
 
@@ -828,10 +1036,7 @@ def test_unbundled_model_assets_are_inventory_bound_and_pruned(
 def test_unbundled_model_asset_verification_rejects_unreviewed_weight(
     tmp_path: Path,
 ) -> None:
-    unexpected = (
-        tmp_path
-        / "lib/python3.11/site-packages/unreviewed/assets/unexpected-model.onnx"
-    )
+    unexpected = tmp_path / "lib/python3.11/site-packages/unreviewed/assets/unexpected-model.onnx"
     unexpected.parent.mkdir(parents=True)
     unexpected.write_bytes(b"weight")
 
@@ -1029,10 +1234,7 @@ def test_copied_signed_universal_stage_is_normalized_and_resigned(
                 "-mmacosx-version-min=14.0",
                 "-dynamiclib",
                 "-Wl,-headerpad_max_install_names",
-                (
-                    "-Wl,-install_name,"
-                    f"/tmp/upstream/{architecture}/libfixture.dylib"
-                ),
+                (f"-Wl,-install_name,/tmp/upstream/{architecture}/libfixture.dylib"),
                 "-Wl,-rpath,/tmp/upstream",
                 str(c_source),
                 "-o",
@@ -1125,10 +1327,7 @@ def test_copied_signed_universal_stage_is_normalized_and_resigned(
         ).stdout.strip()
         == "arm64"
     )
-    assert (
-        BUILDER_MODULE.install_name(stage / "lib/libfixture.dylib")
-        == "@rpath/libfixture.dylib"
-    )
+    assert BUILDER_MODULE.install_name(stage / "lib/libfixture.dylib") == "@rpath/libfixture.dylib"
     assert BUILDER_MODULE.rpaths(stage / "lib/libfixture.dylib") == []
     assert BUILDER_MODULE.sha256(source / "lib/libfixture.dylib") == original_digest
     subprocess.run(
@@ -1143,7 +1342,7 @@ def test_package_definition_is_scriptless_system_only_arm64_macos14() -> None:
     domains = root.find("domains")
     options = root.find("options")
     allowed = root.find("allowed-os-versions/os-version")
-    package = root.find("pkg-ref")
+    packages = {package.attrib["id"]: package for package in root.findall("pkg-ref")}
     assert domains is not None
     assert domains.attrib == {
         "enable_localSystem": "true",
@@ -1154,17 +1353,30 @@ def test_package_definition_is_scriptless_system_only_arm64_macos14() -> None:
     assert options.attrib["require-scripts"] == "false"
     assert options.attrib["hostArchitectures"] == "arm64"
     assert allowed is not None and allowed.attrib["min"] == "14.0"
-    assert package is not None
-    assert package.attrib["id"] == "com.auralign.studio.pkg.app"
-    assert package.attrib["version"] == "0.2.1.1"
+    assert set(packages) == {
+        "com.auralign.studio.pkg.app",
+        "com.auralign.studio.pkg.models.bootstrap-v1",
+    }
+    assert packages["com.auralign.studio.pkg.app"].attrib["version"] == "0.3.0.1"
+    assert (packages["com.auralign.studio.pkg.app"].text or "").strip() == (
+        "Auralign-application-component.pkg"
+    )
+    assert packages["com.auralign.studio.pkg.models.bootstrap-v1"].attrib["version"] == "1.0.0"
+    assert (
+        packages["com.auralign.studio.pkg.models.bootstrap-v1"].text or ""
+    ).strip() == "Auralign-offline-models-component.pkg"
     background = root.find("background")
     dark_background = root.find("background-darkAqua")
     welcome = root.find("welcome")
+    readme = root.find("readme")
+    license_resource = root.find("license")
     conclusion = root.find("conclusion")
     assert background is not None and background.attrib["file"] == "background.png"
     assert dark_background is not None
     assert dark_background.attrib["file"] == "background-darkAqua.png"
     assert welcome is not None and welcome.attrib["file"] == "welcome.html"
+    assert readme is not None and readme.attrib["file"] == "readme.html"
+    assert license_resource is not None and license_resource.attrib["file"] == "license.html"
     assert conclusion is not None and conclusion.attrib["file"] == "conclusion.html"
 
     with (PACKAGING / "component.plist").open("rb") as handle:
@@ -1181,11 +1393,66 @@ def test_package_definition_is_scriptless_system_only_arm64_macos14() -> None:
     with (PACKAGING / "Auralign.entitlements").open("rb") as handle:
         assert plistlib.load(handle) == {}
 
-    builder = (ROOT / "scripts/build_macos_standalone.py").read_text(
-        encoding="utf-8"
-    )
+    builder = (ROOT / "scripts/build_macos_standalone.py").read_text(encoding="utf-8")
     assert 'component / "Scripts"' in builder
     assert 'rglob("Scripts")' not in builder
+    assert "Library/Application Support/Auralign/Models" not in builder
+    assert (
+        '"Library/Application Support/com.auralign.studio/Models"'
+        in builder
+    )
+
+
+def test_distribution_contract_accepts_only_reviewed_productbuild_normalization(
+    tmp_path: Path,
+) -> None:
+    sources = BUILDER_MODULE.load_sources()
+    source = PACKAGING / "Distribution.xml"
+    BUILDER_MODULE.verify_distribution_contract(
+        source,
+        sources=sources,
+        productbuild_normalized=False,
+    )
+
+    tree = ET.parse(source)
+    root = tree.getroot()
+    for package in root.findall("pkg-ref"):
+        package.attrib["installKBytes"] = "123"
+        package.attrib["updateKBytes"] = "456"
+        package.text = f"#{(package.text or '').strip()}"
+    for identifier in (
+        BUILDER_MODULE.APP_RECEIPT_IDENTIFIER,
+        BUILDER_MODULE.MODEL_RECEIPT_IDENTIFIER,
+    ):
+        generated = ET.SubElement(root, "pkg-ref", {"id": identifier})
+        ET.SubElement(generated, "bundle-version")
+    normalized = tmp_path / "Distribution"
+    tree.write(normalized, encoding="utf-8", xml_declaration=True)
+
+    BUILDER_MODULE.verify_distribution_contract(
+        normalized,
+        sources=sources,
+        productbuild_normalized=True,
+    )
+
+    ET.SubElement(root, "choice", {"id": "unexpected"})
+    tree.write(normalized, encoding="utf-8", xml_declaration=True)
+    with pytest.raises(RuntimeError, match="top-level element set drift"):
+        BUILDER_MODULE.verify_distribution_contract(
+            normalized,
+            sources=sources,
+            productbuild_normalized=True,
+        )
+
+
+def test_installer_resource_contract_rejects_extra_content(tmp_path: Path) -> None:
+    copied = tmp_path / "Resources"
+    shutil.copytree(INSTALLER_DESIGN / "Resources", copied)
+    BUILDER_MODULE.verify_installer_resources(copied)
+
+    (copied / "unexpected.txt").write_text("not allowlisted", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="resource allowlist drift"):
+        BUILDER_MODULE.verify_installer_resources(copied)
 
 
 def test_installer_design_is_internalized_adapted_and_verification_only() -> None:
@@ -1232,64 +1499,46 @@ def test_installer_design_is_internalized_adapted_and_verification_only() -> Non
     assert 'sys.executable,\n        "-B",' in verifier
     assert 'environment["PYTHONDONTWRITEBYTECODE"] = "1"' in verifier
     for appearance in ("light", "dark"):
-        source = (
-            INSTALLER_DESIGN
-            / f"Sources/installer-background-{appearance}.svg"
-        ).read_text(encoding="utf-8")
-        assert 'id="superseded-vector-symbol"' in source
-        assert 'display="none"' in source
-        assert (
-            'id="styled-symbol" x="-30" y="211" width="270" height="222.14"'
-            in source
-        )
-        assert '../BrandAssets/auralign-styled-symbol-tight.png' in source
-        assert 'x="8.5" y="204" width="194" height="224"' not in source
-    brand_manifest = json.loads(
-        (INSTALLER_DESIGN / "BrandAssets/manifest.json").read_text(
+        source = (INSTALLER_DESIGN / f"Sources/installer-background-{appearance}.svg").read_text(
             encoding="utf-8"
         )
+        assert 'id="superseded-vector-symbol"' in source
+        assert 'display="none"' in source
+        assert 'id="styled-symbol" x="-30" y="211" width="270" height="222.14"' in source
+        assert "../BrandAssets/auralign-styled-symbol-tight.png" in source
+        assert 'x="8.5" y="204" width="194" height="224"' not in source
+    brand_manifest = json.loads(
+        (INSTALLER_DESIGN / "BrandAssets/manifest.json").read_text(encoding="utf-8")
     )
-    assert brand_manifest["source_project_commit"] == (
-        "ae319eb89650b9c8b0ce4ce5bac5e8adf2a0bb48"
-    )
+    assert brand_manifest["source_project_commit"] == ("ae319eb89650b9c8b0ce4ce5bac5e8adf2a0bb48")
     assert brand_manifest["placement"]["border_or_card"] is False
     assert brand_manifest["placement"]["intentional_crop"] == [
         "left",
         "right",
         "bottom",
     ]
-    welcome = (
-        INSTALLER_DESIGN / "Resources/en.lproj/welcome.html"
-    ).read_text(encoding="utf-8")
-    conclusion = (
-        INSTALLER_DESIGN / "Resources/en.lproj/conclusion.html"
-    ).read_text(encoding="utf-8")
+    welcome = (INSTALLER_DESIGN / "Resources/en.lproj/welcome.html").read_text(encoding="utf-8")
+    conclusion = (INSTALLER_DESIGN / "Resources/en.lproj/conclusion.html").read_text(
+        encoding="utf-8"
+    )
     assert "-apple-system" in welcome
     assert "-apple-system" in conclusion
     assert "PolyForm Internal Use License 1.0.0" in welcome
-    assert "installation grants no model access or redistribution" in welcome
+    assert "redistribution-cleared model files" in welcome
     assert "no telemetry or media" in welcome
 
 
-def test_release_swift_uses_embedded_runtime_and_external_models() -> None:
-    location = (
-        ROOT / "macos/Auralign/Bridge/EngineLocation.swift"
-    ).read_text(encoding="utf-8")
-    bridge = (ROOT / "macos/Auralign/Bridge/EngineBridge.swift").read_text(
-        encoding="utf-8"
-    )
-    settings = (ROOT / "macos/Auralign/Views/SettingsView.swift").read_text(
-        encoding="utf-8"
-    )
-    project = (ROOT / "macos/Auralign.xcodeproj/project.pbxproj").read_text(
-        encoding="utf-8"
-    )
+def test_release_swift_uses_embedded_runtime_and_verified_system_models() -> None:
+    location = (ROOT / "macos/Auralign/Bridge/EngineLocation.swift").read_text(encoding="utf-8")
+    bridge = (ROOT / "macos/Auralign/Bridge/EngineBridge.swift").read_text(encoding="utf-8")
+    settings = (ROOT / "macos/Auralign/Views/SettingsView.swift").read_text(encoding="utf-8")
+    project = (ROOT / "macos/Auralign.xcodeproj/project.pbxproj").read_text(encoding="utf-8")
 
     assert 'static let runtimeDirectoryName = "AuralignEngineRuntime"' in location
     assert 'static let runtimeBundleName = "\\(runtimeDirectoryName).bundle"' in location
-    assert ".appendingPathComponent(\"Contents/Frameworks\"" in location
+    assert '.appendingPathComponent("Contents/Frameworks"' in location
     assert ".appendingPathComponent(runtimeBundleName" in location
-    assert '.appendingPathComponent(\"Contents/Resources/Runtime\"' in location
+    assert '.appendingPathComponent("Contents/Resources/Runtime"' in location
     assert "origin: .embeddedRuntime" in location
     assert 'applicationSupportDirectoryName = "com.auralign.studio"' in location
     assert 'applicationSupportRoot.appendingPathComponent("Models"' in location
@@ -1300,6 +1549,7 @@ def test_release_swift_uses_embedded_runtime_and_external_models() -> None:
     assert '"TRANSFORMERS_OFFLINE": "1"' in bridge
     assert 'key.hasPrefix("DYLD_")' in bridge
     assert "#if DEBUG" in settings
-    assert "never acquires gated assets" in settings
-    assert project.count("MARKETING_VERSION = 0.2.1;") == 6
-    assert "MARKETING_VERSION = 0.2.0;" not in project
+    assert "normal use is offline" in settings
+    assert "requires no Hugging Face account" in settings
+    assert project.count("MARKETING_VERSION = 0.3.0;") == 6
+    assert "MARKETING_VERSION = 0.2.1;" not in project

@@ -11,6 +11,7 @@ import importlib
 import json
 import os
 import shutil
+import stat
 import sys
 import tempfile
 import warnings
@@ -18,8 +19,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, cast
 from uuid import uuid4
 
@@ -47,6 +49,21 @@ from .redaction import redact_obj
 from .utils import write_json
 
 MODEL_PROVENANCE_FILENAME = ".ltm-model.json"
+INSTALLED_MODEL_BUNDLE_ROOT = Path(
+    "/Library/Application Support/com.auralign.studio/Models/"
+    "com.auralign.studio.models.bootstrap.v1"
+)
+INSTALLED_MODEL_PACKS_ROOT = (
+    Path.home()
+    / "Library"
+    / "Application Support"
+    / "com.auralign.studio"
+    / "Models"
+    / "Packs"
+)
+INSTALLED_PRODUCT_ENV = "LTM_INSTALLED_PRODUCT"
+SYSTEM_MODEL_BUNDLE_ROOT_ENV = "LTM_SYSTEM_MODEL_BUNDLE_ROOT"
+USER_MODEL_PACKS_ROOT_ENV = "LTM_USER_MODEL_PACKS_ROOT"
 MIN_RUNTIME_PREPARATION_FREE_BYTES = 8 * 1024**3
 RUNTIME_PREPARATION_IMPORTS = (
     "faster_whisper",
@@ -69,6 +86,7 @@ class ModelStatus:
     present: bool
     missing_files: tuple[str, ...]
     zero_size_files: tuple[str, ...]
+    mismatched_size_files: tuple[str, ...]
     inaccessible_files: tuple[str, ...]
     unexpected_files: tuple[str, ...]
     token_required: bool
@@ -103,24 +121,29 @@ class ModelStatus:
             details.append(f"missing files: {', '.join(self.missing_files)}")
         if self.zero_size_files:
             details.append(f"empty files: {', '.join(self.zero_size_files)}")
+        if self.mismatched_size_files:
+            details.append(
+                "files with unexpected byte counts: "
+                + ", ".join(self.mismatched_size_files)
+            )
         if self.inaccessible_files:
             details.append(f"inaccessible files: {', '.join(self.inaccessible_files)}")
         if self.unexpected_files:
             details.append(
                 f"unexpected non-allowlisted files or links: {', '.join(self.unexpected_files)}"
             )
-        digest_contract_incomplete = self.provenance_problem.startswith(
-            "repository digest contract incomplete"
+        repository_contract_incomplete = self.provenance_problem.startswith(
+            ("repository digest contract incomplete", "repository size contract incomplete")
         )
         if (
             self.entry.pullable
             and not self.revision_verified
-            and (self.exists or digest_contract_incomplete)
+            and (self.exists or repository_contract_incomplete)
         ):
             details.append(self.provenance_problem)
         if self.entry.gated and not self.token_present:
             details.append("HF_TOKEN or LTM_HF_TOKEN is required for gated model access")
-        if self.entry.pullable and not digest_contract_incomplete:
+        if self.entry.pullable and not repository_contract_incomplete:
             command_cache = "<model-cache>" if shareable else str(cache_dir)
             details.append(f"run: {self.entry.pull_command(command_cache)}")
         else:
@@ -130,6 +153,10 @@ class ModelStatus:
         return "; ".join(details)
 
     def to_audit_record(self, cache_dir: Path) -> dict[str, Any]:
+        provenance_file, provenance_type, resolved_source = _model_source_descriptor(
+            self.entry,
+            self.path,
+        )
         return {
             "role": self.entry.role,
             "key": self.entry.key,
@@ -138,7 +165,9 @@ class ModelStatus:
             "directory_aliases": list(self.entry.directory_aliases),
             "revision": self.entry.revision,
             "revision_verified": self.revision_verified,
-            "provenance_file": MODEL_PROVENANCE_FILENAME,
+            "provenance_file": provenance_file,
+            "provenance_type": provenance_type,
+            "resolved_source": resolved_source,
             "provenance_problem": self.provenance_problem,
             "license_expression": self.entry.license_expression,
             "source_url": self.entry.source_url,
@@ -149,6 +178,18 @@ class ModelStatus:
             "redistribution_status": self.entry.redistribution_status,
             "compliance_review_status": self.entry.review_status,
             "compliance_reviewed_at": self.entry.reviewed_at,
+            "product_classification": self.entry.product_classification,
+            "product_selectable": self.entry.production_selectable,
+            "production_selectable": self.entry.production_selectable,
+            "product_blocker": self.entry.blocker,
+            "backend_compatibility": self.entry.backend_compatibility,
+            "modification_status": self.entry.modification_status,
+            "package_bundle_id": self.entry.package_bundle_id,
+            "package_bundle_version": self.entry.package_bundle_version,
+            "pack_id": self.entry.package_bundle_id,
+            "pack_version": self.entry.package_bundle_version,
+            "package_relative_path": self.entry.package_relative_path,
+            "delivery": self.entry.delivery,
             "local_path": str(self.path),
             "expected_directory": self.entry.directory_name,
             "cache_status": "complete"
@@ -161,16 +202,21 @@ class ModelStatus:
             "any_required_files": list(self.entry.any_required_files),
             "runtime_file_allowlist": list(self.entry.runtime_files),
             "expected_sha256": self.entry.expected_digest_map,
+            "expected_size": self.entry.expected_size_map,
             "missing_files": list(self.missing_files),
-            "suspicious_files": list(self.zero_size_files),
+            "suspicious_files": sorted(
+                {*self.zero_size_files, *self.mismatched_size_files}
+            ),
             "zero_size_files": list(self.zero_size_files),
+            "mismatched_size_files": list(self.mismatched_size_files),
             "inaccessible_files": list(self.inaccessible_files),
             "unexpected_files": list(self.unexpected_files),
             "gated": self.entry.gated,
             "token_required": self.entry.gated,
             "token_present": self.token_present,
             "offline_usable": self.offline_usable,
-            "classification": "optional" if self.entry.optional else "required",
+            "classification": self.entry.product_classification,
+            "selection_requirement": "optional" if self.entry.optional else "required",
             "pullable": self.entry.pullable,
             "pull_command": self.entry.pull_command(str(cache_dir)),
             "verify_command": self.entry.verify_command(str(cache_dir)),
@@ -185,9 +231,25 @@ def status_for(entry: ModelEntry, cache_dir: Path) -> ModelStatus:
 
 def status_for_path(entry: ModelEntry, path: Path) -> ModelStatus:
     path = path.expanduser()
+    if installed_product_mode():
+        trusted_path = _installed_product_model_path(entry)
+        if trusted_path is None or _absolute_path(path) != _absolute_path(trusted_path):
+            raise ModelCacheError(
+                "The installed Auralign product accepts models only from its exact "
+                "verified system component or native model-pack location."
+            )
     exists = os.path.lexists(path)
+    installed_status = (
+        _installed_delivery_status(entry, path)
+        if entry.pullable and _repository_digest_contract_problem(entry) is None
+        else None
+    )
     unexpected = _unexpected_runtime_assets(entry, path)
     if unexpected:
+        installed_source = _is_packaged_model_bundle_path(
+            entry,
+            path,
+        ) or _is_installed_model_pack_path(entry, path)
         return ModelStatus(
             entry=entry,
             path=path,
@@ -196,12 +258,17 @@ def status_for_path(entry: ModelEntry, path: Path) -> ModelStatus:
             present=False,
             missing_files=(),
             zero_size_files=(),
+            mismatched_size_files=(),
             inaccessible_files=(),
             unexpected_files=unexpected,
             token_required=entry.gated,
             token_present=token_present(),
             revision_verified=False,
-            provenance_problem="model cache contains linked or non-allowlisted content",
+            provenance_problem=(
+                installed_status[1]
+                if installed_source and installed_status is not None
+                else "model cache contains linked or non-allowlisted content"
+            ),
         )
     missing = tuple(
         required for required in entry.required_files if required and not (path / required).exists()
@@ -223,6 +290,7 @@ def status_for_path(entry: ModelEntry, path: Path) -> ModelStatus:
             if required and (path / required).exists() and (path / required).stat().st_size == 0
         ),
     )
+    mismatched_size = _mismatched_size_files(entry, path)
     inaccessible = tuple(
         required
         for required in entry.required_files
@@ -237,12 +305,17 @@ def status_for_path(entry: ModelEntry, path: Path) -> ModelStatus:
         ),
     )
     files_complete = exists and (
-        not entry.required_files or (not missing and not zero_size and not inaccessible)
+        not entry.required_files
+        or (not missing and not zero_size and not mismatched_size and not inaccessible)
     )
     if entry.any_required_files:
         files_complete = files_complete and _any_required_file_present(entry, path)
     files_complete = files_complete and not unexpected
-    revision_verified, provenance_problem = _provenance_status(entry, path)
+    revision_verified, provenance_problem = (
+        installed_status
+        if installed_status is not None
+        else _provenance_status(entry, path)
+    )
     present = files_complete and (revision_verified if entry.pullable else True)
     return ModelStatus(
         entry=entry,
@@ -252,6 +325,7 @@ def status_for_path(entry: ModelEntry, path: Path) -> ModelStatus:
         present=present,
         missing_files=missing,
         zero_size_files=zero_size,
+        mismatched_size_files=mismatched_size,
         inaccessible_files=inaccessible,
         unexpected_files=unexpected,
         token_required=entry.gated,
@@ -311,7 +385,7 @@ def verify_models(cache_dir: Path, *, include_optional: bool = True) -> list[Mod
     statuses = [
         status
         for status in all_statuses(cache_dir)
-        if status.entry.pullable and (include_optional or not status.entry.optional)
+        if status.entry.production_selectable and (include_optional or not status.entry.optional)
     ]
     _raise_for_incomplete(statuses, cache_dir)
     return statuses
@@ -355,6 +429,12 @@ def require_model(role: str, value: str, cache_dir: Path, *, offline: bool) -> P
     if entry is None:
         raise ModelCacheError(
             f"Unknown {role} model '{value}'. Add it to MODEL_MANIFEST before using it."
+        )
+    if not entry.production_selectable:
+        raise ModelCacheError(
+            f"{role.upper()} model {entry.key} is unavailable in the production product. "
+            f"Classification: {entry.product_classification}. "
+            f"Blocker: {_product_model_unavailability_reason(entry)}"
         )
     status = status_for(entry, cache_dir)
     if status.present:
@@ -410,19 +490,29 @@ def pull_model(
     revision: str | None = None,
     repair: bool = False,
 ) -> Path:
+    if not entry.production_selectable:
+        raise ModelCacheError(
+            f"{entry.role}:{entry.key} ({entry.model_id}) is unavailable in the "
+            f"production product: {_product_model_unavailability_reason(entry)}."
+        )
     if not entry.pullable:
         raise ModelCacheError(
             f"{entry.role}:{entry.key} ({entry.model_id}) is audit-only and cannot be "
             "downloaded by ltm models pull. Provide an existing local model directory."
         )
-    if not entry.revision or not entry.review_status.startswith("verified"):
+    if not entry.revision:
         raise ModelCacheError(
             f"{entry.role}:{entry.key} is not approved for acquisition: "
-            f"compliance_status={entry.review_status}."
+            "an immutable upstream revision is required."
         )
     digest_problem = _repository_digest_contract_problem(entry)
     if digest_problem:
         raise ModelCacheError(digest_problem)
+    if not entry.review_status.startswith("verified"):
+        raise ModelCacheError(
+            f"{entry.role}:{entry.key} is not approved for acquisition: "
+            f"compliance_status={entry.review_status}."
+        )
     if revision is not None and revision != entry.revision:
         raise ModelCacheError(
             f"Refusing unapproved revision override for {entry.role}:{entry.key}. "
@@ -493,7 +583,12 @@ def pull_model(
 def review_model_digests(entry: ModelEntry, cache_dir: Path) -> dict[str, str]:
     """Acquire one authorized revision ephemerally for manifest digest review only."""
 
-    if not entry.pullable or not entry.revision or not entry.review_status.startswith("verified"):
+    if not entry.production_selectable:
+        raise ModelCacheError(
+            f"{entry.role}:{entry.key} ({entry.model_id}) is unavailable in the "
+            f"production product: {_product_model_unavailability_reason(entry)}."
+        )
+    if not entry.pullable or not entry.revision or entry.license_expression == "NOASSERTION":
         raise ModelCacheError(
             f"{entry.role}:{entry.key} is not approved for connected digest review."
         )
@@ -547,6 +642,11 @@ def import_mlx_model(
     entry = resolve_model_entry("asr-mlx", model)
     if entry is None:
         raise ModelCacheError(f"Unknown MLX ASR model '{model}'.")
+    if not entry.production_selectable:
+        raise ModelCacheError(
+            f"MLX ASR model {entry.key} is unavailable in the production product: "
+            f"{_product_model_unavailability_reason(entry)}."
+        )
     if symlink:
         raise ModelCacheError(
             "MLX model symlink imports are prohibited. Re-run with --copy so the "
@@ -605,6 +705,12 @@ def friendly_hf_error(entry: ModelEntry, exc: Exception, cache_dir: Path) -> str
 def ensure_pull_preconditions(entries: list[ModelEntry], cache_dir: Path) -> None:
     blocked: list[str] = []
     for entry in entries:
+        if not entry.production_selectable:
+            blocked.append(
+                f"{entry.role}:{entry.key} ({entry.model_id}) is unavailable in the "
+                f"production product: {_product_model_unavailability_reason(entry)}."
+            )
+            continue
         if not entry.revision or not entry.review_status.startswith("verified"):
             blocked.append(
                 f"{entry.role}:{entry.key} ({entry.model_id}) is not compliance-approved "
@@ -694,20 +800,17 @@ def _release_python_is_311() -> bool:
 def selected_entries(
     *,
     all_models: bool = False,
-    include_optional: bool = False,
     asr: str | None = None,
+    asr_mlx: str | None = None,
     diarization: str | None = None,
     alignment: str | None = None,
     speaker_embedding: str | None = None,
 ) -> list[ModelEntry]:
     if all_models:
-        return [
-            entry
-            for entry in MODEL_MANIFEST.values()
-            if entry.pullable and (include_optional or not entry.optional)
-        ]
+        return [entry for entry in MODEL_MANIFEST.values() if entry.production_selectable]
     requested: list[tuple[str, str | None]] = [
         ("asr", asr),
+        ("asr-mlx", asr_mlx),
         ("diarization", diarization),
         ("alignment", alignment),
         ("speaker-embedding", speaker_embedding),
@@ -719,10 +822,10 @@ def selected_entries(
         entry = resolve_model_entry(role, value)
         if entry is None:
             raise ModelCacheError(f"Unknown {role} model '{value}'.")
-        if not entry.pullable:
+        if not entry.production_selectable:
             raise ModelCacheError(
-                f"{entry.role}:{entry.key} ({entry.model_id}) is audit-only and cannot be "
-                "downloaded by ltm models pull."
+                f"{entry.role}:{entry.key} ({entry.model_id}) is unavailable in the "
+                f"production product: {_product_model_unavailability_reason(entry)}."
             )
         entries.append(entry)
     return entries
@@ -745,8 +848,24 @@ def _can_read(path: Path) -> bool:
 
 
 def candidate_model_paths(entry: ModelEntry, cache_dir: Path) -> list[Path]:
+    if installed_product_mode():
+        trusted_path = _installed_product_model_path(entry)
+        if trusted_path is None:
+            raise ModelCacheError(
+                f"Installed-product model delivery is not configured for "
+                f"{entry.role}:{entry.key}."
+            )
+        return [trusted_path]
+
     root = cache_dir.expanduser()
-    paths = [model_local_path(entry, cache_dir)]
+    paths: list[Path] = []
+    installed_pack = _installed_model_pack_locations(entry)
+    if installed_pack is not None:
+        paths.append(installed_pack[1])
+    installed_bundle = _installed_model_bundle_location(entry)
+    if installed_bundle is not None:
+        paths.append(installed_bundle)
+    paths.append(model_local_path(entry, cache_dir))
     for alias in entry.directory_aliases:
         paths.append(root / alias)
     for alias in entry.aliases:
@@ -760,6 +879,46 @@ def candidate_model_paths(entry: ModelEntry, cache_dir: Path) -> list[Path]:
             unique.append(path)
             seen.add(key)
     return unique
+
+
+def installed_product_mode() -> bool:
+    """Return whether the engine is bound to the signed installed-product roots.
+
+    Development and controlled release-machine acquisition intentionally retain
+    support for a private cache. The embedded app sets all three variables
+    below; treating a partial or redirected declaration as development state
+    would re-open the legacy cache path in the installed product.
+    """
+
+    marker = os.getenv(INSTALLED_PRODUCT_ENV)
+    if marker is None:
+        return False
+    if marker != "1":
+        raise ModelCacheError("The installed-product runtime marker is invalid.")
+    expected_roots = {
+        SYSTEM_MODEL_BUNDLE_ROOT_ENV: INSTALLED_MODEL_BUNDLE_ROOT,
+        USER_MODEL_PACKS_ROOT_ENV: INSTALLED_MODEL_PACKS_ROOT,
+    }
+    for name, expected in expected_roots.items():
+        value = os.getenv(name)
+        if value is None or _absolute_path(Path(value)) != _absolute_path(expected):
+            raise ModelCacheError(
+                f"The installed-product model root contract is missing or invalid: {name}."
+            )
+    return True
+
+
+def _installed_product_model_path(entry: ModelEntry) -> Path | None:
+    if entry.delivery == "native-download":
+        locations = _installed_model_pack_locations(entry)
+        return locations[1] if locations is not None else None
+    if entry.delivery == "system-component":
+        return _installed_model_bundle_location(entry)
+    return None
+
+
+def _absolute_path(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path.expanduser())))
 
 
 def best_existing_model_path(entry: ModelEntry, cache_dir: Path) -> Path:
@@ -781,9 +940,14 @@ def _model_path_complete(entry: ModelEntry, path: Path) -> bool:
             continue
         required_path = path / required
         try:
+            expected_size = entry.expected_size_map.get(required)
             if (
                 not required_path.exists()
                 or required_path.stat().st_size == 0
+                or (
+                    expected_size is not None
+                    and required_path.stat().st_size != expected_size
+                )
                 or not _can_read(required_path)
             ):
                 return False
@@ -802,9 +966,14 @@ def _any_required_file_present(entry: ModelEntry, path: Path) -> bool:
             continue
         required_path = path / required
         try:
+            expected_size = entry.expected_size_map.get(required)
             if (
                 required_path.exists()
                 and required_path.stat().st_size > 0
+                and (
+                    expected_size is None
+                    or required_path.stat().st_size == expected_size
+                )
                 and _can_read(required_path)
             ):
                 return True
@@ -824,12 +993,21 @@ def model_manifest_digest(entry: ModelEntry) -> str:
         "gated": entry.gated,
         "runtime_files": list(entry.runtime_files),
         "expected_sha256": entry.expected_digest_map,
+        "expected_size": entry.expected_size_map,
         "license_expression": entry.license_expression,
         "source_url": entry.source_url,
         "terms_url": entry.terms_url,
         "acquisition_status": entry.acquisition_status,
         "runtime_status": entry.runtime_status,
+        "redistribution_status": entry.redistribution_status,
         "review_status": entry.review_status,
+        "product_classification": entry.product_classification,
+        "backend_compatibility": entry.backend_compatibility,
+        "modification_status": entry.modification_status,
+        "package_bundle_id": entry.package_bundle_id,
+        "package_bundle_version": entry.package_bundle_version,
+        "package_relative_path": entry.package_relative_path,
+        "delivery": entry.delivery,
     }
     encoded = json.dumps(contract, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
@@ -840,9 +1018,7 @@ def model_checkpoint_sha256(entry: ModelEntry, model_dir: Path) -> str:
 
     digests = _runtime_file_digests(entry, model_dir)
     expected_files = {
-        relative
-        for relative in entry.runtime_files
-        if (model_dir / relative).is_file()
+        relative for relative in entry.runtime_files if (model_dir / relative).is_file()
     }
     if not digests or set(digests) != expected_files:
         raise ModelCacheError(
@@ -899,6 +1075,9 @@ def _provenance_status(entry: ModelEntry, path: Path) -> tuple[bool, str]:
     digest_problem = _repository_digest_contract_problem(entry)
     if digest_problem:
         return False, digest_problem
+    installed_status = _installed_delivery_status(entry, path)
+    if installed_status is not None:
+        return installed_status
     marker = path / MODEL_PROVENANCE_FILENAME
     if not marker.exists():
         return False, f"missing immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
@@ -916,7 +1095,7 @@ def _provenance_status(entry: ModelEntry, path: Path) -> tuple[bool, str]:
         finally:
             if descriptor >= 0:
                 os.close(descriptor)
-    except (OSError, ValueError):
+    except (OSError, RuntimeError, ValueError):
         return False, f"unreadable immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
     if not isinstance(payload, dict):
         return False, f"unreadable immutable-revision linkage marker: {MODEL_PROVENANCE_FILENAME}"
@@ -950,7 +1129,331 @@ def _provenance_status(entry: ModelEntry, path: Path) -> tuple[bool, str]:
     for relative_path, expected_digest in expected_digests.items():
         if actual_digests.get(relative_path) != expected_digest:
             return False, f"model file digest does not match manifest: {relative_path}"
+    for relative_path, expected_size in entry.expected_size_map.items():
+        try:
+            actual_size = (path / relative_path).stat(follow_symlinks=False).st_size
+        except OSError:
+            return False, f"model file size could not be verified: {relative_path}"
+        if actual_size != expected_size:
+            return False, f"model file size does not match manifest: {relative_path}"
     return True, "immutable revision and file digests verified"
+
+
+def _installed_delivery_status(
+    entry: ModelEntry,
+    model_path: Path,
+) -> tuple[bool, str] | None:
+    native_status = _installed_model_pack_status(entry, model_path)
+    if native_status is not None:
+        return native_status
+    return _packaged_model_bundle_status(entry, model_path)
+
+
+def _installed_model_pack_status(
+    entry: ModelEntry,
+    model_path: Path,
+) -> tuple[bool, str] | None:
+    """Recognize only one exact manifest-bound per-user native-download pack."""
+
+    locations = _installed_model_pack_locations(entry)
+    if locations is None:
+        return None
+    pack_root, expected_model_path = locations
+    if not _same_lexical_path(model_path, expected_model_path):
+        return None
+    try:
+        identity = _verify_stable_installed_model_pack(pack_root, entry)
+    except Exception:
+        return False, "installed native-download model pack failed deterministic verification"
+    expected_identity = {
+        "state": "verified",
+        "bundle_id": entry.package_bundle_id,
+        "bundle_version": entry.package_bundle_version,
+        "package_relative_path": entry.package_relative_path,
+        "model_key": entry.key,
+        "model_id": entry.model_id,
+        "revision": entry.revision,
+    }
+    if any(identity.get(key) != value for key, value in expected_identity.items()):
+        return False, "installed native-download model pack does not match model authority"
+    manifest_sha256 = identity.get("manifest_sha256")
+    if not isinstance(manifest_sha256, str) or len(manifest_sha256) != 64:
+        return False, "installed native-download model pack identity is malformed"
+    return (
+        True,
+        "installed native-download model pack verified: "
+        f"{identity['bundle_id']} {identity['bundle_version']} "
+        f"manifest_sha256={manifest_sha256}",
+    )
+
+
+def _packaged_model_bundle_status(
+    entry: ModelEntry,
+    model_path: Path,
+) -> tuple[bool, str] | None:
+    """Recognize only the exact verified system-model bundle layout.
+
+    Private acquisition caches continue to require ``.ltm-model.json``. The
+    separately packaged component intentionally excludes that private marker
+    and instead binds all four production models through one deterministic
+    bundle manifest, verification record, and completion marker.
+    """
+
+    if (
+        not entry.package_bundle_id
+        or not entry.package_bundle_version
+        or not entry.package_relative_path
+    ):
+        return None
+    bundle_root = model_path.parent.parent
+    if not _is_packaged_model_bundle_path(entry, model_path):
+        return None
+    expected_path = bundle_root.joinpath(*Path(entry.package_relative_path).parts)
+    if model_path != expected_path:
+        return False, "installed model path does not match the package authority"
+    try:
+        tree_fingerprint = _model_bundle_tree_fingerprint(bundle_root)
+        identity = _verify_packaged_model_bundle_once(
+            str(bundle_root),
+            tree_fingerprint,
+        )
+    except Exception:
+        return False, "installed model bundle failed deterministic verification"
+    if (
+        identity.get("state") != "verified"
+        or identity.get("bundle_id") != entry.package_bundle_id
+        or identity.get("bundle_version") != entry.package_bundle_version
+        or entry.key not in identity.get("model_keys", [])
+    ):
+        return False, "installed model bundle does not authorize this model"
+    return (
+        True,
+        "installed model bundle verified: "
+        f"{identity['bundle_id']} {identity['bundle_version']} "
+        f"manifest_sha256={identity['manifest_sha256']}",
+    )
+
+
+def _installed_model_pack_locations(entry: ModelEntry) -> tuple[Path, Path] | None:
+    if (
+        entry.delivery != "native-download"
+        or entry.package_bundle_id is None
+        or entry.package_bundle_version is None
+        or entry.package_relative_path is None
+        or not _safe_pack_identity(entry.package_bundle_id)
+        or not _safe_pack_identity(entry.package_bundle_version)
+    ):
+        return None
+    relative_path = _safe_pack_relative_path(entry.package_relative_path)
+    if (
+        relative_path is None
+        or entry.package_relative_path != f"models/{entry.directory_name}"
+    ):
+        return None
+    pack_root = (
+        INSTALLED_MODEL_PACKS_ROOT
+        / entry.package_bundle_id
+        / entry.package_bundle_version
+    )
+    return pack_root, pack_root.joinpath(*relative_path.parts)
+
+
+def _installed_model_bundle_location(entry: ModelEntry) -> Path | None:
+    if (
+        entry.delivery != "system-component"
+        or entry.package_bundle_id is None
+        or entry.package_bundle_version is None
+        or entry.package_relative_path is None
+        or entry.package_bundle_id != INSTALLED_MODEL_BUNDLE_ROOT.name
+        or not _safe_pack_identity(entry.package_bundle_id)
+        or not _safe_pack_identity(entry.package_bundle_version)
+    ):
+        return None
+    relative_path = _safe_pack_relative_path(entry.package_relative_path)
+    if (
+        relative_path is None
+        or entry.package_relative_path != f"models/{entry.directory_name}"
+    ):
+        return None
+    return INSTALLED_MODEL_BUNDLE_ROOT.joinpath(*relative_path.parts)
+
+
+def _safe_pack_identity(value: str) -> bool:
+    return (
+        0 < len(value) <= 128
+        and value.isascii()
+        and value[0].isalnum()
+        and all(character.isalnum() or character in "._-" for character in value)
+    )
+
+
+def _safe_pack_relative_path(value: str) -> PurePosixPath | None:
+    if not value or "\x00" in value or "\\" in value:
+        return None
+    candidate = PurePosixPath(value)
+    if (
+        candidate.is_absolute()
+        or candidate.as_posix() != value
+        or any(part in {"", ".", ".."} or part.startswith(".") for part in candidate.parts)
+    ):
+        return None
+    return candidate
+
+
+def _same_lexical_path(first: Path, second: Path) -> bool:
+    return os.path.abspath(os.fspath(first.expanduser())) == os.path.abspath(
+        os.fspath(second.expanduser())
+    )
+
+
+def _verify_stable_installed_model_pack(
+    pack_root: Path,
+    entry: ModelEntry,
+) -> dict[str, Any]:
+    """Verify a fixed pack against a stable no-follow tree fingerprint."""
+
+    for _attempt in range(2):
+        _validate_installed_model_pack_ancestry(pack_root)
+        before = _model_bundle_tree_fingerprint(pack_root)
+        identity = _verify_installed_model_pack_once(
+            str(pack_root),
+            before,
+            entry,
+        )
+        after = _model_bundle_tree_fingerprint(pack_root)
+        _validate_installed_model_pack_ancestry(pack_root)
+        if before == after:
+            return identity
+    raise RuntimeError("installed native-download model pack changed during verification")
+
+
+def _validate_installed_model_pack_ancestry(pack_root: Path) -> None:
+    """Reject symlinked ancestors and unsafe user-owned namespace directories."""
+
+    candidate = Path(os.path.abspath(os.fspath(pack_root.expanduser())))
+    trusted_root = Path(
+        os.path.abspath(os.fspath(INSTALLED_MODEL_PACKS_ROOT.expanduser()))
+    )
+    candidate_text = os.fspath(candidate)
+    trusted_text = os.fspath(trusted_root)
+    if candidate_text != trusted_text and not candidate_text.startswith(
+        trusted_text + os.sep
+    ):
+        raise RuntimeError("installed model pack escapes the fixed user namespace")
+
+    current = Path(candidate.anchor)
+    for part in candidate.parts[1:]:
+        current /= part
+        metadata = current.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            raise RuntimeError("installed model pack has a linked or non-directory ancestor")
+        current_text = os.path.abspath(os.fspath(current))
+        if current_text == trusted_text or current_text.startswith(trusted_text + os.sep):
+            if (
+                metadata.st_uid != os.geteuid()
+                or stat.S_IMODE(metadata.st_mode) & (stat.S_IWGRP | stat.S_IWOTH)
+            ):
+                raise RuntimeError(
+                    "installed model pack namespace ownership or mode is unsafe"
+                )
+
+
+def _model_source_descriptor(
+    entry: ModelEntry,
+    model_path: Path,
+) -> tuple[str, str, str]:
+    if _is_installed_model_pack_path(entry, model_path):
+        return (
+            "model-pack-provenance.json",
+            "installed_native_download_model_pack",
+            "fixed_user_model_pack",
+        )
+    if _is_packaged_model_bundle_path(entry, model_path):
+        return (
+            "model-bundle-provenance.json",
+            "installed_model_bundle",
+            "fixed_system_model_component",
+        )
+    return (
+        MODEL_PROVENANCE_FILENAME,
+        "private_acquisition_marker",
+        "private_acquisition_cache",
+    )
+
+
+def _is_installed_model_pack_path(entry: ModelEntry, model_path: Path) -> bool:
+    locations = _installed_model_pack_locations(entry)
+    return locations is not None and _same_lexical_path(model_path, locations[1])
+
+
+def _is_packaged_model_bundle_path(entry: ModelEntry, model_path: Path) -> bool:
+    if not entry.package_bundle_id or not entry.package_relative_path:
+        return False
+    expected = INSTALLED_MODEL_BUNDLE_ROOT.joinpath(*Path(entry.package_relative_path).parts)
+    return _same_lexical_path(model_path, expected)
+
+
+@lru_cache(maxsize=32)
+def _verify_installed_model_pack_once(
+    pack_root: str,
+    tree_fingerprint: str,
+    entry: ModelEntry,
+) -> dict[str, Any]:
+    """Hash an unchanged private pack once per short-lived engine process."""
+
+    from .model_pack import verify_model_pack
+
+    del tree_fingerprint
+    return verify_model_pack(Path(pack_root), entry=entry)
+
+
+@lru_cache(maxsize=8)
+def _verify_packaged_model_bundle_once(
+    bundle_root: str,
+    tree_fingerprint: str,
+) -> dict[str, Any]:
+    """Hash an unchanged immutable bundle once per short-lived engine process."""
+
+    from .model_bundle import verify_model_bundle
+
+    del tree_fingerprint
+    return verify_model_bundle(Path(bundle_root))
+
+
+def _model_bundle_tree_fingerprint(bundle_root: Path) -> str:
+    """Bind cache reuse to every path's no-follow filesystem identity."""
+
+    records: list[tuple[object, ...]] = []
+    pending = [bundle_root]
+    while pending:
+        current = pending.pop()
+        metadata = current.lstat()
+        relative = "." if current == bundle_root else current.relative_to(bundle_root).as_posix()
+        records.append(
+            (
+                relative,
+                metadata.st_dev,
+                metadata.st_ino,
+                metadata.st_mode,
+                metadata.st_nlink,
+                metadata.st_uid,
+                metadata.st_gid,
+                metadata.st_size,
+                metadata.st_mtime_ns,
+                metadata.st_ctime_ns,
+            )
+        )
+        if stat.S_ISDIR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode):
+            with os.scandir(current) as children:
+                pending.extend(
+                    sorted(
+                        (Path(child.path) for child in children),
+                        key=lambda path: path.name,
+                        reverse=True,
+                    )
+                )
+    encoded = json.dumps(records, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _runtime_file_digests(entry: ModelEntry, model_dir: Path) -> dict[str, str]:
@@ -1017,20 +1520,55 @@ def _unexpected_runtime_assets(entry: ModelEntry, model_dir: Path) -> tuple[str,
 
 
 def _repository_digest_contract_problem(entry: ModelEntry) -> str | None:
-    """Require repository-reviewed hashes for every pullable runtime file."""
+    """Require repository-reviewed hashes and byte counts for every runtime file."""
 
     if not entry.pullable:
         return None
     runtime_files = set(entry.runtime_files)
     expected_files = set(entry.expected_digest_map)
-    if runtime_files == expected_files:
-        return None
-    missing = ", ".join(sorted(runtime_files - expected_files)) or "none"
-    unexpected = ", ".join(sorted(expected_files - runtime_files)) or "none"
+    if runtime_files != expected_files:
+        missing = ", ".join(sorted(runtime_files - expected_files)) or "none"
+        unexpected = ", ".join(sorted(expected_files - runtime_files)) or "none"
+        return (
+            f"repository digest contract incomplete for {entry.role}:{entry.key}; "
+            f"missing expected SHA-256 files: {missing}; "
+            f"unexpected digest entries: {unexpected}. "
+            "A human-reviewed manifest update is required before acquisition or verification."
+        )
+    expected_size_files = set(entry.expected_size_map)
+    if runtime_files != expected_size_files or any(
+        size <= 0 for size in entry.expected_size_map.values()
+    ):
+        missing = ", ".join(sorted(runtime_files - expected_size_files)) or "none"
+        unexpected = ", ".join(sorted(expected_size_files - runtime_files)) or "none"
+        return (
+            f"repository size contract incomplete for {entry.role}:{entry.key}; "
+            f"missing expected byte-count files: {missing}; "
+            f"unexpected size entries: {unexpected}. "
+            "A human-reviewed manifest update is required before acquisition or verification."
+        )
+    return None
+
+
+def _mismatched_size_files(entry: ModelEntry, model_dir: Path) -> tuple[str, ...]:
+    mismatches: list[str] = []
+    for relative_path, expected_size in entry.expected_size_map.items():
+        path = model_dir / relative_path
+        try:
+            if path.exists() and path.stat(follow_symlinks=False).st_size != expected_size:
+                mismatches.append(relative_path)
+        except OSError:
+            continue
+    return tuple(mismatches)
+
+
+def _product_model_unavailability_reason(entry: ModelEntry) -> str:
+    """Return the most concrete fail-closed product blocker available."""
+
     return (
-        f"repository digest contract incomplete for {entry.role}:{entry.key}; "
-        f"missing expected SHA-256 files: {missing}; unexpected digest entries: {unexpected}. "
-        "A human-reviewed manifest update is required before acquisition or verification."
+        _repository_digest_contract_problem(entry)
+        or entry.blocker
+        or f"classification={entry.product_classification}"
     )
 
 

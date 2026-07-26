@@ -82,9 +82,9 @@ enum ParameterLibraryProjection {
     }
 }
 
-/// Native expert browser over every schema-derived field. Search and filters
-/// only project the authoritative 112-row catalog; they never create a second
-/// configuration model or drop fields from the editable surface.
+/// Native expert browser over every production-visible schema field. Blocked
+/// implementation-only fields remain in the audited engine/catalog contract
+/// for backward compatibility but never become ordinary product controls.
 struct AllParametersView: View {
     @EnvironmentObject private var model: AppModel
     @State private var searchText = ""
@@ -97,7 +97,11 @@ struct AllParametersView: View {
 
     private var allRows: [ParameterLibraryRow] {
         model.catalog.fields.compactMap { entry in
-            guard let field = model.manifest.field(entry.key) else { return nil }
+            guard entry.isProductVisible,
+                  let field = model.manifest.field(entry.key)
+            else {
+                return nil
+            }
             return ParameterLibraryRow(field: field, entry: entry)
         }
     }
@@ -157,8 +161,8 @@ struct AllParametersView: View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
             AuralignPageHeader(
                 title: "Parameter Library",
-                subtitle: "Search and inspect all \(model.catalog.fields.count) "
-                    + "schema-derived parameters without leaving the effective configuration.",
+                subtitle: "Search and inspect \(allRows.count) production parameters. "
+                    + "All \(model.manifest.fields.count) schema fields remain audited.",
                 symbol: "list.bullet.rectangle"
             )
             ViewThatFits(in: .horizontal) {

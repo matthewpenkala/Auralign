@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>About this Auralign installation</title>
+    <style>
+      html {
+        color-scheme: light dark;
+        background: #f5f7fb;
+      }
+
+      body {
+        font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+          sans-serif;
+        color: #202124;
+        background: #f5f7fb;
+        margin: 0;
+        padding: 13px 14px;
+      }
+
+      p,
+      ul {
+        margin: 0 0 10px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          color: #f2f4f8;
+          background: #1b2230;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <p>This package installs two mandatory, independently versioned components:</p>
+    <ul>
+      <li>Auralign 0.3.0 in <strong>/Applications</strong>.</li>
+      <li>
+        Offline bootstrap resources 1.0.0—Community-1 diarization, English
+        alignment, ECAPA speaker support, and deterministic Punkt—in the
+        system Application Support folder.
+      </li>
+    </ul>
+    <p>
+      Recipients do not need Xcode, Command Line Tools, Python, Homebrew, Git,
+      a source checkout, a virtual environment, a Hugging Face account, or
+      Terminal. The package does not run network scripts. On first launch,
+      choose <strong>Complete Offline Setup</strong> to install one exact
+      public ASR pack through the signed app. This needs a connection unless
+      the pack is already installed or imported, but no token. Processing is
+      local and offline afterward. Results, settings, packs, caches, and logs
+      remain in the current user's Library.
+    </p>
+  </body>
+</html>

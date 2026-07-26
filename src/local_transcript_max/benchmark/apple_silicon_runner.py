@@ -268,6 +268,9 @@ def run_apple_silicon_canary(
     _validate_canonical_environment(canonical_environment)
     runtime_environment_sha256 = _hash_json(canonical_environment)
 
+    if not request.options.dry_run:
+        _require_output_root_absent(request.output_dir)
+
     resolved_revision = code_revision or current_code_revision()
     probe = condition_probe or _default_host_condition_probe
     initial_host_condition = _host_condition(probe)
@@ -1524,15 +1527,20 @@ def _validated_regular_file(path: Path, label: str) -> Path:
 
 
 def _prepare_output_root(path: Path) -> Path:
+    expanded = _require_output_root_absent(path)
+    expanded.mkdir(parents=True, mode=0o700)
+    ensure_private_directory(expanded)
+    return expanded.resolve()
+
+
+def _require_output_root_absent(path: Path) -> Path:
     expanded = path.expanduser()
     if expanded.exists() or expanded.is_symlink():
         raise LTMError(
             "Apple Silicon canary output directory must not already exist; "
             "choose a fresh path so evidence cannot be reused."
         )
-    expanded.mkdir(parents=True, mode=0o700)
-    ensure_private_directory(expanded)
-    return expanded.resolve()
+    return expanded
 
 
 def _relative_run_directory(

@@ -4,7 +4,7 @@
 
 schema_version = "1.0"
 policy_id = "auralign-external-assets-v1"
-reviewed_at = "2026-07-10"
+reviewed_at = "2026-07-25"
 
 [defaults]
 unknown_license = "blocked"
@@ -66,6 +66,20 @@ required_registry_fields = [
   "review_status",
   "reviewed_at",
 ]
+required_model_release_fields = [
+  "product_classification",
+  "backend_compatibility",
+  "modification_status",
+  "package_bundle_id",
+  "package_bundle_version",
+  "package_relative_path",
+  "delivery",
+  "macos_0_3_0_product_status",
+  "macos_0_3_0_owner_decision",
+  "macos_0_3_0_license_text",
+  "macos_0_3_0_file_sha256",
+  "macos_0_3_0_file_size",
+]
 component_registry = "compliance/components.toml"
 
 [enforcement]
@@ -77,6 +91,86 @@ unverified_mlx_production_redistribution = "blocked"
 unverified_sample_acquisition = "blocked"
 voxceleb_acquisition_and_mirroring = "blocked_without_versioned_approval"
 runtime_assets_must_not_be_bundled_in_source_distribution = true
+release_specific_model_bundling_requires_owner_decision = true
+model_component_requires_exact_revision_and_file_digests = true
+model_component_requires_release_scoped_notices_and_sbom = true
+model_pack_requires_deterministic_sbom = true
+complete_product_sbom_must_include_packaged_bootstrap_bytes = true
+signed_catalog_and_release_metadata_must_index_native_pack_sboms = true
+model_component_must_exclude_tokens_private_markers_and_raw_caches = true
+recipient_executable_runtime_acquisition = "blocked"
+recipient_model_pack_acquisition = "allowed_only_through_native_exact_verified_pack_manager"
+normal_processing_network_access = "blocked"
+recipient_build_toolchain = "blocked"
+
+[release_authorizations.macos_0_3_0]
+status = "owner_cleared_project_release_decision"
+approved_by = "Matthew Penkala"
+approved_at = "2026-07-25"
+legal_character = "Project release decision and technical scope record; not legal advice, a legal opinion, or a change to upstream terms."
+scope = "Exact three-model bootstrap component plus deterministic corpus-free Punkt resources in the private PKG, and sixteen exact per-user native-download packs for the cleared ASR and MLX models."
+visibility = "private_only"
+model_keys = [
+  "large-v3",
+  "turbo",
+  "distil-large-v3",
+  "distil-large-v3.5",
+  "mlx-tiny",
+  "mlx-tiny.en",
+  "mlx-base",
+  "mlx-base.en",
+  "mlx-small",
+  "mlx-small.en",
+  "mlx-medium",
+  "mlx-medium.en",
+  "mlx-large",
+  "mlx-large-v2",
+  "mlx-large-v3",
+  "mlx-large-v3-turbo",
+  "community-1",
+  "en",
+  "ecapa",
+]
+normal_preset_asr = [
+  "max=large-v3",
+  "balanced=turbo",
+  "fast=distil-large-v3.5",
+  "cpu=turbo",
+]
+blocked_normal_product_model_keys = []
+bootstrap_model_keys = ["community-1", "en", "ecapa"]
+native_download_model_keys = [
+  "large-v3",
+  "turbo",
+  "distil-large-v3",
+  "distil-large-v3.5",
+  "mlx-tiny",
+  "mlx-tiny.en",
+  "mlx-base",
+  "mlx-base.en",
+  "mlx-small",
+  "mlx-small.en",
+  "mlx-medium",
+  "mlx-medium.en",
+  "mlx-large",
+  "mlx-large-v2",
+  "mlx-large-v3",
+  "mlx-large-v3-turbo",
+]
+runtime_asset_keys = ["nltk-punkt-tab-english-corpus-free"]
+runtime_asset_contract = "NLTK 3.9.4; generated with no training data; four empty SHA-256-bound English punkt_tab files plus a deterministic marker; not a model or downloaded corpus."
+component_root = "/Library/Application Support/com.auralign.studio/Models/com.auralign.studio.models.bootstrap.v1"
+native_pack_root = "~/Library/Application Support/com.auralign.studio/Models/Packs/<pack-id>/<version>"
+source_repository_weights = "prohibited"
+loose_release_model_assets = "prohibited"
+raw_cache_material = "prohibited"
+tokens = "prohibited"
+private_linkage_markers = "prohibited"
+installer_runtime_or_model_acquisition = "prohibited"
+native_verified_model_pack_acquisition = "permitted_for_exact_owner-cleared_catalog_entries"
+installer_scripts = "prohibited"
+build_tools = "maintainer_only"
+recipient_toolchain_required = false
 
 [overrides]
 registry = "compliance/overrides.toml"

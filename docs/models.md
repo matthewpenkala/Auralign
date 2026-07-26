@@ -6,92 +6,317 @@ SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 # Models
 
-Models are never downloaded during installation. Use `ltm models pull` for
-explicit acquisition. Every supported acquisition is pinned to an immutable
-publisher revision and carries a reviewed license disposition. `ltm models
-audit` reports that compliance metadata without printing tokens.
-
 ## Canonical Runbook For Humans And AI Agents
 
-This document is the first stop for both authorized operators and AI agents
-working on model setup, inspection, troubleshooting, or code changes. Follow it
-in order; do not substitute remembered model names, mutable upstream defaults,
-or a successful default-preset doctor for the checked-in contract.
+This is the canonical human and AI-agent runbook for Auralign model identity,
+delivery, verification, and offline operation. The four authorities are:
 
-The authoritative records are:
+- `src/local_transcript_max/config.py`: technical `MODEL_MANIFEST` authority;
+- `compliance/external_assets.toml`: source, license, acquisition, use,
+  redistribution, modification, evidence, and owner-decision authority;
+- `examples/config.strict-offline.yaml`: exact strict source-cache lane; and
+- this document: human workflow and product-delivery contract.
 
-- `src/local_transcript_max/config.py`: `MODEL_MANIFEST`, including exact IDs,
-  immutable revisions, cache directories, and required-file contracts;
-- `compliance/external_assets.toml`: license, provenance, access, acquisition,
-  and redistribution dispositions;
-- `examples/config.strict-offline.yaml`: the exact ASR, diarization, forced-
-  alignment, and ECAPA selection used for strict offline startup verification;
-- this document: the canonical operator and agent sequence, safety boundaries,
-  and actionable commands.
+Always reconcile all four before changing a model. A familiar directory name,
+floating repository ID, successful import, or model card alone is insufficient:
+synthetic tests prove the contract, not real transcription readiness.
 
-An agent must inspect those records before proposing or executing model work.
-It must not download an asset simply to complete development, testing,
-documentation, or repository validation. Connected acquisition requires an
-explicit user instruction for that machine plus the operator's separate review
-and acceptance of applicable upstream terms. When real packages or caches are
-absent, report the strict offline doctor as blocked; synthetic tests prove the
-contract, not real transcription readiness.
+## Rights And Repository Boundary
 
-## Repository And Asset Boundary
+For every external model, Auralign records three separate facts:
 
-The private GitHub repository contains model identifiers, immutable revisions,
-required-file contracts, compliance metadata, and setup tooling. It does not
-contain or transfer model weights, gated-model acceptance, access tokens, or a
-right to redistribute any model. Dependencies and model assets are separate:
-installing Auralign does not acquire either the models or the rights needed to
-use them.
+1. who may acquire the files;
+2. who may use the files; and
+3. whether and under what conditions Auralign may redistribute them.
 
-Every operator must review the applicable upstream source and terms, acquire
-assets on an explicitly connected authorized machine, verify the resulting
-local cache, and then run offline. Pyannote Community-1 requires each operator
-to accept its gated conditions personally and use an appropriately scoped
-token for acquisition. Repository access does not transfer that acceptance.
+A successful download does not answer all three. On 2026-07-25, Matthew
+Penkala recorded the revision-specific project decision represented in the
+external-asset registry for all nineteen entries. That is an owner clearance
+record, not an AI legal opinion or a change to upstream terms.
 
-## Strict Production Pointer Matrix
+Git contains only identifiers, immutable revisions, exact file/size/SHA-256
+contracts, compliance metadata, and tooling. Model weights, Hugging Face
+caches, private `.ltm-model.json` markers, tokens, locks, partial blobs,
+download metadata, and private paths remain ignored and must never be
+committed.
 
-The checked-in manifest and external-asset registry define this strict CPU
-lane. The revisions below are immutable 40-character upstream commits.
+## 0.3.0 Delivery Architecture
 
-| Role / key | Upstream ID and immutable revision | Expected local directory | License / access review | Acquisition / redistribution |
+The signed, scriptless product PKG installs:
+
+```text
+/Applications/Auralign.app
+
+/Library/Application Support/com.auralign.studio/Models/
+  com.auralign.studio.models.bootstrap.v1/
+```
+
+The bootstrap component is version `1.0.0`, root-owned, and read-only. It
+contains only:
+
+- `community-1` diarization;
+- `en` English forced alignment;
+- `ecapa` speaker embedding; and
+- deterministic corpus-free English Punkt resources generated by locked NLTK
+  3.9.4.
+
+It contains no ASR weights or executable code. The app bundle contains the
+standalone executable/runtime closure but no model weights.
+
+All sixteen ASR choices are independently versioned, owner-cleared public
+native-download packs:
+
+```text
+~/Library/Application Support/com.auralign.studio/Models/Packs/
+  <pack-id>/<version>/
+```
+
+The signed app's nonmodal **Complete Offline Setup** surface uses `URLSession`
+and revision-bound URLs sealed in the app catalog. It downloads to a private
+stage, verifies every allowed path, byte count, SHA-256, license, attribution,
+notice, provenance record, deterministic CycloneDX SBOM, mode, and completion
+record, rejects links and unexpected content, then atomically publishes the
+complete pack. These public packs require no token. There is no `preinstall`
+or `postinstall` download, no privileged network process, and no model
+acquisition during readiness or transcription.
+
+Installation alone is not an immediate ASR-offline-readiness claim. A recipient
+needs one connected exact-pack setup unless the selected pack is already
+installed or imported. After verification, processing is strictly local and
+offline and requires no Python, Xcode, Command Line Tools, Homebrew, Git,
+repository, `.venv`, package manager, token, or Terminal.
+
+## Complete Nineteen-Entry Product Record
+
+All nineteen entries have immutable revisions, complete file/size/hash
+contracts, reviewed license and redistribution dispositions, versioned package
+identities, and real local backend evidence. There are no code-wired-only,
+evaluation-only, or externally blocked production-visible choices.
+
+| Key | Canonical upstream ID | Immutable revision | Class | Delivery / pack ID |
 | --- | --- | --- | --- | --- |
-| ASR / `large-v3` | [`Systran/faster-whisper-large-v3`](https://huggingface.co/Systran/faster-whisper-large-v3) at `edaa852ec7e145841d8ffdb056a99866b5f0a478` | `models/Systran--faster-whisper-large-v3/` | `MIT`; `verified`; not gated; no token required | `approved`; `permitted_with_license_terms`; never bundled by Auralign |
-| Diarization / `community-1` | [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1) at `3533c8cf8e369892e6b79ff1bf80f7b0286a54ee` | `models/pyannote--speaker-diarization-community-1/` | `CC-BY-4.0`; `verified_gated`; personal terms acceptance and read token required for acquisition | `approved_after_gated_terms`; `permitted_with_attribution_and_gated_terms`; no Auralign mirroring or bundling |
-| English forced alignment / `en` (`auto`) | [`facebook/wav2vec2-base-960h`](https://huggingface.co/facebook/wav2vec2-base-960h) at `22aad52d435eb6dbaf354bdad9b0da84ce7d6156` | `models/facebook--wav2vec2-base-960h/` | `Apache-2.0`; `verified`; not gated; no token required | `approved`; `permitted_with_license_terms`; never bundled by Auralign |
-| Speaker embedding / `ecapa` | [`speechbrain/spkrec-ecapa-voxceleb`](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb) at `0f99f2d0ebe89ac095bcc5903c4dd8f72b367286` | `models/speechbrain--spkrec-ecapa-voxceleb/` | `Apache-2.0`; `verified`; not gated | `approved`; installed separately and never bundled by Auralign |
+| `large-v3` | [`Systran/faster-whisper-large-v3`](https://huggingface.co/Systran/faster-whisper-large-v3) | `edaa852ec7e145841d8ffdb056a99866b5f0a478` | production | native `com.auralign.studio.modelpack.large-v3.v1` |
+| `turbo` | [`dropbox-dash/faster-whisper-large-v3-turbo`](https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo) | `0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf` | production | native `com.auralign.studio.modelpack.turbo.v1` |
+| `distil-large-v3` | [`Systran/faster-distil-whisper-large-v3`](https://huggingface.co/Systran/faster-distil-whisper-large-v3) | `c3058b475261292e64a0412df1d2681c06260fab` | optional | native `com.auralign.studio.modelpack.distil-large-v3.v1` |
+| `distil-large-v3.5` | [`distil-whisper/distil-large-v3.5-ct2`](https://huggingface.co/distil-whisper/distil-large-v3.5-ct2) | `9793ccc07920e0f830e1dba0343efcdf0ef8c903` | production | native `com.auralign.studio.modelpack.distil-large-v3-5.v1` |
+| `mlx-tiny` | [`mlx-community/whisper-tiny-mlx`](https://huggingface.co/mlx-community/whisper-tiny-mlx) | `6caf9c55601caafbe6508a8b0d216bdf4783c4e8` | optional | native `com.auralign.studio.modelpack.mlx-tiny.v1` |
+| `mlx-tiny.en` | [`mlx-community/whisper-tiny.en-mlx`](https://huggingface.co/mlx-community/whisper-tiny.en-mlx) | `5f4dafbb28e62a53c1b10426ff7eed36ca733bf7` | optional | native `com.auralign.studio.modelpack.mlx-tiny-en.v1` |
+| `mlx-base` | [`mlx-community/whisper-base-mlx`](https://huggingface.co/mlx-community/whisper-base-mlx) | `1e3e249fb8d01c655324bd6841b1deadffd6d04c` | optional | native `com.auralign.studio.modelpack.mlx-base.v1` |
+| `mlx-base.en` | [`mlx-community/whisper-base.en-mlx`](https://huggingface.co/mlx-community/whisper-base.en-mlx) | `aa0678c3466ed62c5c6114ec600a0e1f96820089` | optional | native `com.auralign.studio.modelpack.mlx-base-en.v1` |
+| `mlx-small` | [`mlx-community/whisper-small-mlx`](https://huggingface.co/mlx-community/whisper-small-mlx) | `45f3915923c7a79a5a5b5a7d909d39aeb0e5630e` | optional | native `com.auralign.studio.modelpack.mlx-small.v1` |
+| `mlx-small.en` | [`mlx-community/whisper-small.en-mlx`](https://huggingface.co/mlx-community/whisper-small.en-mlx) | `52a88bf6e98b114a210c21bb83e22d6e1505cb73` | optional | native `com.auralign.studio.modelpack.mlx-small-en.v1` |
+| `mlx-medium` | [`mlx-community/whisper-medium-mlx`](https://huggingface.co/mlx-community/whisper-medium-mlx) | `7fc08c4eac4c316526498f147dfdee6f6303f975` | optional | native `com.auralign.studio.modelpack.mlx-medium.v1` |
+| `mlx-medium.en` | [`mlx-community/whisper-medium.en-mlx`](https://huggingface.co/mlx-community/whisper-medium.en-mlx) | `8d0335069b551e8586b8a4680674403d9417dfe4` | optional | native `com.auralign.studio.modelpack.mlx-medium-en.v1` |
+| `mlx-large` | [`mlx-community/whisper-large-v1-mlx`](https://huggingface.co/mlx-community/whisper-large-v1-mlx) | `e2cb9fbf9c7aefad760be1dc9b48c075b21288c8` | optional | native `com.auralign.studio.modelpack.mlx-large.v1` |
+| `mlx-large-v2` | [`mlx-community/whisper-large-v2-mlx`](https://huggingface.co/mlx-community/whisper-large-v2-mlx) | `cce86229e2765266197fef869ce9f7e2550067ab` | optional | native `com.auralign.studio.modelpack.mlx-large-v2.v1` |
+| `mlx-large-v3` | [`mlx-community/whisper-large-v3-mlx`](https://huggingface.co/mlx-community/whisper-large-v3-mlx) | `49e6aa286ad60c14352c404340ded53710378a11` | optional | native `com.auralign.studio.modelpack.mlx-large-v3.v1` |
+| `mlx-large-v3-turbo` | [`mlx-community/whisper-large-v3-turbo`](https://huggingface.co/mlx-community/whisper-large-v3-turbo) | `a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb` | optional | native `com.auralign.studio.modelpack.mlx-large-v3-turbo.v1` |
+| `community-1` | [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1) | `3533c8cf8e369892e6b79ff1bf80f7b0286a54ee` | production | system `com.auralign.studio.models.bootstrap.v1` |
+| `en` | [`facebook/wav2vec2-base-960h`](https://huggingface.co/facebook/wav2vec2-base-960h) | `22aad52d435eb6dbaf354bdad9b0da84ce7d6156` | production | system `com.auralign.studio.models.bootstrap.v1` |
+| `ecapa` | [`speechbrain/spkrec-ecapa-voxceleb`](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb) | `0f99f2d0ebe89ac095bcc5903c4dd8f72b367286` | production | system `com.auralign.studio.models.bootstrap.v1` |
 
-For these entries, the source URL and terms URL are the linked upstream model
-page. Upstream terms control the separately acquired assets. The exact
-machine-readable dispositions remain in
-`compliance/external_assets.toml`; unknown or conflicting metadata fails the
-compliance gate closed.
+Every pack/component version above is `1.0.0`.
 
-Required-file contracts:
+Canonical model directories are:
 
-| Key | Required files | Accepted alternative weight files |
+```text
+large-v3                 Systran--faster-whisper-large-v3
+turbo                    dropbox-dash--faster-whisper-large-v3-turbo
+distil-large-v3          Systran--faster-distil-whisper-large-v3
+distil-large-v3.5        distil-whisper--distil-large-v3.5-ct2
+mlx-tiny                 mlx-community--whisper-tiny-mlx
+mlx-tiny.en              mlx-community--whisper-tiny.en-mlx
+mlx-base                 mlx-community--whisper-base-mlx
+mlx-base.en              mlx-community--whisper-base.en-mlx
+mlx-small                mlx-community--whisper-small-mlx
+mlx-small.en             mlx-community--whisper-small.en-mlx
+mlx-medium               mlx-community--whisper-medium-mlx
+mlx-medium.en            mlx-community--whisper-medium.en-mlx
+mlx-large                mlx-community--whisper-large-v1-mlx
+mlx-large-v2             mlx-community--whisper-large-v2-mlx
+mlx-large-v3             mlx-community--whisper-large-v3-mlx
+mlx-large-v3-turbo       mlx-community--whisper-large-v3-turbo
+community-1              pyannote--speaker-diarization-community-1
+en                       facebook--wav2vec2-base-960h
+ecapa                    speechbrain--spkrec-ecapa-voxceleb
+```
+
+Canonical aliases remain in `MODEL_MANIFEST`. Important user-facing aliases
+include `max` and `whisper-large-v3` for `large-v3`; `large-v3-turbo` for
+`turbo`; Tiny/Base/Small/Medium `.en` forms for the corresponding MLX models;
+`large`/`large-v1` for `mlx-large`; `mlx-turbo` for
+`mlx-large-v3-turbo`; `pyannote-community-1`; `auto`/`english`; and
+`speechbrain-ecapa`. Role-aware resolution prevents the same short alias from
+crossing backend roles.
+
+## Exact CTranslate2 Pack Contracts
+
+Each CTranslate2 pack contains exactly the five files below. Values are
+`bytes / SHA-256`.
+
+### `large-v3`
+
+```text
+model.bin                 3087284237  69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1
+config.json                     2394  a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9
+tokenizer.json               2480617  6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca
+preprocessor_config.json          340  7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711
+vocabulary.json               1068114  c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1
+```
+
+### `turbo`
+
+```text
+model.bin                 1617884929  e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da
+config.json                     2263  b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e
+tokenizer.json               2710337  297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd
+preprocessor_config.json          340  7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711
+vocabulary.json               1068114  c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1
+```
+
+### `distil-large-v3`
+
+```text
+model.bin                 1512927867  b79368e19b6623813609431a6e5ee309a71506701ebc49fd7820e692dec7c5f5
+config.json                     2690  90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21
+tokenizer.json               2480617  6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca
+preprocessor_config.json          340  7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711
+vocabulary.json               1068114  c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1
+```
+
+### `distil-large-v3.5`
+
+```text
+model.bin                 1512927867  c58b88b8585ffcd2135fddaaf421ce72cb223b32edea70d156aed1dea319a119
+config.json                     2690  90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21
+tokenizer.json               2480645  b3c8202bbf06d8ee4232c5984baa563784ac4737e2e7fdc42fa180200d3cfcdb
+preprocessor_config.json          340  7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711
+vocabulary.json               1068114  c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1
+```
+
+All four are MIT-licensed conversion assets under the exact evidence recorded
+in the external-asset registry. Network-denied faster-whisper 1.2.1 /
+CTranslate2 4.8.0 CPU inference passed for each pinned local directory.
+
+## Exact MLX Pack Contracts
+
+Each MLX pack contains exactly `config.json` and the listed weight file:
+
+| Key | `config.json` bytes / SHA-256 | Weight file | Weight bytes / SHA-256 |
+| --- | --- | --- | --- |
+| `mlx-tiny` | `262` / `aaff20ce8f69beddee3fe0cc1e08f4e92f58586cb9f12ba00a6f73cbfec1cb1c` | `weights.npz` | `74418540` / `0e03a5993d6eea43b07ee2dcc772b0e4cef5bb227257dacc24bf289387d49186` |
+| `mlx-tiny.en` | `262` / `452e616242261333a661bc86db762b3720d6cc7e2eccd3d8e19a631871c26dd9` | `weights.npz` | `74417804` / `4627203f0807d6496dda0d200e893b04ff24c98e73aa51c485c06203a0330b17` |
+| `mlx-base` | `262` / `737220a6d958b3ad48e78f840fa991556266983c84ea2ca40e413389c62e4c2f` | `weights.npz` | `143724204` / `2f57d5f3ef473054c638961f90716f4ee415e8108de81313eccb2c5fd62eff0b` |
+| `mlx-base.en` | `262` / `b0f55e86f8092c1188306dc346742253f759aecea0da7b00ae526e566fd53b14` | `weights.npz` | `143723132` / `b6c8ee500656e04e8e57c2949a5253f0dda002ba36cd1561846574dbcf01132e` |
+| `mlx-small` | `266` / `e8f58e638208af66d5d5d67801259dc7a12d199e971967a9f9d33a8e3635668e` | `weights.npz` | `481307592` / `55b6674c9b339702d486e2b1573839a66f8ec8f821ed2886993ef717a86b09f5` |
+| `mlx-small.en` | `266` / `40028e43687458e79ba89cc16bf14184c5414a5cbc00fd511f8f78d138647afd` | `weights.npz` | `481306200` / `1bb29b030aca711a035f7a084a0eefac6251ecc2bdd356fa748858fbad082f5a` |
+| `mlx-medium` | `268` / `3ff0b3f17a5a3a614327ffd835a3c8f6c78f39cbd39e84dbff4b0ae267c4d2e4` | `weights.npz` | `1524924912` / `10b597c2bcb1bcc38b2d3d24cd4f0885f461a7cd70e8444d6ad5a763ece549ea` |
+| `mlx-medium.en` | `268` / `20f1b6b70cab52e6669c2a095fd3bcc16aa25c7e367d29060f876d4728832b45` | `weights.npz` | `1524923056` / `66cda8c3df03af0b922764620d46734240ab82c54348c5848238c8604bdadbdb` |
+| `mlx-large` | `268` / `77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b` | `weights.npz` | `3083149200` / `56824c4ff897d62ba53a84a1738b0b33b237970a7451d5f933de5f2aef5140cf` |
+| `mlx-large-v2` | `268` / `77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b` | `weights.npz` | `3083149424` / `c9888a2d03b4e9906c2864151f56dc21e58d617938da0eb818152e3f99adc3f1` |
+| `mlx-large-v3` | `269` / `34982ce6ae286095000f82ae9583b3431639e8b092bf60c961f203745e6500e3` | `weights.npz` | `3083520416` / `05ff791ce3630fae47e7c51004e9666204d786246ec07cac6110af768099b40d` |
+| `mlx-large-v3-turbo` | `268` / `b34fc29e4e11e0a25e812775dd67f4dd16fc2c8eb43d28ae25ff7d660ecb6379` | `weights.safetensors` | `1613977612` / `951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6` |
+
+All twelve passed real local, network-denied inference with mlx-whisper 0.4.3
+and MLX 0.31.2. The registry records the MIT chain from the corresponding
+OpenAI Whisper model and the MIT mlx-whisper conversion/runtime. Eleven pinned
+MLX model cards omit a standalone license field/file; that absence is disclosed
+and the owner decision relies on the pinned model card/source identity,
+OpenAI's pinned MIT license, and the official MLX runtime/source MIT record. It
+is not concealed or treated as an AI legal conclusion.
+
+## Exact Bootstrap Component Contract
+
+The bootstrap component contains sixteen external model files. Values are
+`bytes / SHA-256`.
+
+### `community-1`
+
+```text
+config.yaml                                444  5ce2bfa9a938dc132cec1172592d65173cbb8f444ea1e4133f10f9391de155be
+segmentation/pytorch_model.bin          5906507  7ad24338d844fb95985486eb1a464e32d229f6d7a03c9abe60f978bacf3f816e
+embedding/pytorch_model.bin            26646242  6f10ff60898a1d185fa22e1d11e0bfa8a92efec811f11bca48cb8cafebefd929
+plda/plda.npz                            133852  9b77bcd840692710dd3496f62ecfeed8d8e5f002fd991b785079b244eab7d255
+plda/xvec_transform.npz                 134376  325f1ce8e48f7e55e9c8aa47e05d2766b7c48c4b25b8de8dd751e7a4cc5fbe8f
+```
+
+### `en`
+
+```text
+config.json                                1596  d3ec255c063d9f95057b553b19c20135b259875834a4fe9deb218a6be25b4cf3
+preprocessor_config.json                    159  b225d617c025463b9e157e06afea8b90dc7078fc70b013c533328423e0486b4a
+tokenizer_config.json                       163  dc790594f5bc351a4311c6624f40acd95850d4aaf2a5cb3c656c9b610720b608
+vocab.json                                  291  19727f8944fe6459fc3f240ae2c198395b740f6a029bd23e06656266b83bcf64
+model.safetensors                     377607901  8aa76ab2243c81747a1f832954586bc566090c83a0ac167df6f31f0fa917d74a
+```
+
+### `ecapa`
+
+```text
+hyperparams.yaml                           1919  6f78854fa04ba59e761437b76a2575d3aba5e5016de3e9b69f0c9a5077fb1a41
+embedding_model.ckpt                   83316686  0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2
+classifier.ckpt                         5534328  fd9e3634fe68bd0a427c95e354c0c677374f62b3f434e45b78599950d860d535
+mean_var_norm_emb.ckpt                     1921  cd70225b05b37be64fc5a95e24395d804231d43f74b2e1e5a513db7b69b34c33
+label_encoder.txt                        128619  e13c3a167bb4112685670ee896d20e2b565af16b3a4ceeaa8689fa4d22adb8b9
+config.json                                  51  15ff7afad09adec0936c31493a7397c13f855914f4579a8393fe82649778a664
+```
+
+Community-1 is CC-BY-4.0, `en` and `ecapa` are Apache-2.0, and the VoxCeleb
+training-data caveat remains disclosed for ECAPA.
+
+At Community-1 revision
+`3533c8cf8e369892e6b79ff1bf80f7b0286a54ee`, the official model card and
+repository API declare CC-BY-4.0. The pinned tree has no standalone `LICENSE`.
+The automatic Hugging Face gate requests username/email,
+`Company/university`, and a use-case field; its recorded field schema contains
+no additional use-restriction checkbox. A direct upstream acquisition still
+requires the acquiring operator to complete that official flow. The owner
+separately cleared redistribution of the exact attributed pinned bytes in the
+private bootstrap component, so a recipient does not need a Hugging Face
+account or token. Installer acceptance is not represented as upstream gate
+acceptance.
+
+### Deterministic Punkt resource
+
+The component also carries:
+
+```text
+models/runtime-assets/nltk_data/
+  .ltm-generated-punkt.json
+  tokenizers/punkt_tab/english/
+    abbrev_types.txt
+    collocations.tab
+    ortho_context.tab
+    sent_starters.txt
+```
+
+Locked NLTK 3.9.4 generates the four English files from an empty
+`PunktParameters` object. Each is zero bytes with SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+The canonical `ltm-generated-punkt.v1` marker is 498 bytes with SHA-256
+`568f8560fce5e8a16e5400f7574de6abe5e7b95ac25bdb135ad1207756d06cb9`.
+No NLTK corpus is downloaded or packaged.
+
+## Presets And User Experience
+
+| Preset | Backend / model | Tradeoff |
 | --- | --- | --- |
-| `large-v3` | `model.bin`, `config.json`, `tokenizer.json`, `preprocessor_config.json`, `vocabulary.json` | none |
-| `community-1` | `config.yaml`, `segmentation/pytorch_model.bin`, `embedding/pytorch_model.bin`, `plda/plda.npz`, `plda/xvec_transform.npz` | none |
-| `en` | `config.json`, `preprocessor_config.json`, `tokenizer_config.json`, `vocab.json`, `model.safetensors` | none |
-| `ecapa` | `hyperparams.yaml`, `embedding_model.ckpt`, `classifier.ckpt`, `mean_var_norm_emb.ckpt`, `label_encoder.txt`, `config.json` | none |
+| `max` | faster-whisper / `large-v3` | highest-quality general-purpose path |
+| `balanced` | faster-whisper / `turbo` | faster multilingual balance |
+| `fast` | faster-whisper / `distil-large-v3.5` | fastest normal English-only path |
+| `cpu` | faster-whisper / `turbo` | CPU-focused low-latency path |
 
-An Auralign pull also writes `.ltm-model.json` beside the acquired files. That
-private local v2 marker binds the cache directory to the manifest key, role,
-upstream ID, immutable revision, repository-manifest digest, acquisition tool,
-timestamp, and runtime-file SHA-256 values. Pullable models
-are not offline-usable when the marker is missing, malformed, unsafe, or does
-not exactly match the current manifest—even if expected filenames happen to
-exist. Do not hand-author or edit this marker; refresh the cache with the
-documented pinned pull on an authorized connected machine.
+The GUI, CLI, Python config, bridge schema, and readiness view must resolve
+these same mappings. All sixteen ASR models remain visible only as truthful
+installed/not-installed choices. Selecting a different backend/model
+invalidates stale readiness and verifies the exact effective pack before Start
+can succeed.
 
 ## Exact Connected Preparation And Offline Runbook
 
-From a private source clone, first install dependencies and choose ignored
-local caches:
+### Source-development cache
+
+This is the maintainer/source lane, not the installed-recipient path:
 
 ```bash
 uv sync --extra dev --extra asr --extra diarization --extra alignment \
@@ -99,322 +324,72 @@ uv sync --extra dev --extra asr --extra diarization --extra alignment \
 export LTM_MODEL_CACHE="$PWD/models"
 export HF_HOME="$PWD/.hf-cache"
 export HF_HUB_CACHE="$HF_HOME/hub"
-uv run ltm models list --cache-dir "$LTM_MODEL_CACHE"
-uv run ltm models audit --config examples/config.strict-offline.yaml
-```
 
-Review the matrix and upstream terms before enabling network access. Then, on
-the authorized connected machine only:
-
-```bash
-# Redacted example only; never save or pass a real token as a CLI argument.
-export LTM_HF_TOKEN="REDACTED_USER_SUPPLIED_READ_TOKEN"
-```
-
-If a future approved immutable pointer is intentionally awaiting its first
-committed file hash, an authorized maintainer reviews exactly one revision
-before pull. Community-1 no longer requires this step: its fifth and final
-runtime-file digest was owner-reviewed on 2026-07-20.
-
-```bash
-# Example procedure only; select the exact approved incomplete entry.
-uv run ltm models review-digests \
-  --asr turbo \
-  --cache-dir "$LTM_MODEL_CACHE"
-```
-
-This command is permitted only after explicit acquisition authorization and
-applicable gated acceptance. It downloads only allowlisted files into a locked
-sibling temporary directory, returns their SHA-256 map, installs nothing, and
-deletes the temporary bytes. Review and commit the missing hash before normal
-acquisition; never use digest review to bypass provenance review or redistribute
-model files.
-
-After every selected entry has a complete committed digest contract:
-
-```bash
 uv run ltm models pull \
-  --asr large-v3 \
-  --diarization community-1 \
-  --alignment en \
-  --speaker-id ecapa \
-  --cache-dir "$LTM_MODEL_CACHE"
-unset LTM_HF_TOKEN HF_TOKEN
-```
+  --asr large-v3 --diarization community-1 --alignment en \
+  --speaker-id ecapa --cache-dir "$LTM_MODEL_CACHE"
+unset LTM_HF_TOKEN HF_TOKEN HUGGING_FACE_HUB_TOKEN
 
-The pull uses only the manifest's immutable revisions. It is an explicit
-connected setup operation, not runtime auto-download behavior. Verify the exact
-strict selection locally, with no token required:
-
-```bash
 uv run ltm models verify \
-  --asr large-v3 \
-  --diarization community-1 \
-  --alignment en \
-  --speaker-id ecapa \
-  --cache-dir "$LTM_MODEL_CACHE"
-LTM_OFFLINE=1 uv run ltm models audit \
-  --config examples/config.strict-offline.yaml
+  --asr large-v3 --diarization community-1 --alignment en \
+  --speaker-id ecapa --cache-dir "$LTM_MODEL_CACHE"
 LTM_OFFLINE=1 uv run ltm doctor --startup \
   --config examples/config.strict-offline.yaml
 ```
 
-`examples/config.strict-offline.yaml` explicitly selects faster-whisper
-`large-v3`, pyannote Community-1, `alignment.backend: forced` with the English
-CTC asset, and default-on local ECAPA. A successful lightweight/default doctor
-is not a substitute for this exact four-backend startup check.
+An approved pull writes a private `.ltm-model.json` marker. Do not hand-author
+or copy that marker into a product pack. A partial file, wrong revision,
+missing marker, unexpected entry, symlink, size/hash mismatch, or absent gated
+access fails before offline readiness.
 
-After doctor succeeds, transcription with that same configuration remains
-local and offline:
+### Installed-recipient lane
 
-```bash
-LTM_OFFLINE=1 uv run ltm transcribe input.wav \
-  --config examples/config.strict-offline.yaml \
-  --num-speakers <N> \
-  --out outputs/job_001
-```
+1. Install the signed, notarized, stapled 0.3.0 PKG.
+2. Open Auralign from Finder.
+3. In **Complete Offline Setup**, choose the desired ASR pack.
+4. Keep the app open while the native setup downloads and verifies it.
+5. Continue only when the app reports the exact effective configuration Ready.
+6. Disconnect if desired; transcription is local and offline afterward.
 
-If a reviewed cache must move to another machine, first confirm that the same
-operator/machine is authorized under every upstream term. A different pyannote
-operator must accept the gate and acquire their own authorized copy. When a
-same-operator transfer is permitted, copy the `LTM_MODEL_CACHE` directory with
-metadata and dotfiles intact over an approved encrypted channel; do not copy
-`.env`, tokens, shell history, the Hugging Face token store, media, or output:
+No model download occurs in Installer, no token is requested for any of the
+sixteen public packs, and normal processing never performs a network request.
+Interrupted or corrupt staging cannot become a valid pack; retry resumes or
+restarts within the private staging contract and publishes atomically only
+after complete verification.
 
-```bash
-rsync -a --protect-args "$LTM_MODEL_CACHE/" \
-  authorized-offline-host:/approved/path/models/
-```
+## Cache And Pack Failure Behavior
 
-Set `LTM_MODEL_CACHE` to the destination and rerun the exact four-entry
-`models verify` and strict offline doctor there. If the transfer method omits
-`.ltm-model.json`, verification must fail and the cache must not be used.
-
-Failure behavior is deliberately actionable and closed:
-
-- missing directory: pull the exact manifest key on an authorized connected machine;
-- missing, empty, or unreadable required file: treat the cache as partial and refresh it;
-- missing or mismatched `.ltm-model.json`: revision linkage is unverified; do not edit the marker;
-- unknown model ID or revision override: acquisition and runtime resolution refuse it;
-- missing gated acceptance/token: Community-1 acquisition stops before unrelated pulls;
-- offline missing or incomplete asset: doctor and transcription fail without network access;
-- missing active backend package or startup preflight: doctor reports an error and cannot pass.
-
-Configured manifest pointers:
-
-- `large-v3`: `Systran/faster-whisper-large-v3`
-- `turbo`: `mobiuslabsgmbh/faster-whisper-large-v3-turbo` with `dropbox-dash/faster-whisper-large-v3-turbo` accepted as a redirect/alias
-- `distil-large-v3`: `Systran/faster-distil-whisper-large-v3`
-- `distil-large-v3.5`: `distil-whisper/distil-large-v3.5-ct2`
-- MLX audit-only family:
-  - `mlx-tiny`: `mlx-community/whisper-tiny-mlx`
-  - `mlx-tiny.en`: `mlx-community/whisper-tiny.en-mlx`
-  - `mlx-base`: `mlx-community/whisper-base-mlx`
-  - `mlx-base.en`: `mlx-community/whisper-base.en-mlx`
-  - `mlx-small`: `mlx-community/whisper-small-mlx`
-  - `mlx-small.en`: `mlx-community/whisper-small.en-mlx`
-  - `mlx-medium`: `mlx-community/whisper-medium-mlx`
-  - `mlx-medium.en`: `mlx-community/whisper-medium.en-mlx`
-  - `mlx-large`: `mlx-community/whisper-large-mlx`
-  - `mlx-large-v2`: `mlx-community/whisper-large-v2-mlx`
-  - `mlx-large-v3`: `mlx-community/whisper-large-v3-mlx`
-  - `mlx-large-v3-turbo`: `mlx-community/whisper-large-v3-turbo`
-
-This list records identities and immutable revisions, not runtime readiness.
-Only entries with a complete committed digest map can be pulled or verified.
-The turbo and Distil faster-whisper alternatives above are therefore
-pointer-only/hash-review-blocked in 0.2.0.
-- `community-1`: `pyannote/speaker-diarization-community-1`
-- `en` / `auto`: `facebook/wav2vec2-base-960h`
-- `ecapa`: `speechbrain/spkrec-ecapa-voxceleb`
-
-Do not use `Systran/faster-whisper-large-v3-turbo`; it is not a supported entry
-in Auralign's model manifest. Use the listed turbo entry or accepted alias.
-
-Pyannote community diarization is gated. Accept the Hugging Face terms and
-export `HF_TOKEN` or `LTM_HF_TOKEN` before pulling it.
-
-Only `mlx-community/whisper-large-v3-mlx` currently has verified MIT publisher
-metadata. The other configured MLX conversions remain usable only from an
-operator-supplied local cache for evaluation; they are not acquisition- or
-redistribution-cleared and must not be described as production-cleared.
-Accordingly, the native
-[`config.apple-silicon.yaml`](../examples/config.apple-silicon.yaml) selects
-`mlx-large-v3` at
-`models/mlx-community--whisper-large-v3-mlx`; it does not select the
-local-evaluation-only Turbo conversion.
-
-## Cache Behavior
-
-By default, model assets are expected under `models/` using a safe directory name
-derived from the model ID, for example:
-
-- `models/Systran--faster-whisper-large-v3`
-- `models/mobiuslabsgmbh--faster-whisper-large-v3-turbo`
-- `models/mlx-community--whisper-large-v3-mlx`
-- `models/pyannote--speaker-diarization-community-1`
-- `models/facebook--wav2vec2-base-960h`
-- `models/speechbrain--spkrec-ecapa-voxceleb`
-
-`ltm models audit` reports configured model IDs, shareable cache-relative paths,
-accepted aliases, accepted directory aliases, whether directories exist,
-whether required files
-are complete, whether immutable revision linkage is verified, whether offline
-mode can use them, and whether gated/token-dependent access is required. It
-also writes a token-redacted machine-local audit to
-`models/model_audit.json`. That ignored file can contain local paths and should
-not be shared or committed.
-
-Useful strict model commands:
-
-```bash
-uv run ltm models list
-uv run ltm models audit
-uv run ltm models verify
-uv run ltm models verify --asr large-v3 --diarization community-1 --alignment en --speaker-id ecapa
-uv run ltm models prune --dry-run
-uv run ltm models pull --asr large-v3
-uv run ltm models pull --diarization community-1
-uv run ltm models pull --speaker-id ecapa
-uv run ltm models pull --alignment auto
-uv run ltm models review-digests --diarization community-1
-uv run ltm models import-mlx /path/to/converted-mlx-whisper \
-  --model mlx-large-v3 --cache-dir models
-```
-
-`--all` includes required ASR and diarization entries. Add
-`--include-optional` for alternative ASR, alignment, and speaker-ID entries.
-Pullable entries whose repository digest contract is incomplete fail before
-network access; an immutable revision and a self-written marker are not a
-substitute for reviewed SHA-256 values.
-
-The cache validator treats a model as not ready when:
-
-- the model directory is missing
-- required files are missing
-- required files exist but are zero bytes
-- a pullable model lacks the exact Auralign immutable-revision linkage marker
-- offline mode is enabled and the required model is incomplete
-- any allowlisted runtime file lacks a committed repository-reviewed SHA-256
-
-The strict four-model lane has a complete reviewed digest contract.
-Community-1's gated `config.yaml` digest was acquired ephemerally and approved
-by the owner on 2026-07-20; the temporary review bytes were deleted. Other
-configured faster-whisper alternatives remain pointer-only until their complete
-runtime-file hashes are independently acquired and reviewed. They must not be
-represented as operational pulls merely because an ID and immutable revision
-are present.
-
-For ASR CTranslate2 models, every allowlisted runtime file is required. For
-MLX ASR models, `config.json` and either `weights.safetensors` or `weights.npz`
-are required. MLX entries are audit-only: `ltm models pull` does not download
-them, and transcription refuses to pass remote repo IDs to `mlx-whisper`.
-Short aliases like `turbo`, `large-v3`, and `small` resolve only within the
-`asr-mlx` manifest role and still require a complete local cache directory. Use
-`ltm models import-mlx` to copy an already converted local MLX directory into
-the canonical cache path after validating those files. Symlink imports are
-prohibited because strict cache verification rejects linked content.
-Manual-only MLX imports are complete local checkpoints, but Auralign does not
-claim that their bytes were verified against the manifest's upstream revision:
-runtime metadata records `revision_verified=false`, leaves `revision` unset,
-and binds the allowlisted runtime files with a deterministic
-`checkpoint_sha256`. This content identity supports same-checkpoint local
-comparisons without fabricating upstream provenance. For
-pyannote community diarization, exactly the allowlisted `config.yaml`,
-segmentation, embedding, and PLDA runtime files are required. For English forced alignment, Auralign
-requires a CTC Wav2Vec2 ASR checkpoint with tokenizer/vocabulary files and
-weights; generic Wav2Vec2 pretraining checkpoints are not alignment-ready.
-
-## Local Bootstrap
-
-`bootstrap.sh` and `bootstrap.ps1` are thin wrappers around `ltm
-prepare-runtime`. The command performs storage and environment preflight, pulls
-exactly the selected four-model runtime, generates local corpus-free English
-Punkt parameters, verifies immutable revisions and runtime-file hashes, removes
-token variables from the validation environment, and runs strict offline
-backend startup. It never acquires datasets.
-
-```bash
-chmod +x bootstrap.sh
-./bootstrap.sh
-```
-
-The wrappers do not store or print token values. Missing Community-1 access,
-alignment, ECAPA, digest integrity, generated Punkt, native libraries, or
-backend construction is a fatal preparation failure, never a caveat.
+- Missing bootstrap content: repair/reinstall the exact signed PKG.
+- Missing selected ASR pack: run **Complete Offline Setup** or import the exact
+  verified pack.
+- Wrong revision, missing/extra file, size/hash mismatch, symlink, hardlink,
+  unsafe mode, malformed manifest/SBOM/notices/license, or incomplete marker:
+  reject the pack and keep readiness blocked.
+- Unknown model ID or floating revision: reject before download or runtime.
+- Partial/interrupted download: retain only private staged state; never expose
+  it as installed.
+- Changed model/backend/preset: invalidate readiness and reverify the effective
+  configuration.
+- Source cache missing or mismatched `.ltm-model.json`: reacquire through the
+  controlled maintainer lane; do not edit the marker.
 
 ## Dataset Policy
 
-Datasets are not runtime requirements. The default `runtime-samples` profile
-keeps local dataset storage small and records full corpora as cloud-only
-research assets:
-
-| Key | Repo ID | Policy | Approx size | Local default |
-| --- | --- | --- | --- | --- |
-| `librispeech-dummy` | `hf-internal-testing/librispeech_asr_dummy` | License/provenance unverified | `<1 GB` | Acquisition blocked |
-| `librispeech-full` | `openslr/librispeech_asr` | Cloud-only | `124 GB` | Not downloaded locally |
-| `ami-full` | `edinburghcstr/ami` | Cloud-only | `29 GB` | Not downloaded locally |
-| `voxceleb-full` | `ProgramComputer/voxceleb` | Underlying voice/AV/biometric rights unresolved | `745 GB` | Reference-only; mirror blocked |
-
-Useful dataset commands:
-
-```bash
-uv run ltm datasets list
-uv run ltm datasets plan --profile runtime-samples --max-local-gb 65
-uv run ltm datasets cloud-plan --remote "$LTM_DATASET_MIRROR_REMOTE"
-uv run ltm datasets cloud-sync --remote "$LTM_DATASET_MIRROR_REMOTE" --yes-i-understand-bulk-transfer
-```
-
-`cloud-sync` only syncs already-local, compliance-approved cloud-mirror
-directories with `rclone`. LibriSpeech and AMI may appear in a plan; VoxCeleb
-is excluded and reported as blocked. The command never performs transcription,
-inference, telemetry, or runtime uploads.
-
-## Default Cache-Set Classification
-
-The `Status` column distinguishes the exact strict runtime from configured
-pointers that intentionally fail closed until a complete digest review. A
-runtime configuration requires its active ASR choice plus enabled diarization,
-alignment, and speaker-ID lanes. Use explicit verification selectors for that
-exact set.
-
-| Key | Model ID | Status | Gated | Cache path |
-| --- | --- | --- | --- | --- |
-| `large-v3` | `Systran/faster-whisper-large-v3` | Strict ASR; digest-complete | No | `models/Systran--faster-whisper-large-v3` |
-| `turbo` | `mobiuslabsgmbh/faster-whisper-large-v3-turbo` | Pointer-only; hash review blocked | No | `models/mobiuslabsgmbh--faster-whisper-large-v3-turbo` or accepted alias cache `models/dropbox-dash--faster-whisper-large-v3-turbo` |
-| `distil-large-v3` | `Systran/faster-distil-whisper-large-v3` | Pointer-only; hash review blocked | No | `models/Systran--faster-distil-whisper-large-v3` |
-| `distil-large-v3.5` | `distil-whisper/distil-large-v3.5-ct2` | Pointer-only; hash review blocked | No | `models/distil-whisper--distil-large-v3.5-ct2` |
-| `mlx-large-v3` | `mlx-community/whisper-large-v3-mlx` | Reviewed Apple Silicon production candidate; local import/audit only | No | `models/mlx-community--whisper-large-v3-mlx` |
-| other `mlx-*` | other configured MLX conversions, including Turbo | Local evaluation only; local import/audit only | No | canonical escaped model-ID path, plus accepted alias directories such as `models/mlx-turbo` |
-| `community-1` | `pyannote/speaker-diarization-community-1` | Strict diarization; digest-complete after owner review; personal gated access still required | Yes | `models/pyannote--speaker-diarization-community-1` |
-| `auto` | `facebook/wav2vec2-base-960h` | Required in strict/full mode | No | `models/facebook--wav2vec2-base-960h` |
-| `ecapa` | `speechbrain/spkrec-ecapa-voxceleb` | Required in strict/full mode | No | `models/speechbrain--spkrec-ecapa-voxceleb` |
+Datasets are not runtime requirements. LibriSpeech and AMI are optional
+research corpora; VoxCeleb remains reference-only with separate voice/privacy
+rights caveats. Dataset mirrors, media, references, transcripts, and benchmark
+outputs are never part of the app, bootstrap component, ASR packs, or Git.
 
 ## Offline Behavior
 
-`LTM_OFFLINE=1` disables opportunistic model/network access. Doctor and
-transcribe inspect only local files and fail fast with the exact online pull
-command needed to prepare the cache. Optional cleanup may use localhost, but
-offline mode rejects non-local cleanup endpoints:
+`LTM_OFFLINE=1` forbids opportunistic model access and non-local cleanup.
+Doctor and transcribe accept only the local bootstrap component plus the exact
+selected ASR pack:
 
 ```bash
-LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
+LTM_OFFLINE=1 uv run ltm doctor --startup \
+  --config examples/config.strict-offline.yaml
 ```
 
-After successful model pulls:
-
-```bash
-uv run ltm models verify \
-  --asr large-v3 --diarization community-1 --alignment en \
-  --speaker-id ecapa \
-  --cache-dir models
-LTM_OFFLINE=1 uv run ltm models audit --config examples/config.strict-offline.yaml
-LTM_OFFLINE=1 uv run ltm doctor --startup --config examples/config.strict-offline.yaml
-```
-
-## Gated Model Caveats
-
-`pyannote/speaker-diarization-community-1` requires both terms acceptance and a
-read token. A missing token, unaccepted terms, or denied access produces an
-actionable error. The combined pull command checks gated-model preconditions
-before downloading public ASR assets, avoiding accidental partial cache setup.
+A passing fixture or mocked test is not a substitute for the exact packaged or
+installed backend evidence.

@@ -13,11 +13,10 @@ audio:
   denoise: off
   separate_vocals: "off"
 asr:
-  backend: mlx-whisper
-  mlx_model: mlx-large-v3
-  mlx_model_path: models/mlx-community--whisper-large-v3-mlx
-  mlx_fp16: true
-  mlx_vad_windowed: false
+  backend: faster-whisper
+  model: large-v3
+  device: cpu
+  compute_type: auto
   vad_filter: false
   word_timestamps: true
   condition_on_previous_text: false

@@ -19,7 +19,15 @@ from typing import Annotated, Any, Literal, cast
 
 import typer
 
-from .config import MODEL_MANIFEST, PipelineConfig, PresetName, default_model_cache, load_config
+from .config import (
+    MODEL_MANIFEST,
+    PipelineConfig,
+    PresetName,
+    default_model_cache,
+    load_config,
+    required_model_requests,
+    resolve_model_entry,
+)
 from .datasets import (
     DEFAULT_DATASET_PROFILE,
     DEFAULT_MAX_LOCAL_GB,
@@ -199,6 +207,26 @@ def _config(preset: str, config_file: Path | None = None) -> PipelineConfig:
     return load_config(preset=cast(PresetName, preset), config_file=config_file)
 
 
+def _require_production_model_selection(config: PipelineConfig) -> None:
+    """Reject catalog-only models before a normal transcription can start."""
+
+    if config.asr.vad_filter:
+        raise LTMError(
+            "asr.vad_filter is unavailable in the production product because its "
+            "upstream Silero model is not part of the verified model component. "
+            "Leave it disabled; Auralign's local EnergyVAD remains active."
+        )
+    for role, value in required_model_requests(config):
+        entry = resolve_model_entry(role, value)
+        if entry is None:
+            raise LTMError(f"Unknown {role} model '{value}'.")
+        if not entry.production_selectable:
+            raise LTMError(
+                f"{entry.role}:{entry.key} ({entry.model_id}) is unavailable in the "
+                f"production product: {entry.blocker or entry.product_classification}."
+            )
+
+
 def _emit_identity_failure(
     *,
     code: str,
@@ -336,9 +364,7 @@ def apple_silicon_canary(
 
     try:
         if minimum_diarization_speedup_ratio >= 1.0:
-            raise typer.BadParameter(
-                "minimum-diarization-speedup-ratio must be less than 1"
-            )
+            raise typer.BadParameter("minimum-diarization-speedup-ratio must be less than 1")
         config = _config(preset, config_file)
         policy = CanaryGatePolicy(
             minimum_diarization_speedup_ratio=minimum_diarization_speedup_ratio,
@@ -368,8 +394,7 @@ def apple_silicon_canary(
     except Exception as exc:
         safe_message = privacy_safe_text(str(exc))
         typer.echo(
-            "Apple Silicon canary failed unexpectedly: "
-            f"{exc.__class__.__name__}: {safe_message}",
+            f"Apple Silicon canary failed unexpectedly: {exc.__class__.__name__}: {safe_message}",
             err=True,
         )
         raise typer.Exit(1) from exc
@@ -391,7 +416,7 @@ def prepare_runtime(
         ),
     ] = False,
 ) -> None:
-    """Acquire and prove the exact strict four-model runtime while connected."""
+    """Acquire and prove the exact effective offline configuration while connected."""
 
     try:
         config = _config(preset, config_file)
@@ -402,29 +427,22 @@ def prepare_runtime(
                 "Runtime preparation requires an offline strict config so the final startup "
                 "probe cannot silently use network-backed model resolution."
             )
-        strict_contract = (
-            config.asr.backend == "faster-whisper"
-            and config.asr.model == "large-v3"
-            and config.diarization.enabled
-            and config.diarization.backend == "pyannote"
-            and config.diarization.model == "community-1"
-            and config.alignment.enabled
-            and config.alignment.backend == "forced"
-            and (config.alignment.model or "en") == "en"
-            and config.speaker_id.mode == "auto"
-            and config.speaker_id.model == "ecapa"
-        )
-        if not strict_contract:
-            raise LTMError(
-                "Runtime preparation config must select faster-whisper large-v3, pyannote "
-                "Community-1, forced English WhisperX alignment, and ECAPA speaker ID."
-            )
-        entries = selected_entries(
-            asr="large-v3",
-            diarization="community-1",
-            alignment="en",
-            speaker_embedding="ecapa",
-        )
+        entries = []
+        for role, selector in required_model_requests(config):
+            entry = resolve_model_entry(role, selector)
+            if entry is None:
+                raise LTMError(
+                    f"Runtime preparation config selects unknown {role} model '{selector}'."
+                )
+            if not entry.production_selectable:
+                raise LTMError(
+                    f"Runtime preparation config selects unavailable {role} model "
+                    f"'{selector}': {entry.blocker or 'release authority is incomplete'}."
+                )
+            if entry not in entries:
+                entries.append(entry)
+        if not entries:
+            raise LTMError("Runtime preparation config selects no model-backed stages.")
         preflight_runtime_preparation(entries, config.model_cache, repair=repair)
         ensure_pull_preconditions(entries, config.model_cache)
         for entry in entries:
@@ -472,32 +490,45 @@ def transcribe(
     language: Annotated[str | None, typer.Option("--language")] = None,
     asr_backend: Annotated[
         str,
-        typer.Option("--asr-backend", help="faster-whisper or mlx-whisper"),
+        typer.Option(
+            "--asr-backend",
+            help="Production ASR backend: faster-whisper or mlx-whisper.",
+        ),
     ] = "faster-whisper",
-    asr_mlx_model: Annotated[str | None, typer.Option("--asr-mlx-model")] = None,
-    asr_mlx_model_path: Annotated[Path | None, typer.Option("--asr-mlx-model-path")] = None,
+    asr_mlx_model: Annotated[
+        str | None,
+        typer.Option(
+            "--asr-mlx-model",
+            help="Exact verified MLX Whisper model selector used with --asr-backend mlx-whisper.",
+        ),
+    ] = None,
+    asr_mlx_model_path: Annotated[
+        Path | None,
+        typer.Option("--asr-mlx-model-path", hidden=True),
+    ] = None,
     asr_mlx_fp16: Annotated[
         bool,
-        typer.Option("--asr-mlx-fp16/--no-asr-mlx-fp16"),
+        typer.Option("--asr-mlx-fp16/--no-asr-mlx-fp16", hidden=True),
     ] = True,
     asr_mlx_vad_windowed: Annotated[
         bool,
         typer.Option(
             "--asr-mlx-vad-windowed/--no-asr-mlx-vad-windowed",
+            hidden=True,
             help="Experimental: transcribe MLX ASR in local VAD windows.",
         ),
     ] = False,
     asr_mlx_vad_window_seconds: Annotated[
         float | None,
-        typer.Option("--asr-mlx-vad-window-seconds", min=1.0),
+        typer.Option("--asr-mlx-vad-window-seconds", min=1.0, hidden=True),
     ] = None,
     asr_mlx_vad_window_padding_seconds: Annotated[
         float | None,
-        typer.Option("--asr-mlx-vad-window-padding-seconds", min=0.0),
+        typer.Option("--asr-mlx-vad-window-padding-seconds", min=0.0, hidden=True),
     ] = None,
     asr_device: Annotated[
         str | None,
-        typer.Option("--asr-device", help="auto, cpu, or cuda; MLX owns its native device."),
+        typer.Option("--asr-device", help="Production ASR device: auto, cpu, or cuda."),
     ] = None,
     num_speakers: Annotated[int | None, typer.Option("--num-speakers", min=1, max=128)] = None,
     min_speakers: Annotated[int | None, typer.Option("--min-speakers", min=1, max=128)] = None,
@@ -684,13 +715,19 @@ def transcribe(
         if use_cli_value("language"):
             config.asr.language = language
         if asr_backend not in {"faster-whisper", "mlx-whisper"}:
-            raise typer.BadParameter("asr-backend must be one of: faster-whisper, mlx-whisper")
+            raise typer.BadParameter(
+                "asr-backend must be one of: faster-whisper, mlx-whisper"
+            )
         if use_cli_default_or_explicit("asr_backend", ("LTM_ASR_BACKEND",)):
             config.asr.backend = cast(Literal["faster-whisper", "mlx-whisper"], asr_backend)
         if use_cli_value("asr_mlx_model") and asr_mlx_model:
             config.asr.mlx_model = asr_mlx_model
         if use_cli_value("asr_mlx_model_path") and asr_mlx_model_path is not None:
-            config.asr.mlx_model_path = asr_mlx_model_path
+            raise typer.BadParameter(
+                "The production transcribe path resolves MLX models only through the "
+                "verified manifest/cache or installed native model-pack contract; an "
+                "arbitrary --asr-mlx-model-path is not accepted."
+            )
         if use_cli_default_or_explicit("asr_mlx_fp16", ("LTM_ASR_MLX_FP16",)):
             config.asr.mlx_fp16 = asr_mlx_fp16
         if use_cli_default_or_explicit("asr_mlx_vad_windowed", ("LTM_ASR_MLX_VAD_WINDOWED",)):
@@ -760,9 +797,7 @@ def transcribe(
             config.diarization.enabled = diarization_backend != "off"
         if use_cli_value("diarization_device") and diarization_device is not None:
             if diarization_device not in {"auto", "cpu", "cuda", "mps"}:
-                raise typer.BadParameter(
-                    "diarization-device must be one of: auto, cpu, cuda, mps"
-                )
+                raise typer.BadParameter("diarization-device must be one of: auto, cpu, cuda, mps")
             config.diarization.device = cast(
                 Literal["auto", "cpu", "cuda", "mps"], diarization_device
             )
@@ -820,12 +855,8 @@ def transcribe(
             config.alignment.model = alignment_model
         if use_cli_value("alignment_device") and alignment_device is not None:
             if alignment_device not in {"auto", "cpu", "cuda", "mps"}:
-                raise typer.BadParameter(
-                    "alignment-device must be one of: auto, cpu, cuda, mps"
-                )
-            config.alignment.device = cast(
-                Literal["auto", "cpu", "cuda", "mps"], alignment_device
-            )
+                raise typer.BadParameter("alignment-device must be one of: auto, cpu, cuda, mps")
+            config.alignment.device = cast(Literal["auto", "cpu", "cuda", "mps"], alignment_device)
         if use_cli_value("experimental_alignment_mps"):
             config.alignment.allow_experimental_mps = experimental_alignment_mps
         if use_cli_value("normalize_loudness"):
@@ -920,6 +951,7 @@ def transcribe(
             config.cleanup.allow_remote_cleanup = allow_remote_cleanup
         if use_cli_value("write_cleanup_diff"):
             config.cleanup.write_diff = write_cleanup_diff
+        _require_production_model_selection(config)
         debug_path = out / "debug_report.json" if debug_report else None
         if verbose:
             transcript = transcribe_file(
@@ -960,7 +992,10 @@ def models_list(
     statuses = all_statuses(cache_dir)
     typer.echo(
         "role\tkey\tmodel_id\tpresent\tpath\trevision\tlicense\tcompliance_review\t"
-        "acquisition\truntime\tredistribution\trevision_verified"
+        "acquisition\truntime\tredistribution\trevision_verified\t"
+        "product_classification\tproduct_selectable\tproduct_blocker\t"
+        "backend_compatibility\tmodification_status\tpackage_bundle_id\t"
+        "package_relative_path"
     )
     for status in statuses:
         entry = status.entry
@@ -979,6 +1014,13 @@ def models_list(
                     entry.runtime_status,
                     entry.redistribution_status,
                     _yes(status.revision_verified),
+                    entry.product_classification,
+                    _yes(entry.production_selectable),
+                    entry.blocker or "none",
+                    entry.backend_compatibility or "none",
+                    entry.modification_status,
+                    entry.package_bundle_id or "none",
+                    entry.package_relative_path or "none",
                 )
             )
         )
@@ -1023,7 +1065,10 @@ def models_audit(
             "gated\ttoken_required\ttoken_present\tproblem\trevision\tlicense\t"
             "compliance_review\tredistribution\tacquisition\truntime\t"
             "revision_verified\tsource_url\tterms_url\trequired_files\t"
-            "accepted_weight_files\tpull_command\tverify_command"
+            "accepted_weight_files\tpull_command\tverify_command\t"
+            "product_classification\tproduct_selectable\tproduct_blocker\t"
+            "backend_compatibility\tmodification_status\tpackage_bundle_id\t"
+            "package_relative_path"
         )
         for status in statuses:
             entry = status.entry
@@ -1054,6 +1099,13 @@ def models_audit(
                         ",".join(entry.any_required_files) or "none",
                         entry.pull_command("<model-cache>"),
                         entry.verify_command("<model-cache>"),
+                        entry.product_classification,
+                        _yes(entry.production_selectable),
+                        entry.blocker or "none",
+                        entry.backend_compatibility or "none",
+                        entry.modification_status,
+                        entry.package_bundle_id or "none",
+                        entry.package_relative_path or "none",
                     ]
                 )
             )
@@ -1064,7 +1116,7 @@ def models_audit(
         raise typer.Exit(1) from exc
 
 
-@models_app.command("import-mlx")
+@models_app.command("import-mlx", hidden=True)
 def models_import_mlx(
     source_dir: Annotated[
         Path,
@@ -1106,15 +1158,12 @@ def models_import_mlx(
 
 @models_app.command("pull")
 def models_pull(
-    all_models: Annotated[bool, typer.Option("--all", help="Pull every manifest entry.")] = False,
-    include_optional: Annotated[
+    all_models: Annotated[
         bool,
-        typer.Option(
-            "--include-optional",
-            help="Include optional alignment and speaker-ID assets.",
-        ),
+        typer.Option("--all", help="Pull every production-selectable manifest entry."),
     ] = False,
     asr: Annotated[str | None, typer.Option("--asr")] = None,
+    asr_mlx: Annotated[str | None, typer.Option("--asr-mlx")] = None,
     diarization: Annotated[str | None, typer.Option("--diarization")] = None,
     alignment: Annotated[str | None, typer.Option("--alignment")] = None,
     speaker_embedding: Annotated[
@@ -1137,8 +1186,8 @@ def models_pull(
     try:
         entries = selected_entries(
             all_models=all_models,
-            include_optional=include_optional,
             asr=asr,
+            asr_mlx=asr_mlx,
             diarization=diarization,
             alignment=alignment,
             speaker_embedding=speaker_embedding,
@@ -1174,13 +1223,10 @@ def models_verify(
     ),
     all_models: Annotated[
         bool,
-        typer.Option("--all", help="Verify every pullable manifest entry."),
-    ] = False,
-    include_optional: Annotated[
-        bool,
-        typer.Option("--include-optional", help="Verify optional alignment and speaker-ID assets."),
+        typer.Option("--all", help="Verify every production-selectable manifest entry."),
     ] = False,
     asr: Annotated[str | None, typer.Option("--asr")] = None,
+    asr_mlx: Annotated[str | None, typer.Option("--asr-mlx")] = None,
     diarization: Annotated[str | None, typer.Option("--diarization")] = None,
     alignment: Annotated[str | None, typer.Option("--alignment")] = None,
     speaker_embedding: Annotated[
@@ -1191,12 +1237,14 @@ def models_verify(
     """Verify that selected model cache entries are complete and offline-usable."""
     try:
         write_model_audit(cache_dir, include_optional=True)
-        explicit_selection = all_models or any((asr, diarization, alignment, speaker_embedding))
+        explicit_selection = all_models or any(
+            (asr, asr_mlx, diarization, alignment, speaker_embedding)
+        )
         if explicit_selection:
             entries = selected_entries(
                 all_models=all_models,
-                include_optional=include_optional,
                 asr=asr,
+                asr_mlx=asr_mlx,
                 diarization=diarization,
                 alignment=alignment,
                 speaker_embedding=speaker_embedding,
@@ -1205,7 +1253,7 @@ def models_verify(
                 raise LTMError("No models selected for verification.")
             statuses = verify_entries(entries, cache_dir)
         else:
-            statuses = verify_models(cache_dir, include_optional=include_optional)
+            statuses = verify_models(cache_dir, include_optional=False)
         typer.echo(f"verified {len(statuses)} model cache entries with immutable revision linkage")
     except LTMError as exc:
         typer.echo(privacy_safe_text(str(exc)), err=True)
@@ -1215,6 +1263,7 @@ def models_verify(
 @models_app.command("review-digests")
 def models_review_digests(
     asr: Annotated[str | None, typer.Option("--asr")] = None,
+    asr_mlx: Annotated[str | None, typer.Option("--asr-mlx")] = None,
     diarization: Annotated[str | None, typer.Option("--diarization")] = None,
     alignment: Annotated[str | None, typer.Option("--alignment")] = None,
     speaker_embedding: Annotated[
@@ -1228,6 +1277,7 @@ def models_review_digests(
     try:
         entries = selected_entries(
             asr=asr,
+            asr_mlx=asr_mlx,
             diarization=diarization,
             alignment=alignment,
             speaker_embedding=speaker_embedding,
@@ -1919,9 +1969,7 @@ def batch(
     config = _config(preset)
     if model_lifecycle is not None:
         if model_lifecycle not in {"auto", "persistent", "per-job"}:
-            raise typer.BadParameter(
-                "model-lifecycle must be one of: auto, persistent, per-job"
-            )
+            raise typer.BadParameter("model-lifecycle must be one of: auto, persistent, per-job")
         config.runtime.model_lifecycle = cast(
             Literal["auto", "persistent", "per-job"],
             model_lifecycle,
@@ -2028,7 +2076,6 @@ def benchmark_corpus(
         typer.Option("--asr-backends", help="Comma-separated ASR backends."),
     ] = "faster-whisper",
     asr_mlx_model: Annotated[str | None, typer.Option("--asr-mlx-model")] = None,
-    asr_mlx_model_path: Annotated[Path | None, typer.Option("--asr-mlx-model-path")] = None,
     diarization_devices: Annotated[
         str,
         typer.Option(
@@ -2177,7 +2224,6 @@ def benchmark_corpus(
             compute_types=compute_names,
             asr_backends=asr_backend_names,
             asr_mlx_model=asr_mlx_model,
-            asr_mlx_model_path=asr_mlx_model_path,
             diarization_devices=diarization_names,
             alignment_devices=alignment_names,
             recursive=recursive,

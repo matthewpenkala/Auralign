@@ -33,9 +33,17 @@ PROJECT_LICENSE = "LicenseRef-PolyForm-Internal-Use-1.0.0"
 EXPECTED_LICENSE_FILES = {
     "compliance/THIRD_PARTY_COMPONENTS.generated.md",
     "LICENSE",
+    "LICENSES/Apache-2.0.txt",
+    "LICENSES/CC-BY-4.0.txt",
     "LICENSES/LicenseRef-PolyForm-Internal-Use-1.0.0.txt",
+    "LICENSES/MIT.txt",
     "NOTICE",
     "THIRD_PARTY_NOTICES.md",
+}
+LEGACY_NATIVE_LICENSE_FILES = EXPECTED_LICENSE_FILES - {
+    "LICENSES/Apache-2.0.txt",
+    "LICENSES/CC-BY-4.0.txt",
+    "LICENSES/MIT.txt",
 }
 NATIVE_SUFFIXES = {".a", ".dll", ".dylib", ".o", ".pyd", ".so", ".wasm"}
 PROHIBITED_PARTS = {
@@ -59,9 +67,7 @@ PROHIBITED_PARTS = {
     "profiles",
     "transcripts",
 }
-REVIEWED_SOURCE_PATH_EXCEPTIONS = {
-    PurePosixPath("macos/Auralign/Models/ReadinessProjection.swift"),
-}
+REVIEWED_SWIFT_MODELS_DIRECTORY = PurePosixPath("macos/Auralign/Models")
 PROHIBITED_SUFFIXES = {
     ".aac",
     ".aif",
@@ -305,12 +311,18 @@ def strip_sdist_root(files: Mapping[str, bytes]) -> dict[str, bytes]:
     return {name.removeprefix(f"{root}/"): data for name, data in files.items()}
 
 
+def is_reviewed_swift_models_source(path: PurePosixPath) -> bool:
+    """Return whether ``path`` is a direct Swift source in the native namespace."""
+
+    return path.parent == REVIEWED_SWIFT_MODELS_DIRECTORY and path.suffix == ".swift"
+
+
 def has_prohibited_path_component(path: PurePosixPath) -> bool:
-    """Distinguish reviewed source namespaces from private runtime storage."""
+    """Distinguish the exact Swift namespace from private runtime storage."""
 
     lowered = {part.casefold() for part in path.parts}
     return bool(lowered.intersection(PROHIBITED_PARTS)) and (
-        path not in REVIEWED_SOURCE_PATH_EXCEPTIONS
+        not is_reviewed_swift_models_source(path)
     )
 
 
@@ -342,8 +354,12 @@ def verify_no_prohibited_content(files: Mapping[str, bytes], scope: str) -> None
                 )
 
 
-def verify_legal_payload(files: Mapping[str, bytes], prefix: str = "") -> None:
-    for relative in EXPECTED_LICENSE_FILES:
+def verify_legal_payload(
+    files: Mapping[str, bytes],
+    prefix: str = "",
+    expected_files: set[str] = EXPECTED_LICENSE_FILES,
+) -> None:
+    for relative in expected_files:
         member = f"{prefix}{relative}"
         require(member in files, f"missing legal payload: {member}")
         require(files[member] == (ROOT / relative).read_bytes(), f"changed legal payload: {member}")
@@ -413,7 +429,11 @@ def verify_native_bundle(
     for name, data in expected.items():
         require(files[name] == data, f"{archive.name} changed bundled file: {name}")
     verify_no_prohibited_content(files, archive.name)
-    verify_legal_payload(files, f"{root_name}/")
+    verify_legal_payload(
+        files,
+        f"{root_name}/",
+        LEGACY_NATIVE_LICENSE_FILES,
+    )
 
 
 def verify_sbom_bundle(archive: Path, expected_names: set[str], *, commit: str) -> None:

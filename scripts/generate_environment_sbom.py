@@ -29,10 +29,17 @@ PLATFORM_CONTRACTS = {
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
+def _no_bytecode_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    return environment
+
+
 def target_runtime(python: Path) -> dict[str, str]:
     completed = subprocess.run(
         [
             str(python),
+            "-B",
             "-c",
             "import json, platform, sys; "
             "print(json.dumps({'machine': platform.machine().lower(), "
@@ -40,6 +47,7 @@ def target_runtime(python: Path) -> dict[str, str]:
         ],
         check=True,
         capture_output=True,
+        env=_no_bytecode_environment(),
         text=True,
     )
     payload = json.loads(completed.stdout)
@@ -132,6 +140,7 @@ def generate(*, python: Path, platform_name: str, profile: str, commit: str, out
         subprocess.run(
             [
                 sys.executable,
+                "-B",
                 "-m",
                 "cyclonedx_py",
                 "environment",
@@ -145,6 +154,7 @@ def generate(*, python: Path, platform_name: str, profile: str, commit: str, out
                 str(raw),
             ],
             check=True,
+            env=_no_bytecode_environment(),
         )
         payload = json.loads(raw.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):

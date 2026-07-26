@@ -834,12 +834,35 @@
       ],
       "any_required_files": [],
       "attribution": "SYSTRAN faster-whisper conversion of OpenAI Whisper large-v3.",
+      "backend_compatibility": "faster-whisper CTranslate2 CPU runtime",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "Systran--faster-whisper-large-v3",
+      "expected_sha256": {
+        "config.json": "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9",
+        "model.bin": "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1",
+        "preprocessor_config.json": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+        "tokenizer.json": "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca",
+        "vocabulary.json": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+      },
+      "expected_size": {
+        "config.json": 2394,
+        "model.bin": 3087284237,
+        "preprocessor_config.json": 340,
+        "tokenizer.json": 2480617,
+        "vocabulary.json": 1068114
+      },
       "gated": false,
       "key": "large-v3",
       "license_expression": "MIT",
       "model_id": "Systran/faster-whisper-large-v3",
+      "modification_status": "unmodified exact pinned runtime files",
       "optional": false,
+      "package_bundle_id": "com.auralign.studio.modelpack.large-v3.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/Systran--faster-whisper-large-v3",
+      "product_classification": "production",
+      "product_selectable": true,
       "pullable": true,
       "redistribution_status": "permitted_with_license_terms",
       "required_files": [
@@ -865,506 +888,736 @@
       "terms_url": "https://huggingface.co/Systran/faster-whisper-large-v3"
     },
     {
-      "acquisition_status": "approved",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "large-v3-turbo",
-        "dropbox-dash/faster-whisper-large-v3-turbo"
+        "mobiuslabsgmbh/faster-whisper-large-v3-turbo"
       ],
       "any_required_files": [],
-      "attribution": "Mobius Labs faster-whisper conversion; upstream Whisper terms also apply.",
-      "directory_name": "mobiuslabsgmbh--faster-whisper-large-v3-turbo",
+      "attribution": "Dropbox Dash faster-whisper conversion of OpenAI Whisper large-v3-turbo.",
+      "backend_compatibility": "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; multilingual; real local int8_float32 inference passed",
+      "blocker": null,
+      "delivery": "native-download",
+      "directory_name": "dropbox-dash--faster-whisper-large-v3-turbo",
+      "expected_sha256": {
+        "config.json": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+        "model.bin": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+        "preprocessor_config.json": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+        "tokenizer.json": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+        "vocabulary.json": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+      },
+      "expected_size": {
+        "config.json": 2263,
+        "model.bin": 1617884929,
+        "preprocessor_config.json": 340,
+        "tokenizer.json": 2710337,
+        "vocabulary.json": 1068114
+      },
       "gated": false,
       "key": "turbo",
       "license_expression": "MIT",
-      "model_id": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+      "model_id": "dropbox-dash/faster-whisper-large-v3-turbo",
+      "modification_status": "unmodified exact pinned runtime files",
       "optional": true,
+      "package_bundle_id": "com.auralign.studio.modelpack.turbo.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/dropbox-dash--faster-whisper-large-v3-turbo",
+      "product_classification": "production",
+      "product_selectable": true,
       "pullable": true,
       "redistribution_status": "permitted_with_license_terms",
       "required_files": [
         "model.bin",
         "config.json",
         "tokenizer.json",
-        "preprocessor_config.json"
+        "preprocessor_config.json",
+        "vocabulary.json"
       ],
-      "review_status": "verified",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_and_inference",
+      "reviewed_at": "2026-07-25",
       "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
       "role": "asr",
       "runtime_files": [
         "model.bin",
         "config.json",
         "tokenizer.json",
-        "preprocessor_config.json"
+        "preprocessor_config.json",
+        "vocabulary.json"
       ],
-      "runtime_status": "approved_local",
-      "source_url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo",
-      "terms_url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo",
+      "terms_url": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo"
     },
     {
-      "acquisition_status": "approved",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [],
       "any_required_files": [],
       "attribution": "SYSTRAN CTranslate2 conversion of Distil-Whisper.",
+      "backend_compatibility": "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; English-only; real local int8_float32 inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "Systran--faster-distil-whisper-large-v3",
+      "expected_sha256": {
+        "config.json": "90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21",
+        "model.bin": "b79368e19b6623813609431a6e5ee309a71506701ebc49fd7820e692dec7c5f5",
+        "preprocessor_config.json": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+        "tokenizer.json": "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca",
+        "vocabulary.json": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+      },
+      "expected_size": {
+        "config.json": 2690,
+        "model.bin": 1512927867,
+        "preprocessor_config.json": 340,
+        "tokenizer.json": 2480617,
+        "vocabulary.json": 1068114
+      },
       "gated": false,
       "key": "distil-large-v3",
       "license_expression": "MIT",
       "model_id": "Systran/faster-distil-whisper-large-v3",
+      "modification_status": "unmodified exact pinned runtime files",
       "optional": true,
+      "package_bundle_id": "com.auralign.studio.modelpack.distil-large-v3.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/Systran--faster-distil-whisper-large-v3",
+      "product_classification": "optional",
+      "product_selectable": true,
       "pullable": true,
       "redistribution_status": "permitted_with_license_terms",
       "required_files": [
         "model.bin",
         "config.json",
         "tokenizer.json",
-        "preprocessor_config.json"
+        "preprocessor_config.json",
+        "vocabulary.json"
       ],
-      "review_status": "verified",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_and_inference",
+      "reviewed_at": "2026-07-25",
       "revision": "c3058b475261292e64a0412df1d2681c06260fab",
       "role": "asr",
       "runtime_files": [
         "model.bin",
         "config.json",
         "tokenizer.json",
-        "preprocessor_config.json"
+        "preprocessor_config.json",
+        "vocabulary.json"
       ],
-      "runtime_status": "approved_local",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3",
       "terms_url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3"
     },
     {
-      "acquisition_status": "approved",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [],
       "any_required_files": [],
       "attribution": "Distil-Whisper CTranslate2 conversion.",
+      "backend_compatibility": "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; English-only; real local int8_float32 inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "distil-whisper--distil-large-v3.5-ct2",
+      "expected_sha256": {
+        "config.json": "90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21",
+        "model.bin": "c58b88b8585ffcd2135fddaaf421ce72cb223b32edea70d156aed1dea319a119",
+        "preprocessor_config.json": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+        "tokenizer.json": "b3c8202bbf06d8ee4232c5984baa563784ac4737e2e7fdc42fa180200d3cfcdb",
+        "vocabulary.json": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+      },
+      "expected_size": {
+        "config.json": 2690,
+        "model.bin": 1512927867,
+        "preprocessor_config.json": 340,
+        "tokenizer.json": 2480645,
+        "vocabulary.json": 1068114
+      },
       "gated": false,
       "key": "distil-large-v3.5",
       "license_expression": "MIT",
       "model_id": "distil-whisper/distil-large-v3.5-ct2",
+      "modification_status": "unmodified exact pinned runtime files",
       "optional": true,
+      "package_bundle_id": "com.auralign.studio.modelpack.distil-large-v3-5.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/distil-whisper--distil-large-v3.5-ct2",
+      "product_classification": "production",
+      "product_selectable": true,
       "pullable": true,
       "redistribution_status": "permitted_with_license_terms",
       "required_files": [
         "model.bin",
         "config.json",
         "tokenizer.json",
-        "preprocessor_config.json"
+        "preprocessor_config.json",
+        "vocabulary.json"
       ],
-      "review_status": "verified",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_and_inference",
+      "reviewed_at": "2026-07-25",
       "revision": "9793ccc07920e0f830e1dba0343efcdf0ef8c903",
       "role": "asr",
       "runtime_files": [
         "model.bin",
         "config.json",
         "tokenizer.json",
-        "preprocessor_config.json"
+        "preprocessor_config.json",
+        "vocabulary.json"
       ],
-      "runtime_status": "approved_local",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2",
       "terms_url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "tiny",
         "whisper-tiny-mlx",
         "mlx-community/whisper-tiny-mlx"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "mlx-community--whisper-tiny-mlx",
+      "expected_sha256": {
+        "config.json": "aaff20ce8f69beddee3fe0cc1e08f4e92f58586cb9f12ba00a6f73cbfec1cb1c",
+        "weights.npz": "0e03a5993d6eea43b07ee2dcc772b0e4cef5bb227257dacc24bf289387d49186"
+      },
+      "expected_size": {
+        "config.json": 262,
+        "weights.npz": 74418540
+      },
       "gated": false,
       "key": "mlx-tiny",
-      "license_expression": "NOASSERTION",
+      "license_expression": "MIT",
       "model_id": "mlx-community/whisper-tiny-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "blocked",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-tiny.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-tiny-mlx",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.npz"
       ],
-      "review_status": "blocked_missing_publisher_license",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
       "revision": "6caf9c55601caafbe6508a8b0d216bdf4783c4e8",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
         "weights.npz"
       ],
-      "runtime_status": "local_evaluation_only",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/mlx-community/whisper-tiny-mlx",
       "terms_url": "https://huggingface.co/mlx-community/whisper-tiny-mlx"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "tiny.en",
         "whisper-tiny.en-mlx",
         "mlx-community/whisper-tiny.en-mlx"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "mlx-community--whisper-tiny.en-mlx",
+      "expected_sha256": {
+        "config.json": "452e616242261333a661bc86db762b3720d6cc7e2eccd3d8e19a631871c26dd9",
+        "weights.npz": "4627203f0807d6496dda0d200e893b04ff24c98e73aa51c485c06203a0330b17"
+      },
+      "expected_size": {
+        "config.json": 262,
+        "weights.npz": 74417804
+      },
       "gated": false,
       "key": "mlx-tiny.en",
-      "license_expression": "NOASSERTION",
+      "license_expression": "MIT",
       "model_id": "mlx-community/whisper-tiny.en-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "blocked",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-tiny-en.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-tiny.en-mlx",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.npz"
       ],
-      "review_status": "blocked_missing_publisher_license",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
       "revision": "5f4dafbb28e62a53c1b10426ff7eed36ca733bf7",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
         "weights.npz"
       ],
-      "runtime_status": "local_evaluation_only",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/mlx-community/whisper-tiny.en-mlx",
       "terms_url": "https://huggingface.co/mlx-community/whisper-tiny.en-mlx"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "base",
         "whisper-base-mlx",
         "mlx-community/whisper-base-mlx"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "mlx-community--whisper-base-mlx",
+      "expected_sha256": {
+        "config.json": "737220a6d958b3ad48e78f840fa991556266983c84ea2ca40e413389c62e4c2f",
+        "weights.npz": "2f57d5f3ef473054c638961f90716f4ee415e8108de81313eccb2c5fd62eff0b"
+      },
+      "expected_size": {
+        "config.json": 262,
+        "weights.npz": 143724204
+      },
       "gated": false,
       "key": "mlx-base",
-      "license_expression": "NOASSERTION",
+      "license_expression": "MIT",
       "model_id": "mlx-community/whisper-base-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "blocked",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-base.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-base-mlx",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.npz"
       ],
-      "review_status": "blocked_missing_publisher_license",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
       "revision": "1e3e249fb8d01c655324bd6841b1deadffd6d04c",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
         "weights.npz"
       ],
-      "runtime_status": "local_evaluation_only",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/mlx-community/whisper-base-mlx",
       "terms_url": "https://huggingface.co/mlx-community/whisper-base-mlx"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "base.en",
         "whisper-base.en-mlx",
         "mlx-community/whisper-base.en-mlx"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "mlx-community--whisper-base.en-mlx",
+      "expected_sha256": {
+        "config.json": "b0f55e86f8092c1188306dc346742253f759aecea0da7b00ae526e566fd53b14",
+        "weights.npz": "b6c8ee500656e04e8e57c2949a5253f0dda002ba36cd1561846574dbcf01132e"
+      },
+      "expected_size": {
+        "config.json": 262,
+        "weights.npz": 143723132
+      },
       "gated": false,
       "key": "mlx-base.en",
-      "license_expression": "NOASSERTION",
+      "license_expression": "MIT",
       "model_id": "mlx-community/whisper-base.en-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "blocked",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-base-en.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-base.en-mlx",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.npz"
       ],
-      "review_status": "blocked_missing_publisher_license",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
       "revision": "aa0678c3466ed62c5c6114ec600a0e1f96820089",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
         "weights.npz"
       ],
-      "runtime_status": "local_evaluation_only",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/mlx-community/whisper-base.en-mlx",
       "terms_url": "https://huggingface.co/mlx-community/whisper-base.en-mlx"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "small",
         "whisper-small-mlx",
         "mlx-community/whisper-small-mlx"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "mlx-community--whisper-small-mlx",
+      "expected_sha256": {
+        "config.json": "e8f58e638208af66d5d5d67801259dc7a12d199e971967a9f9d33a8e3635668e",
+        "weights.npz": "55b6674c9b339702d486e2b1573839a66f8ec8f821ed2886993ef717a86b09f5"
+      },
+      "expected_size": {
+        "config.json": 266,
+        "weights.npz": 481307592
+      },
       "gated": false,
       "key": "mlx-small",
-      "license_expression": "NOASSERTION",
+      "license_expression": "MIT",
       "model_id": "mlx-community/whisper-small-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "blocked",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-small.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-small-mlx",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.npz"
       ],
-      "review_status": "blocked_missing_publisher_license",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
       "revision": "45f3915923c7a79a5a5b5a7d909d39aeb0e5630e",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
         "weights.npz"
       ],
-      "runtime_status": "local_evaluation_only",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/mlx-community/whisper-small-mlx",
       "terms_url": "https://huggingface.co/mlx-community/whisper-small-mlx"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "small.en",
         "whisper-small.en-mlx",
         "mlx-community/whisper-small.en-mlx"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "mlx-community--whisper-small.en-mlx",
+      "expected_sha256": {
+        "config.json": "40028e43687458e79ba89cc16bf14184c5414a5cbc00fd511f8f78d138647afd",
+        "weights.npz": "1bb29b030aca711a035f7a084a0eefac6251ecc2bdd356fa748858fbad082f5a"
+      },
+      "expected_size": {
+        "config.json": 266,
+        "weights.npz": 481306200
+      },
       "gated": false,
       "key": "mlx-small.en",
-      "license_expression": "NOASSERTION",
+      "license_expression": "MIT",
       "model_id": "mlx-community/whisper-small.en-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "blocked",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-small-en.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-small.en-mlx",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.npz"
       ],
-      "review_status": "blocked_missing_publisher_license",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
       "revision": "52a88bf6e98b114a210c21bb83e22d6e1505cb73",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
         "weights.npz"
       ],
-      "runtime_status": "local_evaluation_only",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/mlx-community/whisper-small.en-mlx",
       "terms_url": "https://huggingface.co/mlx-community/whisper-small.en-mlx"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "medium",
         "whisper-medium-mlx",
         "mlx-community/whisper-medium-mlx"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "mlx-community--whisper-medium-mlx",
+      "expected_sha256": {
+        "config.json": "3ff0b3f17a5a3a614327ffd835a3c8f6c78f39cbd39e84dbff4b0ae267c4d2e4",
+        "weights.npz": "10b597c2bcb1bcc38b2d3d24cd4f0885f461a7cd70e8444d6ad5a763ece549ea"
+      },
+      "expected_size": {
+        "config.json": 268,
+        "weights.npz": 1524924912
+      },
       "gated": false,
       "key": "mlx-medium",
-      "license_expression": "NOASSERTION",
+      "license_expression": "MIT",
       "model_id": "mlx-community/whisper-medium-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "blocked",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-medium.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-medium-mlx",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.npz"
       ],
-      "review_status": "blocked_missing_publisher_license",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
       "revision": "7fc08c4eac4c316526498f147dfdee6f6303f975",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
         "weights.npz"
       ],
-      "runtime_status": "local_evaluation_only",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/mlx-community/whisper-medium-mlx",
       "terms_url": "https://huggingface.co/mlx-community/whisper-medium-mlx"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "medium.en",
         "whisper-medium.en-mlx",
         "mlx-community/whisper-medium.en-mlx"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "mlx-community--whisper-medium.en-mlx",
+      "expected_sha256": {
+        "config.json": "20f1b6b70cab52e6669c2a095fd3bcc16aa25c7e367d29060f876d4728832b45",
+        "weights.npz": "66cda8c3df03af0b922764620d46734240ab82c54348c5848238c8604bdadbdb"
+      },
+      "expected_size": {
+        "config.json": 268,
+        "weights.npz": 1524923056
+      },
       "gated": false,
       "key": "mlx-medium.en",
-      "license_expression": "NOASSERTION",
+      "license_expression": "MIT",
       "model_id": "mlx-community/whisper-medium.en-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "blocked",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-medium-en.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-medium.en-mlx",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.npz"
       ],
-      "review_status": "blocked_missing_publisher_license",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
       "revision": "8d0335069b551e8586b8a4680674403d9417dfe4",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
         "weights.npz"
       ],
-      "runtime_status": "local_evaluation_only",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/mlx-community/whisper-medium.en-mlx",
       "terms_url": "https://huggingface.co/mlx-community/whisper-medium.en-mlx"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "large",
         "large-v1",
         "whisper-large-mlx",
+        "whisper-large-v1-mlx",
         "mlx-community/whisper-large-mlx"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
-      "directory_name": "mlx-community--whisper-large-mlx",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
+      "directory_name": "mlx-community--whisper-large-v1-mlx",
+      "expected_sha256": {
+        "config.json": "77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b",
+        "weights.npz": "56824c4ff897d62ba53a84a1738b0b33b237970a7451d5f933de5f2aef5140cf"
+      },
+      "expected_size": {
+        "config.json": 268,
+        "weights.npz": 3083149200
+      },
       "gated": false,
       "key": "mlx-large",
-      "license_expression": "NOASSERTION",
-      "model_id": "mlx-community/whisper-large-mlx",
+      "license_expression": "MIT",
+      "model_id": "mlx-community/whisper-large-v1-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "blocked",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-large.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-large-v1-mlx",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.npz"
       ],
-      "review_status": "blocked_missing_publisher_license",
-      "reviewed_at": "2026-07-10",
-      "revision": "9310354911111f2406ead1478e0139d9c6ea3acc",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "e2cb9fbf9c7aefad760be1dc9b48c075b21288c8",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
         "weights.npz"
       ],
-      "runtime_status": "local_evaluation_only",
-      "source_url": "https://huggingface.co/mlx-community/whisper-large-mlx",
-      "terms_url": "https://huggingface.co/mlx-community/whisper-large-mlx"
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-large-v1-mlx",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-large-v1-mlx"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "large-v2",
         "whisper-large-v2-mlx",
         "mlx-community/whisper-large-v2-mlx"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "mlx-community--whisper-large-v2-mlx",
+      "expected_sha256": {
+        "config.json": "77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b",
+        "weights.npz": "c9888a2d03b4e9906c2864151f56dc21e58d617938da0eb818152e3f99adc3f1"
+      },
+      "expected_size": {
+        "config.json": 268,
+        "weights.npz": 3083149424
+      },
       "gated": false,
       "key": "mlx-large-v2",
-      "license_expression": "NOASSERTION",
+      "license_expression": "MIT",
       "model_id": "mlx-community/whisper-large-v2-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "blocked",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-large-v2.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-large-v2-mlx",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.npz"
       ],
-      "review_status": "blocked_missing_publisher_license",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
       "revision": "cce86229e2765266197fef869ce9f7e2550067ab",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
         "weights.npz"
       ],
-      "runtime_status": "local_evaluation_only",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/mlx-community/whisper-large-v2-mlx",
       "terms_url": "https://huggingface.co/mlx-community/whisper-large-v2-mlx"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "large-v3",
         "whisper-large-v3-mlx",
         "mlx-community/whisper-large-v3-mlx"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "mlx-community--whisper-large-v3-mlx",
+      "expected_sha256": {
+        "config.json": "34982ce6ae286095000f82ae9583b3431639e8b092bf60c961f203745e6500e3",
+        "weights.npz": "05ff791ce3630fae47e7c51004e9666204d786246ec07cac6110af768099b40d"
+      },
+      "expected_size": {
+        "config.json": 269,
+        "weights.npz": 3083520416
+      },
       "gated": false,
       "key": "mlx-large-v3",
       "license_expression": "MIT",
       "model_id": "mlx-community/whisper-large-v3-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "permitted_with_license_terms",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-large-v3.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-large-v3-mlx",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.npz"
       ],
-      "review_status": "verified",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
       "revision": "49e6aa286ad60c14352c404340ded53710378a11",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
         "weights.npz"
       ],
-      "runtime_status": "approved_local",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/mlx-community/whisper-large-v3-mlx",
       "terms_url": "https://huggingface.co/mlx-community/whisper-large-v3-mlx"
     },
     {
-      "acquisition_status": "manual_only",
+      "acquisition_status": "approved_exact_pinned_files",
       "aliases": [
         "mlx-turbo",
         "large-v3-turbo-mlx",
@@ -1372,32 +1625,46 @@
         "turbo",
         "mlx-community/whisper-large-v3-turbo"
       ],
-      "any_required_files": [
-        "weights.safetensors",
-        "weights.npz"
-      ],
-      "attribution": "MLX Community model conversion; upstream model terms also apply.",
+      "any_required_files": [],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "blocker": null,
+      "delivery": "native-download",
       "directory_name": "mlx-community--whisper-large-v3-turbo",
+      "expected_sha256": {
+        "config.json": "b34fc29e4e11e0a25e812775dd67f4dd16fc2c8eb43d28ae25ff7d660ecb6379",
+        "weights.safetensors": "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6"
+      },
+      "expected_size": {
+        "config.json": 268,
+        "weights.safetensors": 1613977612
+      },
       "gated": false,
       "key": "mlx-large-v3-turbo",
-      "license_expression": "NOASSERTION",
+      "license_expression": "MIT",
       "model_id": "mlx-community/whisper-large-v3-turbo",
+      "modification_status": "unmodified exact pinned conversion files",
       "optional": true,
-      "pullable": false,
-      "redistribution_status": "blocked",
+      "package_bundle_id": "com.auralign.studio.modelpack.mlx-large-v3-turbo.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/mlx-community--whisper-large-v3-turbo",
+      "product_classification": "optional",
+      "product_selectable": true,
+      "pullable": true,
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
       "required_files": [
-        "config.json"
+        "config.json",
+        "weights.safetensors"
       ],
-      "review_status": "blocked_missing_publisher_license",
-      "reviewed_at": "2026-07-10",
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
       "revision": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
       "role": "asr-mlx",
       "runtime_files": [
         "config.json",
-        "weights.safetensors",
-        "weights.npz"
+        "weights.safetensors"
       ],
-      "runtime_status": "local_evaluation_only",
+      "runtime_status": "approved_local_real_inference",
       "source_url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo",
       "terms_url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo"
     },
@@ -1408,12 +1675,35 @@
       ],
       "any_required_files": [],
       "attribution": "pyannote speaker-diarization-community-1; attribution and gated terms apply.",
+      "backend_compatibility": "pyannote.audio CPU diarization runtime",
+      "blocker": null,
+      "delivery": "system-component",
       "directory_name": "pyannote--speaker-diarization-community-1",
+      "expected_sha256": {
+        "config.yaml": "5ce2bfa9a938dc132cec1172592d65173cbb8f444ea1e4133f10f9391de155be",
+        "embedding/pytorch_model.bin": "6f10ff60898a1d185fa22e1d11e0bfa8a92efec811f11bca48cb8cafebefd929",
+        "plda/plda.npz": "9b77bcd840692710dd3496f62ecfeed8d8e5f002fd991b785079b244eab7d255",
+        "plda/xvec_transform.npz": "325f1ce8e48f7e55e9c8aa47e05d2766b7c48c4b25b8de8dd751e7a4cc5fbe8f",
+        "segmentation/pytorch_model.bin": "7ad24338d844fb95985486eb1a464e32d229f6d7a03c9abe60f978bacf3f816e"
+      },
+      "expected_size": {
+        "config.yaml": 444,
+        "embedding/pytorch_model.bin": 26646242,
+        "plda/plda.npz": 133852,
+        "plda/xvec_transform.npz": 134376,
+        "segmentation/pytorch_model.bin": 5906507
+      },
       "gated": true,
       "key": "community-1",
       "license_expression": "CC-BY-4.0",
       "model_id": "pyannote/speaker-diarization-community-1",
+      "modification_status": "unmodified exact pinned runtime files",
       "optional": false,
+      "package_bundle_id": "com.auralign.studio.models.bootstrap.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/pyannote--speaker-diarization-community-1",
+      "product_classification": "production",
+      "product_selectable": true,
       "pullable": true,
       "redistribution_status": "permitted_with_attribution_and_gated_terms",
       "required_files": [
@@ -1446,12 +1736,35 @@
       ],
       "any_required_files": [],
       "attribution": "Meta wav2vec2-base-960h.",
+      "backend_compatibility": "WhisperX wav2vec2 forced-alignment CPU runtime",
+      "blocker": null,
+      "delivery": "system-component",
       "directory_name": "facebook--wav2vec2-base-960h",
+      "expected_sha256": {
+        "config.json": "d3ec255c063d9f95057b553b19c20135b259875834a4fe9deb218a6be25b4cf3",
+        "model.safetensors": "8aa76ab2243c81747a1f832954586bc566090c83a0ac167df6f31f0fa917d74a",
+        "preprocessor_config.json": "b225d617c025463b9e157e06afea8b90dc7078fc70b013c533328423e0486b4a",
+        "tokenizer_config.json": "dc790594f5bc351a4311c6624f40acd95850d4aaf2a5cb3c656c9b610720b608",
+        "vocab.json": "19727f8944fe6459fc3f240ae2c198395b740f6a029bd23e06656266b83bcf64"
+      },
+      "expected_size": {
+        "config.json": 1596,
+        "model.safetensors": 377607901,
+        "preprocessor_config.json": 159,
+        "tokenizer_config.json": 163,
+        "vocab.json": 291
+      },
       "gated": false,
       "key": "en",
       "license_expression": "Apache-2.0",
       "model_id": "facebook/wav2vec2-base-960h",
+      "modification_status": "unmodified exact pinned runtime files",
       "optional": true,
+      "package_bundle_id": "com.auralign.studio.models.bootstrap.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/facebook--wav2vec2-base-960h",
+      "product_classification": "production",
+      "product_selectable": true,
       "pullable": true,
       "redistribution_status": "permitted_with_license_terms",
       "required_files": [
@@ -1483,12 +1796,37 @@
       ],
       "any_required_files": [],
       "attribution": "SpeechBrain ECAPA-TDNN model; upstream VoxCeleb data caveats apply.",
+      "backend_compatibility": "SpeechBrain ECAPA-TDNN CPU runtime",
+      "blocker": null,
+      "delivery": "system-component",
       "directory_name": "speechbrain--spkrec-ecapa-voxceleb",
+      "expected_sha256": {
+        "classifier.ckpt": "fd9e3634fe68bd0a427c95e354c0c677374f62b3f434e45b78599950d860d535",
+        "config.json": "15ff7afad09adec0936c31493a7397c13f855914f4579a8393fe82649778a664",
+        "embedding_model.ckpt": "0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2",
+        "hyperparams.yaml": "6f78854fa04ba59e761437b76a2575d3aba5e5016de3e9b69f0c9a5077fb1a41",
+        "label_encoder.txt": "e13c3a167bb4112685670ee896d20e2b565af16b3a4ceeaa8689fa4d22adb8b9",
+        "mean_var_norm_emb.ckpt": "cd70225b05b37be64fc5a95e24395d804231d43f74b2e1e5a513db7b69b34c33"
+      },
+      "expected_size": {
+        "classifier.ckpt": 5534328,
+        "config.json": 51,
+        "embedding_model.ckpt": 83316686,
+        "hyperparams.yaml": 1919,
+        "label_encoder.txt": 128619,
+        "mean_var_norm_emb.ckpt": 1921
+      },
       "gated": false,
       "key": "ecapa",
       "license_expression": "Apache-2.0",
       "model_id": "speechbrain/spkrec-ecapa-voxceleb",
+      "modification_status": "unmodified exact pinned runtime files",
       "optional": true,
+      "package_bundle_id": "com.auralign.studio.models.bootstrap.v1",
+      "package_bundle_version": "1.0.0",
+      "package_relative_path": "models/speechbrain--spkrec-ecapa-voxceleb",
+      "product_classification": "production",
+      "product_selectable": true,
       "pullable": true,
       "redistribution_status": "permitted_with_license_terms",
       "required_files": [

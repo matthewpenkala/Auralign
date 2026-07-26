@@ -13,4 +13,6 @@ diarization:
   model: community-1
   enabled: true
 alignment:
-  backend: fallback
+  backend: auto
+  model: en
+  enabled: true

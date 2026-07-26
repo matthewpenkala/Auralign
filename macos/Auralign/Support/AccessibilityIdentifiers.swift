@@ -20,6 +20,12 @@ enum AccessibilityIdentifier {
     static let readinessReturn = "readiness.return-to-summary"
     static let readinessInspector = "readiness.inspector"
     static let readinessPassedDisclosure = "readiness.passed-disclosure"
+    static let modelSetupRoot = "model-setup.root"
+    static let modelSetupOpen = "model-setup.open"
+    static let modelSetupSummary = "model-setup.summary"
+    static let modelSetupInstallRequired = "model-setup.install-required"
+    static let modelSetupComplete = "model-setup.complete"
+    static let modelSetupPrivacy = "model-setup.privacy"
     static let mediaDropZone = "source.media.drop-zone"
     static let mediaChoose = "source.media.choose"
     static let mediaSummary = "source.media.summary"
@@ -108,6 +114,38 @@ enum AccessibilityIdentifier {
         "readiness.check.\(index)"
     }
 
+    static func modelSetupPack(_ identifier: String) -> String {
+        "model-setup.pack.\(stableComponent(identifier))"
+    }
+
+    static func modelSetupProgress(_ identifier: String) -> String {
+        "\(modelSetupPack(identifier)).progress"
+    }
+
+    static func modelSetupInstall(_ identifier: String) -> String {
+        "\(modelSetupPack(identifier)).install"
+    }
+
+    static func modelSetupPause(_ identifier: String) -> String {
+        "\(modelSetupPack(identifier)).pause"
+    }
+
+    static func modelSetupResume(_ identifier: String) -> String {
+        "\(modelSetupPack(identifier)).resume"
+    }
+
+    static func modelSetupCancel(_ identifier: String) -> String {
+        "\(modelSetupPack(identifier)).cancel"
+    }
+
+    static func modelSetupRetry(_ identifier: String) -> String {
+        "\(modelSetupPack(identifier)).retry"
+    }
+
+    static func modelSetupSource(_ identifier: String) -> String {
+        "\(modelSetupPack(identifier)).source"
+    }
+
     static func artifact(index: Int) -> String {
         "results.artifact.\(index)"
     }
@@ -126,5 +164,13 @@ enum AccessibilityIdentifier {
 
     static func runPlanStage(_ stageID: String) -> String {
         "job.run-plan.stage.\(stageID)"
+    }
+
+    private static func stableComponent(_ value: String) -> String {
+        value.unicodeScalars.map { scalar in
+            CharacterSet.alphanumerics.contains(scalar)
+                ? String(scalar)
+                : "-"
+        }.joined()
     }
 }

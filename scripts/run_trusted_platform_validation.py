@@ -30,8 +30,14 @@ from local_transcript_max.speaker_id.matching import cosine_similarity
 
 
 def checked(label: str, command: list[str], *, environment: dict[str, str]) -> None:
+    child_environment = environment.copy()
+    child_environment["PYTHONDONTWRITEBYTECODE"] = "1"
     completed = subprocess.run(
-        command, text=True, capture_output=True, env=environment, check=False
+        command,
+        text=True,
+        capture_output=True,
+        env=child_environment,
+        check=False,
     )
     if completed.returncode != 0:
         raise RuntimeError(f"{label} failed with exit code {completed.returncode}")
@@ -99,7 +105,11 @@ assert f"sm_{major}{minor}" in torch.cuda.get_arch_list()
 assert (torch.ones(1, device="cuda") + 1).item() == 2
 assert ctranslate2.get_supported_compute_types("cuda")
 """
-    checked("CUDA 12.8 native probe", [sys.executable, "-c", code], environment=environment)
+    checked(
+        "CUDA 12.8 native probe",
+        [sys.executable, "-B", "-c", code],
+        environment=environment,
+    )
 
 
 def _expected_device(profile: str) -> str:
@@ -283,6 +293,7 @@ def main() -> int:
         raise RuntimeError("trusted validation work directory must not preexist")
     work = ensure_private_directory(work)
     environment = os.environ.copy()
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
     for name in ("HF_TOKEN", "LTM_HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
         environment.pop(name, None)
     environment.update(

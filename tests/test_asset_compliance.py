@@ -45,8 +45,11 @@ def test_external_asset_registry_is_complete_and_policy_fields_are_present() -> 
 
     assert set(records) == expected
     required = set(policy["requirements"]["required_registry_fields"])
+    required_model_release = set(policy["requirements"]["required_model_release_fields"])
     for record in records.values():
         assert required <= record.keys()
+        if record["kind"] == "model":
+            assert required_model_release <= record.keys()
         assert IMMUTABLE_REVISION.fullmatch(str(record["revision"]))
         assert str(record["source_url"]).startswith("https://")
         assert str(record["terms_url"]).startswith("https://")
@@ -68,6 +71,46 @@ def test_runtime_model_manifest_matches_external_asset_registry() -> None:
         assert record["redistribution_status"] == entry.redistribution_status
         assert record["review_status"] == entry.review_status
         assert record["reviewed_at"] == entry.reviewed_at
+        assert record["product_classification"] == entry.product_classification
+        assert record["backend_compatibility"] == entry.backend_compatibility
+        assert record["modification_status"] == entry.modification_status
+        assert record["package_bundle_id"] == entry.package_bundle_id
+        assert record["package_bundle_version"] == entry.package_bundle_version
+        assert record["package_relative_path"] == entry.package_relative_path
+        assert record["delivery"] == entry.delivery
+        assert entry.production_selectable
+
+
+def _contract(record: dict[str, Any], field: str, *, integer: bool) -> dict[str, str | int]:
+    result: dict[str, str | int] = {}
+    for item in record[field]:
+        relative, raw_value = str(item).split("=", 1)
+        assert relative not in result
+        result[relative] = int(raw_value) if integer else raw_value
+    return result
+
+
+def test_model_registry_binds_complete_delivery_and_file_contracts() -> None:
+    records = registry()
+    assert len(MODEL_MANIFEST) == 19
+    for key, entry in MODEL_MANIFEST.items():
+        record = records[("model", key)]
+        assert _contract(record, "macos_0_3_0_file_sha256", integer=False) == (
+            entry.expected_digest_map
+        )
+        assert _contract(record, "macos_0_3_0_file_size", integer=True) == (
+            entry.expected_size_map
+        )
+        assert set(entry.runtime_files) == set(entry.expected_digest_map)
+        assert set(entry.runtime_files) == set(entry.expected_size_map)
+        assert record["macos_0_3_0_owner_decision"].startswith(
+            "Matthew Penkala, 2026-07-25"
+        )
+        expected_status = {
+            "system-component": "bundled_bootstrap_component",
+            "native-download": "native_download_pack",
+        }[entry.delivery]
+        assert record["macos_0_3_0_product_status"] == expected_status
 
 
 def test_runtime_dataset_manifest_matches_external_asset_registry() -> None:
@@ -93,10 +136,10 @@ def test_unverified_assets_fail_closed_without_overrides() -> None:
     for (kind, _key), record in records.items():
         if record["license_expression"] != "NOASSERTION":
             continue
-        assert record["redistribution_status"] == "blocked"
-        assert record["acquisition_status"] in {"blocked", "manual_only"}
+        assert str(record["redistribution_status"]).startswith("blocked")
+        assert str(record["acquisition_status"]).startswith(("blocked", "manual_only"))
         if kind == "model":
-            assert record["runtime_status"] == "local_evaluation_only"
+            assert str(record["runtime_status"]).startswith("blocked")
 
 
 def test_sensitive_dataset_policy_blocks_dummy_acquisition_and_voxceleb_mirroring(
@@ -124,15 +167,16 @@ def test_model_revision_override_cannot_bypass_approved_pin(tmp_path: Path) -> N
 
 def test_audit_payloads_expose_compliance_decisions(tmp_path: Path) -> None:
     model_records = {row["key"]: row for row in audit_payload(tmp_path)["models"]}
-    dataset_records = {
-        row["key"]: row for row in dataset_audit_payload(tmp_path)["datasets"]
-    }
+    dataset_records = {row["key"]: row for row in dataset_audit_payload(tmp_path)["datasets"]}
 
     assert model_records["large-v3"]["revision"] == MODEL_MANIFEST["large-v3"].revision
     assert model_records["large-v3"]["acquisition_status"] == "approved"
     assert model_records["large-v3"]["runtime_status"] == "approved_local"
-    assert model_records["mlx-large-v3-turbo"]["license_expression"] == "NOASSERTION"
-    assert model_records["mlx-large-v3-turbo"]["redistribution_status"] == "blocked"
+    assert model_records["mlx-large-v3-turbo"]["license_expression"] == "MIT"
+    assert model_records["mlx-large-v3-turbo"]["redistribution_status"].startswith(
+        "permitted_"
+    )
+    assert model_records["mlx-large-v3-turbo"]["production_selectable"] is True
     assert dataset_records["librispeech-dummy"]["acquisition_approved"] is False
     assert dataset_records["voxceleb-full"]["mirror_approved"] is False
 

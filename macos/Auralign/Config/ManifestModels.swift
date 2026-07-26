@@ -77,6 +77,8 @@ struct ModelManifestEntry: Codable, Identifiable, Equatable {
     var requiredFiles: [String]
     var anyRequiredFiles: [String]
     var runtimeFiles: [String]
+    var expectedSHA256: [String: String]
+    var expectedSize: [String: Int64]
     var gated: Bool
     var optional: Bool
     var pullable: Bool
@@ -87,6 +89,15 @@ struct ModelManifestEntry: Codable, Identifiable, Equatable {
     var redistributionStatus: String?
     var reviewStatus: String?
     var reviewedAt: String?
+    var productClassification: String
+    var productSelectable: Bool
+    var blocker: String?
+    var backendCompatibility: String
+    var modificationStatus: String
+    var packageBundleId: String?
+    var packageBundleVersion: String?
+    var packageRelativePath: String?
+    var delivery: String
     var sourceURL: String?
     var termsURL: String?
     var attribution: String?
@@ -100,29 +111,57 @@ struct ModelManifestEntry: Codable, Identifiable, Equatable {
         case requiredFiles = "required_files"
         case anyRequiredFiles = "any_required_files"
         case runtimeFiles = "runtime_files"
+        case expectedSHA256 = "expected_sha256"
+        case expectedSize = "expected_size"
         case licenseExpression = "license_expression"
         case acquisitionStatus = "acquisition_status"
         case runtimeStatus = "runtime_status"
         case redistributionStatus = "redistribution_status"
         case reviewStatus = "review_status"
         case reviewedAt = "reviewed_at"
+        case productClassification = "product_classification"
+        case productSelectable = "product_selectable"
+        case blocker
+        case backendCompatibility = "backend_compatibility"
+        case modificationStatus = "modification_status"
+        case packageBundleId = "package_bundle_id"
+        case packageBundleVersion = "package_bundle_version"
+        case packageRelativePath = "package_relative_path"
+        case delivery
         case sourceURL = "source_url"
         case termsURL = "terms_url"
         case attribution
     }
 
     /// Production selection fails closed unless the engine manifest explicitly
-    /// records a pinned, licensed, reviewed model approved for local runtime.
+    /// records a pinned, digest-complete, licensed, reviewed model in the exact
+    /// separately installed product component used by the packaged runtime.
     var isRuntimeSelectable: Bool {
         guard hasValidFileContract,
-              let revision, !revision.isEmpty,
+              productSelectable,
+              ["production", "optional"].contains(productClassification),
+              blocker == nil,
+              let revision, Self.isValidRevision(revision),
+              Set(expectedSHA256.keys) == Set(runtimeFiles),
+              expectedSHA256.values.allSatisfy(Self.isValidSHA256),
+              Set(expectedSize.keys) == Set(runtimeFiles),
+              expectedSize.values.allSatisfy({ $0 > 0 }),
               let licenseExpression,
               !licenseExpression.isEmpty,
               licenseExpression != "NOASSERTION",
               let acquisitionStatus, !acquisitionStatus.isEmpty,
-              let redistributionStatus, !redistributionStatus.isEmpty,
+              redistributionStatus?.hasPrefix("permitted_") == true,
               runtimeStatus?.hasPrefix("approved_local") == true,
               reviewStatus?.hasPrefix("verified") == true,
+              !backendCompatibility.isEmpty,
+              !modificationStatus.isEmpty,
+              modificationStatus != "unreviewed",
+              let packageBundleId,
+              packageBundleId.hasPrefix("com.auralign.studio."),
+              let packageBundleVersion,
+              Self.isValidBundleVersion(packageBundleVersion),
+              packageRelativePath == "models/\(directoryName)",
+              ["system-component", "native-download"].contains(delivery),
               let reviewedAt, !reviewedAt.isEmpty,
               let sourceURL, !sourceURL.isEmpty,
               let termsURL, !termsURL.isEmpty,
@@ -166,6 +205,30 @@ struct ModelManifestEntry: Codable, Identifiable, Equatable {
         return true
     }
 
+    private static func isValidRevision(_ value: String) -> Bool {
+        value.count == 40
+            && value.unicodeScalars.allSatisfy { scalar in
+                (48...57).contains(scalar.value)
+                    || (97...102).contains(scalar.value)
+            }
+    }
+
+    private static func isValidSHA256(_ value: String) -> Bool {
+        value.count == 64
+            && value.unicodeScalars.allSatisfy { scalar in
+                (48...57).contains(scalar.value)
+                    || (97...102).contains(scalar.value)
+            }
+    }
+
+    private static func isValidBundleVersion(_ value: String) -> Bool {
+        let components = value.split(separator: ".", omittingEmptySubsequences: false)
+        return components.count == 3
+            && components.allSatisfy { component in
+                !component.isEmpty && component.allSatisfy(\.isNumber)
+            }
+    }
+
     private static func isSafeDirectoryComponent(_ value: String) -> Bool {
         !value.isEmpty
             && value != "."
@@ -190,30 +253,87 @@ struct ModelManifestEntry: Codable, Identifiable, Equatable {
     }
 
     var policyLabel: String {
-        if runtimeStatus == "local_evaluation_only" {
-            return "Local evaluation only"
+        guard isRuntimeSelectable else { return "Unavailable" }
+        if delivery == "native-download" {
+            return productClassification == "optional"
+                ? "Optional · local pack"
+                : "Production · local pack"
         }
-        guard isRuntimeSelectable else { return "Blocked" }
-        if gated { return "Verified · gated terms" }
-        if reviewStatus?.contains("caveat") == true { return "Verified · caveat" }
-        return "Verified"
+        if productClassification == "optional" {
+            return "Optional · bundled"
+        }
+        return "Production · bundled"
     }
 
     var policyExplanation: String {
-        if runtimeStatus == "local_evaluation_only" {
-            return "Unavailable here: repository policy limits this model to local evaluation."
-        }
         guard isRuntimeSelectable else {
-            let review = reviewStatus ?? "missing review metadata"
-            return "Unavailable here: compliance status \(review)."
+            if let blocker, !blocker.isEmpty {
+                return "Unavailable in this product: \(blocker)"
+            }
+            let review = reviewStatus ?? "missing release evidence"
+            return "Unavailable in this product: \(review)."
         }
         if gated {
-            return "Approved for local runtime after the operator accepts the upstream gated terms."
+            return "Bundled and verified for offline use. Upstream gating applies to "
+                + "controlled release-machine acquisition, not recipient startup."
+        }
+        if delivery == "native-download" {
+            return "Installed through Complete Offline Setup, verified byte-for-byte, "
+                + "and used locally without runtime network access."
         }
         if reviewStatus?.contains("caveat") == true {
-            return "Approved for local runtime with the recorded upstream-data caveat."
+            return "Bundled and verified for offline use with the recorded provenance caveat."
         }
-        return "Approved for local runtime by the repository model manifest."
+        return "Bundled and verified for offline use by the signed model component."
+    }
+
+    var productDisplayName: String {
+        switch (role, key) {
+        case ("asr", "large-v3"):
+            return "Whisper Large v3"
+        case ("asr", "turbo"):
+            return "Whisper Large v3 Turbo"
+        case ("asr", "distil-large-v3"):
+            return "Distil Whisper Large v3"
+        case ("asr", "distil-large-v3.5"):
+            return "Distil Whisper Large v3.5"
+        case ("asr-mlx", "mlx-tiny"):
+            return "MLX Whisper Tiny"
+        case ("asr-mlx", "mlx-tiny.en"):
+            return "MLX Whisper Tiny English"
+        case ("asr-mlx", "mlx-base"):
+            return "MLX Whisper Base"
+        case ("asr-mlx", "mlx-base.en"):
+            return "MLX Whisper Base English"
+        case ("asr-mlx", "mlx-small"):
+            return "MLX Whisper Small"
+        case ("asr-mlx", "mlx-small.en"):
+            return "MLX Whisper Small English"
+        case ("asr-mlx", "mlx-medium"):
+            return "MLX Whisper Medium"
+        case ("asr-mlx", "mlx-medium.en"):
+            return "MLX Whisper Medium English"
+        case ("asr-mlx", "mlx-large"):
+            return "MLX Whisper Large"
+        case ("asr-mlx", "mlx-large-v2"):
+            return "MLX Whisper Large v2"
+        case ("asr-mlx", "mlx-large-v3"):
+            return "MLX Whisper Large v3"
+        case ("asr-mlx", "mlx-large-v3-turbo"):
+            return "MLX Whisper Large v3 Turbo"
+        case ("diarization", "community-1"):
+            return "Community-1 Speaker Diarization"
+        case ("alignment", "en"):
+            return "English Forced Alignment"
+        case ("speaker-embedding", "ecapa"):
+            return "ECAPA Speaker Embeddings"
+        default:
+            return key
+        }
+    }
+
+    var productSummary: String {
+        "\(productDisplayName). \(backendCompatibility). \(policyExplanation)"
     }
 
     var shortRevision: String {
@@ -244,12 +364,20 @@ struct ConfigManifest: Codable, Equatable {
     }
 
     func modelChoices(role: String) -> [ModelManifestEntry] {
+        modelRecords(role: role).filter(\.isRuntimeSelectable)
+    }
+
+    /// Full audit records remain resolvable for stale imports and truthful
+    /// blockers, but only `modelChoices` may populate an ordinary picker.
+    func modelRecords(role: String) -> [ModelManifestEntry] {
         modelManifest.filter { $0.role == role }
     }
 
     func resolveModel(role: String, value: String) -> ModelManifestEntry? {
-        modelChoices(role: role).first {
-            $0.key == value || $0.modelId == value || ($0.aliases ?? []).contains(value)
+        modelRecords(role: role).first {
+            $0.key == value
+                || $0.modelId == value
+                || ($0.aliases ?? []).contains(value)
         }
     }
 
@@ -300,7 +428,10 @@ struct ConfigManifest: Codable, Equatable {
             )
         }
         if configuration.value(at: "alignment.enabled")?.boolValue == true,
-           configuration.value(at: "alignment.backend")?.stringValue == "forced" {
+           let alignmentBackend = configuration.value(
+               at: "alignment.backend"
+           )?.stringValue,
+           ["auto", "forced"].contains(alignmentBackend) {
             requests.append(
                 (
                     "alignment",

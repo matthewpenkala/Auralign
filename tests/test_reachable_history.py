@@ -26,16 +26,20 @@ checker = _load_checker()
 
 
 def test_reviewed_swift_models_namespace_is_not_a_cache_path() -> None:
-    path = PurePosixPath("macos/Auralign/Models/ReadinessProjection.swift")
-
-    assert checker.has_prohibited_path_component(path) is False
+    for path in (
+        "macos/Auralign/Models/ReadinessProjection.swift",
+        "macos/Auralign/Models/ModelDeliveryCatalog.swift",
+        "macos/Auralign/Models/ModelPackStore.swift",
+    ):
+        assert checker.has_prohibited_path_component(PurePosixPath(path)) is False
 
 
 def test_other_model_cache_paths_remain_prohibited() -> None:
     for path in (
         "models/weights.bin",
         "macos/Auralign/Models/weights.safetensors",
-        "macos/Auralign/Models/AnotherSource.swift",
+        "macos/Auralign/Models/Nested/AnotherSource.swift",
+        "macos/Auralign/Models/README.md",
         "src/models/ReadinessProjection.swift",
     ):
         assert checker.has_prohibited_path_component(PurePosixPath(path)) is True

@@ -17,16 +17,23 @@
     scaling="tofit"/>
 
   <welcome file="welcome.html" mime-type="text/html"/>
+  <readme file="readme.html" mime-type="text/html"/>
+  <license file="license.html" mime-type="text/html"/>
   <conclusion file="conclusion.html" mime-type="text/html"/>
 
   <choices-outline>
-    <line choice="default"/>
+    <line choice="default">
+      <line choice="@@APP_PACKAGE_ID@@"/>
+      <line choice="@@MODEL_PACKAGE_ID@@"/>
+    </line>
   </choices-outline>
-  <choice
-    id="default"
-    title="@@PRODUCT_NAME@@"
-    description="Installs @@PRODUCT_NAME@@ in Applications.">
-    <pkg-ref id="@@PACKAGE_ID@@"/>
+  <choice id="default"/>
+  <choice id="@@APP_PACKAGE_ID@@" visible="false">
+    <pkg-ref id="@@APP_PACKAGE_ID@@"/>
   </choice>
-  <pkg-ref id="@@PACKAGE_ID@@">@@COMPONENT_PACKAGE@@</pkg-ref>
+  <choice id="@@MODEL_PACKAGE_ID@@" visible="false">
+    <pkg-ref id="@@MODEL_PACKAGE_ID@@"/>
+  </choice>
+  <pkg-ref id="@@APP_PACKAGE_ID@@">@@APP_COMPONENT_PACKAGE@@</pkg-ref>
+  <pkg-ref id="@@MODEL_PACKAGE_ID@@">@@MODEL_COMPONENT_PACKAGE@@</pkg-ref>
 </installer-gui-script>

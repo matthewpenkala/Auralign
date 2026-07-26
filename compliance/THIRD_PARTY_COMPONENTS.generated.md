@@ -56,31 +56,31 @@ SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 ## Models And Datasets
 
-| Kind/key | Immutable revision | License | Acquisition | Runtime | Redistribution | Review |
-| --- | --- | --- | --- | --- | --- | --- |
-| dataset:ami-full | 46f28f2503e2ec48f8867a84eef356c70476beab | CC-BY-4.0 | mirror_approved | not_runtime_required | permitted_with_attribution | verified |
-| dataset:librispeech-dummy | 5be91486e11a2d616f4ec5db8d3fd248585ac07a | NOASSERTION | blocked | not_runtime_required | blocked | blocked_missing_publisher_license |
-| dataset:librispeech-full | 71cacbfb7e2354c4226d01e70d77d5fca3d04ba1 | CC-BY-4.0 | mirror_approved | not_runtime_required | permitted_with_attribution | verified |
-| dataset:voxceleb-full | b8a8825c87582831cc217b6ff84a36558ced84d6 | CC-BY-4.0 | blocked | not_runtime_required | blocked_pending_rights_review | blocked_underlying_rights_and_biometric_review |
-| model:community-1 | 3533c8cf8e369892e6b79ff1bf80f7b0286a54ee | CC-BY-4.0 | approved_after_gated_terms | approved_local_after_gated_terms | permitted_with_attribution_and_gated_terms | verified_gated |
-| model:distil-large-v3 | c3058b475261292e64a0412df1d2681c06260fab | MIT | approved | approved_local | permitted_with_license_terms | verified |
-| model:distil-large-v3.5 | 9793ccc07920e0f830e1dba0343efcdf0ef8c903 | MIT | approved | approved_local | permitted_with_license_terms | verified |
-| model:ecapa | 0f99f2d0ebe89ac095bcc5903c4dd8f72b367286 | Apache-2.0 | approved | approved_local | permitted_with_license_terms | verified_with_training_data_caveat |
-| model:en | 22aad52d435eb6dbaf354bdad9b0da84ce7d6156 | Apache-2.0 | approved | approved_local | permitted_with_license_terms | verified |
-| model:large-v3 | edaa852ec7e145841d8ffdb056a99866b5f0a478 | MIT | approved | approved_local | permitted_with_license_terms | verified |
-| model:mlx-base | 1e3e249fb8d01c655324bd6841b1deadffd6d04c | NOASSERTION | manual_only | local_evaluation_only | blocked | blocked_missing_publisher_license |
-| model:mlx-base.en | aa0678c3466ed62c5c6114ec600a0e1f96820089 | NOASSERTION | manual_only | local_evaluation_only | blocked | blocked_missing_publisher_license |
-| model:mlx-large | 9310354911111f2406ead1478e0139d9c6ea3acc | NOASSERTION | manual_only | local_evaluation_only | blocked | blocked_missing_publisher_license |
-| model:mlx-large-v2 | cce86229e2765266197fef869ce9f7e2550067ab | NOASSERTION | manual_only | local_evaluation_only | blocked | blocked_missing_publisher_license |
-| model:mlx-large-v3 | 49e6aa286ad60c14352c404340ded53710378a11 | MIT | manual_only | approved_local | permitted_with_license_terms | verified |
-| model:mlx-large-v3-turbo | a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb | NOASSERTION | manual_only | local_evaluation_only | blocked | blocked_missing_publisher_license |
-| model:mlx-medium | 7fc08c4eac4c316526498f147dfdee6f6303f975 | NOASSERTION | manual_only | local_evaluation_only | blocked | blocked_missing_publisher_license |
-| model:mlx-medium.en | 8d0335069b551e8586b8a4680674403d9417dfe4 | NOASSERTION | manual_only | local_evaluation_only | blocked | blocked_missing_publisher_license |
-| model:mlx-small | 45f3915923c7a79a5a5b5a7d909d39aeb0e5630e | NOASSERTION | manual_only | local_evaluation_only | blocked | blocked_missing_publisher_license |
-| model:mlx-small.en | 52a88bf6e98b114a210c21bb83e22d6e1505cb73 | NOASSERTION | manual_only | local_evaluation_only | blocked | blocked_missing_publisher_license |
-| model:mlx-tiny | 6caf9c55601caafbe6508a8b0d216bdf4783c4e8 | NOASSERTION | manual_only | local_evaluation_only | blocked | blocked_missing_publisher_license |
-| model:mlx-tiny.en | 5f4dafbb28e62a53c1b10426ff7eed36ca733bf7 | NOASSERTION | manual_only | local_evaluation_only | blocked | blocked_missing_publisher_license |
-| model:turbo | 0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf | MIT | approved | approved_local | permitted_with_license_terms | verified |
+| Kind/key | Immutable revision | License | Acquisition | Runtime | Redistribution | Product class | Delivery | Pack identity | Review |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| dataset:ami-full | 46f28f2503e2ec48f8867a84eef356c70476beab | CC-BY-4.0 | mirror_approved | not_runtime_required | permitted_with_attribution | — | — | — | verified |
+| dataset:librispeech-dummy | 5be91486e11a2d616f4ec5db8d3fd248585ac07a | NOASSERTION | blocked | not_runtime_required | blocked | — | — | — | blocked_missing_publisher_license |
+| dataset:librispeech-full | 71cacbfb7e2354c4226d01e70d77d5fca3d04ba1 | CC-BY-4.0 | mirror_approved | not_runtime_required | permitted_with_attribution | — | — | — | verified |
+| dataset:voxceleb-full | b8a8825c87582831cc217b6ff84a36558ced84d6 | CC-BY-4.0 | blocked | not_runtime_required | blocked_pending_rights_review | — | — | — | blocked_underlying_rights_and_biometric_review |
+| model:community-1 | 3533c8cf8e369892e6b79ff1bf80f7b0286a54ee | CC-BY-4.0 | approved_after_gated_terms | approved_local_after_gated_terms | permitted_with_attribution_and_gated_terms | production | system-component | com.auralign.studio.models.bootstrap.v1@1.0.0 | verified_gated |
+| model:distil-large-v3 | c3058b475261292e64a0412df1d2681c06260fab | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_license_terms | optional | native-download | com.auralign.studio.modelpack.distil-large-v3.v1@1.0.0 | verified_exact_files_and_inference |
+| model:distil-large-v3.5 | 9793ccc07920e0f830e1dba0343efcdf0ef8c903 | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_license_terms | production | native-download | com.auralign.studio.modelpack.distil-large-v3-5.v1@1.0.0 | verified_exact_files_and_inference |
+| model:ecapa | 0f99f2d0ebe89ac095bcc5903c4dd8f72b367286 | Apache-2.0 | approved | approved_local | permitted_with_license_terms | production | system-component | com.auralign.studio.models.bootstrap.v1@1.0.0 | verified_with_training_data_caveat |
+| model:en | 22aad52d435eb6dbaf354bdad9b0da84ce7d6156 | Apache-2.0 | approved | approved_local | permitted_with_license_terms | production | system-component | com.auralign.studio.models.bootstrap.v1@1.0.0 | verified |
+| model:large-v3 | edaa852ec7e145841d8ffdb056a99866b5f0a478 | MIT | approved | approved_local | permitted_with_license_terms | production | native-download | com.auralign.studio.modelpack.large-v3.v1@1.0.0 | verified |
+| model:mlx-base | 1e3e249fb8d01c655324bd6841b1deadffd6d04c | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-base.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:mlx-base.en | aa0678c3466ed62c5c6114ec600a0e1f96820089 | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-base-en.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:mlx-large | e2cb9fbf9c7aefad760be1dc9b48c075b21288c8 | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-large.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:mlx-large-v2 | cce86229e2765266197fef869ce9f7e2550067ab | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-large-v2.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:mlx-large-v3 | 49e6aa286ad60c14352c404340ded53710378a11 | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-large-v3.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:mlx-large-v3-turbo | a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-large-v3-turbo.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:mlx-medium | 7fc08c4eac4c316526498f147dfdee6f6303f975 | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-medium.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:mlx-medium.en | 8d0335069b551e8586b8a4680674403d9417dfe4 | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-medium-en.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:mlx-small | 45f3915923c7a79a5a5b5a7d909d39aeb0e5630e | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-small.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:mlx-small.en | 52a88bf6e98b114a210c21bb83e22d6e1505cb73 | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-small-en.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:mlx-tiny | 6caf9c55601caafbe6508a8b0d216bdf4783c4e8 | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-tiny.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:mlx-tiny.en | 5f4dafbb28e62a53c1b10426ff7eed36ca733bf7 | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_mit_chain_and_owner_clearance | optional | native-download | com.auralign.studio.modelpack.mlx-tiny-en.v1@1.0.0 | verified_exact_files_inference_and_upstream_mit_chain |
+| model:turbo | 0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf | MIT | approved_exact_pinned_files | approved_local_real_inference | permitted_with_license_terms | production | native-download | com.auralign.studio.modelpack.turbo.v1@1.0.0 | verified_exact_files_and_inference |
 
 Unknown, conditional, gated, or blocked rows remain unavailable for release unless
 the exact machine-readable record contains the required owner-approved evidence.

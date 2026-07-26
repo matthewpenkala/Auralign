@@ -84,6 +84,28 @@ final class ConfigStoreTests: XCTestCase {
         XCTAssertNotEqual(before, store.effectiveConfigFingerprint)
     }
 
+    func testPresetAndModelSelectionInvalidateExactConfigurationEvidence() throws {
+        let store = try makeStore()
+        let initial = store.effectiveConfigFingerprint
+
+        XCTAssertTrue(store.selectPreset("balanced"))
+        XCTAssertNotEqual(initial, store.effectiveConfigFingerprint)
+        XCTAssertEqual(store.effectiveValue("asr.model"), .string("large-v3"))
+
+        let presetFingerprint = store.effectiveConfigFingerprint
+        XCTAssertTrue(store.setOverride("asr.model", to: .string("turbo")))
+        XCTAssertNotEqual(presetFingerprint, store.effectiveConfigFingerprint)
+        XCTAssertNil(store.runtimeModelSelectionIssue)
+
+        XCTAssertTrue(
+            store.setOverride(
+                "asr.model",
+                to: .string("not-in-the-authoritative-manifest")
+            )
+        )
+        XCTAssertNotNil(store.runtimeModelSelectionIssue)
+    }
+
     func testMutationGuardFailsClosedForEveryPublicConfigurationEdit() throws {
         let store = try makeStore()
         XCTAssertTrue(store.selectPreset("balanced"))
@@ -114,6 +136,7 @@ final class ConfigStoreTests: XCTestCase {
         store.setManagedValues([
             "offline": .bool(true),
             "model_cache": .string("/managed/models"),
+            "asr.mlx_model_path": .null,
         ])
 
         XCTAssertEqual(store.effectiveValue("offline"), .bool(true))
@@ -123,27 +146,43 @@ final class ConfigStoreTests: XCTestCase {
             store.effectiveConfig.value(at: "model_cache"),
             .string("/managed/models")
         )
+        XCTAssertEqual(store.effectiveValue("asr.mlx_model_path"), .null)
         XCTAssertFalse(store.isModified("offline"))
         XCTAssertFalse(store.isModified("model_cache"))
+        XCTAssertFalse(store.isModified("asr.mlx_model_path"))
         XCTAssertTrue(store.isManaged("offline"))
         XCTAssertTrue(store.isManaged("model_cache"))
+        XCTAssertTrue(store.isManaged("asr.mlx_model_path"))
         XCTAssertNil(store.overrides["offline"])
         XCTAssertNil(store.overrides["model_cache"])
+        XCTAssertNil(store.overrides["asr.mlx_model_path"])
 
         XCTAssertFalse(store.setOverride("offline", to: .bool(false)))
+        XCTAssertFalse(
+            store.setOverride(
+                "asr.mlx_model_path",
+                to: .string("/tmp/untrusted-mlx")
+            )
+        )
         XCTAssertFalse(store.clearOverride("offline"))
         XCTAssertTrue(
             store.importConfiguration(
                 store.baseline
                     .setting("offline", to: .bool(false))
                     .setting("model_cache", to: .string("/tmp/imported"))
+                    .setting(
+                        "asr.mlx_model_path",
+                        to: .string("/tmp/imported-mlx")
+                    )
                     .setting("asr.language", to: .string("en"))
             )
         )
         XCTAssertEqual(store.effectiveValue("offline"), .bool(true))
         XCTAssertEqual(store.effectiveValue("model_cache"), .string("/managed/models"))
+        XCTAssertEqual(store.effectiveValue("asr.mlx_model_path"), .null)
         XCTAssertEqual(store.effectiveValue("asr.language"), .string("en"))
         XCTAssertNil(store.overrides["offline"])
         XCTAssertNil(store.overrides["model_cache"])
+        XCTAssertNil(store.overrides["asr.mlx_model_path"])
     }
 }

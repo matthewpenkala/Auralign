@@ -298,6 +298,9 @@ def test_macos_gui_runbook_and_local_gate_are_indexed_and_safe() -> None:
     assert "Gatekeeper" in runbook
 
     assert "CODE_SIGNING_ALLOWED=NO" not in gate
+    assert "export PYTHONDONTWRITEBYTECODE=1" in gate
+    assert gate.count("uv run --python 3.11 python ") == 6
+    assert gate.count("uv run --python 3.11 python -B -") == 6
     assert "Library/Developer/Xcode/DerivedData/AuralignLocalGate" in gate
     assert "GateEvidence" in gate
     assert ".AuralignLocalGate.lock" in gate

@@ -420,6 +420,15 @@ def run_doctor(
             report.add(f"model:{role}", "error", f"unknown model '{model_value}'")
             report.ok = False
             continue
+        if not entry.production_selectable:
+            report.add(
+                f"model:{role}:{entry.key}",
+                "error",
+                "unavailable in the production product: "
+                f"{entry.blocker or entry.product_classification}",
+            )
+            report.ok = False
+            continue
         model_status = (
             mlx_model_status(config) if role == "asr-mlx" else status_for(entry, config.model_cache)
         )
@@ -486,6 +495,9 @@ def path_status(path: Path, *, create_ok: bool) -> tuple[str, str]:
     if path.exists():
         if not path.is_dir():
             return "error", f"{path} exists but is not a directory"
+        installed_status = _verified_installed_model_cache_status(path)
+        if installed_status is not None:
+            return installed_status
         try:
             test_file = path / ".ltm_write_test"
             test_file.write_text("", encoding="utf-8")
@@ -496,6 +508,25 @@ def path_status(path: Path, *, create_ok: bool) -> tuple[str, str]:
     if create_ok:
         return "warning", f"{path} does not exist yet; it will be created when needed"
     return "warning", f"{path} does not exist"
+
+
+def _verified_installed_model_cache_status(path: Path) -> tuple[str, str] | None:
+    """Accept only the exact immutable system model cache without a write probe."""
+
+    from . import models as models_module
+    from .model_bundle import ModelBundleError, verify_model_bundle
+
+    bundle_root = models_module.INSTALLED_MODEL_BUNDLE_ROOT
+    if path != bundle_root / "models":
+        return None
+    try:
+        identity = verify_model_bundle(bundle_root)
+    except ModelBundleError:
+        return "error", f"{path} failed deterministic installed-bundle verification"
+    return (
+        "ok",
+        f"{path} is read-only and verified as {identity['bundle_id']} {identity['bundle_version']}",
+    )
 
 
 def thread_value(value: int | None) -> str:

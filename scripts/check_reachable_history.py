@@ -57,9 +57,7 @@ PROHIBITED_SUFFIXES = {
     ".webm",
     ".wma",
 }
-REVIEWED_SOURCE_PATH_EXCEPTIONS = {
-    PurePosixPath("macos/Auralign/Models/ReadinessProjection.swift"),
-}
+REVIEWED_SWIFT_MODELS_DIRECTORY = PurePosixPath("macos/Auralign/Models")
 REVIEWED_PRIVATE_KEY_LITERAL_BLOBS = {
     # A Codex checkpoint of the macOS Release scanner. It contains the three
     # literal private-key sentinels that scanner searches for, no token-shaped
@@ -87,19 +85,24 @@ PRIVATE_KEY_MARKERS = (
 )
 
 
+def is_reviewed_swift_models_source(path: PurePosixPath) -> bool:
+    """Return whether ``path`` is a direct Swift source in the native namespace."""
+
+    return path.parent == REVIEWED_SWIFT_MODELS_DIRECTORY and path.suffix == ".swift"
+
+
 def has_prohibited_path_component(path: PurePosixPath) -> bool:
     """Return whether a path uses a private-artifact directory name.
 
-    The native app's typed readiness projection predates this scan on a
-    Codex-maintained checkpoint ref and uses ``Models`` in the conventional
-    Swift source sense. Keep that single reviewed source path distinct from
-    model-cache storage; every other use of a prohibited component continues
-    to fail closed.
+    ``macos/Auralign/Models`` is the native app's Swift source namespace, not a
+    model cache. Permit only direct ``.swift`` files in that exact directory;
+    nested content, weight files, and every other prohibited component remain
+    fail-closed.
     """
 
     lowered = {part.casefold() for part in path.parts}
     return bool(lowered.intersection(PROHIBITED_PARTS)) and (
-        path not in REVIEWED_SOURCE_PATH_EXCEPTIONS
+        not is_reviewed_swift_models_source(path)
     )
 
 

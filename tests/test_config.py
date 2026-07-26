@@ -16,14 +16,71 @@ def test_asr_threading_defaults_are_unset(tmp_path: Path) -> None:
     assert config.asr.num_workers is None
 
 
-def test_default_mlx_model_is_verified_large_v3_lane(tmp_path: Path) -> None:
+def test_default_mlx_model_has_exact_operational_delivery_contract(
+    tmp_path: Path,
+) -> None:
     config = load_config(cwd=tmp_path)
     entry = resolve_model_entry("asr-mlx", config.asr.mlx_model)
 
     assert config.asr.mlx_model == "mlx-large-v3"
     assert entry is not None
     assert entry.license_expression == "MIT"
-    assert entry.runtime_status == "approved_local"
+    assert entry.runtime_status == "approved_local_real_inference"
+    assert set(entry.expected_digest_map) == set(entry.runtime_files)
+    assert set(entry.expected_size_map) == set(entry.runtime_files)
+    assert not entry.any_required_files
+    assert entry.product_classification == "optional"
+    assert entry.production_selectable is True
+    assert entry.blocker is None
+    assert entry.delivery == "native-download"
+
+
+def test_all_nineteen_models_have_truthful_product_classification() -> None:
+    from local_transcript_max.config import MODEL_MANIFEST
+
+    assert len(MODEL_MANIFEST) == 19
+    production = {entry.key for entry in MODEL_MANIFEST.values() if entry.production_selectable}
+    assert production == set(MODEL_MANIFEST)
+    blocked = {
+        entry.key for entry in MODEL_MANIFEST.values() if entry.product_classification == "blocked"
+    }
+    assert not blocked
+    for entry in MODEL_MANIFEST.values():
+        assert set(entry.expected_digest_map) == set(entry.runtime_files)
+        assert set(entry.expected_size_map) == set(entry.runtime_files)
+        if entry.key in {"community-1", "en", "ecapa"}:
+            assert entry.package_bundle_id == "com.auralign.studio.models.bootstrap.v1"
+            assert entry.delivery == "system-component"
+        else:
+            assert entry.package_bundle_id
+            assert entry.package_bundle_id.startswith("com.auralign.studio.modelpack.")
+            assert entry.delivery == "native-download"
+        assert entry.package_bundle_version == "1.0.0"
+        assert entry.package_relative_path == f"models/{entry.directory_name}"
+        assert entry.blocker is None
+
+
+@pytest.mark.parametrize(
+    ("preset", "model", "language"),
+    [
+        ("max", "large-v3", None),
+        ("balanced", "turbo", None),
+        ("fast", "distil-large-v3.5", "en"),
+        ("cpu", "turbo", None),
+    ],
+)
+def test_every_normal_preset_uses_a_verified_deliverable_model(
+    tmp_path: Path,
+    preset: str,
+    model: str,
+    language: str | None,
+) -> None:
+    config = load_config(preset=preset, cwd=tmp_path)
+    assert config.asr.backend == "faster-whisper"
+    assert config.asr.model == model
+    assert config.asr.language == language
+    entry = resolve_model_entry("asr", model)
+    assert entry is not None and entry.production_selectable
 
 
 def test_preset_config_uses_confirmed_model_ids(tmp_path: Path) -> None:

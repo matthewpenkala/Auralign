@@ -66,9 +66,31 @@
     {
       "key": "preset",
       "title": "Preset",
-      "help": "Select the engine baseline profile: max, balanced, fast, or cpu. Each profile maps to reviewed configuration values, and explicit overrides below are applied on top of the selected preset.",
+      "help": "Each product preset maps to an exact verified local model pack. Max uses Whisper Large v3, Balanced and CPU use Large v3 Turbo, and Fast uses Distil Large v3.5. Complete Offline Setup installs any missing pack before processing.",
       "section": "general",
-      "disposition": "primary"
+      "disposition": "primary",
+      "choice_presentations": {
+        "max": {
+          "label": "Max — Maximum quality",
+          "help": "Uses the verified Whisper Large v3 local pack with beam size 5 and automatic precision. This is the quality reference and normally uses the most time and memory.",
+          "accessibility_label": "Max preset, maximum quality using the verified Whisper Large v3 local pack"
+        },
+        "balanced": {
+          "label": "Balanced — Everyday",
+          "help": "Uses the verified Whisper Large v3 Turbo local pack with beam size 5 and int8-float32 precision for everyday quality and speed.",
+          "accessibility_label": "Balanced preset, everyday quality and speed using the verified Whisper Large v3 Turbo local pack"
+        },
+        "fast": {
+          "label": "Fast — Shortest wait",
+          "help": "Uses the verified Distil Large v3.5 local pack with beam size 1, int8 precision, and fallback alignment for the shortest normal processing time.",
+          "accessibility_label": "Fast preset, shortest wait using the verified Distil Large v3.5 local pack"
+        },
+        "cpu": {
+          "label": "CPU — Lowest memory",
+          "help": "Uses the verified Whisper Large v3 Turbo local pack on CPU with beam size 1 and int8 precision for conservative memory use.",
+          "accessibility_label": "CPU preset, lowest memory using the verified Whisper Large v3 Turbo local pack"
+        }
+      }
     },
     {
       "key": "offline",
@@ -80,7 +102,7 @@
     {
       "key": "model_cache",
       "title": "Model cache",
-      "help": "Directory holding verified local model caches. Relative paths resolve against the engine repository.",
+      "help": "Release-managed path to the verified model payload inside the signed installer component. Release builds reject overrides; Debug builds may use an ignored development cache.",
       "section": "general",
       "disposition": "advanced",
       "path_style": "directory"
@@ -139,14 +161,14 @@
     {
       "key": "asr.backend",
       "title": "Backend",
-      "help": "faster-whisper runs Whisper through CTranslate2 (CPU/CUDA); mlx-whisper runs natively on Apple Silicon via MLX.",
+      "help": "Choose the embedded faster-whisper CTranslate2 runtime or the embedded MLX Whisper runtime. Both resolve only exact verified local model packs; neither downloads models during processing.",
       "section": "asr",
       "disposition": "primary"
     },
     {
       "key": "asr.model",
       "title": "Model",
-      "help": "faster-whisper model from the reviewed manifest. large-v3 is the accuracy reference; turbo and the distil variants trade accuracy for speed.",
+      "help": "Choose an exact pinned CTranslate2 model. Complete Offline Setup downloads missing verified packs for Large v3, Large v3 Turbo, Distil Large v3, and Distil Large v3.5.",
       "section": "asr",
       "disposition": "primary",
       "requires": [{ "key": "asr.backend", "equals": "faster-whisper" }]
@@ -175,7 +197,7 @@
     {
       "key": "asr.device",
       "title": "Device",
-      "help": "Compute device for faster-whisper. auto prefers CUDA when available; MLX owns its native device.",
+      "help": "Compute device for the production faster-whisper backend. auto selects a supported local device; cpu forces CPU execution.",
       "section": "asr",
       "disposition": "advanced",
       "requires": [{ "key": "asr.backend", "equals": "faster-whisper" }]
@@ -303,12 +325,13 @@
       "help": "Unavailable in the standalone app because its upstream Silero model is intentionally excluded. Leave this off; Auralign's local EnergyVAD remains active.",
       "section": "asr",
       "disposition": "advanced",
+      "product_visible": false,
       "requires": [{ "key": "asr.backend", "equals": "faster-whisper" }]
     },
     {
       "key": "asr.mlx_model",
       "title": "MLX model",
-      "help": "MLX Whisper conversion used on Apple Silicon. Models are imported locally via the reviewed manifest; mlx-large-v3 is the verified selection.",
+      "help": "Choose one of the twelve exact pinned MLX Whisper models. Complete Offline Setup downloads the selected pack, verifies every byte, and keeps normal processing local and offline.",
       "section": "asr",
       "disposition": "primary",
       "requires": [{ "key": "asr.backend", "equals": "mlx-whisper" }]
@@ -316,16 +339,17 @@
     {
       "key": "asr.mlx_model_path",
       "title": "MLX model path",
-      "help": "Explicit local directory containing the MLX model, overriding cache lookup.",
+      "help": "Blocked audit/development field. Release never accepts an arbitrary MLX model directory.",
       "section": "asr",
       "disposition": "advanced",
+      "product_visible": false,
       "path_style": "directory",
       "requires": [{ "key": "asr.backend", "equals": "mlx-whisper" }]
     },
     {
       "key": "asr.mlx_fp16",
       "title": "MLX FP16",
-      "help": "Run MLX inference in half precision. The validated Apple Silicon topology uses FP16.",
+      "help": "Use half-precision MLX weights where supported to reduce memory use. The selected verified model pack remains unchanged.",
       "section": "asr",
       "disposition": "advanced",
       "requires": [{ "key": "asr.backend", "equals": "mlx-whisper" }]
@@ -333,7 +357,7 @@
     {
       "key": "asr.mlx_vad_windowed",
       "title": "MLX VAD windowing",
-      "help": "Experimental: transcribe MLX ASR inside local VAD windows instead of one pass.",
+      "help": "Use experimental VAD-based windowing with the selected verified MLX model. Disable it if material is clipped or unusually fragmented.",
       "section": "asr",
       "disposition": "advanced",
       "experimental": true,
@@ -342,7 +366,7 @@
     {
       "key": "asr.mlx_vad_window_seconds",
       "title": "MLX VAD window",
-      "help": "Window length for experimental MLX VAD-windowed transcription.",
+      "help": "Length of each experimental MLX VAD processing window. Larger windows use more memory; smaller windows may split phrases more often.",
       "section": "asr",
       "disposition": "advanced",
       "unit": "s",
@@ -352,7 +376,7 @@
     {
       "key": "asr.mlx_vad_window_padding_seconds",
       "title": "MLX window padding",
-      "help": "Padding added around each VAD window in the experimental windowed mode.",
+      "help": "Audio overlap added around each experimental MLX VAD window to preserve words near a boundary.",
       "section": "asr",
       "disposition": "advanced",
       "unit": "s",
@@ -377,7 +401,7 @@
     {
       "key": "diarization.model",
       "title": "Model",
-      "help": "Diarization model from the reviewed manifest. Community-1 is gated: each operator accepts upstream terms before acquisition.",
+      "help": "The product selection is the exact pinned Community-1 payload installed by Auralign. Its upstream gate applies to controlled release-machine acquisition; the cleared packaged copy requires no recipient Hugging Face account.",
       "section": "diarization",
       "disposition": "primary",
       "requires": [{ "key": "diarization.enabled", "equals": true }]

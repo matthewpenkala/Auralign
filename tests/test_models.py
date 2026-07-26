@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
+import hashlib
 import os
 import subprocess
 from dataclasses import replace
@@ -41,7 +42,22 @@ def synthetic_manifest_digests(monkeypatch: pytest.MonkeyPatch) -> None:
     """Use synthetic bytes for mechanics tests; production digest values are tested separately."""
 
     for key, entry in tuple(MODEL_MANIFEST.items()):
-        monkeypatch.setitem(MODEL_MANIFEST, key, replace(entry, expected_sha256=()))
+        expected = tuple(
+            (relative_path, hashlib.sha256(b"ok").hexdigest())
+            for relative_path in entry.runtime_files
+        )
+        expected_size = tuple(
+            (relative_path, len(b"ok")) for relative_path in entry.runtime_files
+        )
+        monkeypatch.setitem(
+            MODEL_MANIFEST,
+            key,
+            replace(
+                entry,
+                expected_sha256=expected,
+                expected_size=expected_size,
+            ),
+        )
     monkeypatch.setattr(models_module, "_repository_digest_contract_problem", lambda _entry: None)
 
 
@@ -96,6 +112,102 @@ def test_complete_files_without_revision_linkage_are_not_offline_usable(
     assert status.revision_verified is False
     assert status.present is False
     assert MODEL_PROVENANCE_FILENAME in status.provenance_problem
+
+
+def test_exact_installed_bundle_uses_deterministic_package_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = resolve_model_entry("diarization", "community-1")
+    assert entry is not None
+    bundle_root = tmp_path / str(entry.package_bundle_id)
+    model_dir = bundle_root / str(entry.package_relative_path)
+    model_dir.mkdir(parents=True)
+    for required in entry.required_files:
+        target = model_dir / required
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"ok")
+    calls: list[tuple[str, str]] = []
+
+    def verified(root: str, fingerprint: str) -> dict[str, object]:
+        calls.append((root, fingerprint))
+        return {
+            "state": "verified",
+            "bundle_id": entry.package_bundle_id,
+            "bundle_version": entry.package_bundle_version,
+            "model_keys": ["community-1", "en", "ecapa"],
+            "manifest_sha256": "a" * 64,
+        }
+
+    monkeypatch.setattr(models_module, "INSTALLED_MODEL_BUNDLE_ROOT", bundle_root)
+    monkeypatch.setattr(models_module, "_verify_packaged_model_bundle_once", verified)
+
+    unrelated_cache = tmp_path / "unrelated-user-cache"
+    status = status_for(entry, unrelated_cache)
+    record = status.to_audit_record(unrelated_cache)
+
+    assert status.present is True
+    assert status.revision_verified is True
+    assert not (model_dir / MODEL_PROVENANCE_FILENAME).exists()
+    assert record["provenance_type"] == "installed_model_bundle"
+    assert record["provenance_file"] == "model-bundle-provenance.json"
+    assert calls and calls[0][0] == str(bundle_root)
+    assert len(calls[0][1]) == 64
+
+
+def test_lookalike_bundle_outside_exact_install_root_still_requires_private_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = resolve_model_entry("diarization", "community-1")
+    assert entry is not None
+    lookalike = tmp_path / str(entry.package_bundle_id)
+    model_dir = lookalike / str(entry.package_relative_path)
+    model_dir.mkdir(parents=True)
+    for required in entry.required_files:
+        target = model_dir / required
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"ok")
+    monkeypatch.setattr(
+        models_module,
+        "_verify_packaged_model_bundle_once",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("lookalike bundle must not reach package verification")
+        ),
+    )
+
+    status = status_for(entry, lookalike / "models")
+
+    assert status.present is False
+    assert status.revision_verified is False
+    assert MODEL_PROVENANCE_FILENAME in status.provenance_problem
+
+
+def test_exact_installed_bundle_verifier_failure_is_a_readiness_blocker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = resolve_model_entry("diarization", "community-1")
+    assert entry is not None
+    bundle_root = tmp_path / str(entry.package_bundle_id)
+    model_dir = bundle_root / str(entry.package_relative_path)
+    model_dir.mkdir(parents=True)
+    for required in entry.required_files:
+        target = model_dir / required
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"ok")
+    monkeypatch.setattr(models_module, "INSTALLED_MODEL_BUNDLE_ROOT", bundle_root)
+    monkeypatch.setattr(
+        models_module,
+        "_verify_packaged_model_bundle_once",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("corrupt bundle")),
+    )
+
+    status = status_for(entry, tmp_path / "unrelated-user-cache")
+
+    assert status.present is False
+    assert status.revision_verified is False
+    assert status.provenance_problem == ("installed model bundle failed deterministic verification")
 
 
 def test_wrong_revision_linkage_fails_closed(tmp_path: Path) -> None:
@@ -320,26 +432,28 @@ def test_pull_refuses_partial_cache_without_explicit_repair(
         pull_model(entry, tmp_path)
 
 
-def test_digest_review_is_ephemeral_allowlisted_and_does_not_install(
+def test_blocked_manifest_entry_digest_review_never_downloads_or_installs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     entry = resolve_model_entry("asr", "turbo")
     assert entry is not None
+    blocked_entry = replace(
+        entry,
+        product_classification="blocked",
+        blocker="synthetic unresolved rights review",
+        package_bundle_id=None,
+        package_bundle_version=None,
+        package_relative_path=None,
+        delivery="unavailable",
+    )
 
-    def fake_snapshot_download(**kwargs: object) -> str:
-        temporary = Path(str(kwargs["local_dir"]))
-        assert kwargs["allow_patterns"] == list(entry.runtime_files)
-        for relative in entry.runtime_files:
-            target = temporary / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(relative.encode("utf-8"))
-        return str(temporary)
+    monkeypatch.setattr(
+        "local_transcript_max.models.snapshot_download",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("network must not be used")),
+    )
 
-    monkeypatch.setattr("local_transcript_max.models.snapshot_download", fake_snapshot_download)
-
-    digests = review_model_digests(entry, tmp_path)
-
-    assert set(digests) == set(entry.runtime_files)
+    with pytest.raises(ModelCacheError, match="unavailable in the production product"):
+        review_model_digests(blocked_entry, tmp_path)
     assert not (tmp_path / entry.directory_name).exists()
     assert not list(tmp_path.glob(f".{entry.directory_name}.review-*"))
 
@@ -360,7 +474,7 @@ def test_pull_repair_quarantines_partial_cache_and_installs_atomically(
         for required in entry.required_files:
             target = temporary / required
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text("downloaded", encoding="utf-8")
+            target.write_bytes(b"ok")
         return str(temporary)
 
     monkeypatch.setattr("local_transcript_max.models.snapshot_download", fake_snapshot_download)
@@ -485,38 +599,43 @@ def test_runtime_preparation_preflight_rejects_native_probe_failure(
     assert "private native loader detail" not in str(exc.value)
 
 
-def test_combined_pull_selection_excludes_optional_by_default() -> None:
-    entries = selected_entries(all_models=True, include_optional=False)
-    assert all(not entry.optional for entry in entries)
-    assert {entry.key for entry in entries} == {"large-v3", "community-1"}
+def test_all_pull_selection_includes_every_selectable_entry() -> None:
+    entries = selected_entries(all_models=True)
+    assert {entry.key for entry in entries} == {
+        entry.key
+        for entry in MODEL_MANIFEST.values()
+        if entry.production_selectable
+    }
 
 
-def test_combined_pull_selection_includes_optional_when_requested() -> None:
-    entries = selected_entries(all_models=True, include_optional=True)
-    roles = {(entry.role, entry.key) for entry in entries}
-    assert ("asr", "turbo") in roles
-    assert ("asr", "distil-large-v3") in roles
-    assert ("asr", "distil-large-v3.5") in roles
-    assert ("alignment", "en") in roles
-    assert ("speaker-embedding", "ecapa") in roles
-    assert ("asr-mlx", "mlx-large-v3-turbo") not in roles
+def test_selected_entries_supports_exact_mlx_asr_role() -> None:
+    entries = selected_entries(
+        asr="turbo",
+        asr_mlx="mlx-small.en",
+        diarization="community-1",
+    )
+
+    assert [(entry.role, entry.key) for entry in entries] == [
+        ("asr", "turbo"),
+        ("asr-mlx", "mlx-small.en"),
+        ("diarization", "community-1"),
+    ]
 
 
-def test_import_mlx_model_copies_valid_local_directory(tmp_path: Path) -> None:
+def test_import_mlx_model_copies_exact_verified_model(tmp_path: Path) -> None:
+    entry = resolve_model_entry("asr-mlx", "mlx-large-v3")
+    assert entry is not None
     source = tmp_path / "downloaded-mlx"
     source.mkdir()
-    (source / "config.json").write_text("{}", encoding="utf-8")
-    (source / "weights.npz").write_bytes(b"ok")
+    write_complete_model(source, entry)
     cache_dir = tmp_path / "models"
 
     status = import_mlx_model(source, cache_dir)
 
     assert status.present is True
-    assert status.path == cache_dir / "mlx-community--whisper-large-v3-mlx"
-    assert (status.path / "config.json").exists()
-    assert (status.path / "weights.npz").exists()
-    with pytest.raises(ModelCacheError, match="Destination already exists"):
-        import_mlx_model(source, cache_dir)
+    assert status.path == cache_dir / entry.directory_name
+    assert status.path != source
+    assert not status.path.is_symlink()
 
 
 def test_manual_mlx_checkpoint_hash_binds_exact_local_content(tmp_path: Path) -> None:
@@ -537,13 +656,14 @@ def test_manual_mlx_checkpoint_hash_binds_exact_local_content(tmp_path: Path) ->
     assert first != second
 
 
-def test_import_mlx_model_rejects_partial_source(tmp_path: Path) -> None:
+def test_import_mlx_model_rejects_partial_source_before_mutation(tmp_path: Path) -> None:
     source = tmp_path / "partial-mlx"
     source.mkdir()
     (source / "config.json").write_text("{}", encoding="utf-8")
 
     with pytest.raises(ModelCacheError, match="MLX model source is incomplete"):
         import_mlx_model(source, tmp_path / "models")
+    assert not (tmp_path / "models").exists()
 
 
 def test_import_mlx_model_rejects_symlink_mode_before_mutation(tmp_path: Path) -> None:
@@ -622,6 +742,21 @@ def test_manifest_has_no_unclassified_entries() -> None:
     assert all(entry.role for entry in MODEL_MANIFEST.values())
 
 
+def test_all_model_keys_ids_and_aliases_resolve_to_operational_contracts(
+    tmp_path: Path,
+) -> None:
+    assert len(MODEL_MANIFEST) == 19
+    assert all(entry.production_selectable for entry in MODEL_MANIFEST.values())
+    for entry in MODEL_MANIFEST.values():
+        for selector in (entry.key, entry.model_id, *entry.aliases):
+            assert resolve_model_entry(entry.role, selector) == entry
+            with pytest.raises(OfflineModeError, match="Offline mode is enabled"):
+                require_model(entry.role, selector, tmp_path, offline=True)
+    assert resolve_model_entry("asr", "not-a-reviewed-model") is None
+    with pytest.raises(ModelCacheError, match="Unknown asr model"):
+        require_model("asr", "not-a-reviewed-model", tmp_path, offline=True)
+
+
 def test_strict_model_pointer_matrix_is_exact_and_immutable() -> None:
     expected = {
         ("asr", "large-v3"): (
@@ -653,8 +788,8 @@ def test_strict_model_pointer_matrix_is_exact_and_immutable() -> None:
 def test_turbo_redirect_alias_cache_is_accepted(tmp_path: Path) -> None:
     entry = resolve_model_entry("asr", "large-v3-turbo")
     assert entry is not None
-    assert entry.model_id == "mobiuslabsgmbh/faster-whisper-large-v3-turbo"
-    alias_dir = tmp_path / "dropbox-dash--faster-whisper-large-v3-turbo"
+    assert entry.model_id == "dropbox-dash/faster-whisper-large-v3-turbo"
+    alias_dir = tmp_path / "mobiuslabsgmbh--faster-whisper-large-v3-turbo"
     alias_dir.mkdir()
     write_complete_model(alias_dir, entry)
     status = status_for(entry, tmp_path)
@@ -669,8 +804,7 @@ def test_mlx_manifest_alias_directory_cache_is_accepted(tmp_path: Path) -> None:
     assert entry.key == "mlx-large-v3-turbo"
     alias_dir = tmp_path / "mlx-turbo"
     alias_dir.mkdir()
-    (alias_dir / "config.json").write_text("{}", encoding="utf-8")
-    (alias_dir / "weights.safetensors").write_bytes(b"ok")
+    write_complete_model(alias_dir, entry)
 
     status = status_for(entry, tmp_path)
 
@@ -685,7 +819,7 @@ def test_complete_alias_cache_wins_over_partial_canonical_cache(tmp_path: Path) 
     canonical_dir = tmp_path / entry.directory_name
     canonical_dir.mkdir()
     (canonical_dir / "config.json").write_text("{}", encoding="utf-8")
-    alias_dir = tmp_path / "dropbox-dash--faster-whisper-large-v3-turbo"
+    alias_dir = tmp_path / "mobiuslabsgmbh--faster-whisper-large-v3-turbo"
     alias_dir.mkdir()
     write_complete_model(alias_dir, entry)
 

@@ -8,35 +8,92 @@ SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 External assets are not licensed under Auralign's first-party license. A local
 cache, access token, public URL, package declaration, model card, or successful
-download is not proof that acquisition or redistribution is authorized.
+download is not proof that acquisition, use, or redistribution is authorized.
 
-The machine-readable external-asset registry is the authoritative inventory for
-immutable revisions, source and terms URLs, SPDX expressions, acquisition
-status, redistribution status, privacy classification, review evidence, and
-review dates. Acquisition and release operations must fail closed when a
-required record is missing or unverified.
+`compliance/external_assets.toml` is the machine-readable authority for
+immutable revisions, exact files/sizes/SHA-256 values, source and terms URLs,
+SPDX expressions, acquisition/use/redistribution status, product
+classification, backend evidence, modification status, package destination,
+human clearance, and review date. Unknown or conflicting required fields fail
+closed.
 
-## Models
+## 0.3.0 Model Disposition
 
-| Asset family | Repository disposition |
+On 2026-07-25, Matthew Penkala recorded the project decision represented in
+the registry for all nineteen exact model entries. This is a release-scope
+decision, not legal advice, an AI legal opinion, ownership of the external
+assets, or a change to upstream terms.
+
+| Asset family | Exact 0.3.0 disposition |
 | --- | --- |
-| Whisper and Distil Whisper derivatives | Require verified MIT evidence and an immutable revision before acquisition or supported-use claims |
-| `facebook/wav2vec2-base-960h` | Require verified Apache-2.0 evidence and an immutable revision |
-| `speechbrain/spkrec-ecapa-voxceleb` | Require verified Apache-2.0 evidence and an immutable revision; training-data rights remain a separate concern |
-| `pyannote/speaker-diarization-community-1` | CC-BY-4.0 attribution plus gated terms; every downstream user must independently satisfy access terms |
-| `mlx-community/*` entries lacking publisher license metadata | `unverified` and blocked from redistribution or production-supported claims until upstream evidence is recorded |
+| Four CTranslate2 ASR entries | MIT evidence, immutable revisions, complete file/size/SHA-256 contracts, real network-denied local inference, owner-cleared native-download packs |
+| Twelve MLX Whisper entries | MIT chain from pinned OpenAI Whisper and mlx-whisper/MLX sources, immutable revisions, two-file size/SHA-256 contracts, real network-denied local inference, owner-cleared native-download packs |
+| `pyannote/speaker-diarization-community-1` | Pinned card/API declare CC-BY-4.0; exact files owner-cleared with attribution for the scriptless bootstrap component |
+| `facebook/wav2vec2-base-960h` | Apache-2.0 evidence; exact `en` files owner-cleared for the bootstrap component |
+| `speechbrain/spkrec-ecapa-voxceleb` | Apache-2.0 evidence; exact `ecapa` files owner-cleared for the bootstrap component; VoxCeleb training-data caveat retained |
+| Deterministic English Punkt | First-party build output from locked NLTK 3.9.4 empty parameters; no downloaded corpus; exact marker/files verified in the bootstrap component |
 
-Model weights are separately downloaded runtime assets. They must not enter the
-source repository, wheel, sdist, container publication, SBOM scope by accident,
-or validation evidence committed to Git.
+The scriptless PKG contains no ASR weights. It installs the app/runtime plus
+root-owned bootstrap component
+`com.auralign.studio.models.bootstrap.v1` version `1.0.0` below
+`/Library/Application Support/com.auralign.studio/Models/`.
 
-The source repository may carry immutable identifiers, required-file contracts,
-reviewed acquisition commands, and compliance records. An explicit approved
-pull writes a local `.ltm-model.json` linkage marker so offline verification can
-bind the cache to the selected manifest revision. That marker is technical
-cache metadata, not license evidence, gated acceptance, ownership evidence, or
-permission to copy an asset. It and `model_audit.json` remain ignored local
-material and are excluded from source archives.
+The sixteen ASR packs are independently versioned and published by the signed
+native app below
+`~/Library/Application Support/com.auralign.studio/Models/Packs/<pack-id>/<version>/`.
+This native delivery addresses the private release host's per-asset size limit.
+It does not authorize loose release assets, raw caches, floating URLs, or
+runtime downloads during transcription. Public packs require no token, stage
+privately, verify exact path/size/hash/license/notice/provenance/CycloneDX and
+completion contracts, and publish atomically.
+
+Normal preset mappings are `max=large-v3`, `balanced=turbo`,
+`fast=distil-large-v3.5`, and `cpu=turbo`. `distil-large-v3` and all twelve
+MLX models are optional advanced choices. All are exact and operational; none
+is a pointer-only production selector.
+
+## Model License Evidence
+
+The four CTranslate2 conversions are recorded as MIT. The twelve MLX
+conversions rely on the exact pinned model identity/card plus the corresponding
+OpenAI Whisper MIT source/weights and the MIT mlx-whisper/MLX
+conversion/runtime record. Eleven pinned MLX repositories omit a standalone
+license field or file; that absence is disclosed in their row-specific
+evidence rather than hidden. The owner's revision-specific project decision is
+the human clearance boundary; it is not an AI inference that absence alone
+creates permission.
+
+For Community-1 revision
+`3533c8cf8e369892e6b79ff1bf80f7b0286a54ee`, the official model card and
+Hugging Face API metadata declare `CC-BY-4.0`; the pinned file tree contains no
+standalone `LICENSE`. The official automatic gate requests default
+username/email, `Company/university`, and a use-case field. Its recorded schema
+contains no additional use-restriction checkbox. Auralign records the gate as
+an upstream acquisition/contact mechanism. A direct acquirer must complete it;
+the separately owner-cleared attributed copy in the bootstrap component does
+not require a recipient Hugging Face account or token. Installer acceptance is
+not represented as upstream consent.
+
+The bootstrap component and each native pack contain complete applicable
+license text, attribution, `THIRD-PARTY-NOTICES.txt`, deterministic provenance,
+verification, CycloneDX SBOM, and completion records. They exclude tokens,
+user names, private paths, acquisition timestamps, `.ltm-model.json`,
+`model_audit.json`, cache metadata, locks, partial files, media, transcripts,
+and validation logs.
+
+## Repository And Release Boundaries
+
+Model weights must not enter Git, Git LFS, wheels, sdists, source archives,
+containers, package registries, standalone model uploads, or raw GitHub release
+assets. The owner-authorized private product flow is the narrow exception:
+exact bootstrap bytes may be inside the signed/notarized/stapled PKG and exact
+ASR bytes may be published only as verified native per-user packs by the signed
+application.
+
+The native model manager never uses `preinstall` or `postinstall`, never runs
+as root, never embeds a shared credential, and never treats an Auralign
+checkbox as upstream consent. Normal readiness and processing are offline-only
+and cannot download or select arbitrary directories.
 
 ## Datasets And Media
 
@@ -45,28 +102,29 @@ material and are excluded from source archives.
 | LibriSpeech | CC-BY-4.0 attribution must be recorded; full corpus remains optional and external |
 | AMI Meeting Corpus | CC-BY-4.0 attribution must be recorded; full corpus remains optional and external |
 | `hf-internal-testing/librispeech_asr_dummy` | Automated acquisition disabled until exact sample provenance and license are verified |
-| VoxCeleb and mirrors | Reference-only; mirror synchronization disabled by default and blocked without explicit human legal approval for purpose, jurisdiction, access, and retention |
-| User recordings and validation corpora | Private operator-controlled data; never repository or package content |
+| VoxCeleb and mirrors | Reference-only; mirror synchronization blocked without explicit human review for purpose, jurisdiction, access, and retention |
+| User recordings and validation corpora | Private operator-controlled data; never repository or product content |
 
 Dataset licenses do not answer recording-consent, publicity/voice, biometric,
-privacy, contractual, or jurisdiction-specific research-use questions. Those
-must be reviewed independently.
+privacy, contractual, or jurisdiction-specific questions. Those require
+separate review.
 
 ## Python And Native Dependencies
 
 Python packages declared in `pyproject.toml` and resolved in `uv.lock` are not
-vendored into Auralign's source or pure-Python wheel merely because they are
-declared. Each installed package remains governed by its upstream terms. Wheels
-such as PyAV and SoundFile may include native libraries with distinct notices
-or source obligations; lock metadata is not sufficient evidence for release.
+vendored into source merely because they are declared. The standalone app's
+purpose-built runtime contains only the exact reviewed closure; each component
+retains its upstream terms and notices.
 
-FFmpeg, codecs, Torch/TorchCodec, CUDA, cuDNN, NCCL, base images, and operating-
-system packages are external components. Availability under a software license
-does not establish patent, codec, export, or redistribution clearance.
+FFmpeg, codecs, PyAV, Torch, TorchCodec, torchaudio, MLX, native libraries,
+CUDA/cuDNN/NCCL, base images, and operating-system packages are external
+components. Availability under a software license does not by itself establish
+patent, codec, export, or redistribution clearance.
 
 ## Secrets And Private Material
 
-Tokens, `.env` files, model/dataset caches, recordings, transcripts,
-diarization, embeddings, speaker profiles, QA/debug reports, local paths, and
-generated run output are sensitive operational material. They must remain
-outside the repository and all distribution archives.
+Tokens, `.env` files, raw caches, recordings, transcripts, diarization,
+embeddings, profiles, QA/debug reports, private paths, and generated run output
+are sensitive operational material. They remain outside Git, the PKG, native
+packs, and release attachments except for the exact public model bytes and
+privacy-safe deterministic records explicitly authorized above.

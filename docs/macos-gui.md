@@ -7,10 +7,11 @@ SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 # Native macOS GUI
 
 The SwiftUI application under `macos/` is a local control surface for the
-authoritative Python engine. It does not reimplement transcription or acquire
-models. Debug builds use the repository runtime; the owner-authorized private
-standalone PKG embeds the exact reviewed Python engine and native dependency
-closure. This is a Developer ID distribution outside the Mac App Store.
+authoritative Python engine. It does not reimplement transcription. Debug
+builds use the repository runtime; the owner-authorized private standalone PKG
+embeds the exact reviewed Python engine and native dependency closure. The
+signed app also owns the native, nonmodal model-pack setup surface. This is a
+Developer ID distribution outside the Mac App Store.
 
 ## Trust Boundary
 
@@ -36,15 +37,28 @@ evidence. The Start action fails closed until the new state has been checked.
 
 ## Requirements By Lane
 
-Both lanes require macOS 14 or later on Apple Silicon and exact, separately
-acquired local model caches for the selected configuration. Development also
-requires Xcode, the repository's Python 3.11 `.venv`, and reviewed
-FFmpeg/FFprobe. The installed standalone app embeds Python, the Auralign engine,
-CPU dependency closure, FFmpeg, and FFprobe; it does not require Xcode, Python,
-Homebrew, Git, `uv`, a checkout, a virtual environment, or shell-profile setup.
+Both lanes require macOS 14 or later on Apple Silicon. Source development uses
+an explicitly prepared local cache and additionally requires Xcode, the
+repository's Python 3.11 `.venv`, and reviewed FFmpeg/FFprobe. The 0.3.0
+standalone product embeds Python, the Auralign engine, CPU/MLX dependency
+closure, FFmpeg, and FFprobe, and installs
+`com.auralign.studio.models.bootstrap.v1` version `1.0.0` below system
+Application Support. That component contains Community-1, English alignment,
+ECAPA, and deterministic corpus-free Punkt, but no ASR weights.
 
-The app never downloads a model. Follow [Models](models.md) for acquisition,
-verification, gated-access, and strict offline requirements.
+The app's **Complete Offline Setup** surface installs one of sixteen exact
+public ASR packs below the current user's Application Support. It uses
+revision-bound URLs sealed in the signed catalog, `URLSession`, private
+staging, exact size/SHA-256/license/notice/provenance/CycloneDX verification,
+and atomic publication. The flow is keyboard and VoiceOver accessible, never
+runs in Installer, and requires no token. The recipient needs one connected
+setup pass unless the exact selected pack is already installed or imported;
+processing is strictly offline afterward. They never need Xcode, Command Line
+Tools, Python, Homebrew, Git, `uv`, a checkout, virtual environment, compiler,
+package manager, or shell-profile setup.
+
+Follow [Models](models.md) for the distinct source-cache, bootstrap-component,
+and native-pack verification contracts.
 
 ## Development Build
 
@@ -98,12 +112,14 @@ transparent Python 3.11 engine as the nested
 bundle. The app resolves that runtime relative to its own bundle and launches
 Python with `-B -I` plus a sanitized, strictly offline environment. Mutable
 state lives only in the user's Application Support, Caches, Logs, and temporary
-directories; models remain in the app-owned default or an explicit existing
-local directory.
+directories. Release model resolution is locked to the exact root-owned
+bootstrap component plus the selected versioned per-user ASR pack. Arbitrary
+directories, floating repository IDs, environment overrides, and partial
+staging cannot override installed policy.
 
 The app remains unsandboxed because it launches its embedded subprocess and
 works with operator-selected media, model caches, and output directories. Its
-Release configuration makes `offline` and `model_cache` managed values so
+Release configuration makes `offline` and model locations managed values so
 imports or stale overrides cannot bypass the installed policy.
 
 An ordinary Xcode Release build is still only a local artifact. Distribution
@@ -111,7 +127,7 @@ requires the checked-in standalone builder, clean exact-commit source, complete
 license/SBOM/native closure, inside-out Developer ID signing, a scriptless
 Developer ID Installer PKG, Apple notarization, stapling, final package/runtime
 smoke tests, and private-release hash parity. See
-[the private PKG runbook](release/macos-v0.2.1-private-pkg.md).
+[the private PKG runbook](release/macos-v0.3.0-private-pkg.md).
 
 ## Job Ownership And Privacy
 
@@ -182,3 +198,6 @@ LTM_OFFLINE=1 uv run ltm doctor --startup \
 ```
 
 Real-media acceptance is a separate, explicitly authorized local operation.
+For an installed product, the selected ASR pack must verify before the
+equivalent startup check can pass; a successful bridge handshake alone is not
+transcription readiness.

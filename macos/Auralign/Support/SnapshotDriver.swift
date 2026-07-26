@@ -6,6 +6,7 @@ import AppKit
 
 enum SnapshotWindowRole: String, CaseIterable {
     case main
+    case modelSetup = "model-setup"
     case settings
 
     var windowIdentifier: String {

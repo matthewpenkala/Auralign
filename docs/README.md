@@ -13,22 +13,24 @@ canonical sources for implementation details and operational policy.
 
 - [Architecture](architecture.md): repository spine, runtime stages, and
   validation boundaries.
-- [Apple Silicon](apple-silicon.md): native arm64 MLX/CPU topology, diagnostics,
-  offline setup, QA, and evidence-gated MPS diarization.
+- [Apple Silicon](apple-silicon.md): arm64 standalone topology, native
+  revision-pinned ASR packs, MLX support, and CPU/MPS evidence boundaries.
 - [Alignment](alignment.md): forced-alignment routing and fallback semantics.
 - [Diarization](diarization.md): backends, device policy, and candidate scoring.
 
 ## Operations
 
-- [Models](models.md): canonical human and AI-agent runbook for the manifest,
-  connected acquisition, exact verification, and strict offline use.
+- [Models](models.md): canonical human and AI-agent runbook for all nineteen
+  entries, bootstrap/native delivery, exact verification, and offline use.
 - [Offline mode](offline.md): local cache requirements and failure behavior.
 - [Docker](docker.md): container build and Compose profiles.
 - [Troubleshooting](troubleshooting.md): common runtime and setup failures.
 
 ## Quality
 
-- [Accuracy](accuracy.md): presets, re-decode, and evaluation boundaries.
+- [Accuracy](accuracy.md): source-development preset history, re-decode, and
+  evaluation boundaries; the authoritative 0.3.0 preset/model mapping is in
+  [Models](models.md).
 - [Benchmarking](benchmarking.md): private-corpus methodology and reports.
 
 ## Interfaces
@@ -46,11 +48,18 @@ canonical sources for implementation details and operational policy.
   standalone runtime, Developer ID signing, notarization, installation, and
   private-release parity.
 - [Auralign 0.2.1 private macOS PKG](release/macos-v0.2.1-private-pkg.md):
-  current patch-release runtime, signing, notarization, installation, and
-  private-release parity contract.
+  immutable accepted predecessor runtime, signing, notarization, installation,
+  and private-release parity contract.
 - [Auralign 0.2.1 macOS release and redesign dossier](release/macos-v0.2.1-dossier.md):
-  implemented workbench, accessibility and visual evidence boundaries, runtime
-  layout, provenance, privacy, and final-candidate acceptance.
+  immutable predecessor workbench, accessibility and visual evidence
+  boundaries, runtime layout, provenance, privacy, and final-candidate
+  acceptance.
+- [Auralign 0.3.0 private macOS PKG](release/macos-v0.3.0-private-pkg.md):
+  successor model-inclusive private release, root-owned model component,
+  signing/notarization, installation, and parity contract.
+- [Auralign 0.3.0 macOS release dossier](release/macos-v0.3.0-dossier.md):
+  successor bootstrap-plus-native-pack topology, all 19 model dispositions,
+  recipient independence, privacy, provenance, and acceptance boundaries.
 
 ## Safety
 

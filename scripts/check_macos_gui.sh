@@ -6,6 +6,7 @@
 
 set -euo pipefail
 umask 077
+export PYTHONDONTWRITEBYTECODE=1
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project="$root/macos/Auralign.xcodeproj"
@@ -88,7 +89,7 @@ assert_no_active_gui_toolchain() {
 
 write_source_state() {
   local destination="$1"
-  uv run --python 3.11 python - "$root" "$destination" <<'PY'
+  uv run --python 3.11 python -B - "$root" "$destination" <<'PY'
 import hashlib
 import json
 import os
@@ -191,7 +192,7 @@ xcrun xcresulttool get test-results summary \
 xcrun xcresulttool get test-results tests \
   --path "$evidence/signed-tests.xcresult" \
   > "$evidence/signed-tests-tree.json"
-uv run --python 3.11 python - \
+uv run --python 3.11 python -B - \
   "$evidence/signed-tests-summary.json" \
   "$evidence/signed-tests-tree.json" \
   "$evidence/signed-tests-validation.json" <<'PY'
@@ -297,7 +298,7 @@ assert_no_active_gui_toolchain after-analyze
 run_xcode release-build -configuration Release build
 assert_no_active_gui_toolchain after-release-build
 
-uv run --python 3.11 python - \
+uv run --python 3.11 python -B - \
   "$evidence/signed-tests.log" \
   "$evidence/analyze.log" \
   "$evidence/release-build.log" \
@@ -412,7 +413,7 @@ bundle_executable="$(
   || fail "unexpected Release minimum system version: $minimum_system"
 [[ "$package_type" == "APPL" ]] \
   || fail "unexpected Release package type: $package_type"
-[[ "$short_version" == "0.2.1" ]] \
+[[ "$short_version" == "0.3.0" ]] \
   || fail "unexpected Release short version: $short_version"
 [[ "$bundle_version" == "1" ]] \
   || fail "unexpected Release bundle version: $bundle_version"
@@ -450,7 +451,7 @@ else
     > "$evidence/entitlements-lint.txt"
 fi
 
-uv run --python 3.11 python - \
+uv run --python 3.11 python -B - \
   "$evidence/entitlements.plist" \
   "$evidence/entitlements-validation.json" <<'PY'
 import json
@@ -508,7 +509,7 @@ xcrun assetutil --info "$asset_catalog" \
 iconset="$evidence/audio-waveform-icon.iconset"
 xcrun iconutil -c iconset "$compiled_icon" -o "$iconset"
 
-uv run --python 3.11 python - \
+uv run --python 3.11 python -B - \
   "$root/macos/Auralign/audio-waveform-icon.icon" \
   "$root/macos/Auralign/Assets.xcassets/AppIcon.appiconset" \
   "$evidence/assets-info.json" \
@@ -650,10 +651,14 @@ cat > "$expected_files" <<'EOF'
 Contents/Info.plist
 Contents/MacOS/Auralign
 Contents/PkgInfo
+Contents/Resources/Apache-2.0.txt
 Contents/Resources/Assets.car
+Contents/Resources/CC-BY-4.0.txt
 Contents/Resources/FieldCatalog.json
+Contents/Resources/MIT.txt
 Contents/Resources/audio-waveform-icon.icns
 Contents/Resources/config_manifest.json
+Contents/Resources/model_delivery_catalog.json
 Contents/_CodeSignature/CodeResources
 EOF
 while IFS= read -r -d '' bundled_file; do
@@ -733,7 +738,9 @@ while IFS= read -r -d '' bundled_file; do
       ;;
   esac
 
-  for forbidden_path in '/Users/' '/private/var/folders/'; do
+  private_user_marker="/"'Users/'
+  private_temporary_marker="/private/"'var/folders/'
+  for forbidden_path in "$private_user_marker" "$private_temporary_marker"; do
     if LC_ALL=C grep -a -F -q -- "$forbidden_path" "$bundled_file"; then
       fail "Release bundle contains a private machine-local path marker in $relative"
     fi
@@ -765,7 +772,7 @@ if grep -E -q \
   fail "Xcode project contains an unreviewed package reference"
 fi
 
-uv run --python 3.11 python - "$app" "$evidence/release-sha256.json" <<'PY'
+uv run --python 3.11 python -B - "$app" "$evidence/release-sha256.json" <<'PY'
 import hashlib
 import json
 import os

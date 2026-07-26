@@ -252,11 +252,121 @@ def test_native_install_and_workflow_contracts_are_location_stable_and_checked()
     assert "generate_environment_sbom.py" in workflow
     assert "Provision exact locked profile outside checkout" in workflow
     assert "--no-sync" not in workflow
+    assert 'PYTHONDONTWRITEBYTECODE: "1"' in workflow
+    assert "& $python -B scripts/run_trusted_platform_validation.py" in workflow
+    assert "& $toolPython -B scripts/generate_environment_sbom.py" in workflow
+    assert "& $toolPython -B scripts/validate_dependency_sbom.py" in workflow
+    assert "& $python scripts/run_trusted_platform_validation.py" not in workflow
+    assert "& $toolPython scripts/generate_environment_sbom.py" not in workflow
+    assert "& $toolPython scripts/validate_dependency_sbom.py" not in workflow
     validator = (REPO_ROOT / "scripts/run_trusted_platform_validation.py").read_text(
         encoding="utf-8"
     )
     assert 'profile_dir=work / "profiles"' in validator
     assert 'os.environ.get("LTM_SPEAKER_PROFILE_DIR")' not in validator
+
+
+def test_trusted_validation_python_probe_forces_no_bytecode(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["environment"] = kwargs["env"]
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(trusted_validation.subprocess, "run", fake_run)
+    environment = {"EXISTING": "preserved"}
+
+    trusted_validation.validate_cuda(environment)
+
+    command = captured["command"]
+    child_environment = captured["environment"]
+    assert isinstance(command, list)
+    assert command[:3] == [sys.executable, "-B", "-c"]
+    assert isinstance(child_environment, dict)
+    assert child_environment["PYTHONDONTWRITEBYTECODE"] == "1"
+    assert child_environment["EXISTING"] == "preserved"
+    assert "PYTHONDONTWRITEBYTECODE" not in environment
+
+
+def test_environment_sbom_target_probe_forces_no_bytecode(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["environment"] = kwargs["env"]
+        stdout = json.dumps({"machine": "arm64", "python": "3.11.15", "sys_platform": "darwin"})
+        return subprocess.CompletedProcess(command, 0, stdout, "")
+
+    monkeypatch.setattr(environment_sbom.subprocess, "run", fake_run)
+    python = Path(sys.executable)
+
+    runtime = environment_sbom.target_runtime(python)
+
+    command = captured["command"]
+    child_environment = captured["environment"]
+    assert runtime["python"] == "3.11.15"
+    assert isinstance(command, list)
+    assert command[:3] == [str(python), "-B", "-c"]
+    assert isinstance(child_environment, dict)
+    assert child_environment["PYTHONDONTWRITEBYTECODE"] == "1"
+
+
+def test_environment_sbom_generator_forces_no_bytecode(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        environment_sbom,
+        "target_runtime",
+        lambda _python: {
+            "machine": "arm64",
+            "python": "3.11.15",
+            "sys_platform": "darwin",
+        },
+    )
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["environment"] = kwargs["env"]
+        raw = Path(command[command.index("--output-file") + 1])
+        raw.write_text(
+            json.dumps(
+                {
+                    "bomFormat": "CycloneDX",
+                    "components": [],
+                    "metadata": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(environment_sbom.subprocess, "run", fake_run)
+    output = tmp_path / "environment.cdx.json"
+
+    count = environment_sbom.generate(
+        python=Path("/controlled/runtime/bin/python3.11"),
+        platform_name="darwin-arm64-cpu",
+        profile="cpu",
+        commit="a" * 40,
+        output=output,
+    )
+
+    command = captured["command"]
+    child_environment = captured["environment"]
+    assert count == 0
+    assert output.is_file()
+    assert isinstance(command, list)
+    assert command[:4] == [sys.executable, "-B", "-m", "cyclonedx_py"]
+    assert isinstance(child_environment, dict)
+    assert child_environment["PYTHONDONTWRITEBYTECODE"] == "1"
 
 
 def test_platform_acceptance_schema_rejects_cross_platform_field_mix() -> None:

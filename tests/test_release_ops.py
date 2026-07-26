@@ -197,7 +197,8 @@ def test_model_linkage_is_discoverable_to_humans_and_ai_agents() -> None:
         assert authority in agent_rules
 
     assert "Human And AI-Agent Entry Point" in agent_rules
-    assert "Do not download models merely" in agent_rules
+    assert "the user has explicitly authorized acquisition on that machine" in agent_rules
+    assert "Runtime auto-download remains prohibited" in agent_rules
     assert "Source-repository access is not model acquisition" in agent_rules
     assert "LTM_OFFLINE=1" in agent_rules
     assert "models verify" in agent_rules

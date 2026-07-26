@@ -543,6 +543,9 @@ extension AppModel {
                     entry.anyRequiredFiles.map(JSONValue.string)
                 ),
                 "runtime_files": .array(entry.runtimeFiles.map(JSONValue.string)),
+                "expected_sha256": .object(
+                    entry.expectedSHA256.mapValues(JSONValue.string)
+                ),
                 "gated": .bool(entry.gated),
                 "optional": .bool(entry.optional),
                 "pullable": .bool(entry.pullable),
@@ -563,6 +566,15 @@ extension AppModel {
                     entry.reviewStatus ?? "synthetic_fixture"
                 ),
                 "reviewed_at": .string(entry.reviewedAt ?? "2026-07-19"),
+                "product_classification": .string(entry.productClassification),
+                "product_selectable": .bool(entry.productSelectable),
+                "blocker": entry.blocker.map(JSONValue.string) ?? .null,
+                "backend_compatibility": .string(entry.backendCompatibility),
+                "modification_status": .string(entry.modificationStatus),
+                "package_bundle_id":
+                    entry.packageBundleId.map(JSONValue.string) ?? .null,
+                "package_relative_path":
+                    entry.packageRelativePath.map(JSONValue.string) ?? .null,
                 "source_url": .string(
                     entry.sourceURL ?? "https://example.invalid/synthetic"
                 ),
@@ -836,6 +848,7 @@ final class AppModel: ObservableObject {
     let catalog: FieldCatalog
     let config: ConfigStore
     let job = JobController()
+    let modelSetup: ModelSetupController
 
     @Published private(set) var engineLocation: EngineLocation
     @Published private(set) var bridge: EngineBridge?
@@ -902,6 +915,8 @@ final class AppModel: ObservableObject {
             modelManifest: []
         )
         var loadedCatalog = FieldCatalog(catalogVersion: "unavailable", sections: [], fields: [])
+        var loadedModelDeliveryCatalog: ModelDeliveryCatalog?
+        var modelDeliveryCatalogProblem: String?
         do {
             loadedManifest = try ConfigManifest.loadBundled()
             loadedCatalog = try FieldCatalog.loadBundled()
@@ -909,9 +924,20 @@ final class AppModel: ObservableObject {
             loadFailureMessage = "Bundled configuration resources failed to load: "
                 + error.localizedDescription
         }
+        do {
+            loadedModelDeliveryCatalog = try ModelDeliveryCatalog.loadBundled()
+        } catch {
+            modelDeliveryCatalogProblem =
+                "The signed model delivery catalog could not be accepted: "
+                + error.localizedDescription
+        }
         manifest = loadedManifest
         catalog = loadedCatalog
         config = ConfigStore(manifest: loadedManifest, catalog: loadedCatalog)
+        modelSetup = ModelSetupController(
+            catalog: loadedModelDeliveryCatalog,
+            catalogProblem: modelDeliveryCatalogProblem
+        )
         loadFailure = loadFailureMessage
         engineLocation = EngineLocation.resolve(userDefaults: userDefaults)
 #if DEBUG
@@ -946,6 +972,12 @@ final class AppModel: ObservableObject {
         job.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
+        modelSetup.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        modelSetup.onAcceptedPackChange = { [weak self] in
+            self?.modelPackAcceptanceChanged()
+        }
         job.$phase
             .removeDuplicates(by: { first, second in
                 switch (first, second) {
@@ -1040,6 +1072,7 @@ final class AppModel: ObservableObject {
         if isPresentationFixture {
             return true
         }
+        modelSetup.restore()
         return connectEngine()
     }
 
@@ -1062,6 +1095,7 @@ final class AppModel: ObservableObject {
         handshakeWork?.cancel()
         probeWork?.cancel()
         readinessWork?.cancel()
+        modelSetup.pauseActiveDownloads()
 
         await config.cancelOutstandingWorkAndWait()
         if let handshakeWork { await handshakeWork.value }
@@ -1131,8 +1165,8 @@ final class AppModel: ObservableObject {
             startupError = loadFailure
             return true
         }
-        guard location.isReady else {
-            startupError = location.diagnosis.message
+        guard location.isRuntimeReady else {
+            startupError = location.runtimeDiagnosis.message
             return true
         }
         let candidate = EngineBridge(location: location)
@@ -1177,6 +1211,7 @@ final class AppModel: ObservableObject {
 
     @discardableResult
     func updateModelCache(_ url: URL?) -> Bool {
+#if DEBUG
         guard !isPresentationFixture, !workMutationLocked else { return false }
         if let url,
            url.standardizedFileURL != EngineLocation.defaultModelCacheRoot.standardizedFileURL {
@@ -1189,6 +1224,13 @@ final class AppModel: ObservableObject {
         }
         _ = connectEngine()
         return true
+#else
+        // Release trusts only the exact root-owned model component installed
+        // by Auralign's signed package. Persisted or caller-supplied overrides
+        // must not redirect production readiness to an arbitrary directory.
+        _ = url
+        return false
+#endif
     }
 
     private static func releaseManagedValues(
@@ -1197,6 +1239,10 @@ final class AppModel: ObservableObject {
         [
             "offline": .bool(true),
             "model_cache": .string(location.modelCacheRoot.path),
+            // Release model resolution is authority-driven. Imported
+            // development configurations must never redirect MLX to an
+            // arbitrary local path outside the verified system/user packs.
+            "asr.mlx_model_path": .null,
         ]
     }
 
@@ -1279,8 +1325,8 @@ final class AppModel: ObservableObject {
             return enginePresentationOverride
         }
         return EnginePresentationStatus(
-            isReady: engineLocation.isReady,
-            message: engineLocation.diagnosis.message,
+            isReady: engineLocation.isRuntimeReady,
+            message: engineLocation.runtimeDiagnosis.message,
             repositoryPath: engineLocation.repositoryDisplayPath,
             pythonPath: engineLocation.pythonDisplayPath
         )
@@ -1390,6 +1436,24 @@ final class AppModel: ObservableObject {
     }
 
     // MARK: - Readiness
+
+    /// A native transfer becoming atomically accepted invalidates stale model
+    /// evidence, but never establishes readiness by itself. Python must
+    /// re-resolve and verify the effective configuration from the installed
+    /// bytes before the run gate can reopen.
+    private func modelPackAcceptanceChanged() {
+        readinessGeneration &+= 1
+        readinessTask?.cancel()
+        isRunningDoctor = false
+        modelStatuses = []
+        doctor = nil
+        doctorFingerprint = nil
+        doctorEvidenceFailure = nil
+        modelEvidenceFailure = nil
+        if bridge != nil, handshake != nil, config.isValid {
+            requestReadinessRefresh()
+        }
+    }
 
     /// Starts a single model-owned readiness task. Repeated requests first
     /// cancel and await their predecessor, so application termination always
@@ -1710,6 +1774,36 @@ final class AppModel: ObservableObject {
             }
             return values.compactMap(\.stringValue)
         }
+        func stringDictionary(
+            _ object: [String: JSONValue],
+            _ key: String
+        ) throws -> [String: String] {
+            guard let values = object[key]?.objectValue else {
+                throw malformed()
+            }
+            var result: [String: String] = [:]
+            for (name, value) in values {
+                guard !name.isEmpty,
+                      let string = value.stringValue,
+                      !string.isEmpty
+                else {
+                    throw malformed()
+                }
+                result[name] = string
+            }
+            return result
+        }
+        func optionalString(
+            _ object: [String: JSONValue],
+            _ key: String
+        ) throws -> String? {
+            guard let value = object[key] else { throw malformed() }
+            if value == .null { return nil }
+            guard let string = value.stringValue, !string.isEmpty else {
+                throw malformed()
+            }
+            return string
+        }
         func requiredBool(
             _ object: [String: JSONValue],
             _ key: String
@@ -1797,6 +1891,7 @@ final class AppModel: ObservableObject {
             let requiredFiles = try stringArray(model, "required_files")
             let anyRequiredFiles = try stringArray(model, "any_required_files")
             let runtimeFiles = try stringArray(model, "runtime_files")
+            let expectedSHA256 = try stringDictionary(model, "expected_sha256")
             let revision = try requiredString(model, "revision")
             let licenseExpression = try requiredString(model, "license_expression")
             let acquisitionStatus = try requiredString(model, "acquisition_status")
@@ -1807,6 +1902,25 @@ final class AppModel: ObservableObject {
             )
             let reviewStatus = try requiredString(model, "review_status")
             let reviewedAt = try requiredString(model, "reviewed_at")
+            let productClassification = try requiredString(
+                model,
+                "product_classification"
+            )
+            let productSelectable = try requiredBool(model, "product_selectable")
+            let blocker = try optionalString(model, "blocker")
+            let backendCompatibility = try requiredString(
+                model,
+                "backend_compatibility"
+            )
+            let modificationStatus = try requiredString(
+                model,
+                "modification_status"
+            )
+            let packageBundleId = try optionalString(model, "package_bundle_id")
+            let packageRelativePath = try optionalString(
+                model,
+                "package_relative_path"
+            )
             let sourceURL = try requiredString(model, "source_url")
             let termsURL = try requiredString(model, "terms_url")
             let attribution = try requiredString(model, "attribution")
@@ -1841,6 +1955,7 @@ final class AppModel: ObservableObject {
                       entry.requiredFiles == requiredFiles,
                       entry.anyRequiredFiles == anyRequiredFiles,
                       entry.runtimeFiles == runtimeFiles,
+                      entry.expectedSHA256 == expectedSHA256,
                       entry.revision == revision,
                       entry.licenseExpression == licenseExpression,
                       entry.acquisitionStatus == acquisitionStatus,
@@ -1848,6 +1963,13 @@ final class AppModel: ObservableObject {
                       entry.redistributionStatus == redistributionStatus,
                       entry.reviewStatus == reviewStatus,
                       entry.reviewedAt == reviewedAt,
+                      entry.productClassification == productClassification,
+                      entry.productSelectable == productSelectable,
+                      entry.blocker == blocker,
+                      entry.backendCompatibility == backendCompatibility,
+                      entry.modificationStatus == modificationStatus,
+                      entry.packageBundleId == packageBundleId,
+                      entry.packageRelativePath == packageRelativePath,
                       entry.sourceURL == sourceURL,
                       entry.termsURL == termsURL,
                       entry.attribution == attribution,
@@ -2109,12 +2231,19 @@ final class AppModel: ObservableObject {
                 || status.problem != nil
         }
         if let evidenceIssue, let failingModel {
+            let entry = manifest.modelManifest.first {
+                $0.id == failingModel.id
+            }
+            let recovery: ReadinessDecision.Recovery =
+                entry?.delivery == "native-download"
+                    ? .completeOfflineSetup(entry?.packageBundleId)
+                    : .showModel(failingModel.id)
             return make(
                 .blocked,
                 "Required model evidence blocks this run",
                 "A model selected by the effective configuration is unresolved.",
                 cause: evidenceIssue,
-                recovery: .showModel(failingModel.id)
+                recovery: recovery
             )
         }
         if !doctor.ok, let first = doctor.errors.first {

@@ -16,44 +16,48 @@ uv sync --extra asr --extra dev
 
 ## `ltm doctor` says mlx-whisper is missing
 
-MLX ASR is optional and Apple Silicon-focused. Install it explicitly:
+The installed 0.3.0 runtime already contains mlx-whisper 0.4.3 and MLX 0.31.2.
+If the installed app reports this error, repair/reinstall the exact signed
+application; do not run `pip`, point it at a development `.venv`, or change
+`$PATH`.
 
-```bash
-uv sync --extra dev --extra mlx --extra diarization --extra alignment \
-  --extra speaker-id --group cpu --no-python-downloads
-```
-
-Then run with `--asr-backend mlx-whisper` and an existing
-`--asr-mlx-model-path`.
-
-MLX requires native macOS arm64. Check both the shell and Python process:
-
-```bash
-uname -m
-sysctl -in sysctl.proc_translated 2>/dev/null || true
-uv run python -c 'import platform; print(platform.machine())'
-```
-
-An x86 process or `sysctl.proc_translated=1` is running under Rosetta. Recreate
-the environment with native arm64 Python; Auralign does not silently replace a
-requested MLX backend with faster-whisper.
+In source development, install the locked MLX requirements. In either lane,
+the selected one of twelve MLX packs must also pass its exact revision,
+file/size/SHA-256, license/notice/provenance/SBOM, and completion checks.
+Auralign never silently changes a requested MLX backend to faster-whisper.
 
 ## Offline mode fails
 
-That is expected until the model cache is prepared. Run the exact `ltm models
-pull ...` command printed by doctor while online, then retry with
-`LTM_OFFLINE=1`.
+First identify the trust lane. For source development, prepare the private
+cache with the exact maintainer `ltm models pull ...` command printed by doctor,
+then retry with `LTM_OFFLINE=1`.
+
+For the installed 0.3.0 product, distinguish the cause:
+
+- missing/altered Community-1, English alignment, ECAPA, or Punkt: repair or
+  reinstall the signed PKG's bootstrap component;
+- missing/altered selected ASR pack: open **Complete Offline Setup** and repair
+  or import that exact pack; and
+- valid assets but unavailable embedded runtime: repair/reinstall the app.
+
+Do not choose an arbitrary directory, use a floating repository ID, install
+Python packages, or supply a token.
 
 ## Combined model pull refuses before ASR download
 
-When `--diarization community-1` is selected and no token is present, the pull
-fails before downloading public ASR assets. Accept the pyannote terms and export
-`HF_TOKEN` or `LTM_HF_TOKEN`, then retry.
+This is a maintainer/source-cache diagnostic, not a recipient step. When
+`--diarization community-1` is selected and no token is present, the pull fails
+before downloading public ASR assets. Complete the official pyannote
+acquisition/contact flow and expose `HF_TOKEN` or `LTM_HF_TOKEN` only in that
+controlled local environment, then retry.
 
 ## Pyannote returns gated access errors
 
-Accept the terms at Hugging Face, then export `HF_TOKEN` or `LTM_HF_TOKEN` in
-your shell. Do not place tokens in committed files.
+For a direct maintainer pull, complete the official Hugging Face
+acquisition/contact flow, then expose `HF_TOKEN` or `LTM_HF_TOKEN` only in the
+local shell. Do not place tokens in committed files. The installed 0.3.0
+product redistributes the exact owner-cleared attributed Community-1 copy in
+the bootstrap component and requires no recipient token.
 
 ## Need a failed-run trace
 
@@ -137,20 +141,12 @@ valid local snapshot, then rerun the exact remediation command printed by
 `uv run ltm models audit`. Do not edit files inside Hugging Face cache metadata
 by hand.
 
-For MLX ASR, the local directory must contain `config.json` and either
-`weights.safetensors` or `weights.npz`. `ltm models pull` does not download MLX
-entries; provide a converted local model directory and point
-`--asr-mlx-model-path` at it, or import it into the canonical cache path:
-
-```bash
-uv run ltm models import-mlx /path/to/converted-mlx-whisper \
-  --model mlx-large-v3 \
-  --cache-dir models
-```
-
-The reviewed production-candidate path is
-`models/mlx-community--whisper-large-v3-mlx`. The Turbo MLX conversion is
-local-evaluation-only and is not the production default.
+All nineteen entries have exact contracts. For an installed product, do not
+edit a pack in place. Use **Complete Offline Setup** to reacquire the selected
+revision or import an exact complete pack through the native verified path.
+Unexpected files, links, mutable modes, wrong revision/pack ID, missing
+notices/licenses/SBOM/completion, and byte mismatches are rejected rather than
+repaired optimistically.
 
 For Apple Silicon device experiments, pyannote `auto` stays on CPU unless CUDA
 is available. Use `--diarization-device mps` only as an explicit same-media
@@ -170,8 +166,8 @@ require both the MPS device selection and the separate
 `LTM_ALIGNMENT_ALLOW_EXPERIMENTAL_MPS=1` or
 `alignment.allow_experimental_mps: true` approval. It is a separate WhisperX
 experiment, never part of automatic MPS diarization promotion. See the
-[Apple Silicon runbook](apple-silicon.md) for the repeated-run gate and the
-conservative rollback.
+[Apple Silicon runbook](apple-silicon.md#mlx-and-mps-runtime-boundary) for
+the evaluation boundary.
 
 ## Apple Silicon runs out of unified memory or benchmark results vary
 

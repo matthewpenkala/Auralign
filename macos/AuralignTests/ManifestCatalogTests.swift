@@ -37,6 +37,17 @@ final class ManifestCatalogTests: XCTestCase {
         return try JSONDecoder().decode(FieldCatalog.self, from: Data(contentsOf: url))
     }
 
+    private func loadDeliveryCatalog() throws -> ModelDeliveryCatalog {
+        let testBundle = Bundle(for: Self.self)
+        if testBundle.url(
+            forResource: "model_delivery_catalog",
+            withExtension: "json"
+        ) != nil {
+            return try ModelDeliveryCatalog.loadBundled(bundle: testBundle)
+        }
+        return try ModelDeliveryCatalog.loadBundled(bundle: .main)
+    }
+
     private func controlProjection(for field: ConfigField) -> ControlProjection {
         switch field.kind {
         case .bool:
@@ -139,6 +150,109 @@ final class ManifestCatalogTests: XCTestCase {
             catalogKeys.subtracting(manifestKeys),
             [],
             "catalog names unknown engine fields"
+        )
+    }
+
+    func testNormalProductSurfaceHidesOnlyUnsupportedRuntimePaths() throws {
+        let manifest = try loadManifest()
+        let catalog = try loadCatalog()
+        let hidden = catalog.fields.filter { !$0.isProductVisible }
+
+        XCTAssertEqual(
+            Set(hidden.map(\.key)),
+            [
+                "asr.vad_filter",
+                "asr.mlx_model_path",
+            ]
+        )
+        XCTAssertEqual(catalog.fields.filter(\.isProductVisible).count, 110)
+        XCTAssertEqual(
+            manifest.field("asr.backend")?.choices,
+            ["faster-whisper", "mlx-whisper"]
+        )
+
+        let asrModel = try XCTUnwrap(manifest.field("asr.model"))
+        let asrCatalog = try XCTUnwrap(catalog.fieldsByKey["asr.model"])
+        let corpus = ParameterLibraryProjection.searchCorpus(
+            field: asrModel,
+            entry: asrCatalog,
+            manifest: manifest
+        )
+        XCTAssertTrue(corpus.contains("large-v3"))
+        XCTAssertTrue(corpus.contains("turbo"))
+        XCTAssertTrue(corpus.contains("distil-large-v3"))
+    }
+
+    func testEveryPresetHasTruthfulAccessibleProductPresentation() throws {
+        let manifest = try loadManifest()
+        let catalog = try loadCatalog()
+        let preset = try XCTUnwrap(manifest.field("preset"))
+        let entry = try XCTUnwrap(catalog.fieldsByKey["preset"])
+        let presentations = try XCTUnwrap(entry.choicePresentations)
+
+        XCTAssertEqual(
+            Set(presentations.keys),
+            Set(preset.choices ?? [])
+        )
+        let expectedModels = [
+            "max": "Whisper Large v3",
+            "balanced": "Whisper Large v3 Turbo",
+            "fast": "Distil Large v3.5",
+            "cpu": "Whisper Large v3 Turbo",
+        ]
+        for (key, presentation) in presentations {
+            XCTAssertFalse(presentation.label.isEmpty, key)
+            XCTAssertFalse(presentation.help.isEmpty, key)
+            XCTAssertFalse(presentation.accessibilityLabel.isEmpty, key)
+            XCTAssertTrue(
+                presentation.help.contains(
+                    try XCTUnwrap(expectedModels[key])
+                ),
+                key
+            )
+        }
+    }
+
+    func testBackendAndModelPickersMatchSignedDeliveryCatalog() throws {
+        let manifest = try loadManifest()
+        let catalog = try loadCatalog()
+        let delivery = try loadDeliveryCatalog()
+
+        XCTAssertEqual(
+            manifest.field("asr.backend")?.choices,
+            ["faster-whisper", "mlx-whisper"]
+        )
+        XCTAssertTrue(
+            try XCTUnwrap(catalog.fieldsByKey["asr.mlx_model"])
+                .isProductVisible
+        )
+        XCTAssertFalse(
+            try XCTUnwrap(catalog.fieldsByKey["asr.mlx_model_path"])
+                .isProductVisible
+        )
+
+        for role in ["asr", "asr-mlx"] {
+            let manifestKeys = Set(
+                manifest.modelChoices(role: role).map(\.key)
+            )
+            let deliveryModels = delivery.models.filter { $0.role == role }
+            XCTAssertEqual(
+                manifestKeys,
+                Set(deliveryModels.map(\.key)),
+                role
+            )
+            for model in deliveryModels {
+                XCTAssertFalse(model.displayName.isEmpty, model.id)
+                XCTAssertFalse(model.description.isEmpty, model.id)
+                XCTAssertFalse(model.accessibilityLabel.isEmpty, model.id)
+                XCTAssertFalse(model.quality.isEmpty, model.id)
+                XCTAssertFalse(model.speed.isEmpty, model.id)
+                XCTAssertFalse(model.memory.isEmpty, model.id)
+            }
+        }
+        XCTAssertEqual(
+            delivery.models.filter { $0.role == "asr-mlx" }.count,
+            12
         )
     }
 

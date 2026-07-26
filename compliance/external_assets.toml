@@ -4,7 +4,7 @@
 
 schema_version = "1.0"
 policy_id = "auralign-external-assets-v1"
-reviewed_at = "2026-07-10"
+reviewed_at = "2026-07-25"
 
 [defaults]
 bundling_status = "not_bundled_in_source_wheel_or_sdist"
@@ -13,6 +13,8 @@ source_offer_obligations = "asset_specific; no Auralign source offer"
 commercial_use_status = "asset_specific; not granted by the Auralign license"
 privacy_classification = "model_or_dataset_asset; evaluate training data, voice, biometric, and recording rights"
 reviewer = "automated pre-publication evidence inventory; human approval required for gated or blocked use"
+macos_0_3_0_product_status = "row_specific"
+macos_0_3_0_product_reason = "Each 0.3.0 model row records its exact digest, size, license, runtime, delivery, and owner-clearance disposition."
 
 [[assets]]
 kind = "model"
@@ -30,23 +32,79 @@ runtime_status = "approved_local"
 redistribution_status = "permitted_with_license_terms"
 review_status = "verified"
 reviewed_at = "2026-07-10"
+product_classification = "production"
+backend_compatibility = "faster-whisper CTranslate2 CPU runtime"
+modification_status = "unmodified exact pinned runtime files"
+package_bundle_id = "com.auralign.studio.modelpack.large-v3.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/Systran--faster-whisper-large-v3"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.large-v3.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.large-v3.v1/1.0.0/models/Systran--faster-whisper-large-v3"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_file_sha256 = [
+  "model.bin=69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1",
+  "config.json=a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9",
+  "tokenizer.json=6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca",
+  "preprocessor_config.json=7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+  "vocabulary.json=c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+]
+macos_0_3_0_file_size = [
+  "model.bin=3087284237",
+  "config.json=2394",
+  "tokenizer.json=2480617",
+  "preprocessor_config.json=340",
+  "vocabulary.json=1068114",
+]
 
 [[assets]]
 kind = "model"
 key = "turbo"
 role = "asr"
-identifier = "mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+identifier = "dropbox-dash/faster-whisper-large-v3-turbo"
 revision = "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
 license_expression = "MIT"
-source_url = "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo"
-terms_url = "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+source_url = "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo"
+terms_url = "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo"
 license_evidence_url = "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/blob/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/README.md"
-attribution = "Mobius Labs faster-whisper conversion; upstream Whisper terms also apply."
-acquisition_status = "approved"
-runtime_status = "approved_local"
+attribution = "Dropbox Dash faster-whisper conversion of OpenAI Whisper large-v3-turbo."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
 redistribution_status = "permitted_with_license_terms"
-review_status = "verified"
-reviewed_at = "2026-07-10"
+review_status = "verified_exact_files_and_inference"
+reviewed_at = "2026-07-25"
+product_classification = "production"
+backend_compatibility = "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; multilingual; real local int8_float32 inference passed"
+modification_status = "unmodified exact pinned runtime files"
+package_bundle_id = "com.auralign.studio.modelpack.turbo.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/dropbox-dash--faster-whisper-large-v3-turbo"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.turbo.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.turbo.v1/1.0.0/models/dropbox-dash--faster-whisper-large-v3-turbo"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_file_sha256 = [
+  "model.bin=e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+  "config.json=b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+  "tokenizer.json=297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+  "preprocessor_config.json=7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+  "vocabulary.json=c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+]
+macos_0_3_0_file_size = [
+  "model.bin=1617884929",
+  "config.json=2263",
+  "tokenizer.json=2710337",
+  "preprocessor_config.json=340",
+  "vocabulary.json=1068114",
+]
 
 [[assets]]
 kind = "model"
@@ -59,11 +117,39 @@ source_url = "https://huggingface.co/Systran/faster-distil-whisper-large-v3"
 terms_url = "https://huggingface.co/Systran/faster-distil-whisper-large-v3"
 license_evidence_url = "https://huggingface.co/Systran/faster-distil-whisper-large-v3/blob/c3058b475261292e64a0412df1d2681c06260fab/README.md"
 attribution = "SYSTRAN CTranslate2 conversion of Distil-Whisper."
-acquisition_status = "approved"
-runtime_status = "approved_local"
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
 redistribution_status = "permitted_with_license_terms"
-review_status = "verified"
-reviewed_at = "2026-07-10"
+review_status = "verified_exact_files_and_inference"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; English-only; real local int8_float32 inference passed"
+modification_status = "unmodified exact pinned runtime files"
+package_bundle_id = "com.auralign.studio.modelpack.distil-large-v3.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/Systran--faster-distil-whisper-large-v3"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.distil-large-v3.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.distil-large-v3.v1/1.0.0/models/Systran--faster-distil-whisper-large-v3"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_file_sha256 = [
+  "model.bin=b79368e19b6623813609431a6e5ee309a71506701ebc49fd7820e692dec7c5f5",
+  "config.json=90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21",
+  "tokenizer.json=6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca",
+  "preprocessor_config.json=7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+  "vocabulary.json=c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+]
+macos_0_3_0_file_size = [
+  "model.bin=1512927867",
+  "config.json=2690",
+  "tokenizer.json=2480617",
+  "preprocessor_config.json=340",
+  "vocabulary.json=1068114",
+]
 
 [[assets]]
 kind = "model"
@@ -76,11 +162,39 @@ source_url = "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2"
 terms_url = "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2"
 license_evidence_url = "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2/blob/9793ccc07920e0f830e1dba0343efcdf0ef8c903/README.md"
 attribution = "Distil-Whisper CTranslate2 conversion."
-acquisition_status = "approved"
-runtime_status = "approved_local"
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
 redistribution_status = "permitted_with_license_terms"
-review_status = "verified"
-reviewed_at = "2026-07-10"
+review_status = "verified_exact_files_and_inference"
+reviewed_at = "2026-07-25"
+product_classification = "production"
+backend_compatibility = "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; English-only; real local int8_float32 inference passed"
+modification_status = "unmodified exact pinned runtime files"
+package_bundle_id = "com.auralign.studio.modelpack.distil-large-v3-5.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/distil-whisper--distil-large-v3.5-ct2"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.distil-large-v3-5.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.distil-large-v3-5.v1/1.0.0/models/distil-whisper--distil-large-v3.5-ct2"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_file_sha256 = [
+  "model.bin=c58b88b8585ffcd2135fddaaf421ce72cb223b32edea70d156aed1dea319a119",
+  "config.json=90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21",
+  "tokenizer.json=b3c8202bbf06d8ee4232c5984baa563784ac4737e2e7fdc42fa180200d3cfcdb",
+  "preprocessor_config.json=7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+  "vocabulary.json=c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+]
+macos_0_3_0_file_size = [
+  "model.bin=1512927867",
+  "config.json=2690",
+  "tokenizer.json=2480645",
+  "preprocessor_config.json=340",
+  "vocabulary.json=1068114",
+]
 
 [[assets]]
 kind = "model"
@@ -88,16 +202,42 @@ key = "mlx-tiny"
 role = "asr-mlx"
 identifier = "mlx-community/whisper-tiny-mlx"
 revision = "6caf9c55601caafbe6508a8b0d216bdf4783c4e8"
-license_expression = "NOASSERTION"
+license_expression = "MIT"
 source_url = "https://huggingface.co/mlx-community/whisper-tiny-mlx"
 terms_url = "https://huggingface.co/mlx-community/whisper-tiny-mlx"
 license_evidence_url = "https://huggingface.co/mlx-community/whisper-tiny-mlx/blob/6caf9c55601caafbe6508a8b0d216bdf4783c4e8/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "local_evaluation_only"
-redistribution_status = "blocked"
-review_status = "blocked_missing_publisher_license"
-reviewed_at = "2026-07-10"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-tiny.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-tiny-mlx"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-tiny.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-tiny.v1/1.0.0/models/mlx-community--whisper-tiny-mlx"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "Pinned conversion repository omits a standalone LICENSE and direct license metadata; relied on the reviewed OpenAI Whisper and mlx-whisper MIT chain plus owner clearance"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=aaff20ce8f69beddee3fe0cc1e08f4e92f58586cb9f12ba00a6f73cbfec1cb1c",
+  "weights.npz=0e03a5993d6eea43b07ee2dcc772b0e4cef5bb227257dacc24bf289387d49186",
+]
+macos_0_3_0_file_size = [
+  "config.json=262",
+  "weights.npz=74418540",
+]
 
 [[assets]]
 kind = "model"
@@ -105,16 +245,42 @@ key = "mlx-tiny.en"
 role = "asr-mlx"
 identifier = "mlx-community/whisper-tiny.en-mlx"
 revision = "5f4dafbb28e62a53c1b10426ff7eed36ca733bf7"
-license_expression = "NOASSERTION"
+license_expression = "MIT"
 source_url = "https://huggingface.co/mlx-community/whisper-tiny.en-mlx"
 terms_url = "https://huggingface.co/mlx-community/whisper-tiny.en-mlx"
 license_evidence_url = "https://huggingface.co/mlx-community/whisper-tiny.en-mlx/blob/5f4dafbb28e62a53c1b10426ff7eed36ca733bf7/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "local_evaluation_only"
-redistribution_status = "blocked"
-review_status = "blocked_missing_publisher_license"
-reviewed_at = "2026-07-10"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-tiny-en.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-tiny.en-mlx"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-tiny-en.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-tiny-en.v1/1.0.0/models/mlx-community--whisper-tiny.en-mlx"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "Pinned conversion repository omits a standalone LICENSE and direct license metadata; relied on the reviewed OpenAI Whisper and mlx-whisper MIT chain plus owner clearance"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=452e616242261333a661bc86db762b3720d6cc7e2eccd3d8e19a631871c26dd9",
+  "weights.npz=4627203f0807d6496dda0d200e893b04ff24c98e73aa51c485c06203a0330b17",
+]
+macos_0_3_0_file_size = [
+  "config.json=262",
+  "weights.npz=74417804",
+]
 
 [[assets]]
 kind = "model"
@@ -122,16 +288,42 @@ key = "mlx-base"
 role = "asr-mlx"
 identifier = "mlx-community/whisper-base-mlx"
 revision = "1e3e249fb8d01c655324bd6841b1deadffd6d04c"
-license_expression = "NOASSERTION"
+license_expression = "MIT"
 source_url = "https://huggingface.co/mlx-community/whisper-base-mlx"
 terms_url = "https://huggingface.co/mlx-community/whisper-base-mlx"
 license_evidence_url = "https://huggingface.co/mlx-community/whisper-base-mlx/blob/1e3e249fb8d01c655324bd6841b1deadffd6d04c/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "local_evaluation_only"
-redistribution_status = "blocked"
-review_status = "blocked_missing_publisher_license"
-reviewed_at = "2026-07-10"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-base.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-base-mlx"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-base.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-base.v1/1.0.0/models/mlx-community--whisper-base-mlx"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "Pinned conversion repository omits a standalone LICENSE and direct license metadata; relied on the reviewed OpenAI Whisper and mlx-whisper MIT chain plus owner clearance"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=737220a6d958b3ad48e78f840fa991556266983c84ea2ca40e413389c62e4c2f",
+  "weights.npz=2f57d5f3ef473054c638961f90716f4ee415e8108de81313eccb2c5fd62eff0b",
+]
+macos_0_3_0_file_size = [
+  "config.json=262",
+  "weights.npz=143724204",
+]
 
 [[assets]]
 kind = "model"
@@ -139,16 +331,42 @@ key = "mlx-base.en"
 role = "asr-mlx"
 identifier = "mlx-community/whisper-base.en-mlx"
 revision = "aa0678c3466ed62c5c6114ec600a0e1f96820089"
-license_expression = "NOASSERTION"
+license_expression = "MIT"
 source_url = "https://huggingface.co/mlx-community/whisper-base.en-mlx"
 terms_url = "https://huggingface.co/mlx-community/whisper-base.en-mlx"
 license_evidence_url = "https://huggingface.co/mlx-community/whisper-base.en-mlx/blob/aa0678c3466ed62c5c6114ec600a0e1f96820089/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "local_evaluation_only"
-redistribution_status = "blocked"
-review_status = "blocked_missing_publisher_license"
-reviewed_at = "2026-07-10"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-base-en.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-base.en-mlx"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-base-en.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-base-en.v1/1.0.0/models/mlx-community--whisper-base.en-mlx"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "Pinned conversion repository omits a standalone LICENSE and direct license metadata; relied on the reviewed OpenAI Whisper and mlx-whisper MIT chain plus owner clearance"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=b0f55e86f8092c1188306dc346742253f759aecea0da7b00ae526e566fd53b14",
+  "weights.npz=b6c8ee500656e04e8e57c2949a5253f0dda002ba36cd1561846574dbcf01132e",
+]
+macos_0_3_0_file_size = [
+  "config.json=262",
+  "weights.npz=143723132",
+]
 
 [[assets]]
 kind = "model"
@@ -156,16 +374,42 @@ key = "mlx-small"
 role = "asr-mlx"
 identifier = "mlx-community/whisper-small-mlx"
 revision = "45f3915923c7a79a5a5b5a7d909d39aeb0e5630e"
-license_expression = "NOASSERTION"
+license_expression = "MIT"
 source_url = "https://huggingface.co/mlx-community/whisper-small-mlx"
 terms_url = "https://huggingface.co/mlx-community/whisper-small-mlx"
 license_evidence_url = "https://huggingface.co/mlx-community/whisper-small-mlx/blob/45f3915923c7a79a5a5b5a7d909d39aeb0e5630e/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "local_evaluation_only"
-redistribution_status = "blocked"
-review_status = "blocked_missing_publisher_license"
-reviewed_at = "2026-07-10"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-small.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-small-mlx"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-small.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-small.v1/1.0.0/models/mlx-community--whisper-small-mlx"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "Pinned conversion repository omits a standalone LICENSE and direct license metadata; relied on the reviewed OpenAI Whisper and mlx-whisper MIT chain plus owner clearance"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=e8f58e638208af66d5d5d67801259dc7a12d199e971967a9f9d33a8e3635668e",
+  "weights.npz=55b6674c9b339702d486e2b1573839a66f8ec8f821ed2886993ef717a86b09f5",
+]
+macos_0_3_0_file_size = [
+  "config.json=266",
+  "weights.npz=481307592",
+]
 
 [[assets]]
 kind = "model"
@@ -173,16 +417,42 @@ key = "mlx-small.en"
 role = "asr-mlx"
 identifier = "mlx-community/whisper-small.en-mlx"
 revision = "52a88bf6e98b114a210c21bb83e22d6e1505cb73"
-license_expression = "NOASSERTION"
+license_expression = "MIT"
 source_url = "https://huggingface.co/mlx-community/whisper-small.en-mlx"
 terms_url = "https://huggingface.co/mlx-community/whisper-small.en-mlx"
 license_evidence_url = "https://huggingface.co/mlx-community/whisper-small.en-mlx/blob/52a88bf6e98b114a210c21bb83e22d6e1505cb73/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "local_evaluation_only"
-redistribution_status = "blocked"
-review_status = "blocked_missing_publisher_license"
-reviewed_at = "2026-07-10"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-small-en.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-small.en-mlx"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-small-en.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-small-en.v1/1.0.0/models/mlx-community--whisper-small.en-mlx"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "Pinned conversion repository omits a standalone LICENSE and direct license metadata; relied on the reviewed OpenAI Whisper and mlx-whisper MIT chain plus owner clearance"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=40028e43687458e79ba89cc16bf14184c5414a5cbc00fd511f8f78d138647afd",
+  "weights.npz=1bb29b030aca711a035f7a084a0eefac6251ecc2bdd356fa748858fbad082f5a",
+]
+macos_0_3_0_file_size = [
+  "config.json=266",
+  "weights.npz=481306200",
+]
 
 [[assets]]
 kind = "model"
@@ -190,16 +460,42 @@ key = "mlx-medium"
 role = "asr-mlx"
 identifier = "mlx-community/whisper-medium-mlx"
 revision = "7fc08c4eac4c316526498f147dfdee6f6303f975"
-license_expression = "NOASSERTION"
+license_expression = "MIT"
 source_url = "https://huggingface.co/mlx-community/whisper-medium-mlx"
 terms_url = "https://huggingface.co/mlx-community/whisper-medium-mlx"
 license_evidence_url = "https://huggingface.co/mlx-community/whisper-medium-mlx/blob/7fc08c4eac4c316526498f147dfdee6f6303f975/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "local_evaluation_only"
-redistribution_status = "blocked"
-review_status = "blocked_missing_publisher_license"
-reviewed_at = "2026-07-10"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-medium.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-medium-mlx"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-medium.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-medium.v1/1.0.0/models/mlx-community--whisper-medium-mlx"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "Pinned conversion repository omits a standalone LICENSE and direct license metadata; relied on the reviewed OpenAI Whisper and mlx-whisper MIT chain plus owner clearance"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=3ff0b3f17a5a3a614327ffd835a3c8f6c78f39cbd39e84dbff4b0ae267c4d2e4",
+  "weights.npz=10b597c2bcb1bcc38b2d3d24cd4f0885f461a7cd70e8444d6ad5a763ece549ea",
+]
+macos_0_3_0_file_size = [
+  "config.json=268",
+  "weights.npz=1524924912",
+]
 
 [[assets]]
 kind = "model"
@@ -207,33 +503,85 @@ key = "mlx-medium.en"
 role = "asr-mlx"
 identifier = "mlx-community/whisper-medium.en-mlx"
 revision = "8d0335069b551e8586b8a4680674403d9417dfe4"
-license_expression = "NOASSERTION"
+license_expression = "MIT"
 source_url = "https://huggingface.co/mlx-community/whisper-medium.en-mlx"
 terms_url = "https://huggingface.co/mlx-community/whisper-medium.en-mlx"
 license_evidence_url = "https://huggingface.co/mlx-community/whisper-medium.en-mlx/blob/8d0335069b551e8586b8a4680674403d9417dfe4/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "local_evaluation_only"
-redistribution_status = "blocked"
-review_status = "blocked_missing_publisher_license"
-reviewed_at = "2026-07-10"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-medium-en.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-medium.en-mlx"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-medium-en.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-medium-en.v1/1.0.0/models/mlx-community--whisper-medium.en-mlx"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "Pinned conversion repository omits a standalone LICENSE and direct license metadata; relied on the reviewed OpenAI Whisper and mlx-whisper MIT chain plus owner clearance"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=20f1b6b70cab52e6669c2a095fd3bcc16aa25c7e367d29060f876d4728832b45",
+  "weights.npz=66cda8c3df03af0b922764620d46734240ab82c54348c5848238c8604bdadbdb",
+]
+macos_0_3_0_file_size = [
+  "config.json=268",
+  "weights.npz=1524923056",
+]
 
 [[assets]]
 kind = "model"
 key = "mlx-large"
 role = "asr-mlx"
-identifier = "mlx-community/whisper-large-mlx"
-revision = "9310354911111f2406ead1478e0139d9c6ea3acc"
-license_expression = "NOASSERTION"
-source_url = "https://huggingface.co/mlx-community/whisper-large-mlx"
-terms_url = "https://huggingface.co/mlx-community/whisper-large-mlx"
-license_evidence_url = "https://huggingface.co/mlx-community/whisper-large-mlx/blob/9310354911111f2406ead1478e0139d9c6ea3acc/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "local_evaluation_only"
-redistribution_status = "blocked"
-review_status = "blocked_missing_publisher_license"
-reviewed_at = "2026-07-10"
+identifier = "mlx-community/whisper-large-v1-mlx"
+revision = "e2cb9fbf9c7aefad760be1dc9b48c075b21288c8"
+license_expression = "MIT"
+source_url = "https://huggingface.co/mlx-community/whisper-large-v1-mlx"
+terms_url = "https://huggingface.co/mlx-community/whisper-large-v1-mlx"
+license_evidence_url = "https://huggingface.co/mlx-community/whisper-large-v1-mlx/blob/e2cb9fbf9c7aefad760be1dc9b48c075b21288c8/README.md"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-large.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-large-v1-mlx"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-large.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-large.v1/1.0.0/models/mlx-community--whisper-large-v1-mlx"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "Pinned conversion repository omits a standalone LICENSE and direct license metadata; relied on the reviewed OpenAI Whisper and mlx-whisper MIT chain plus owner clearance"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b",
+  "weights.npz=56824c4ff897d62ba53a84a1738b0b33b237970a7451d5f933de5f2aef5140cf",
+]
+macos_0_3_0_file_size = [
+  "config.json=268",
+  "weights.npz=3083149200",
+]
 
 [[assets]]
 kind = "model"
@@ -241,16 +589,42 @@ key = "mlx-large-v2"
 role = "asr-mlx"
 identifier = "mlx-community/whisper-large-v2-mlx"
 revision = "cce86229e2765266197fef869ce9f7e2550067ab"
-license_expression = "NOASSERTION"
+license_expression = "MIT"
 source_url = "https://huggingface.co/mlx-community/whisper-large-v2-mlx"
 terms_url = "https://huggingface.co/mlx-community/whisper-large-v2-mlx"
 license_evidence_url = "https://huggingface.co/mlx-community/whisper-large-v2-mlx/blob/cce86229e2765266197fef869ce9f7e2550067ab/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "local_evaluation_only"
-redistribution_status = "blocked"
-review_status = "blocked_missing_publisher_license"
-reviewed_at = "2026-07-10"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-large-v2.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-large-v2-mlx"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-large-v2.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-large-v2.v1/1.0.0/models/mlx-community--whisper-large-v2-mlx"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "Pinned conversion repository omits a standalone LICENSE and direct license metadata; relied on the reviewed OpenAI Whisper and mlx-whisper MIT chain plus owner clearance"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b",
+  "weights.npz=c9888a2d03b4e9906c2864151f56dc21e58d617938da0eb818152e3f99adc3f1",
+]
+macos_0_3_0_file_size = [
+  "config.json=268",
+  "weights.npz=3083149424",
+]
 
 [[assets]]
 kind = "model"
@@ -262,12 +636,38 @@ license_expression = "MIT"
 source_url = "https://huggingface.co/mlx-community/whisper-large-v3-mlx"
 terms_url = "https://huggingface.co/mlx-community/whisper-large-v3-mlx"
 license_evidence_url = "https://huggingface.co/mlx-community/whisper-large-v3-mlx/blob/49e6aa286ad60c14352c404340ded53710378a11/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "approved_local"
-redistribution_status = "permitted_with_license_terms"
-review_status = "verified"
-reviewed_at = "2026-07-10"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-large-v3.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-large-v3-mlx"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-large-v3.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-large-v3.v1/1.0.0/models/mlx-community--whisper-large-v3-mlx"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "MIT declared by pinned model-card metadata"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=34982ce6ae286095000f82ae9583b3431639e8b092bf60c961f203745e6500e3",
+  "weights.npz=05ff791ce3630fae47e7c51004e9666204d786246ec07cac6110af768099b40d",
+]
+macos_0_3_0_file_size = [
+  "config.json=269",
+  "weights.npz=3083520416",
+]
 
 [[assets]]
 kind = "model"
@@ -275,16 +675,42 @@ key = "mlx-large-v3-turbo"
 role = "asr-mlx"
 identifier = "mlx-community/whisper-large-v3-turbo"
 revision = "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb"
-license_expression = "NOASSERTION"
+license_expression = "MIT"
 source_url = "https://huggingface.co/mlx-community/whisper-large-v3-turbo"
 terms_url = "https://huggingface.co/mlx-community/whisper-large-v3-turbo"
 license_evidence_url = "https://huggingface.co/mlx-community/whisper-large-v3-turbo/blob/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb/README.md"
-attribution = "MLX Community model conversion; upstream model terms also apply."
-acquisition_status = "manual_only"
-runtime_status = "local_evaluation_only"
-redistribution_status = "blocked"
-review_status = "blocked_missing_publisher_license"
-reviewed_at = "2026-07-10"
+attribution = "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT."
+acquisition_status = "approved_exact_pinned_files"
+runtime_status = "approved_local_real_inference"
+redistribution_status = "permitted_with_mit_chain_and_owner_clearance"
+review_status = "verified_exact_files_inference_and_upstream_mit_chain"
+reviewed_at = "2026-07-25"
+product_classification = "optional"
+backend_compatibility = "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed"
+modification_status = "unmodified exact pinned conversion files"
+package_bundle_id = "com.auralign.studio.modelpack.mlx-large-v3-turbo.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/mlx-community--whisper-large-v3-turbo"
+delivery = "native-download"
+macos_0_3_0_bundle_status = "owner_cleared_exact_native_download_pack"
+macos_0_3_0_product_status = "native_download_pack"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-large-v3-turbo.v1/1.0.0"
+macos_0_3_0_model_path = "user-application-support/com.auralign.studio/Models/Packs/com.auralign.studio.modelpack.mlx-large-v3-turbo.v1/1.0.0/models/mlx-community--whisper-large-v3-turbo"
+macos_0_3_0_license_text = "licenses/MIT.txt"
+macos_0_3_0_model_license_declaration = "Pinned conversion repository omits a standalone LICENSE and direct license metadata; relied on the reviewed OpenAI Whisper and mlx-whisper MIT chain plus owner clearance"
+macos_0_3_0_upstream_whisper_license_url = "https://github.com/openai/whisper/blob/25639fc17ddc013d56c594bfbf7644f2185fad84/LICENSE"
+macos_0_3_0_mlx_whisper_license_url = "https://github.com/ml-explore/mlx-examples/blob/main/LICENSE"
+macos_0_3_0_license_evidence_note = "The exact conversion bytes are unmodified. The model is a conversion of the corresponding OpenAI Whisper model; OpenAI Whisper and the locked mlx-whisper runtime are MIT. Eleven pinned conversion repositories omit direct license metadata; that omission is disclosed and the owner recorded the private release decision. This is not an AI legal opinion."
+macos_0_3_0_file_sha256 = [
+  "config.json=b34fc29e4e11e0a25e812775dd67f4dd16fc2c8eb43d28ae25ff7d660ecb6379",
+  "weights.safetensors=951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6",
+]
+macos_0_3_0_file_size = [
+  "config.json=268",
+  "weights.safetensors=1613977612",
+]
 
 [[assets]]
 kind = "model"
@@ -302,6 +728,61 @@ runtime_status = "approved_local_after_gated_terms"
 redistribution_status = "permitted_with_attribution_and_gated_terms"
 review_status = "verified_gated"
 reviewed_at = "2026-07-20"
+product_classification = "production"
+backend_compatibility = "pyannote.audio CPU diarization runtime"
+modification_status = "unmodified exact pinned runtime files"
+package_bundle_id = "com.auralign.studio.models.bootstrap.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/pyannote--speaker-diarization-community-1"
+delivery = "system-component"
+macos_0_3_0_bundle_status = "owner_cleared_exact_bootstrap_component"
+macos_0_3_0_product_status = "bundled_bootstrap_component"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "/Library/Application Support/com.auralign.studio/Models/com.auralign.studio.models.bootstrap.v1"
+macos_0_3_0_model_path = "/Library/Application Support/com.auralign.studio/Models/com.auralign.studio.models.bootstrap.v1/models/pyannote--speaker-diarization-community-1"
+macos_0_3_0_license_text = "licenses/CC-BY-4.0.txt"
+macos_0_3_0_repository_api_evidence_url = "https://huggingface.co/api/models/pyannote/speaker-diarization-community-1/revision/3533c8cf8e369892e6b79ff1bf80f7b0286a54ee"
+macos_0_3_0_gate_evidence_url = "https://huggingface.co/docs/hub/models-gated"
+macos_0_3_0_gate_mode = "auto"
+macos_0_3_0_gate_default_contact_fields = [
+  "Hugging Face username",
+  "Hugging Face email address",
+]
+macos_0_3_0_gate_additional_fields = [
+  "Company/university:text",
+  "Use case:select",
+]
+macos_0_3_0_gate_use_case_values = [
+  "meeting",
+  "conversation",
+  "ccaas",
+  "agent",
+  "dubbing",
+  "training",
+  "other",
+]
+macos_0_3_0_gate_prompt_sha256 = "84a392b5735091003c9c337e9e772f476790dab22e4d17ad702da7b24eb0a64c"
+macos_0_3_0_gate_prompt_hash_normalization = "UTF-8 cardData.extra_gated_prompt bytes with no trailing newline"
+macos_0_3_0_gate_card_data_sha256 = "b00eefc6d2c086f82f2361ae0b5f4733f4e91d6d0d372a0c0a27fcbe47844ae3"
+macos_0_3_0_gate_card_data_hash_normalization = "UTF-8 output of jq -S -c '.cardData | {license,extra_gated_fields}' including its trailing LF"
+macos_0_3_0_gate_prompt_disposition = "The pinned prompt describes CC-BY-4.0 availability and consent to occasional pyannote product/service email. It contains no additional use-restriction checkbox; this is an acquisition/contact record, not an Auralign legal opinion."
+macos_0_3_0_license_text_url = "https://creativecommons.org/licenses/by/4.0/legalcode"
+macos_0_3_0_license_evidence_note = "Pinned model card and official API metadata declare CC-BY-4.0. The pinned repository tree has no standalone LICENSE file. The official gated prompt is an acquisition/contact mechanism and itself states that the pipeline is released under CC-BY-4.0."
+macos_0_3_0_file_sha256 = [
+  "config.yaml=5ce2bfa9a938dc132cec1172592d65173cbb8f444ea1e4133f10f9391de155be",
+  "segmentation/pytorch_model.bin=7ad24338d844fb95985486eb1a464e32d229f6d7a03c9abe60f978bacf3f816e",
+  "embedding/pytorch_model.bin=6f10ff60898a1d185fa22e1d11e0bfa8a92efec811f11bca48cb8cafebefd929",
+  "plda/plda.npz=9b77bcd840692710dd3496f62ecfeed8d8e5f002fd991b785079b244eab7d255",
+  "plda/xvec_transform.npz=325f1ce8e48f7e55e9c8aa47e05d2766b7c48c4b25b8de8dd751e7a4cc5fbe8f",
+]
+macos_0_3_0_file_size = [
+  "config.yaml=444",
+  "segmentation/pytorch_model.bin=5906507",
+  "embedding/pytorch_model.bin=26646242",
+  "plda/plda.npz=133852",
+  "plda/xvec_transform.npz=134376",
+]
 
 [[assets]]
 kind = "model"
@@ -319,6 +800,34 @@ runtime_status = "approved_local"
 redistribution_status = "permitted_with_license_terms"
 review_status = "verified"
 reviewed_at = "2026-07-10"
+product_classification = "production"
+backend_compatibility = "WhisperX wav2vec2 forced-alignment CPU runtime"
+modification_status = "unmodified exact pinned runtime files"
+package_bundle_id = "com.auralign.studio.models.bootstrap.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/facebook--wav2vec2-base-960h"
+delivery = "system-component"
+macos_0_3_0_bundle_status = "owner_cleared_exact_bootstrap_component"
+macos_0_3_0_product_status = "bundled_bootstrap_component"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "/Library/Application Support/com.auralign.studio/Models/com.auralign.studio.models.bootstrap.v1"
+macos_0_3_0_model_path = "/Library/Application Support/com.auralign.studio/Models/com.auralign.studio.models.bootstrap.v1/models/facebook--wav2vec2-base-960h"
+macos_0_3_0_license_text = "licenses/Apache-2.0.txt"
+macos_0_3_0_file_sha256 = [
+  "config.json=d3ec255c063d9f95057b553b19c20135b259875834a4fe9deb218a6be25b4cf3",
+  "preprocessor_config.json=b225d617c025463b9e157e06afea8b90dc7078fc70b013c533328423e0486b4a",
+  "tokenizer_config.json=dc790594f5bc351a4311c6624f40acd95850d4aaf2a5cb3c656c9b610720b608",
+  "vocab.json=19727f8944fe6459fc3f240ae2c198395b740f6a029bd23e06656266b83bcf64",
+  "model.safetensors=8aa76ab2243c81747a1f832954586bc566090c83a0ac167df6f31f0fa917d74a",
+]
+macos_0_3_0_file_size = [
+  "config.json=1596",
+  "preprocessor_config.json=159",
+  "tokenizer_config.json=163",
+  "vocab.json=291",
+  "model.safetensors=377607901",
+]
 
 [[assets]]
 kind = "model"
@@ -336,6 +845,36 @@ runtime_status = "approved_local"
 redistribution_status = "permitted_with_license_terms"
 review_status = "verified_with_training_data_caveat"
 reviewed_at = "2026-07-10"
+product_classification = "production"
+backend_compatibility = "SpeechBrain ECAPA-TDNN CPU runtime"
+modification_status = "unmodified exact pinned runtime files"
+package_bundle_id = "com.auralign.studio.models.bootstrap.v1"
+package_bundle_version = "1.0.0"
+package_relative_path = "models/speechbrain--spkrec-ecapa-voxceleb"
+delivery = "system-component"
+macos_0_3_0_bundle_status = "owner_cleared_exact_bootstrap_component"
+macos_0_3_0_product_status = "bundled_bootstrap_component"
+macos_0_3_0_product_reason = "Exact revision, complete runtime-file size/SHA-256 contract, license and attribution evidence, real local inference, deterministic delivery identity, and owner release decision recorded."
+macos_0_3_0_owner_decision = "Matthew Penkala, 2026-07-25; project release decision, not legal opinion"
+macos_0_3_0_bundle_root = "/Library/Application Support/com.auralign.studio/Models/com.auralign.studio.models.bootstrap.v1"
+macos_0_3_0_model_path = "/Library/Application Support/com.auralign.studio/Models/com.auralign.studio.models.bootstrap.v1/models/speechbrain--spkrec-ecapa-voxceleb"
+macos_0_3_0_license_text = "licenses/Apache-2.0.txt"
+macos_0_3_0_file_sha256 = [
+  "hyperparams.yaml=6f78854fa04ba59e761437b76a2575d3aba5e5016de3e9b69f0c9a5077fb1a41",
+  "embedding_model.ckpt=0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2",
+  "classifier.ckpt=fd9e3634fe68bd0a427c95e354c0c677374f62b3f434e45b78599950d860d535",
+  "mean_var_norm_emb.ckpt=cd70225b05b37be64fc5a95e24395d804231d43f74b2e1e5a513db7b69b34c33",
+  "label_encoder.txt=e13c3a167bb4112685670ee896d20e2b565af16b3a4ceeaa8689fa4d22adb8b9",
+  "config.json=15ff7afad09adec0936c31493a7397c13f855914f4579a8393fe82649778a664",
+]
+macos_0_3_0_file_size = [
+  "hyperparams.yaml=1919",
+  "embedding_model.ckpt=83316686",
+  "classifier.ckpt=5534328",
+  "mean_var_norm_emb.ckpt=1921",
+  "label_encoder.txt=128619",
+  "config.json=51",
+]
 
 [[assets]]
 kind = "dataset"

@@ -116,9 +116,7 @@ class MlxWhisperBackend:
                 padding_seconds=config.asr.mlx_vad_window_padding_seconds,
             )
             warnings.extend(window_warnings)
-            inference_mode = (
-                "mlx-vad-windowed" if payload.get("vad_windowed") else "mlx"
-            )
+            inference_mode = "mlx-vad-windowed" if payload.get("vad_windowed") else "mlx"
         else:
             payload = mlx_whisper.transcribe(str(audio_path), **transcribe_kwargs)
             inference_mode = "mlx"
@@ -130,8 +128,7 @@ class MlxWhisperBackend:
         model_load_value = model_timing["model_load_seconds"]
         model_load_duration = (
             float(model_load_value)
-            if isinstance(model_load_value, int | float)
-            and not isinstance(model_load_value, bool)
+            if isinstance(model_load_value, int | float) and not isinstance(model_load_value, bool)
             else 0.0
         )
         duration = inference_duration + model_load_duration
@@ -231,10 +228,7 @@ def prepare_mlx_model(
         # holder is also unsafe because its construction precision is unknown.
         model_holder.model = None
         model_holder.model_path = None
-    cold_start = (
-        model_holder.model is None
-        or model_holder.model_path != str(model_path)
-    )
+    cold_start = model_holder.model is None or model_holder.model_path != str(model_path)
     started = time.perf_counter()
     model_holder.get_model(str(model_path), dtype=dtype)
     synchronize = getattr(mlx_core, "synchronize", None)
@@ -265,11 +259,7 @@ def synchronize_mlx() -> None:
 
 def reset_mlx_peak_memory(*, load_if_needed: bool = False) -> None:
     try:
-        mx = (
-            importlib.import_module("mlx.core")
-            if load_if_needed
-            else sys.modules.get("mlx.core")
-        )
+        mx = importlib.import_module("mlx.core") if load_if_needed else sys.modules.get("mlx.core")
         if mx is None:
             return
         reset = getattr(mx, "reset_peak_memory", None)
@@ -287,11 +277,7 @@ def mlx_runtime_evidence(*, load_if_needed: bool = True) -> dict[str, object]:
     """
 
     try:
-        mx = (
-            importlib.import_module("mlx.core")
-            if load_if_needed
-            else sys.modules.get("mlx.core")
-        )
+        mx = importlib.import_module("mlx.core") if load_if_needed else sys.modules.get("mlx.core")
         if mx is None:
             return {
                 "available": importlib.util.find_spec("mlx") is not None,
@@ -317,9 +303,7 @@ def mlx_runtime_evidence(*, load_if_needed: bool = True) -> dict[str, object]:
         return {
             "available": True,
             "loaded": True,
-            "default_device": (
-                f"mlx:{device_type}" if device_type else str(device)
-            ),
+            "default_device": (f"mlx:{device_type}" if device_type else str(device)),
             "metal_available": metal_available,
             "active_memory_bytes": _call_optional_int(mx, "get_active_memory"),
             "peak_memory_bytes": _call_optional_int(mx, "get_peak_memory"),
@@ -366,6 +350,13 @@ def mlx_model_status(config: PipelineConfig) -> ModelStatus:
 
 
 def resolve_mlx_model_path(config: PipelineConfig) -> Path:
+    entry = mlx_model_entry(config)
+    if not entry.production_selectable:
+        raise ModelCacheError(
+            f"MLX ASR model {entry.key} is unavailable in the production product. "
+            f"Classification: {entry.product_classification}. "
+            f"Blocker: {entry.blocker or 'release-critical model authority is incomplete'}"
+        )
     status = mlx_model_status(config)
     if status.present:
         return status.path
@@ -439,17 +430,11 @@ def transcribe_vad_windows(
         chunk = audio_samples[start_sample:end_sample]
         payload = mlx_whisper.transcribe(chunk, **transcribe_kwargs)
         if not isinstance(payload, dict):
-            raise BackendUnavailableError(
-                "mlx-whisper returned an unexpected non-dict payload."
-            )
+            raise BackendUnavailableError("mlx-whisper returned an unexpected non-dict payload.")
         chunk_segments = payload.get("segments", [])
         if not isinstance(chunk_segments, list):
-            raise BackendUnavailableError(
-                "mlx-whisper returned an unexpected segments payload."
-            )
-        raw_segment_count = sum(
-            1 for item in chunk_segments if isinstance(item, dict)
-        )
+            raise BackendUnavailableError("mlx-whisper returned an unexpected segments payload.")
+        raw_segment_count = sum(1 for item in chunk_segments if isinstance(item, dict))
         emitted_segment_count = 0
         context_word_count = 0
         for segment in chunk_segments:
@@ -460,17 +445,14 @@ def transcribe_vad_windows(
                     window,
                     inclusive_end=(
                         index == len(windows) - 1
-                        or windows[index + 1]["ownership_start"]
-                        > window["ownership_end"]
+                        or windows[index + 1]["ownership_start"] > window["ownership_end"]
                     ),
                 )
                 raw_words = segment.get("words")
                 emitted_words = None if emitted is None else emitted.get("words")
                 if isinstance(raw_words, list):
                     context_word_count += len(raw_words) - (
-                        len(emitted_words)
-                        if isinstance(emitted_words, list)
-                        else 0
+                        len(emitted_words) if isinstance(emitted_words, list) else 0
                     )
                 if emitted is not None:
                     combined_segments.append(emitted)
@@ -497,12 +479,9 @@ def transcribe_vad_windows(
         "vad_windowed": True,
         "vad_provenance": vad_provenance,
         "vad_window_qa": {
-            "ownership_intervals_non_overlapping": ownership_intervals_are_non_overlapping(
-                windows
-            ),
+            "ownership_intervals_non_overlapping": ownership_intervals_are_non_overlapping(windows),
             "context_words_not_emitted": sum(
-                int(item["context_word_count_not_emitted"])
-                for item in chunk_payloads
+                int(item["context_word_count_not_emitted"]) for item in chunk_payloads
             ),
             "emitted_segment_count": len(combined_segments),
             "whole_file_comparison_performed": False,
@@ -519,9 +498,7 @@ def merge_vad_regions(
     audio_duration_seconds: float,
 ) -> list[dict[str, float]]:
     if window_seconds < 1.0:
-        raise BackendUnavailableError(
-            "MLX VAD window seconds must be at least 1 second."
-        )
+        raise BackendUnavailableError("MLX VAD window seconds must be at least 1 second.")
     ordered = sorted(
         (
             {
@@ -574,13 +551,10 @@ def split_long_vad_window(
     start = window["start"]
     end = window["end"]
     if window_seconds < 1.0:
-        raise BackendUnavailableError(
-            "MLX VAD window seconds must be at least 1 second."
-        )
+        raise BackendUnavailableError("MLX VAD window seconds must be at least 1 second.")
     if context_seconds < 0 or context_seconds * 2 >= window_seconds:
         raise BackendUnavailableError(
-            "MLX VAD boundary context must be non-negative and less than "
-            "half the window duration."
+            "MLX VAD boundary context must be non-negative and less than half the window duration."
         )
     if end - start <= window_seconds:
         return [
@@ -598,15 +572,9 @@ def split_long_vad_window(
     while ownership_start < end:
         decode_start = max(start, ownership_start - context_seconds)
         decode_end = min(end, decode_start + window_seconds)
-        ownership_end = (
-            end
-            if decode_end >= end
-            else decode_end - context_seconds
-        )
+        ownership_end = end if decode_end >= end else decode_end - context_seconds
         if ownership_end <= ownership_start:
-            raise BackendUnavailableError(
-                "MLX VAD boundary context left no owned audio interval."
-            )
+            raise BackendUnavailableError("MLX VAD boundary context left no owned audio interval.")
         pieces.append(
             {
                 "start": decode_start,
@@ -768,9 +736,7 @@ def ownership_contains(
 ) -> bool:
     start = window["ownership_start"]
     end = window["ownership_end"]
-    return timestamp >= start and (
-        timestamp <= end if inclusive_end else timestamp < end
-    )
+    return timestamp >= start and (timestamp <= end if inclusive_end else timestamp < end)
 
 
 def text_from_mlx_words(words: list[dict[str, Any]]) -> str:

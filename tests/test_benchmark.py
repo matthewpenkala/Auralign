@@ -516,7 +516,6 @@ def test_compute_matrix_expansion_keeps_other_settings_constant(tmp_path: Path) 
         compute_types=["int8", "float32"],
         asr_backends=["faster-whisper"],
         asr_mlx_model=None,
-        asr_mlx_model_path=None,
         diarization_devices=[],
         alignment_devices=[],
         infer_speakers=True,
@@ -561,7 +560,6 @@ def test_compute_matrix_records_unsupported_compute_type(
         compute_types=["int8", "float32"],
         asr_backends=["faster-whisper"],
         asr_mlx_model=None,
-        asr_mlx_model_path=None,
         diarization_devices=[],
         alignment_devices=[],
         infer_speakers=True,
@@ -609,7 +607,6 @@ def test_compute_matrix_skips_mlx_backend(tmp_path: Path) -> None:
         compute_types=["int8"],
         asr_backends=["faster-whisper", "mlx-whisper"],
         asr_mlx_model="mlx-large-v3-turbo",
-        asr_mlx_model_path=Path("models/mlx-community--whisper-large-v3-turbo"),
         diarization_devices=[],
         alignment_devices=[],
         infer_speakers=True,
@@ -646,7 +643,6 @@ def test_backend_matrix_expands_mlx_and_device_flags(tmp_path: Path) -> None:
         compute_types=["int8"],
         asr_backends=["faster-whisper", "mlx-whisper"],
         asr_mlx_model="mlx-large-v3-turbo",
-        asr_mlx_model_path=Path("models/mlx-community--whisper-large-v3-turbo"),
         diarization_devices=["mps"],
         alignment_devices=["mps"],
         infer_speakers=True,
@@ -662,6 +658,7 @@ def test_backend_matrix_expands_mlx_and_device_flags(tmp_path: Path) -> None:
     mlx_command = jobs[1]["transcribe_command"]
     assert mlx_command[mlx_command.index("--asr-backend") + 1] == "mlx-whisper"
     assert mlx_command[mlx_command.index("--asr-mlx-model") + 1] == "mlx-large-v3-turbo"
+    assert "--asr-mlx-model-path" not in mlx_command
     assert mlx_command[mlx_command.index("--diarization-device") + 1] == "mps"
     assert mlx_command[mlx_command.index("--alignment-device") + 1] == "mps"
     assert jobs[1]["alignment_device"] == "mps"
@@ -688,7 +685,6 @@ def test_thread_matrix_expansion_uses_env_overrides(tmp_path: Path) -> None:
         compute_types=["int8"],
         asr_backends=["faster-whisper"],
         asr_mlx_model=None,
-        asr_mlx_model_path=None,
         diarization_devices=[],
         alignment_devices=[],
         infer_speakers=True,
@@ -744,7 +740,6 @@ def test_corpus_harness_rejects_single_reference_for_multiple_media(
             compute_types=["int8"],
             asr_backends=["faster-whisper"],
             asr_mlx_model=None,
-            asr_mlx_model_path=None,
             diarization_devices=[],
             alignment_devices=[],
             recursive=True,

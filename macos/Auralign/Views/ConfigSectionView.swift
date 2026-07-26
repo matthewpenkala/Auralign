@@ -20,6 +20,7 @@ struct ConfigSectionView: View {
 
     private var entries: [FieldCatalog.Entry] {
         model.catalog.entries(inSection: sectionID)
+            .filter(\.isProductVisible)
     }
 
     private func fieldsFor(_ dispositions: Set<FieldCatalog.Disposition>) -> [(

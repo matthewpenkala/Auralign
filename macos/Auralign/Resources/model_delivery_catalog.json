@@ -1,0 +1,3327 @@
+{
+  "allowed_initial_hosts": [
+    "huggingface.co"
+  ],
+  "allowed_redirect_host_suffixes": [
+    "huggingface.co",
+    "cas-server.xethub.hf.co",
+    "cas-server.xethub-eu.hf.co",
+    "transfer.xethub.hf.co",
+    "transfer.xethub-eu.hf.co",
+    "us.aws.cdn.hf.co",
+    "us.gcp.cdn.hf.co",
+    "cdn-lfs-us-1.hf.co",
+    "cdn-lfs-eu-1.hf.co"
+  ],
+  "bootstrap": {
+    "bundle_id": "com.auralign.studio.models.bootstrap.v1",
+    "bundle_version": "1.0.0",
+    "model_keys": [
+      "community-1",
+      "en",
+      "ecapa"
+    ]
+  },
+  "catalog_version": "1.0.0",
+  "models": [
+    {
+      "accessibility_label": "Whisper Large v3. Highest-quality multilingual transcription for the Max preset. Quality: Highest. Speed: Slowest. Memory: Very high.",
+      "acquisition_status": "approved",
+      "aliases": [
+        "max",
+        "whisper-large-v3"
+      ],
+      "attribution": "SYSTRAN faster-whisper conversion of OpenAI Whisper large-v3.",
+      "backend_compatibility": "faster-whisper CTranslate2 CPU runtime",
+      "delivery": "native-download",
+      "description": "Highest-quality multilingual transcription for the Max preset.",
+      "directory_aliases": [],
+      "display_name": "Whisper Large v3",
+      "files": [
+        {
+          "path": "model.bin",
+          "sha256": "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1",
+          "size": 3087284237,
+          "url": "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/edaa852ec7e145841d8ffdb056a99866b5f0a478/model.bin"
+        },
+        {
+          "path": "config.json",
+          "sha256": "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9",
+          "size": 2394,
+          "url": "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/edaa852ec7e145841d8ffdb056a99866b5f0a478/config.json"
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca",
+          "size": 2480617,
+          "url": "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/edaa852ec7e145841d8ffdb056a99866b5f0a478/tokenizer.json"
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+          "size": 340,
+          "url": "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/edaa852ec7e145841d8ffdb056a99866b5f0a478/preprocessor_config.json"
+        },
+        {
+          "path": "vocabulary.json",
+          "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+          "size": 1068114,
+          "url": "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/edaa852ec7e145841d8ffdb056a99866b5f0a478/vocabulary.json"
+        }
+      ],
+      "gated": false,
+      "key": "large-v3",
+      "license_expression": "MIT",
+      "memory": "Very high",
+      "model_id": "Systran/faster-whisper-large-v3",
+      "modification_status": "unmodified exact pinned runtime files",
+      "pack_id": "com.auralign.studio.modelpack.large-v3.v1",
+      "pack_relative_path": "models/Systran--faster-whisper-large-v3",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:large-v3/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "2394"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/Systran--faster-whisper-large-v3/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:large-v3/model.bin",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1"
+              }
+            ],
+            "name": "model.bin",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "3087284237"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/Systran--faster-whisper-large-v3/model.bin"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:large-v3/preprocessor_config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711"
+              }
+            ],
+            "name": "preprocessor_config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "340"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/Systran--faster-whisper-large-v3/preprocessor_config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:large-v3/tokenizer.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca"
+              }
+            ],
+            "name": "tokenizer.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "2480617"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/Systran--faster-whisper-large-v3/tokenizer.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:large-v3/vocabulary.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+              }
+            ],
+            "name": "vocabulary.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "1068114"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/Systran--faster-whisper-large-v3/vocabulary.json"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:large-v3/config.json",
+              "file:large-v3/model.bin",
+              "file:large-v3/preprocessor_config.json",
+              "file:large-v3/tokenizer.json",
+              "file:large-v3/vocabulary.json"
+            ],
+            "ref": "model:Systran/faster-whisper-large-v3@edaa852ec7e145841d8ffdb056a99866b5f0a478"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:Systran/faster-whisper-large-v3@edaa852ec7e145841d8ffdb056a99866b5f0a478",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/Systran/faster-whisper-large-v3"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/Systran/faster-whisper-large-v3"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "Systran/faster-whisper-large-v3",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "large-v3"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.large-v3.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/Systran--faster-whisper-large-v3"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "edaa852ec7e145841d8ffdb056a99866b5f0a478"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "production",
+      "quality": "Highest",
+      "redistribution_status": "permitted_with_license_terms",
+      "required_for_presets": [
+        "max"
+      ],
+      "review_status": "verified",
+      "reviewed_at": "2026-07-10",
+      "revision": "edaa852ec7e145841d8ffdb056a99866b5f0a478",
+      "role": "asr",
+      "runtime_status": "approved_local",
+      "source_url": "https://huggingface.co/Systran/faster-whisper-large-v3",
+      "speed": "Slowest",
+      "terms_url": "https://huggingface.co/Systran/faster-whisper-large-v3",
+      "total_size": 3090835702
+    },
+    {
+      "accessibility_label": "Whisper Large v3 Turbo. Fast multilingual transcription for Balanced and CPU presets. Quality: High. Speed: Fast. Memory: High.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "large-v3-turbo",
+        "mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+      ],
+      "attribution": "Dropbox Dash faster-whisper conversion of OpenAI Whisper large-v3-turbo.",
+      "backend_compatibility": "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; multilingual; real local int8_float32 inference passed",
+      "delivery": "native-download",
+      "description": "Fast multilingual transcription for Balanced and CPU presets.",
+      "directory_aliases": [],
+      "display_name": "Whisper Large v3 Turbo",
+      "files": [
+        {
+          "path": "model.bin",
+          "sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+          "size": 1617884929,
+          "url": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/model.bin"
+        },
+        {
+          "path": "config.json",
+          "sha256": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+          "size": 2263,
+          "url": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/config.json"
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+          "size": 2710337,
+          "url": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/tokenizer.json"
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+          "size": 340,
+          "url": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/preprocessor_config.json"
+        },
+        {
+          "path": "vocabulary.json",
+          "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+          "size": 1068114,
+          "url": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/vocabulary.json"
+        }
+      ],
+      "gated": false,
+      "key": "turbo",
+      "license_expression": "MIT",
+      "memory": "High",
+      "model_id": "dropbox-dash/faster-whisper-large-v3-turbo",
+      "modification_status": "unmodified exact pinned runtime files",
+      "pack_id": "com.auralign.studio.modelpack.turbo.v1",
+      "pack_relative_path": "models/dropbox-dash--faster-whisper-large-v3-turbo",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:turbo/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "2263"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "turbo"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/dropbox-dash--faster-whisper-large-v3-turbo/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:turbo/model.bin",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da"
+              }
+            ],
+            "name": "model.bin",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "1617884929"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "turbo"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/dropbox-dash--faster-whisper-large-v3-turbo/model.bin"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:turbo/preprocessor_config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711"
+              }
+            ],
+            "name": "preprocessor_config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "340"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "turbo"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/dropbox-dash--faster-whisper-large-v3-turbo/preprocessor_config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:turbo/tokenizer.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd"
+              }
+            ],
+            "name": "tokenizer.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "2710337"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "turbo"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/dropbox-dash--faster-whisper-large-v3-turbo/tokenizer.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:turbo/vocabulary.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+              }
+            ],
+            "name": "vocabulary.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "1068114"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "turbo"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/dropbox-dash--faster-whisper-large-v3-turbo/vocabulary.json"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:turbo/config.json",
+              "file:turbo/model.bin",
+              "file:turbo/preprocessor_config.json",
+              "file:turbo/tokenizer.json",
+              "file:turbo/vocabulary.json"
+            ],
+            "ref": "model:dropbox-dash/faster-whisper-large-v3-turbo@0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:dropbox-dash/faster-whisper-large-v3-turbo@0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "dropbox-dash/faster-whisper-large-v3-turbo",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "turbo"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.turbo.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/dropbox-dash--faster-whisper-large-v3-turbo"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "production",
+      "quality": "High",
+      "redistribution_status": "permitted_with_license_terms",
+      "required_for_presets": [
+        "balanced",
+        "cpu"
+      ],
+      "review_status": "verified_exact_files_and_inference",
+      "reviewed_at": "2026-07-25",
+      "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+      "role": "asr",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo",
+      "speed": "Fast",
+      "terms_url": "https://huggingface.co/dropbox-dash/faster-whisper-large-v3-turbo",
+      "total_size": 1621665983
+    },
+    {
+      "accessibility_label": "Distil-Whisper Large v3. Optional English-only distilled model with a speed-focused tradeoff. Quality: High in English. Speed: Fast. Memory: High.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [],
+      "attribution": "SYSTRAN CTranslate2 conversion of Distil-Whisper.",
+      "backend_compatibility": "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; English-only; real local int8_float32 inference passed",
+      "delivery": "native-download",
+      "description": "Optional English-only distilled model with a speed-focused tradeoff.",
+      "directory_aliases": [],
+      "display_name": "Distil-Whisper Large v3",
+      "files": [
+        {
+          "path": "model.bin",
+          "sha256": "b79368e19b6623813609431a6e5ee309a71506701ebc49fd7820e692dec7c5f5",
+          "size": 1512927867,
+          "url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3/resolve/c3058b475261292e64a0412df1d2681c06260fab/model.bin"
+        },
+        {
+          "path": "config.json",
+          "sha256": "90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21",
+          "size": 2690,
+          "url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3/resolve/c3058b475261292e64a0412df1d2681c06260fab/config.json"
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca",
+          "size": 2480617,
+          "url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3/resolve/c3058b475261292e64a0412df1d2681c06260fab/tokenizer.json"
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+          "size": 340,
+          "url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3/resolve/c3058b475261292e64a0412df1d2681c06260fab/preprocessor_config.json"
+        },
+        {
+          "path": "vocabulary.json",
+          "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+          "size": 1068114,
+          "url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3/resolve/c3058b475261292e64a0412df1d2681c06260fab/vocabulary.json"
+        }
+      ],
+      "gated": false,
+      "key": "distil-large-v3",
+      "license_expression": "MIT",
+      "memory": "High",
+      "model_id": "Systran/faster-distil-whisper-large-v3",
+      "modification_status": "unmodified exact pinned runtime files",
+      "pack_id": "com.auralign.studio.modelpack.distil-large-v3.v1",
+      "pack_relative_path": "models/Systran--faster-distil-whisper-large-v3",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:distil-large-v3/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "2690"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/Systran--faster-distil-whisper-large-v3/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:distil-large-v3/model.bin",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "b79368e19b6623813609431a6e5ee309a71506701ebc49fd7820e692dec7c5f5"
+              }
+            ],
+            "name": "model.bin",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "1512927867"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/Systran--faster-distil-whisper-large-v3/model.bin"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:distil-large-v3/preprocessor_config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711"
+              }
+            ],
+            "name": "preprocessor_config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "340"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/Systran--faster-distil-whisper-large-v3/preprocessor_config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:distil-large-v3/tokenizer.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca"
+              }
+            ],
+            "name": "tokenizer.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "2480617"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/Systran--faster-distil-whisper-large-v3/tokenizer.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:distil-large-v3/vocabulary.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+              }
+            ],
+            "name": "vocabulary.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "1068114"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/Systran--faster-distil-whisper-large-v3/vocabulary.json"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:distil-large-v3/config.json",
+              "file:distil-large-v3/model.bin",
+              "file:distil-large-v3/preprocessor_config.json",
+              "file:distil-large-v3/tokenizer.json",
+              "file:distil-large-v3/vocabulary.json"
+            ],
+            "ref": "model:Systran/faster-distil-whisper-large-v3@c3058b475261292e64a0412df1d2681c06260fab"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:Systran/faster-distil-whisper-large-v3@c3058b475261292e64a0412df1d2681c06260fab",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "Systran/faster-distil-whisper-large-v3",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.distil-large-v3.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/Systran--faster-distil-whisper-large-v3"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "c3058b475261292e64a0412df1d2681c06260fab"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "High in English",
+      "redistribution_status": "permitted_with_license_terms",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_and_inference",
+      "reviewed_at": "2026-07-25",
+      "revision": "c3058b475261292e64a0412df1d2681c06260fab",
+      "role": "asr",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3",
+      "speed": "Fast",
+      "terms_url": "https://huggingface.co/Systran/faster-distil-whisper-large-v3",
+      "total_size": 1516479628
+    },
+    {
+      "accessibility_label": "Distil-Whisper Large v3.5. Fast English-only transcription for the Fast preset. Quality: High in English. Speed: Fastest CTranslate2. Memory: High.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [],
+      "attribution": "Distil-Whisper CTranslate2 conversion.",
+      "backend_compatibility": "faster-whisper 1.2.1 / CTranslate2 4.8.0 CPU; English-only; real local int8_float32 inference passed",
+      "delivery": "native-download",
+      "description": "Fast English-only transcription for the Fast preset.",
+      "directory_aliases": [],
+      "display_name": "Distil-Whisper Large v3.5",
+      "files": [
+        {
+          "path": "model.bin",
+          "sha256": "c58b88b8585ffcd2135fddaaf421ce72cb223b32edea70d156aed1dea319a119",
+          "size": 1512927867,
+          "url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2/resolve/9793ccc07920e0f830e1dba0343efcdf0ef8c903/model.bin"
+        },
+        {
+          "path": "config.json",
+          "sha256": "90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21",
+          "size": 2690,
+          "url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2/resolve/9793ccc07920e0f830e1dba0343efcdf0ef8c903/config.json"
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "b3c8202bbf06d8ee4232c5984baa563784ac4737e2e7fdc42fa180200d3cfcdb",
+          "size": 2480645,
+          "url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2/resolve/9793ccc07920e0f830e1dba0343efcdf0ef8c903/tokenizer.json"
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+          "size": 340,
+          "url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2/resolve/9793ccc07920e0f830e1dba0343efcdf0ef8c903/preprocessor_config.json"
+        },
+        {
+          "path": "vocabulary.json",
+          "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+          "size": 1068114,
+          "url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2/resolve/9793ccc07920e0f830e1dba0343efcdf0ef8c903/vocabulary.json"
+        }
+      ],
+      "gated": false,
+      "key": "distil-large-v3.5",
+      "license_expression": "MIT",
+      "memory": "High",
+      "model_id": "distil-whisper/distil-large-v3.5-ct2",
+      "modification_status": "unmodified exact pinned runtime files",
+      "pack_id": "com.auralign.studio.modelpack.distil-large-v3-5.v1",
+      "pack_relative_path": "models/distil-whisper--distil-large-v3.5-ct2",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:distil-large-v3.5/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "90c55f775cc4e0bb17293d0bf12f96557a486f20dea886fabd8e6075a3588b21"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "2690"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3.5"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/distil-whisper--distil-large-v3.5-ct2/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:distil-large-v3.5/model.bin",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "c58b88b8585ffcd2135fddaaf421ce72cb223b32edea70d156aed1dea319a119"
+              }
+            ],
+            "name": "model.bin",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "1512927867"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3.5"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/distil-whisper--distil-large-v3.5-ct2/model.bin"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:distil-large-v3.5/preprocessor_config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711"
+              }
+            ],
+            "name": "preprocessor_config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "340"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3.5"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/distil-whisper--distil-large-v3.5-ct2/preprocessor_config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:distil-large-v3.5/tokenizer.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "b3c8202bbf06d8ee4232c5984baa563784ac4737e2e7fdc42fa180200d3cfcdb"
+              }
+            ],
+            "name": "tokenizer.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "2480645"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3.5"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/distil-whisper--distil-large-v3.5-ct2/tokenizer.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:distil-large-v3.5/vocabulary.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+              }
+            ],
+            "name": "vocabulary.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "1068114"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3.5"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/distil-whisper--distil-large-v3.5-ct2/vocabulary.json"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:distil-large-v3.5/config.json",
+              "file:distil-large-v3.5/model.bin",
+              "file:distil-large-v3.5/preprocessor_config.json",
+              "file:distil-large-v3.5/tokenizer.json",
+              "file:distil-large-v3.5/vocabulary.json"
+            ],
+            "ref": "model:distil-whisper/distil-large-v3.5-ct2@9793ccc07920e0f830e1dba0343efcdf0ef8c903"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:distil-whisper/distil-large-v3.5-ct2@9793ccc07920e0f830e1dba0343efcdf0ef8c903",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "distil-whisper/distil-large-v3.5-ct2",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "distil-large-v3.5"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.distil-large-v3-5.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/distil-whisper--distil-large-v3.5-ct2"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "9793ccc07920e0f830e1dba0343efcdf0ef8c903"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "production",
+      "quality": "High in English",
+      "redistribution_status": "permitted_with_license_terms",
+      "required_for_presets": [
+        "fast"
+      ],
+      "review_status": "verified_exact_files_and_inference",
+      "reviewed_at": "2026-07-25",
+      "revision": "9793ccc07920e0f830e1dba0343efcdf0ef8c903",
+      "role": "asr",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2",
+      "speed": "Fastest CTranslate2",
+      "terms_url": "https://huggingface.co/distil-whisper/distil-large-v3.5-ct2",
+      "total_size": 1516479656
+    },
+    {
+      "accessibility_label": "MLX Whisper Tiny. Small multilingual MLX model for maximum speed. Quality: Basic. Speed: Very fast. Memory: Low.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "tiny",
+        "whisper-tiny-mlx",
+        "mlx-community/whisper-tiny-mlx"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Small multilingual MLX model for maximum speed.",
+      "directory_aliases": [
+        "mlx-tiny",
+        "tiny",
+        "whisper-tiny-mlx"
+      ],
+      "display_name": "MLX Whisper Tiny",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "aaff20ce8f69beddee3fe0cc1e08f4e92f58586cb9f12ba00a6f73cbfec1cb1c",
+          "size": 262,
+          "url": "https://huggingface.co/mlx-community/whisper-tiny-mlx/resolve/6caf9c55601caafbe6508a8b0d216bdf4783c4e8/config.json"
+        },
+        {
+          "path": "weights.npz",
+          "sha256": "0e03a5993d6eea43b07ee2dcc772b0e4cef5bb227257dacc24bf289387d49186",
+          "size": 74418540,
+          "url": "https://huggingface.co/mlx-community/whisper-tiny-mlx/resolve/6caf9c55601caafbe6508a8b0d216bdf4783c4e8/weights.npz"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-tiny",
+      "license_expression": "MIT",
+      "memory": "Low",
+      "model_id": "mlx-community/whisper-tiny-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-tiny.v1",
+      "pack_relative_path": "models/mlx-community--whisper-tiny-mlx",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-tiny/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "aaff20ce8f69beddee3fe0cc1e08f4e92f58586cb9f12ba00a6f73cbfec1cb1c"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "262"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-tiny"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-tiny-mlx/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-tiny/weights.npz",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "0e03a5993d6eea43b07ee2dcc772b0e4cef5bb227257dacc24bf289387d49186"
+              }
+            ],
+            "name": "weights.npz",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "74418540"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-tiny"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-tiny-mlx/weights.npz"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-tiny/config.json",
+              "file:mlx-tiny/weights.npz"
+            ],
+            "ref": "model:mlx-community/whisper-tiny-mlx@6caf9c55601caafbe6508a8b0d216bdf4783c4e8"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-tiny-mlx@6caf9c55601caafbe6508a8b0d216bdf4783c4e8",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-tiny-mlx"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-tiny-mlx"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-tiny-mlx",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-tiny"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-tiny.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-tiny-mlx"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "6caf9c55601caafbe6508a8b0d216bdf4783c4e8"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "Basic",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "6caf9c55601caafbe6508a8b0d216bdf4783c4e8",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-tiny-mlx",
+      "speed": "Very fast",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-tiny-mlx",
+      "total_size": 74418802
+    },
+    {
+      "accessibility_label": "MLX Whisper Tiny English. Small English-only MLX model for maximum speed. Quality: Basic in English. Speed: Very fast. Memory: Low.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "tiny.en",
+        "whisper-tiny.en-mlx",
+        "mlx-community/whisper-tiny.en-mlx"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Small English-only MLX model for maximum speed.",
+      "directory_aliases": [
+        "mlx-tiny.en",
+        "tiny.en",
+        "whisper-tiny.en-mlx"
+      ],
+      "display_name": "MLX Whisper Tiny English",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "452e616242261333a661bc86db762b3720d6cc7e2eccd3d8e19a631871c26dd9",
+          "size": 262,
+          "url": "https://huggingface.co/mlx-community/whisper-tiny.en-mlx/resolve/5f4dafbb28e62a53c1b10426ff7eed36ca733bf7/config.json"
+        },
+        {
+          "path": "weights.npz",
+          "sha256": "4627203f0807d6496dda0d200e893b04ff24c98e73aa51c485c06203a0330b17",
+          "size": 74417804,
+          "url": "https://huggingface.co/mlx-community/whisper-tiny.en-mlx/resolve/5f4dafbb28e62a53c1b10426ff7eed36ca733bf7/weights.npz"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-tiny.en",
+      "license_expression": "MIT",
+      "memory": "Low",
+      "model_id": "mlx-community/whisper-tiny.en-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-tiny-en.v1",
+      "pack_relative_path": "models/mlx-community--whisper-tiny.en-mlx",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-tiny.en/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "452e616242261333a661bc86db762b3720d6cc7e2eccd3d8e19a631871c26dd9"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "262"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-tiny.en"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-tiny.en-mlx/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-tiny.en/weights.npz",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "4627203f0807d6496dda0d200e893b04ff24c98e73aa51c485c06203a0330b17"
+              }
+            ],
+            "name": "weights.npz",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "74417804"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-tiny.en"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-tiny.en-mlx/weights.npz"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-tiny.en/config.json",
+              "file:mlx-tiny.en/weights.npz"
+            ],
+            "ref": "model:mlx-community/whisper-tiny.en-mlx@5f4dafbb28e62a53c1b10426ff7eed36ca733bf7"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-tiny.en-mlx@5f4dafbb28e62a53c1b10426ff7eed36ca733bf7",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-tiny.en-mlx"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-tiny.en-mlx"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-tiny.en-mlx",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-tiny.en"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-tiny-en.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-tiny.en-mlx"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "5f4dafbb28e62a53c1b10426ff7eed36ca733bf7"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "Basic in English",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "5f4dafbb28e62a53c1b10426ff7eed36ca733bf7",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-tiny.en-mlx",
+      "speed": "Very fast",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-tiny.en-mlx",
+      "total_size": 74418066
+    },
+    {
+      "accessibility_label": "MLX Whisper Base. Compact multilingual MLX model with improved accuracy over Tiny. Quality: Entry. Speed: Very fast. Memory: Low.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "base",
+        "whisper-base-mlx",
+        "mlx-community/whisper-base-mlx"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Compact multilingual MLX model with improved accuracy over Tiny.",
+      "directory_aliases": [
+        "mlx-base",
+        "base",
+        "whisper-base-mlx"
+      ],
+      "display_name": "MLX Whisper Base",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "737220a6d958b3ad48e78f840fa991556266983c84ea2ca40e413389c62e4c2f",
+          "size": 262,
+          "url": "https://huggingface.co/mlx-community/whisper-base-mlx/resolve/1e3e249fb8d01c655324bd6841b1deadffd6d04c/config.json"
+        },
+        {
+          "path": "weights.npz",
+          "sha256": "2f57d5f3ef473054c638961f90716f4ee415e8108de81313eccb2c5fd62eff0b",
+          "size": 143724204,
+          "url": "https://huggingface.co/mlx-community/whisper-base-mlx/resolve/1e3e249fb8d01c655324bd6841b1deadffd6d04c/weights.npz"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-base",
+      "license_expression": "MIT",
+      "memory": "Low",
+      "model_id": "mlx-community/whisper-base-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-base.v1",
+      "pack_relative_path": "models/mlx-community--whisper-base-mlx",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-base/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "737220a6d958b3ad48e78f840fa991556266983c84ea2ca40e413389c62e4c2f"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "262"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-base"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-base-mlx/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-base/weights.npz",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "2f57d5f3ef473054c638961f90716f4ee415e8108de81313eccb2c5fd62eff0b"
+              }
+            ],
+            "name": "weights.npz",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "143724204"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-base"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-base-mlx/weights.npz"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-base/config.json",
+              "file:mlx-base/weights.npz"
+            ],
+            "ref": "model:mlx-community/whisper-base-mlx@1e3e249fb8d01c655324bd6841b1deadffd6d04c"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-base-mlx@1e3e249fb8d01c655324bd6841b1deadffd6d04c",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-base-mlx"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-base-mlx"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-base-mlx",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-base"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-base.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-base-mlx"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "1e3e249fb8d01c655324bd6841b1deadffd6d04c"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "Entry",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "1e3e249fb8d01c655324bd6841b1deadffd6d04c",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-base-mlx",
+      "speed": "Very fast",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-base-mlx",
+      "total_size": 143724466
+    },
+    {
+      "accessibility_label": "MLX Whisper Base English. Compact English-only MLX model with improved accuracy over Tiny. Quality: Entry in English. Speed: Very fast. Memory: Low.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "base.en",
+        "whisper-base.en-mlx",
+        "mlx-community/whisper-base.en-mlx"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Compact English-only MLX model with improved accuracy over Tiny.",
+      "directory_aliases": [
+        "mlx-base.en",
+        "base.en",
+        "whisper-base.en-mlx"
+      ],
+      "display_name": "MLX Whisper Base English",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "b0f55e86f8092c1188306dc346742253f759aecea0da7b00ae526e566fd53b14",
+          "size": 262,
+          "url": "https://huggingface.co/mlx-community/whisper-base.en-mlx/resolve/aa0678c3466ed62c5c6114ec600a0e1f96820089/config.json"
+        },
+        {
+          "path": "weights.npz",
+          "sha256": "b6c8ee500656e04e8e57c2949a5253f0dda002ba36cd1561846574dbcf01132e",
+          "size": 143723132,
+          "url": "https://huggingface.co/mlx-community/whisper-base.en-mlx/resolve/aa0678c3466ed62c5c6114ec600a0e1f96820089/weights.npz"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-base.en",
+      "license_expression": "MIT",
+      "memory": "Low",
+      "model_id": "mlx-community/whisper-base.en-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-base-en.v1",
+      "pack_relative_path": "models/mlx-community--whisper-base.en-mlx",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-base.en/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "b0f55e86f8092c1188306dc346742253f759aecea0da7b00ae526e566fd53b14"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "262"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-base.en"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-base.en-mlx/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-base.en/weights.npz",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "b6c8ee500656e04e8e57c2949a5253f0dda002ba36cd1561846574dbcf01132e"
+              }
+            ],
+            "name": "weights.npz",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "143723132"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-base.en"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-base.en-mlx/weights.npz"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-base.en/config.json",
+              "file:mlx-base.en/weights.npz"
+            ],
+            "ref": "model:mlx-community/whisper-base.en-mlx@aa0678c3466ed62c5c6114ec600a0e1f96820089"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-base.en-mlx@aa0678c3466ed62c5c6114ec600a0e1f96820089",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-base.en-mlx"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-base.en-mlx"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-base.en-mlx",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-base.en"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-base-en.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-base.en-mlx"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "aa0678c3466ed62c5c6114ec600a0e1f96820089"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "Entry in English",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "aa0678c3466ed62c5c6114ec600a0e1f96820089",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-base.en-mlx",
+      "speed": "Very fast",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-base.en-mlx",
+      "total_size": 143723394
+    },
+    {
+      "accessibility_label": "MLX Whisper Small. Balanced compact multilingual MLX model. Quality: Good. Speed: Fast. Memory: Moderate.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "small",
+        "whisper-small-mlx",
+        "mlx-community/whisper-small-mlx"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Balanced compact multilingual MLX model.",
+      "directory_aliases": [
+        "mlx-small",
+        "small",
+        "whisper-small-mlx"
+      ],
+      "display_name": "MLX Whisper Small",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "e8f58e638208af66d5d5d67801259dc7a12d199e971967a9f9d33a8e3635668e",
+          "size": 266,
+          "url": "https://huggingface.co/mlx-community/whisper-small-mlx/resolve/45f3915923c7a79a5a5b5a7d909d39aeb0e5630e/config.json"
+        },
+        {
+          "path": "weights.npz",
+          "sha256": "55b6674c9b339702d486e2b1573839a66f8ec8f821ed2886993ef717a86b09f5",
+          "size": 481307592,
+          "url": "https://huggingface.co/mlx-community/whisper-small-mlx/resolve/45f3915923c7a79a5a5b5a7d909d39aeb0e5630e/weights.npz"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-small",
+      "license_expression": "MIT",
+      "memory": "Moderate",
+      "model_id": "mlx-community/whisper-small-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-small.v1",
+      "pack_relative_path": "models/mlx-community--whisper-small-mlx",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-small/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "e8f58e638208af66d5d5d67801259dc7a12d199e971967a9f9d33a8e3635668e"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "266"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-small"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-small-mlx/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-small/weights.npz",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "55b6674c9b339702d486e2b1573839a66f8ec8f821ed2886993ef717a86b09f5"
+              }
+            ],
+            "name": "weights.npz",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "481307592"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-small"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-small-mlx/weights.npz"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-small/config.json",
+              "file:mlx-small/weights.npz"
+            ],
+            "ref": "model:mlx-community/whisper-small-mlx@45f3915923c7a79a5a5b5a7d909d39aeb0e5630e"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-small-mlx@45f3915923c7a79a5a5b5a7d909d39aeb0e5630e",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-small-mlx"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-small-mlx"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-small-mlx",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-small"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-small.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-small-mlx"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "45f3915923c7a79a5a5b5a7d909d39aeb0e5630e"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "Good",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "45f3915923c7a79a5a5b5a7d909d39aeb0e5630e",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-small-mlx",
+      "speed": "Fast",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-small-mlx",
+      "total_size": 481307858
+    },
+    {
+      "accessibility_label": "MLX Whisper Small English. Balanced compact English-only MLX model. Quality: Good in English. Speed: Fast. Memory: Moderate.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "small.en",
+        "whisper-small.en-mlx",
+        "mlx-community/whisper-small.en-mlx"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Balanced compact English-only MLX model.",
+      "directory_aliases": [
+        "mlx-small.en",
+        "small.en",
+        "whisper-small.en-mlx"
+      ],
+      "display_name": "MLX Whisper Small English",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "40028e43687458e79ba89cc16bf14184c5414a5cbc00fd511f8f78d138647afd",
+          "size": 266,
+          "url": "https://huggingface.co/mlx-community/whisper-small.en-mlx/resolve/52a88bf6e98b114a210c21bb83e22d6e1505cb73/config.json"
+        },
+        {
+          "path": "weights.npz",
+          "sha256": "1bb29b030aca711a035f7a084a0eefac6251ecc2bdd356fa748858fbad082f5a",
+          "size": 481306200,
+          "url": "https://huggingface.co/mlx-community/whisper-small.en-mlx/resolve/52a88bf6e98b114a210c21bb83e22d6e1505cb73/weights.npz"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-small.en",
+      "license_expression": "MIT",
+      "memory": "Moderate",
+      "model_id": "mlx-community/whisper-small.en-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-small-en.v1",
+      "pack_relative_path": "models/mlx-community--whisper-small.en-mlx",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-small.en/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "40028e43687458e79ba89cc16bf14184c5414a5cbc00fd511f8f78d138647afd"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "266"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-small.en"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-small.en-mlx/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-small.en/weights.npz",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "1bb29b030aca711a035f7a084a0eefac6251ecc2bdd356fa748858fbad082f5a"
+              }
+            ],
+            "name": "weights.npz",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "481306200"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-small.en"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-small.en-mlx/weights.npz"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-small.en/config.json",
+              "file:mlx-small.en/weights.npz"
+            ],
+            "ref": "model:mlx-community/whisper-small.en-mlx@52a88bf6e98b114a210c21bb83e22d6e1505cb73"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-small.en-mlx@52a88bf6e98b114a210c21bb83e22d6e1505cb73",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-small.en-mlx"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-small.en-mlx"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-small.en-mlx",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-small.en"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-small-en.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-small.en-mlx"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "52a88bf6e98b114a210c21bb83e22d6e1505cb73"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "Good in English",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "52a88bf6e98b114a210c21bb83e22d6e1505cb73",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-small.en-mlx",
+      "speed": "Fast",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-small.en-mlx",
+      "total_size": 481306466
+    },
+    {
+      "accessibility_label": "MLX Whisper Medium. Higher-quality multilingual MLX model with a larger memory footprint. Quality: Very good. Speed: Moderate. Memory: High.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "medium",
+        "whisper-medium-mlx",
+        "mlx-community/whisper-medium-mlx"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Higher-quality multilingual MLX model with a larger memory footprint.",
+      "directory_aliases": [
+        "mlx-medium",
+        "medium",
+        "whisper-medium-mlx"
+      ],
+      "display_name": "MLX Whisper Medium",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "3ff0b3f17a5a3a614327ffd835a3c8f6c78f39cbd39e84dbff4b0ae267c4d2e4",
+          "size": 268,
+          "url": "https://huggingface.co/mlx-community/whisper-medium-mlx/resolve/7fc08c4eac4c316526498f147dfdee6f6303f975/config.json"
+        },
+        {
+          "path": "weights.npz",
+          "sha256": "10b597c2bcb1bcc38b2d3d24cd4f0885f461a7cd70e8444d6ad5a763ece549ea",
+          "size": 1524924912,
+          "url": "https://huggingface.co/mlx-community/whisper-medium-mlx/resolve/7fc08c4eac4c316526498f147dfdee6f6303f975/weights.npz"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-medium",
+      "license_expression": "MIT",
+      "memory": "High",
+      "model_id": "mlx-community/whisper-medium-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-medium.v1",
+      "pack_relative_path": "models/mlx-community--whisper-medium-mlx",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-medium/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "3ff0b3f17a5a3a614327ffd835a3c8f6c78f39cbd39e84dbff4b0ae267c4d2e4"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "268"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-medium"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-medium-mlx/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-medium/weights.npz",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "10b597c2bcb1bcc38b2d3d24cd4f0885f461a7cd70e8444d6ad5a763ece549ea"
+              }
+            ],
+            "name": "weights.npz",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "1524924912"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-medium"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-medium-mlx/weights.npz"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-medium/config.json",
+              "file:mlx-medium/weights.npz"
+            ],
+            "ref": "model:mlx-community/whisper-medium-mlx@7fc08c4eac4c316526498f147dfdee6f6303f975"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-medium-mlx@7fc08c4eac4c316526498f147dfdee6f6303f975",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-medium-mlx"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-medium-mlx"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-medium-mlx",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-medium"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-medium.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-medium-mlx"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "7fc08c4eac4c316526498f147dfdee6f6303f975"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "Very good",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "7fc08c4eac4c316526498f147dfdee6f6303f975",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-medium-mlx",
+      "speed": "Moderate",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-medium-mlx",
+      "total_size": 1524925180
+    },
+    {
+      "accessibility_label": "MLX Whisper Medium English. Higher-quality English-only MLX model with a larger memory footprint. Quality: Very good in English. Speed: Moderate. Memory: High.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "medium.en",
+        "whisper-medium.en-mlx",
+        "mlx-community/whisper-medium.en-mlx"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Higher-quality English-only MLX model with a larger memory footprint.",
+      "directory_aliases": [
+        "mlx-medium.en",
+        "medium.en",
+        "whisper-medium.en-mlx"
+      ],
+      "display_name": "MLX Whisper Medium English",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "20f1b6b70cab52e6669c2a095fd3bcc16aa25c7e367d29060f876d4728832b45",
+          "size": 268,
+          "url": "https://huggingface.co/mlx-community/whisper-medium.en-mlx/resolve/8d0335069b551e8586b8a4680674403d9417dfe4/config.json"
+        },
+        {
+          "path": "weights.npz",
+          "sha256": "66cda8c3df03af0b922764620d46734240ab82c54348c5848238c8604bdadbdb",
+          "size": 1524923056,
+          "url": "https://huggingface.co/mlx-community/whisper-medium.en-mlx/resolve/8d0335069b551e8586b8a4680674403d9417dfe4/weights.npz"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-medium.en",
+      "license_expression": "MIT",
+      "memory": "High",
+      "model_id": "mlx-community/whisper-medium.en-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-medium-en.v1",
+      "pack_relative_path": "models/mlx-community--whisper-medium.en-mlx",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-medium.en/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "20f1b6b70cab52e6669c2a095fd3bcc16aa25c7e367d29060f876d4728832b45"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "268"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-medium.en"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-medium.en-mlx/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-medium.en/weights.npz",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "66cda8c3df03af0b922764620d46734240ab82c54348c5848238c8604bdadbdb"
+              }
+            ],
+            "name": "weights.npz",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "1524923056"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-medium.en"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-medium.en-mlx/weights.npz"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-medium.en/config.json",
+              "file:mlx-medium.en/weights.npz"
+            ],
+            "ref": "model:mlx-community/whisper-medium.en-mlx@8d0335069b551e8586b8a4680674403d9417dfe4"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-medium.en-mlx@8d0335069b551e8586b8a4680674403d9417dfe4",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-medium.en-mlx"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-medium.en-mlx"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-medium.en-mlx",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-medium.en"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-medium-en.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-medium.en-mlx"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "8d0335069b551e8586b8a4680674403d9417dfe4"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "Very good in English",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "8d0335069b551e8586b8a4680674403d9417dfe4",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-medium.en-mlx",
+      "speed": "Moderate",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-medium.en-mlx",
+      "total_size": 1524923324
+    },
+    {
+      "accessibility_label": "MLX Whisper Large v1. Original Large multilingual model converted for Apple silicon. Quality: Very high. Speed: Slower. Memory: Very high.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "large",
+        "large-v1",
+        "whisper-large-mlx",
+        "whisper-large-v1-mlx",
+        "mlx-community/whisper-large-mlx"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Original Large multilingual model converted for Apple silicon.",
+      "directory_aliases": [
+        "mlx-large",
+        "large",
+        "large-v1",
+        "whisper-large-mlx",
+        "whisper-large-v1-mlx"
+      ],
+      "display_name": "MLX Whisper Large v1",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b",
+          "size": 268,
+          "url": "https://huggingface.co/mlx-community/whisper-large-v1-mlx/resolve/e2cb9fbf9c7aefad760be1dc9b48c075b21288c8/config.json"
+        },
+        {
+          "path": "weights.npz",
+          "sha256": "56824c4ff897d62ba53a84a1738b0b33b237970a7451d5f933de5f2aef5140cf",
+          "size": 3083149200,
+          "url": "https://huggingface.co/mlx-community/whisper-large-v1-mlx/resolve/e2cb9fbf9c7aefad760be1dc9b48c075b21288c8/weights.npz"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-large",
+      "license_expression": "MIT",
+      "memory": "Very high",
+      "model_id": "mlx-community/whisper-large-v1-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-large.v1",
+      "pack_relative_path": "models/mlx-community--whisper-large-v1-mlx",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-large/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "268"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-large-v1-mlx/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-large/weights.npz",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "56824c4ff897d62ba53a84a1738b0b33b237970a7451d5f933de5f2aef5140cf"
+              }
+            ],
+            "name": "weights.npz",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "3083149200"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-large-v1-mlx/weights.npz"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-large/config.json",
+              "file:mlx-large/weights.npz"
+            ],
+            "ref": "model:mlx-community/whisper-large-v1-mlx@e2cb9fbf9c7aefad760be1dc9b48c075b21288c8"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-large-v1-mlx@e2cb9fbf9c7aefad760be1dc9b48c075b21288c8",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-large-v1-mlx"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-large-v1-mlx"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-large-v1-mlx",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-large.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-large-v1-mlx"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "e2cb9fbf9c7aefad760be1dc9b48c075b21288c8"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "Very high",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "e2cb9fbf9c7aefad760be1dc9b48c075b21288c8",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-large-v1-mlx",
+      "speed": "Slower",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-large-v1-mlx",
+      "total_size": 3083149468
+    },
+    {
+      "accessibility_label": "MLX Whisper Large v2. Second-generation Large multilingual model for Apple silicon. Quality: Very high. Speed: Slower. Memory: Very high.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "large-v2",
+        "whisper-large-v2-mlx",
+        "mlx-community/whisper-large-v2-mlx"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Second-generation Large multilingual model for Apple silicon.",
+      "directory_aliases": [
+        "mlx-large-v2",
+        "large-v2",
+        "whisper-large-v2-mlx"
+      ],
+      "display_name": "MLX Whisper Large v2",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b",
+          "size": 268,
+          "url": "https://huggingface.co/mlx-community/whisper-large-v2-mlx/resolve/cce86229e2765266197fef869ce9f7e2550067ab/config.json"
+        },
+        {
+          "path": "weights.npz",
+          "sha256": "c9888a2d03b4e9906c2864151f56dc21e58d617938da0eb818152e3f99adc3f1",
+          "size": 3083149424,
+          "url": "https://huggingface.co/mlx-community/whisper-large-v2-mlx/resolve/cce86229e2765266197fef869ce9f7e2550067ab/weights.npz"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-large-v2",
+      "license_expression": "MIT",
+      "memory": "Very high",
+      "model_id": "mlx-community/whisper-large-v2-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-large-v2.v1",
+      "pack_relative_path": "models/mlx-community--whisper-large-v2-mlx",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-large-v2/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "77d68bd8db0be90465fd7d35f8e4fa418297e449a27525060517a7e0df432c4b"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "268"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large-v2"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-large-v2-mlx/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-large-v2/weights.npz",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "c9888a2d03b4e9906c2864151f56dc21e58d617938da0eb818152e3f99adc3f1"
+              }
+            ],
+            "name": "weights.npz",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "3083149424"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large-v2"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-large-v2-mlx/weights.npz"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-large-v2/config.json",
+              "file:mlx-large-v2/weights.npz"
+            ],
+            "ref": "model:mlx-community/whisper-large-v2-mlx@cce86229e2765266197fef869ce9f7e2550067ab"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-large-v2-mlx@cce86229e2765266197fef869ce9f7e2550067ab",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-large-v2-mlx"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-large-v2-mlx"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-large-v2-mlx",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large-v2"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-large-v2.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-large-v2-mlx"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "cce86229e2765266197fef869ce9f7e2550067ab"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "Very high",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "cce86229e2765266197fef869ce9f7e2550067ab",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-large-v2-mlx",
+      "speed": "Slower",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-large-v2-mlx",
+      "total_size": 3083149692
+    },
+    {
+      "accessibility_label": "MLX Whisper Large v3. Highest-quality Large v3 multilingual model for Apple silicon. Quality: Highest. Speed: Slower. Memory: Very high.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "large-v3",
+        "whisper-large-v3-mlx",
+        "mlx-community/whisper-large-v3-mlx"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Highest-quality Large v3 multilingual model for Apple silicon.",
+      "directory_aliases": [
+        "mlx-large-v3",
+        "large-v3",
+        "whisper-large-v3-mlx"
+      ],
+      "display_name": "MLX Whisper Large v3",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "34982ce6ae286095000f82ae9583b3431639e8b092bf60c961f203745e6500e3",
+          "size": 269,
+          "url": "https://huggingface.co/mlx-community/whisper-large-v3-mlx/resolve/49e6aa286ad60c14352c404340ded53710378a11/config.json"
+        },
+        {
+          "path": "weights.npz",
+          "sha256": "05ff791ce3630fae47e7c51004e9666204d786246ec07cac6110af768099b40d",
+          "size": 3083520416,
+          "url": "https://huggingface.co/mlx-community/whisper-large-v3-mlx/resolve/49e6aa286ad60c14352c404340ded53710378a11/weights.npz"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-large-v3",
+      "license_expression": "MIT",
+      "memory": "Very high",
+      "model_id": "mlx-community/whisper-large-v3-mlx",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-large-v3.v1",
+      "pack_relative_path": "models/mlx-community--whisper-large-v3-mlx",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-large-v3/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "34982ce6ae286095000f82ae9583b3431639e8b092bf60c961f203745e6500e3"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "269"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-large-v3-mlx/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-large-v3/weights.npz",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "05ff791ce3630fae47e7c51004e9666204d786246ec07cac6110af768099b40d"
+              }
+            ],
+            "name": "weights.npz",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "3083520416"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large-v3"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-large-v3-mlx/weights.npz"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-large-v3/config.json",
+              "file:mlx-large-v3/weights.npz"
+            ],
+            "ref": "model:mlx-community/whisper-large-v3-mlx@49e6aa286ad60c14352c404340ded53710378a11"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-large-v3-mlx@49e6aa286ad60c14352c404340ded53710378a11",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-large-v3-mlx"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-large-v3-mlx"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-large-v3-mlx",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large-v3"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-large-v3.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-large-v3-mlx"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "49e6aa286ad60c14352c404340ded53710378a11"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "Highest",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "49e6aa286ad60c14352c404340ded53710378a11",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-large-v3-mlx",
+      "speed": "Slower",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-large-v3-mlx",
+      "total_size": 3083520685
+    },
+    {
+      "accessibility_label": "MLX Whisper Large v3 Turbo. Speed-optimized Large v3 multilingual model for Apple silicon. Quality: High. Speed: Fast. Memory: High.",
+      "acquisition_status": "approved_exact_pinned_files",
+      "aliases": [
+        "mlx-turbo",
+        "large-v3-turbo-mlx",
+        "large-v3-turbo",
+        "turbo",
+        "mlx-community/whisper-large-v3-turbo"
+      ],
+      "attribution": "MLX Community conversion of the corresponding OpenAI Whisper MIT model; mlx-whisper conversion/runtime source is MIT.",
+      "backend_compatibility": "mlx-whisper 0.4.3 / MLX 0.31.2 Apple-silicon runtime; real network-denied local inference passed",
+      "delivery": "native-download",
+      "description": "Speed-optimized Large v3 multilingual model for Apple silicon.",
+      "directory_aliases": [
+        "mlx-large-v3-turbo",
+        "mlx-turbo",
+        "large-v3-turbo-mlx",
+        "large-v3-turbo",
+        "turbo"
+      ],
+      "display_name": "MLX Whisper Large v3 Turbo",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "b34fc29e4e11e0a25e812775dd67f4dd16fc2c8eb43d28ae25ff7d660ecb6379",
+          "size": 268,
+          "url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo/resolve/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb/config.json"
+        },
+        {
+          "path": "weights.safetensors",
+          "sha256": "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6",
+          "size": 1613977612,
+          "url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo/resolve/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb/weights.safetensors"
+        }
+      ],
+      "gated": false,
+      "key": "mlx-large-v3-turbo",
+      "license_expression": "MIT",
+      "memory": "High",
+      "model_id": "mlx-community/whisper-large-v3-turbo",
+      "modification_status": "unmodified exact pinned conversion files",
+      "pack_id": "com.auralign.studio.modelpack.mlx-large-v3-turbo.v1",
+      "pack_relative_path": "models/mlx-community--whisper-large-v3-turbo",
+      "pack_sbom": {
+        "bomFormat": "CycloneDX",
+        "components": [
+          {
+            "bom-ref": "file:mlx-large-v3-turbo/config.json",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "b34fc29e4e11e0a25e812775dd67f4dd16fc2c8eb43d28ae25ff7d660ecb6379"
+              }
+            ],
+            "name": "config.json",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "268"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large-v3-turbo"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-large-v3-turbo/config.json"
+              }
+            ],
+            "type": "file"
+          },
+          {
+            "bom-ref": "file:mlx-large-v3-turbo/weights.safetensors",
+            "hashes": [
+              {
+                "alg": "SHA-256",
+                "content": "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6"
+              }
+            ],
+            "name": "weights.safetensors",
+            "properties": [
+              {
+                "name": "auralign:model-file-size",
+                "value": "1613977612"
+              },
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large-v3-turbo"
+              },
+              {
+                "name": "auralign:model-package-path",
+                "value": "models/mlx-community--whisper-large-v3-turbo/weights.safetensors"
+              }
+            ],
+            "type": "file"
+          }
+        ],
+        "dependencies": [
+          {
+            "dependsOn": [
+              "file:mlx-large-v3-turbo/config.json",
+              "file:mlx-large-v3-turbo/weights.safetensors"
+            ],
+            "ref": "model:mlx-community/whisper-large-v3-turbo@a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb"
+          }
+        ],
+        "metadata": {
+          "component": {
+            "bom-ref": "model:mlx-community/whisper-large-v3-turbo@a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+            "externalReferences": [
+              {
+                "type": "distribution",
+                "url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo"
+              },
+              {
+                "type": "website",
+                "url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo"
+              }
+            ],
+            "licenses": [
+              {
+                "license": {
+                  "id": "MIT"
+                }
+              }
+            ],
+            "name": "mlx-community/whisper-large-v3-turbo",
+            "properties": [
+              {
+                "name": "auralign:model-key",
+                "value": "mlx-large-v3-turbo"
+              },
+              {
+                "name": "auralign:model-role",
+                "value": "asr-mlx"
+              },
+              {
+                "name": "auralign:model-pack-id",
+                "value": "com.auralign.studio.modelpack.mlx-large-v3-turbo.v1"
+              },
+              {
+                "name": "auralign:model-pack-version",
+                "value": "1.0.0"
+              },
+              {
+                "name": "auralign:model-package-relative-path",
+                "value": "models/mlx-community--whisper-large-v3-turbo"
+              }
+            ],
+            "type": "machine-learning-model",
+            "version": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb"
+          }
+        },
+        "specVersion": "1.6",
+        "version": 1
+      },
+      "pack_version": "1.0.0",
+      "product_classification": "optional",
+      "quality": "High",
+      "redistribution_status": "permitted_with_mit_chain_and_owner_clearance",
+      "required_for_presets": [],
+      "review_status": "verified_exact_files_inference_and_upstream_mit_chain",
+      "reviewed_at": "2026-07-25",
+      "revision": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+      "role": "asr-mlx",
+      "runtime_status": "approved_local_real_inference",
+      "source_url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo",
+      "speed": "Fast",
+      "terms_url": "https://huggingface.co/mlx-community/whisper-large-v3-turbo",
+      "total_size": 1613977880
+    },
+    {
+      "accessibility_label": "Pyannote Community-1. Bundled speaker-diarization pipeline used by normal presets. Quality: Production diarization. Speed: Automatic. Memory: Moderate.",
+      "acquisition_status": "approved_after_gated_terms",
+      "aliases": [
+        "pyannote-community-1"
+      ],
+      "attribution": "pyannote speaker-diarization-community-1; attribution and gated terms apply.",
+      "backend_compatibility": "pyannote.audio CPU diarization runtime",
+      "delivery": "system-component",
+      "description": "Bundled speaker-diarization pipeline used by normal presets.",
+      "directory_aliases": [],
+      "display_name": "Pyannote Community-1",
+      "files": [
+        {
+          "path": "config.yaml",
+          "sha256": "5ce2bfa9a938dc132cec1172592d65173cbb8f444ea1e4133f10f9391de155be",
+          "size": 444
+        },
+        {
+          "path": "segmentation/pytorch_model.bin",
+          "sha256": "7ad24338d844fb95985486eb1a464e32d229f6d7a03c9abe60f978bacf3f816e",
+          "size": 5906507
+        },
+        {
+          "path": "embedding/pytorch_model.bin",
+          "sha256": "6f10ff60898a1d185fa22e1d11e0bfa8a92efec811f11bca48cb8cafebefd929",
+          "size": 26646242
+        },
+        {
+          "path": "plda/plda.npz",
+          "sha256": "9b77bcd840692710dd3496f62ecfeed8d8e5f002fd991b785079b244eab7d255",
+          "size": 133852
+        },
+        {
+          "path": "plda/xvec_transform.npz",
+          "sha256": "325f1ce8e48f7e55e9c8aa47e05d2766b7c48c4b25b8de8dd751e7a4cc5fbe8f",
+          "size": 134376
+        }
+      ],
+      "gated": true,
+      "key": "community-1",
+      "license_expression": "CC-BY-4.0",
+      "memory": "Moderate",
+      "model_id": "pyannote/speaker-diarization-community-1",
+      "modification_status": "unmodified exact pinned runtime files",
+      "pack_id": "com.auralign.studio.models.bootstrap.v1",
+      "pack_relative_path": "models/pyannote--speaker-diarization-community-1",
+      "pack_version": "1.0.0",
+      "product_classification": "production",
+      "quality": "Production diarization",
+      "redistribution_status": "permitted_with_attribution_and_gated_terms",
+      "required_for_presets": [],
+      "review_status": "verified_gated",
+      "reviewed_at": "2026-07-20",
+      "revision": "3533c8cf8e369892e6b79ff1bf80f7b0286a54ee",
+      "role": "diarization",
+      "runtime_status": "approved_local_after_gated_terms",
+      "source_url": "https://huggingface.co/pyannote/speaker-diarization-community-1",
+      "speed": "Automatic",
+      "terms_url": "https://huggingface.co/pyannote/speaker-diarization-community-1",
+      "total_size": 32821421
+    },
+    {
+      "accessibility_label": "English Forced Alignment. Bundled English word-alignment model. Quality: Production alignment. Speed: Automatic. Memory: Moderate.",
+      "acquisition_status": "approved",
+      "aliases": [
+        "auto",
+        "english"
+      ],
+      "attribution": "Meta wav2vec2-base-960h.",
+      "backend_compatibility": "WhisperX wav2vec2 forced-alignment CPU runtime",
+      "delivery": "system-component",
+      "description": "Bundled English word-alignment model.",
+      "directory_aliases": [],
+      "display_name": "English Forced Alignment",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "d3ec255c063d9f95057b553b19c20135b259875834a4fe9deb218a6be25b4cf3",
+          "size": 1596
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "b225d617c025463b9e157e06afea8b90dc7078fc70b013c533328423e0486b4a",
+          "size": 159
+        },
+        {
+          "path": "tokenizer_config.json",
+          "sha256": "dc790594f5bc351a4311c6624f40acd95850d4aaf2a5cb3c656c9b610720b608",
+          "size": 163
+        },
+        {
+          "path": "vocab.json",
+          "sha256": "19727f8944fe6459fc3f240ae2c198395b740f6a029bd23e06656266b83bcf64",
+          "size": 291
+        },
+        {
+          "path": "model.safetensors",
+          "sha256": "8aa76ab2243c81747a1f832954586bc566090c83a0ac167df6f31f0fa917d74a",
+          "size": 377607901
+        }
+      ],
+      "gated": false,
+      "key": "en",
+      "license_expression": "Apache-2.0",
+      "memory": "Moderate",
+      "model_id": "facebook/wav2vec2-base-960h",
+      "modification_status": "unmodified exact pinned runtime files",
+      "pack_id": "com.auralign.studio.models.bootstrap.v1",
+      "pack_relative_path": "models/facebook--wav2vec2-base-960h",
+      "pack_version": "1.0.0",
+      "product_classification": "production",
+      "quality": "Production alignment",
+      "redistribution_status": "permitted_with_license_terms",
+      "required_for_presets": [],
+      "review_status": "verified",
+      "reviewed_at": "2026-07-10",
+      "revision": "22aad52d435eb6dbaf354bdad9b0da84ce7d6156",
+      "role": "alignment",
+      "runtime_status": "approved_local",
+      "source_url": "https://huggingface.co/facebook/wav2vec2-base-960h",
+      "speed": "Automatic",
+      "terms_url": "https://huggingface.co/facebook/wav2vec2-base-960h",
+      "total_size": 377610110
+    },
+    {
+      "accessibility_label": "ECAPA Speaker Embeddings. Bundled speaker-embedding model for local speaker identity. Quality: Production embeddings. Speed: Automatic. Memory: Moderate.",
+      "acquisition_status": "approved",
+      "aliases": [
+        "speechbrain-ecapa"
+      ],
+      "attribution": "SpeechBrain ECAPA-TDNN model; upstream VoxCeleb data caveats apply.",
+      "backend_compatibility": "SpeechBrain ECAPA-TDNN CPU runtime",
+      "delivery": "system-component",
+      "description": "Bundled speaker-embedding model for local speaker identity.",
+      "directory_aliases": [],
+      "display_name": "ECAPA Speaker Embeddings",
+      "files": [
+        {
+          "path": "hyperparams.yaml",
+          "sha256": "6f78854fa04ba59e761437b76a2575d3aba5e5016de3e9b69f0c9a5077fb1a41",
+          "size": 1919
+        },
+        {
+          "path": "embedding_model.ckpt",
+          "sha256": "0575cb64845e6b9a10db9bcb74d5ac32b326b8dc90352671d345e2ee3d0126a2",
+          "size": 83316686
+        },
+        {
+          "path": "classifier.ckpt",
+          "sha256": "fd9e3634fe68bd0a427c95e354c0c677374f62b3f434e45b78599950d860d535",
+          "size": 5534328
+        },
+        {
+          "path": "mean_var_norm_emb.ckpt",
+          "sha256": "cd70225b05b37be64fc5a95e24395d804231d43f74b2e1e5a513db7b69b34c33",
+          "size": 1921
+        },
+        {
+          "path": "label_encoder.txt",
+          "sha256": "e13c3a167bb4112685670ee896d20e2b565af16b3a4ceeaa8689fa4d22adb8b9",
+          "size": 128619
+        },
+        {
+          "path": "config.json",
+          "sha256": "15ff7afad09adec0936c31493a7397c13f855914f4579a8393fe82649778a664",
+          "size": 51
+        }
+      ],
+      "gated": false,
+      "key": "ecapa",
+      "license_expression": "Apache-2.0",
+      "memory": "Moderate",
+      "model_id": "speechbrain/spkrec-ecapa-voxceleb",
+      "modification_status": "unmodified exact pinned runtime files",
+      "pack_id": "com.auralign.studio.models.bootstrap.v1",
+      "pack_relative_path": "models/speechbrain--spkrec-ecapa-voxceleb",
+      "pack_version": "1.0.0",
+      "product_classification": "production",
+      "quality": "Production embeddings",
+      "redistribution_status": "permitted_with_license_terms",
+      "required_for_presets": [],
+      "review_status": "verified_with_training_data_caveat",
+      "reviewed_at": "2026-07-10",
+      "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
+      "role": "speaker-embedding",
+      "runtime_status": "approved_local",
+      "source_url": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb",
+      "speed": "Automatic",
+      "terms_url": "https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb",
+      "total_size": 88983524
+    }
+  ],
+  "normal_presets": {
+    "balanced": "turbo",
+    "cpu": "turbo",
+    "fast": "distil-large-v3.5",
+    "max": "large-v3"
+  },
+  "pack_contract": {
+    "filenames": {
+      "completion": "model-pack-complete.json",
+      "licenses_directory": "licenses",
+      "manifest": "model-pack-manifest.json",
+      "notices": "THIRD-PARTY-NOTICES.txt",
+      "provenance": "model-pack-provenance.json",
+      "sbom": "model-pack.cdx.json",
+      "verification": "model-pack-verification.json"
+    },
+    "filesystem": {
+      "directory_mode": "0500",
+      "file_mode": "0400",
+      "publication": "exclusive-rename-then-read-only-root-seal",
+      "published_root_mode": "0500",
+      "staging_root_mode": "0700"
+    },
+    "layout_version": "1",
+    "licenses": {
+      "Apache-2.0": {
+        "filename": "Apache-2.0.txt",
+        "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff"
+      },
+      "CC-BY-4.0": {
+        "filename": "CC-BY-4.0.txt",
+        "sha256": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744"
+      },
+      "MIT": {
+        "filename": "MIT.txt",
+        "sha256": "b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5"
+      }
+    },
+    "sbom": {
+      "bom_format": "CycloneDX",
+      "spec_version": "1.6"
+    },
+    "schema_version": "1.0"
+  },
+  "product_version": "0.3.0",
+  "schema_version": "auralign-model-delivery-catalog.v1"
+}

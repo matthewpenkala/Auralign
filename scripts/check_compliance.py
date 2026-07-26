@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PROJECT_LICENSE = "LicenseRef-PolyForm-Internal-Use-1.0.0"
 LICENSE_SHA256 = "1ba74ee07fe40289275d57fd6a7206d350560e8246fb661e510c7ccd70fe883a"
 SHA40 = re.compile(r"[0-9a-f]{40}")
+SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
 def require(condition: bool, message: str) -> None:
@@ -30,6 +31,36 @@ def require(condition: bool, message: str) -> None:
 
 def read_toml(relative: str) -> dict[str, object]:
     return tomllib.loads((ROOT / relative).read_text(encoding="utf-8"))
+
+
+def parse_model_file_contract(
+    row: dict[str, object],
+    field: str,
+    *,
+    parse_value: type[str] | type[int],
+) -> dict[str, str] | dict[str, int]:
+    raw_items = row.get(field)
+    require(isinstance(raw_items, list), f"model {field} is missing: {row.get('key')}")
+    parsed: dict[str, str] | dict[str, int] = {}
+    for raw_item in raw_items:
+        require(isinstance(raw_item, str) and "=" in raw_item, f"invalid {field} item")
+        relative, raw_value = raw_item.split("=", 1)
+        require(
+            bool(relative)
+            and not relative.startswith("/")
+            and ".." not in Path(relative).parts,
+            f"unsafe model contract path: {relative}",
+        )
+        require(relative not in parsed, f"duplicate model contract path: {relative}")
+        if parse_value is int:
+            require(raw_value.isdecimal(), f"invalid model byte count: {raw_item}")
+            value: str | int = int(raw_value)
+            require(value > 0, f"non-positive model byte count: {raw_item}")
+        else:
+            require(SHA256.fullmatch(raw_value) is not None, f"invalid model digest: {raw_item}")
+            value = raw_value
+        parsed[relative] = value
+    return parsed
 
 
 def verify_legal_files() -> None:
@@ -50,9 +81,7 @@ def verify_legal_files() -> None:
             f"missing or unsafe legal file: {relative}",
         )
     license_text = (ROOT / "LICENSE").read_bytes()
-    reuse_license = (
-        ROOT / "LICENSES/LicenseRef-PolyForm-Internal-Use-1.0.0.txt"
-    ).read_bytes()
+    reuse_license = (ROOT / "LICENSES/LicenseRef-PolyForm-Internal-Use-1.0.0.txt").read_bytes()
     require(license_text == reuse_license, "root and REUSE license texts differ")
     require(hashlib.sha256(license_text).hexdigest() == LICENSE_SHA256, "license text drift")
     require(
@@ -85,6 +114,16 @@ def verify_project_metadata() -> None:
 
 def verify_asset_registry() -> None:
     data = read_toml("compliance/external_assets.toml")
+    policy = read_toml("compliance/policy.toml")
+    requirements = policy.get("requirements")
+    require(isinstance(requirements, dict), "external asset requirements are missing")
+    model_release_fields = requirements.get("required_model_release_fields")
+    require(
+        isinstance(model_release_fields, list)
+        and all(isinstance(field, str) and field for field in model_release_fields),
+        "required model release fields are missing",
+    )
+    required_model_release_fields = set(model_release_fields)
     rows = data.get("assets")
     require(isinstance(rows, list), "external asset registry has no assets")
     defaults = data.get("defaults")
@@ -111,6 +150,10 @@ def verify_asset_registry() -> None:
         row = indexed.get(("model", key))
         require(row is not None, f"model missing from registry: {key}")
         require(
+            required_model_release_fields <= row.keys(),
+            f"model release governance fields missing: {key}",
+        )
+        require(
             SHA40.fullmatch(entry.revision or "") is not None,
             f"model revision not pinned: {key}",
         )
@@ -135,9 +178,69 @@ def verify_asset_registry() -> None:
             f"model redistribution status drift: {key}",
         )
         require(row["review_status"] == entry.review_status, f"model review drift: {key}")
+        require(
+            row["product_classification"] == entry.product_classification,
+            f"model product classification drift: {key}",
+        )
+        require(
+            row["backend_compatibility"] == entry.backend_compatibility,
+            f"model backend compatibility drift: {key}",
+        )
+        require(
+            row["modification_status"] == entry.modification_status,
+            f"model modification status drift: {key}",
+        )
+        require(
+            row["package_bundle_id"] == entry.package_bundle_id,
+            f"model package bundle ID drift: {key}",
+        )
+        require(
+            row["package_bundle_version"] == entry.package_bundle_version,
+            f"model package bundle version drift: {key}",
+        )
+        require(
+            row["package_relative_path"] == entry.package_relative_path,
+            f"model package path drift: {key}",
+        )
+        require(row["delivery"] == entry.delivery, f"model delivery drift: {key}")
+        require(
+            parse_model_file_contract(
+                row,
+                "macos_0_3_0_file_sha256",
+                parse_value=str,
+            )
+            == entry.expected_digest_map,
+            f"model digest contract drift: {key}",
+        )
+        require(
+            parse_model_file_contract(
+                row,
+                "macos_0_3_0_file_size",
+                parse_value=int,
+            )
+            == entry.expected_size_map,
+            f"model size contract drift: {key}",
+        )
+        expected_product_status = {
+            "system-component": "bundled_bootstrap_component",
+            "native-download": "native_download_pack",
+        }.get(entry.delivery)
+        require(
+            row["macos_0_3_0_product_status"] == expected_product_status,
+            f"model product delivery disposition drift: {key}",
+        )
+        owner_decision = row.get("macos_0_3_0_owner_decision")
+        require(
+            isinstance(owner_decision, str)
+            and "Matthew Penkala" in owner_decision
+            and "2026-07-25" in owner_decision
+            and "not legal opinion" in owner_decision,
+            f"model owner clearance record missing: {key}",
+        )
+        require(entry.production_selectable, f"model remains code-wired-only: {key}")
         if entry.license_expression == "NOASSERTION":
             require(
-                entry.redistribution_status == "blocked",
+                entry.redistribution_status.startswith("blocked"),
                 f"unlicensed model not blocked: {key}",
             )
             require(not entry.pullable, f"unlicensed model acquisition enabled: {key}")

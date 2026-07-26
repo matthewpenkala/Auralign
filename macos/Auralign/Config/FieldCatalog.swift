@@ -9,6 +9,17 @@ import Foundation
 /// manifest is enforced by `tests/test_gui_bridge.py` and by Swift unit tests,
 /// so a new engine field cannot be silently dropped from the interface.
 struct FieldCatalog: Codable {
+    struct ChoicePresentation: Codable, Equatable {
+        var label: String
+        var help: String
+        var accessibilityLabel: String
+
+        enum CodingKeys: String, CodingKey {
+            case label, help
+            case accessibilityLabel = "accessibility_label"
+        }
+    }
+
     struct Section: Codable, Identifiable, Equatable {
         var id: String
         var title: String
@@ -52,17 +63,27 @@ struct FieldCatalog: Codable {
         var unit: String?
         var experimental: Bool?
         var requires: [Requirement]?
+        /// False keeps a backward-compatible engine field in the audited
+        /// schema while removing a non-operational choice from normal product
+        /// surfaces.
+        var productVisible: Bool?
+        /// Optional per-choice product copy used by native pickers. The engine
+        /// remains authoritative for accepted values.
+        var choicePresentations: [String: ChoicePresentation]?
         /// "file" (default) or "directory" for path pickers.
         var pathStyle: String?
 
         enum CodingKeys: String, CodingKey {
             case key, title, help, section, disposition, unit, experimental, requires
+            case productVisible = "product_visible"
+            case choicePresentations = "choice_presentations"
             case pathStyle = "path_style"
         }
 
         var id: String { key }
         var isExperimental: Bool { experimental ?? false }
         var isDirectoryPath: Bool { pathStyle == "directory" }
+        var isProductVisible: Bool { productVisible ?? true }
 
         func unmetRequirement(in config: JSONValue) -> Requirement? {
             requires?.first { !$0.isSatisfied(by: config) }

@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AA0000000000000000000C01 /* MIT.txt in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000D01 /* MIT.txt */; };
+		AA0000000000000000000C02 /* Apache-2.0.txt in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000D02 /* Apache-2.0.txt */; };
+		AA0000000000000000000C03 /* CC-BY-4.0.txt in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000D03 /* CC-BY-4.0.txt */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		717DE2D9300D7413008F1180 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +33,9 @@
 		AA0000000000000000000301 /* Auralign.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Auralign.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000302 /* AuralignTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AuralignTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000303 /* AuralignUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AuralignUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000D01 /* MIT.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ../LICENSES/MIT.txt; sourceTree = SOURCE_ROOT; };
+		AA0000000000000000000D02 /* Apache-2.0.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ../LICENSES/Apache-2.0.txt; sourceTree = SOURCE_ROOT; };
+		AA0000000000000000000D03 /* CC-BY-4.0.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ../LICENSES/CC-BY-4.0.txt; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -91,8 +100,19 @@
 				AA0000000000000000000101 /* Auralign */,
 				AA0000000000000000000102 /* AuralignTests */,
 				AA0000000000000000000104 /* AuralignUITests */,
+				AA0000000000000000000E01 /* Model Pack Licenses */,
 				AA0000000000000000000502 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000E01 /* Model Pack Licenses */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000D01 /* MIT.txt */,
+				AA0000000000000000000D02 /* Apache-2.0.txt */,
+				AA0000000000000000000D03 /* CC-BY-4.0.txt */,
+			);
+			name = "Model Pack Licenses";
 			sourceTree = "<group>";
 		};
 		AA0000000000000000000502 /* Products */ = {
@@ -219,6 +239,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA0000000000000000000C01 /* MIT.txt in Resources */,
+				AA0000000000000000000C02 /* Apache-2.0.txt in Resources */,
+				AA0000000000000000000C03 /* CC-BY-4.0.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -333,7 +356,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.1;
+				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.auralign.studio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -360,7 +383,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.1;
+				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.auralign.studio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRIP_INSTALLED_PRODUCT = YES;
@@ -376,7 +399,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.2.1;
+				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.auralign.studio.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Auralign.app/Contents/MacOS/Auralign";
@@ -391,7 +414,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.2.1;
+				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.auralign.studio.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Auralign.app/Contents/MacOS/Auralign";
@@ -405,7 +428,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.2.1;
+				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.auralign.studio.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -421,7 +444,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.2.1;
+				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.auralign.studio.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;

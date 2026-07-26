@@ -163,8 +163,10 @@ ltm benchmark-corpus "/path/to/excerpt-folder" \
   --asr-batch-size 8
 ```
 
-MLX ASR can be compared as an opt-in backend on Apple Silicon. The MLX model
-path must already exist locally; the transcription runtime will not download it:
+MLX ASR is a supported 0.3.0 Apple-Silicon backend. Benchmark it only after the
+selected exact pack has passed its immutable revision, file/size/SHA-256,
+license/notice/provenance/SBOM, and completion checks. Benchmark execution
+never downloads or repairs a pack:
 
 ```bash
 ltm benchmark-corpus "/path/to/excerpt-folder" \
@@ -172,14 +174,14 @@ ltm benchmark-corpus "/path/to/excerpt-folder" \
   --mode backend-matrix \
   --presets balanced \
   --asr-backends faster-whisper,mlx-whisper \
-  --asr-mlx-model mlx-large-v3 \
-  --asr-mlx-model-path models/mlx-community--whisper-large-v3-mlx
+  --asr-mlx-model mlx-large-v3
 ```
 
-`mlx-large-v3` is the reviewed Apple Silicon production candidate.
-`mlx-large-v3-turbo` remains local-evaluation-only and must not be substituted
-as the production default. The command above is an ASR backend exploration; it
-is not the evidence-gated MPS diarization canary.
+The exact selector resolves only through the verified cache/installed-pack
+contract. Arbitrary model paths are not accepted. The command above compares
+local production-capable backends; it does not by itself prove the model's
+license disposition, native download integrity, signed-catalog parity, packaged
+runtime, or clean-recipient behavior. Those remain separate release gates.
 
 For a bounded local ASR smoke, use one representative 60-second excerpt before
 spending time on a larger matrix:
@@ -191,7 +193,6 @@ LTM_OFFLINE=1 ltm benchmark-corpus "/path/to/excerpt-folder" \
   --presets balanced \
   --asr-backends faster-whisper,mlx-whisper \
   --asr-mlx-model mlx-large-v3 \
-  --asr-mlx-model-path models/mlx-community--whisper-large-v3-mlx \
   --excerpt-seconds 60 \
   --start-seconds 60 \
   --standard-depth
