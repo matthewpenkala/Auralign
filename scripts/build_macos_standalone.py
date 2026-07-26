@@ -44,11 +44,13 @@ from local_transcript_max.model_bundle import (
     BOOTSTRAP_MODEL_KEYS,
     MODEL_BUNDLE_COMPLETION_FILENAME,
     MODEL_BUNDLE_IDENTIFIER,
+    MODEL_BUNDLE_LICENSE_FILENAMES,
     MODEL_BUNDLE_MANIFEST_FILENAME,
     MODEL_BUNDLE_PROVENANCE_FILENAME,
     MODEL_BUNDLE_VERIFICATION_FILENAME,
     MODEL_BUNDLE_VERSION,
     assemble_model_bundle,
+    model_bundle_notices_bytes,
     verify_model_bundle,
 )
 from local_transcript_max.model_delivery import (
@@ -5680,18 +5682,20 @@ def main() -> int:
     cache_root = None if args.no_cache else args.cache_dir.expanduser().resolve()
     source_model_cache = args.model_cache.expanduser().resolve()
     model_license_inputs = fresh_directory(work / "model-license-inputs")
-    for license_name in ("MIT.txt", "Apache-2.0.txt", "CC-BY-4.0.txt"):
+    for license_name in MODEL_BUNDLE_LICENSE_FILENAMES:
         shutil.copy2(
             ROOT / "packaging/macos/model-licenses" / license_name,
             model_license_inputs / license_name,
         )
+    model_notices_path = work / "model-bundle-notices.txt"
+    model_notices_path.write_bytes(model_bundle_notices_bytes())
     model_bundle_parent = fresh_directory(work / "model-bundle")
     model_bundle_path = model_bundle_parent / MODEL_BUNDLE_IDENTIFIER
     model_bundle = assemble_model_bundle(
         source_model_cache,
         model_bundle_path,
         license_directory=model_license_inputs,
-        notices_path=ROOT / "THIRD_PARTY_NOTICES.md",
+        notices_path=model_notices_path,
     )
     require(
         model_bundle == verify_model_bundle(model_bundle_path),

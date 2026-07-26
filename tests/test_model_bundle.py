@@ -21,6 +21,7 @@ from local_transcript_max.doctor import path_status
 from local_transcript_max.model_bundle import (
     MODEL_BUNDLE_COMPLETION_FILENAME,
     MODEL_BUNDLE_IDENTIFIER,
+    MODEL_BUNDLE_LICENSE_FILENAMES,
     MODEL_BUNDLE_MANIFEST_FILENAME,
     MODEL_BUNDLE_NLTK_VERSION,
     MODEL_BUNDLE_NOTICES_FILENAME,
@@ -30,6 +31,7 @@ from local_transcript_max.model_bundle import (
     STRICT_MODEL_KEYS,
     ModelBundleError,
     assemble_model_bundle,
+    model_bundle_notices_bytes,
     verify_model_bundle,
 )
 from local_transcript_max.models import (
@@ -79,18 +81,11 @@ def bundle_inputs(
     licenses = tmp_path / "licenses"
     licenses.mkdir()
     canonical_licenses = Path(__file__).resolve().parents[1] / "LICENSES"
-    for filename in ("Apache-2.0.txt", "CC-BY-4.0.txt"):
+    for filename in MODEL_BUNDLE_LICENSE_FILENAMES:
         (licenses / filename).write_bytes((canonical_licenses / filename).read_bytes())
     notices = tmp_path / "MODEL_NOTICES.md"
-    notices.write_text(
-        "\n".join(
-            f"{entry.model_id} {entry.revision} {entry.license_expression}"
-            for entry in manifest.values()
-        )
-        + "\n",
-        encoding="utf-8",
-    )
     monkeypatch.setattr(bundle_module, "MODEL_MANIFEST", manifest)
+    notices.write_bytes(model_bundle_notices_bytes())
     monkeypatch.setattr(
         models_module,
         "INSTALLED_MODEL_BUNDLE_ROOT",
@@ -122,6 +117,16 @@ def _file_snapshot(root: Path) -> dict[str, bytes]:
         for path in sorted(root.rglob("*"))
         if path.is_file()
     }
+
+
+def test_bootstrap_license_allowlist_matches_model_authority() -> None:
+    assert MODEL_BUNDLE_LICENSE_FILENAMES == (
+        "Apache-2.0.txt",
+        "CC-BY-4.0.txt",
+    )
+    assert {
+        MODEL_MANIFEST[key].license_expression for key in STRICT_MODEL_KEYS
+    } == {"Apache-2.0", "CC-BY-4.0"}
 
 
 def _first_model_file(bundle: Path, manifest: dict[str, ModelEntry]) -> Path:
