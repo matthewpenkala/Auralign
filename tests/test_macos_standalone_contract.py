@@ -169,6 +169,8 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "verify_unbundled_model_assets_absent(runtime)" in builder
     assert "'mlx.core'" in builder
     assert "'mlx_whisper'" in builder
+    assert "numba.njit(cache=False)" in builder
+    assert "production Numba JIT smoke failed" in builder
     assert "whisperx.alignment" in builder
     assert "validate_notarization_log(" in builder
     assert "Apple notarization reported" in builder
@@ -1173,6 +1175,14 @@ def test_app_signing_seals_nested_code_before_the_outer_app(
         / "Contents/Frameworks/AuralignEngineRuntime.bundle"
         / "Contents/Resources/Runtime/lib/native.dylib"
     )
+    runtime_python = (
+        app
+        / "Contents/Frameworks/AuralignEngineRuntime.bundle"
+        / "Contents/Resources/Runtime/bin/python3.11"
+    )
+    runtime_python.parent.mkdir(parents=True)
+    runtime_python.touch()
+    runtime_python.with_name("python3").symlink_to("python3.11")
     runtime_bundle = BUILDER_MODULE.app_runtime_bundle(app)
     nested.parent.mkdir(parents=True)
     main.parent.mkdir(parents=True)
@@ -1184,7 +1194,7 @@ def test_app_signing_seals_nested_code_before_the_outer_app(
     monkeypatch.setattr(
         BUILDER_MODULE,
         "macho_files",
-        lambda _root: [main, nested],
+        lambda _root: [main, nested, runtime_python],
     )
 
     def fake_subprocess_run(
@@ -1218,9 +1228,20 @@ def test_app_signing_seals_nested_code_before_the_outer_app(
     )
 
     assert result == {"Identifier": "com.auralign.studio"}
-    assert len(subprocess_commands) == 1
-    assert subprocess_commands[0][-1] == str(nested)
-    assert str(main) not in subprocess_commands[0]
+    assert len(subprocess_commands) == 2
+    nested_command = next(
+        command for command in subprocess_commands if command[-1] == str(nested)
+    )
+    python_command = next(
+        command for command in subprocess_commands if command[-1] == str(runtime_python)
+    )
+    assert "--entitlements" not in nested_command
+    assert "--entitlements" in python_command
+    assert (
+        python_command[python_command.index("--entitlements") + 1]
+        == str(PACKAGING / "AuralignEnginePython.entitlements")
+    )
+    assert all(str(main) not in command for command in subprocess_commands)
     assert run_commands[0][-1] == str(runtime_bundle)
     assert run_commands[1][-1] == str(app)
     assert run_commands[1].count(identity) == 1
@@ -1418,6 +1439,10 @@ def test_package_definition_is_scriptless_system_only_arm64_macos14() -> None:
     ]
     with (PACKAGING / "Auralign.entitlements").open("rb") as handle:
         assert plistlib.load(handle) == {}
+    with (PACKAGING / "AuralignEnginePython.entitlements").open("rb") as handle:
+        assert plistlib.load(handle) == {
+            "com.apple.security.cs.allow-unsigned-executable-memory": True,
+        }
 
     builder = (ROOT / "scripts/build_macos_standalone.py").read_text(encoding="utf-8")
     assert 'component / "Scripts"' in builder

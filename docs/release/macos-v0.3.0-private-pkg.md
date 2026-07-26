@@ -197,6 +197,12 @@ notary submission result, ticket, expanded product/components, BOMs, receipts,
 Distribution, Installer resources, script absence, app/runtime topology,
 bootstrap contents/modes/hashes, model exclusion from the app, executable-code
 exclusion from the bootstrap component, and private/credential/path scans.
+The outer app keeps an exact empty entitlement dictionary. The embedded
+`Runtime/bin/python3.11` executable alone carries
+`com.apple.security.cs.allow-unsigned-executable-memory` because the locked
+Numba/llvmlite closure used by MLX Whisper emits JIT code without `MAP_JIT`.
+No other nested object receives that exception; library validation,
+Gatekeeper, SIP, and the rest of Hardened Runtime remain enabled.
 
 ## Native Installation And User Acceptance
 

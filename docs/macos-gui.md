@@ -122,6 +122,13 @@ works with operator-selected media, model caches, and output directories. Its
 Release configuration makes `offline` and model locations managed values so
 imports or stale overrides cannot bypass the installed policy.
 
+The ordinary Xcode Release app checked by the GUI gate retains an exact empty
+entitlement dictionary. During standalone assembly, only the nested
+`Runtime/bin/python3.11` helper receives
+`com.apple.security.cs.allow-unsigned-executable-memory` for the locked
+Numba/llvmlite JIT used by MLX Whisper. The runtime bundle, outer app, and all
+other nested code remain entitlement-empty.
+
 An ordinary Xcode Release build is still only a local artifact. Distribution
 requires the checked-in standalone builder, clean exact-commit source, complete
 license/SBOM/native closure, inside-out Developer ID signing, a scriptless

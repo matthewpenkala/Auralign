@@ -167,6 +167,13 @@ Developer ID Installer identity from the same Team ID. `--deep` is for
 recursive verification, not primary signing. No payload may mutate after its
 applicable signing boundary.
 
+The outer app has an exact empty entitlement dictionary. The purpose-built
+runtime grants only its nested `bin/python3.11` executable
+`com.apple.security.cs.allow-unsigned-executable-memory`, the narrow exception
+required by the locked Numba/llvmlite JIT path used by MLX Whisper. Other
+executables and libraries receive no runtime exception; library validation,
+Gatekeeper, SIP, and the remaining Hardened Runtime protections stay enabled.
+
 Notarization acceptance alone is insufficient. The exact PKG must be stapled
 and pass `codesign`, `pkgutil`, `spctl` execute/install, `stapler`, expansion,
 BOM, receipt, Distribution, scriptless-payload, model, privacy, and native

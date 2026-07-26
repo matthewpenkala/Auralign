@@ -65,6 +65,12 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCES_PATH = ROOT / "packaging/macos/runtime-sources.toml"
 REQUIREMENTS_PATH = ROOT / "requirements/macos-app-arm64-cpu-py311.txt"
 ENTITLEMENTS_PATH = ROOT / "packaging/macos/Auralign.entitlements"
+RUNTIME_PYTHON_ENTITLEMENTS_PATH = (
+    ROOT / "packaging/macos/AuralignEnginePython.entitlements"
+)
+RUNTIME_PYTHON_ENTITLEMENTS = {
+    "com.apple.security.cs.allow-unsigned-executable-memory": True,
+}
 COMPONENT_PLIST_PATH = ROOT / "packaging/macos/component.plist"
 DISTRIBUTION_PATH = ROOT / "packaging/macos/Distribution.xml"
 INSTALLER_RESOURCES_PATH = ROOT / "packaging/macos/installer-design/Resources"
@@ -3150,21 +3156,33 @@ def runtime_smoke(runtime: Path, *, label: str) -> dict[str, str]:
                 "-I",
                 "-c",
                 (
-                    "import importlib,json;"
+                    "import importlib,json,numba;"
+                    "jit_result=int(numba.njit(cache=False)("
+                    "lambda value:value+1)(1));"
                     "names=('faster_whisper','mlx.core','mlx_whisper','onnxruntime',"
                     "'pyannote.audio',"
                     "'speechbrain.inference.speaker','torchaudio','torchmetrics',"
                     "'whisperx.alignment');"
                     "modules={name:importlib.import_module(name) for name in names};"
-                    "print(json.dumps({name:getattr(module,'__version__','imported') "
-                    "for name,module in modules.items()},sort_keys=True))"
+                    "print(json.dumps({'numba_jit':jit_result,'versions':"
+                    "{name:getattr(module,'__version__','imported') "
+                    "for name,module in modules.items()}},sort_keys=True))"
                 ),
             ),
             cwd=home,
             env=environment,
             capture=True,
         )
-        production_dependency_versions = json.loads(production_dependencies.stdout)
+        production_dependency_result = json.loads(production_dependencies.stdout)
+        require(
+            production_dependency_result.get("numba_jit") == 2,
+            f"{label}: production Numba JIT smoke failed",
+        )
+        production_dependency_versions = production_dependency_result.get("versions")
+        require(
+            isinstance(production_dependency_versions, dict),
+            f"{label}: production dependency version evidence is invalid",
+        )
         require(
             set(production_dependency_versions)
             == {
@@ -4872,6 +4890,28 @@ def codesign_metadata(path: Path) -> dict[str, str]:
     return values
 
 
+def codesign_entitlements(path: Path) -> dict[str, Any]:
+    result = subprocess.run(
+        ["codesign", "-d", "--entitlements", "-", "--xml", str(path)],
+        cwd=ROOT,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    require(
+        result.returncode == 0,
+        f"codesign entitlements unavailable: {path}\n{result.stderr}",
+    )
+    if not result.stdout:
+        return {}
+    try:
+        payload = plistlib.loads(result.stdout.encode("utf-8"))
+    except plistlib.InvalidFileException as error:
+        raise RuntimeError(f"codesign emitted invalid entitlements: {path}") from error
+    require(isinstance(payload, dict), f"codesign entitlements are invalid: {path}")
+    return cast(dict[str, Any], payload)
+
+
 def verify_app_signatures(
     app: Path,
     *,
@@ -4880,6 +4920,7 @@ def verify_app_signatures(
 ) -> dict[str, str]:
     run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)])
     runtime_bundle = app_runtime_bundle(app)
+    runtime_python = (app_runtime_root(app) / "bin/python3").resolve(strict=True)
     for path in [*macho_files(app), runtime_bundle, app]:
         verification = subprocess.run(
             ["codesign", "--verify", "--strict", "--verbose=2", str(path)],
@@ -4902,6 +4943,15 @@ def verify_app_signatures(
                 "Developer ID Application:" in metadata.get("Authorities", ""),
                 f"non-Developer-ID nested signature: {path}",
             )
+            expected_entitlements = (
+                RUNTIME_PYTHON_ENTITLEMENTS
+                if path.resolve(strict=True) == runtime_python
+                else {}
+            )
+            require(
+                codesign_entitlements(path) == expected_entitlements,
+                f"signed entitlement contract drift: {path}",
+            )
     outer = codesign_metadata(app)
     require(outer.get("Identifier") == APP_IDENTIFIER, "signed app identifier drift")
     require(
@@ -4922,6 +4972,7 @@ def sign_app(
     timestamp = [] if structure_only else ["--timestamp"]
     hardened_runtime = [] if structure_only else ["--options", "runtime"]
     main_executable = app / "Contents/MacOS/Auralign"
+    runtime_python = (app_runtime_root(app) / "bin/python3").resolve(strict=True)
     for path in sorted(
         macho_files(app),
         key=lambda candidate: len(candidate.relative_to(app).parts),
@@ -4929,11 +4980,20 @@ def sign_app(
     ):
         if path == main_executable:
             continue
+        entitlements = (
+            [
+                "--entitlements",
+                str(RUNTIME_PYTHON_ENTITLEMENTS_PATH),
+            ]
+            if not structure_only and path.resolve(strict=True) == runtime_python
+            else []
+        )
         command = [
             "codesign",
             "--force",
             *hardened_runtime,
             *timestamp,
+            *entitlements,
             "--sign",
             identity,
             str(path),
@@ -5581,6 +5641,7 @@ def write_release_manifest(
                 f"Contents/Frameworks/{RUNTIME_BUNDLE_NAME}/"
                 "Contents/Resources/Runtime"
             ),
+            "runtime_python_entitlements": dict(RUNTIME_PYTHON_ENTITLEMENTS),
             "main_executable_sha256": sha256(app / "Contents/MacOS/Auralign"),
             "code_directory_hash": app_signature.get("CDHash"),
             "team_identifier": app_signature.get("TeamIdentifier"),
