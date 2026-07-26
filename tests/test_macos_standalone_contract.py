@@ -1545,7 +1545,18 @@ def test_distribution_contract_accepts_only_reviewed_productbuild_normalization(
         BUILDER_MODULE.MODEL_RECEIPT_IDENTIFIER,
     ):
         generated = ET.SubElement(root, "pkg-ref", {"id": identifier})
-        ET.SubElement(generated, "bundle-version")
+        bundle_version = ET.SubElement(generated, "bundle-version")
+        if identifier == BUILDER_MODULE.APP_RECEIPT_IDENTIFIER:
+            ET.SubElement(
+                bundle_version,
+                "bundle",
+                {
+                    "CFBundleShortVersionString": sources["product_version"],
+                    "CFBundleVersion": sources["build_number"],
+                    "id": BUILDER_MODULE.APP_IDENTIFIER,
+                    "path": "Applications/Auralign.app",
+                },
+            )
     normalized = tmp_path / "Distribution"
     tree.write(normalized, encoding="utf-8", xml_declaration=True)
 
@@ -1554,6 +1565,23 @@ def test_distribution_contract_accepts_only_reviewed_productbuild_normalization(
         sources=sources,
         productbuild_normalized=True,
     )
+
+    app_generated = next(
+        package
+        for package in root.findall("pkg-ref")
+        if package.attrib == {"id": BUILDER_MODULE.APP_RECEIPT_IDENTIFIER}
+    )
+    app_bundle = app_generated.find("bundle-version/bundle")
+    assert app_bundle is not None
+    app_bundle.attrib["path"] = "Applications/Other.app"
+    tree.write(normalized, encoding="utf-8", xml_declaration=True)
+    with pytest.raises(RuntimeError, match="generated component metadata drift"):
+        BUILDER_MODULE.verify_distribution_contract(
+            normalized,
+            sources=sources,
+            productbuild_normalized=True,
+        )
+    app_bundle.attrib["path"] = "Applications/Auralign.app"
 
     ET.SubElement(root, "choice", {"id": "unexpected"})
     tree.write(normalized, encoding="utf-8", xml_declaration=True)

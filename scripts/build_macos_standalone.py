@@ -516,13 +516,41 @@ def verify_distribution_contract(
         if productbuild_normalized:
             generated = generated_packages[identifier]
             generated_children = list(generated)
+            bundle_version = (
+                generated_children[0] if len(generated_children) == 1 else None
+            )
             require(
                 generated.attrib == {"id": identifier}
                 and not (generated.text or "").strip()
                 and len(generated_children) == 1
-                and generated_children[0].tag == "bundle-version"
-                and generated_children[0].attrib == {}
-                and len(generated_children[0]) == 0,
+                and bundle_version is not None
+                and bundle_version.tag == "bundle-version"
+                and bundle_version.attrib == {}
+                and not (bundle_version.text or "").strip(),
+                f"Distribution generated component metadata drift: {identifier}",
+            )
+            bundle_records = list(bundle_version)
+            expected_bundle_records = (
+                [
+                    {
+                        "CFBundleShortVersionString": sources["product_version"],
+                        "CFBundleVersion": sources["build_number"],
+                        "id": APP_IDENTIFIER,
+                        "path": "Applications/Auralign.app",
+                    }
+                ]
+                if identifier == APP_RECEIPT_IDENTIFIER
+                else []
+            )
+            require(
+                [record.tag for record in bundle_records]
+                == ["bundle"] * len(expected_bundle_records)
+                and [record.attrib for record in bundle_records]
+                == expected_bundle_records
+                and all(
+                    not (record.text or "").strip() and len(record) == 0
+                    for record in bundle_records
+                ),
                 f"Distribution generated component metadata drift: {identifier}",
             )
 
