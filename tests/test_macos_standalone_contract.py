@@ -208,6 +208,7 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "verify_expanded_package(" in builder
     assert "verify_component_bom(" in builder
     assert '"lsbom", "-p", "fmug"' in builder
+    assert "BOM and expanded Payload path set differ" in builder
     assert "model_inference_smoke(" in builder
     assert "auralign-packaged-bootstrap-inference-smoke.v1" in builder
     assert "AURALIGN_SMOKE_JSON=" in builder
@@ -629,11 +630,21 @@ def test_component_bom_requires_root_wheel_and_read_only_model_payload(
         "Library/Application Support/com.auralign.studio/Models/"
         "com.auralign.studio.models.bootstrap.v1"
     )
+    payload_file = component / "Payload" / prefix / "models/model.bin"
+    payload_file.parent.mkdir(parents=True)
+    payload_file.write_bytes(b"model")
     listing = "\n".join(
         [
             ".\t40755\t0\t0",
             "./Library\t40755\t0\t0",
+            "./Library/Application Support\t40755\t0\t0",
+            "./Library/Application Support/com.auralign.studio\t40755\t0\t0",
+            (
+                "./Library/Application Support/com.auralign.studio/Models"
+                "\t40755\t0\t0"
+            ),
             f"./{prefix}\t40555\t0\t0",
+            f"./{prefix}/models\t40555\t0\t0",
             f"./{prefix}/models/model.bin\t100444\t0\t0",
         ]
     )
@@ -661,6 +672,44 @@ def test_component_bom_requires_root_wheel_and_read_only_model_payload(
         "uid": "0",
         "gid": "0",
     }
+
+
+def test_component_bom_rejects_payload_path_set_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    component = tmp_path / "models.pkg"
+    component.mkdir()
+    (component / "Bom").write_bytes(b"fixture")
+    prefix = "Models/exact"
+    payload_file = component / "Payload" / prefix / "model.bin"
+    payload_file.parent.mkdir(parents=True)
+    payload_file.write_bytes(b"model")
+    listing = "\n".join(
+        [
+            ".\t40755\t0\t0",
+            "./Models\t40755\t0\t0",
+            f"./{prefix}\t40555\t0\t0",
+        ]
+    )
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=listing + "\n",
+            stderr="",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="BOM and expanded Payload path set differ"):
+        BUILDER_MODULE.verify_component_bom(
+            component,
+            label="offline-model component",
+            required_prefix=prefix,
+            require_read_only=True,
+        )
 
 
 @pytest.mark.parametrize(
@@ -1521,6 +1570,102 @@ def test_package_definition_is_scriptless_system_only_arm64_macos14() -> None:
         '"Library/Application Support/com.auralign.studio/Models"'
         in builder
     )
+
+
+def test_final_product_package_uses_exact_component_expansion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package = tmp_path / "Auralign-0.3.0-1-macos-arm64.pkg"
+    package.write_bytes(b"product package fixture")
+    signed_app = tmp_path / "signed/Auralign.app"
+    model_bundle = tmp_path / "model-bundle"
+    expanded_app = tmp_path / "expanded/Auralign.app"
+    expanded_model_bundle = tmp_path / "expanded/model-bundle"
+    for directory in (
+        signed_app,
+        model_bundle,
+        expanded_app,
+        expanded_model_bundle,
+        tmp_path / "evidence",
+    ):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    commands: list[list[str]] = []
+
+    def fake_run(
+        command: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        stdout = (
+            "Status: signed by a certificate trusted by macOS\n"
+            "Developer ID Installer: Auralign (TEAM123)\n"
+            if command[:2] == ["pkgutil", "--check-signature"]
+            else ""
+        )
+        return subprocess.CompletedProcess(command, 0, stdout, "")
+
+    expansion_calls: list[tuple[Path, Path]] = []
+
+    def fake_verify_expanded_package(
+        observed_package: Path,
+        destination: Path,
+        **_kwargs: object,
+    ) -> tuple[Path, Path]:
+        expansion_calls.append((observed_package, destination))
+        return expanded_app, expanded_model_bundle
+
+    monkeypatch.setattr(BUILDER_MODULE, "run", fake_run)
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "verify_expanded_package",
+        fake_verify_expanded_package,
+    )
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "verify_app_signatures",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "runtime_smoke",
+        lambda *_args, **_kwargs: {"ok": True},
+    )
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "model_runtime_smoke",
+        lambda *_args, **_kwargs: {"ok": True},
+    )
+    monkeypatch.setattr(
+        BUILDER_MODULE,
+        "model_inference_smoke",
+        lambda *_args, **_kwargs: {"ok": True},
+    )
+
+    BUILDER_MODULE.verify_final_package(
+        package,
+        app=signed_app,
+        model_bundle=model_bundle,
+        sources={"product_version": "0.3.0", "build_number": "1"},
+        expected_team="TEAM123",
+        structure_only=False,
+    )
+
+    assert expansion_calls == [
+        (package, package.parent / "expanded-final-pkg"),
+    ]
+    assert not any(command[:2] == ["pkgutil", "--payload-files"] for command in commands)
+    assert ["pkgutil", "--check-signature", str(package)] in commands
+    assert [
+        "spctl",
+        "--assess",
+        "--type",
+        "install",
+        "--verbose=4",
+        str(package),
+    ] in commands
+    assert ["xcrun", "stapler", "validate", "-v", str(package)] in commands
 
 
 def test_distribution_contract_accepts_only_reviewed_productbuild_normalization(

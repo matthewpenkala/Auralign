@@ -5268,6 +5268,20 @@ def verify_component_bom(
         )
     require(rows, f"{label} BOM is empty")
     require(matched_prefix, f"{label} BOM omits its required payload prefix")
+    payload_root = component / "Payload"
+    require(payload_root.is_dir(), f"{label} expanded Payload is missing")
+    bom_paths = {row["path"] for row in rows}
+    payload_paths = {
+        ".",
+        *(
+            path.relative_to(payload_root).as_posix()
+            for path in sorted(payload_root.rglob("*"))
+        ),
+    }
+    require(
+        bom_paths == payload_paths,
+        f"{label} BOM and expanded Payload path set differ",
+    )
     return rows
 
 
@@ -5557,27 +5571,6 @@ def verify_final_package(
     )
     run(["spctl", "--assess", "--type", "install", "--verbose=4", str(package)])
     run(["xcrun", "stapler", "validate", "-v", str(package)])
-    payload_files = run(
-        ["pkgutil", "--payload-files", str(package)],
-        capture=True,
-    ).stdout.splitlines()
-    require(
-        any(
-            path.removeprefix("./").rstrip("/") == "Applications/Auralign.app"
-            for path in payload_files
-        ),
-        "final package payload listing omits Auralign.app",
-    )
-    expected_model_payload = (
-        MODEL_INSTALL_PARENT / MODEL_BUNDLE_IDENTIFIER
-    ).as_posix()
-    require(
-        any(
-            path.removeprefix("./").rstrip("/") == expected_model_payload
-            for path in payload_files
-        ),
-        "final package payload listing omits the exact offline model bundle",
-    )
     payload_app, payload_model_bundle = verify_expanded_package(
         package,
         package.parent / "expanded-final-pkg",

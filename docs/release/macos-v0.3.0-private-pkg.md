@@ -197,6 +197,10 @@ notary submission result, ticket, expanded product/components, BOMs, receipts,
 Distribution, Installer resources, script absence, app/runtime topology,
 bootstrap contents/modes/hashes, model exclusion from the app, executable-code
 exclusion from the bootstrap component, and private/credential/path scans.
+The exact final product archive is expanded in full and each independent
+component is verified against its own BOM and payload; `pkgutil
+--payload-files` on the outer product archive is not treated as an aggregate
+two-component inventory.
 Expansion must also match the signed app's exact byte, mode, and relative-link
 inventory. Only its preverified internal runtime aliases may remain symbolic
 links; the model component permits no links or other irregular entries.
