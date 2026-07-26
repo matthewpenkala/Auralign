@@ -963,6 +963,12 @@ def test_unreachable_third_party_test_content_is_pruned(
     evidence = tmp_path / "evidence"
     evidence.mkdir()
 
+    with pytest.raises(RuntimeError, match="reviewed test-content root count drift"):
+        BUILDER_MODULE.prune_unreachable_third_party_test_content(
+            tmp_path,
+            evidence,
+        )
+
     result = BUILDER_MODULE.prune_unreachable_third_party_test_content(
         tmp_path,
         evidence,
@@ -990,6 +996,13 @@ def test_unreachable_third_party_test_content_is_pruned(
 def test_unbundled_model_assets_are_inventory_bound_and_pruned(
     tmp_path: Path,
 ) -> None:
+    assert BUILDER_MODULE.APPROVED_RUNTIME_DATA[
+        "lib/python3.11/site-packages/mlx_whisper/assets/mel_filters.npz"
+    ] == {
+        "bytes": 4_271,
+        "sha256": "7450ae70723a5ef9d341e3cee628c7cb0177f36ce42c44b7ed2bf3325f0f6d4c",
+        "classification": "MLX Whisper mel-filter numerical data",
+    }
     site_packages = tmp_path / "lib/python3.11/site-packages"
     asset_payloads = {
         "faster_whisper/assets/silero_vad_v6.onnx": b"silero",
@@ -1007,8 +1020,13 @@ def test_unbundled_model_assets_are_inventory_bound_and_pruned(
         destination = site_packages / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(payload)
-    retained = site_packages / "whisperx/assets/mel_filters.npz"
-    retained.write_bytes(b"mel-filter-data")
+    retained = {
+        site_packages / "whisperx/assets/mel_filters.npz",
+        site_packages / "mlx_whisper/assets/mel_filters.npz",
+    }
+    for path in retained:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"mel-filter-data")
     evidence = tmp_path / "evidence"
     evidence.mkdir()
 
@@ -1020,7 +1038,7 @@ def test_unbundled_model_assets_are_inventory_bound_and_pruned(
 
     assert result["files_removed"] == 10
     assert result["model_weight_files_removed"] == 9
-    assert retained.is_file()
+    assert all(path.is_file() for path in retained)
     assert all(not (site_packages / relative).exists() for relative in asset_payloads)
     payload = json.loads((evidence / "unbundled-model-assets.json").read_text(encoding="utf-8"))
     assert payload["schema_version"] == "auralign-unbundled-model-assets.v1"

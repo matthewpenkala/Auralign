@@ -1313,14 +1313,18 @@ def prune_unbundled_native_backends(root: Path, evidence: Path) -> dict[str, Any
     }
 
 
-REVIEWED_TEST_PRUNE_ROOT_COUNT = 209
+# Auralign 0.3.0 adds the pinned MLX dependency closure. Its llvmlite and
+# Numba wheels contribute four additional test-only roots (426 files and
+# 4,978,965 bytes); subtracting only those roots reproduces the complete
+# reviewed 0.2.1 inventory exactly.
+REVIEWED_TEST_PRUNE_ROOT_COUNT = 213
 REVIEWED_TEST_PRUNE_ROOTS_SHA256 = (
-    "2fab4c61c29ee9f264633f1419e32d266ab3c8fabaf6e9e90b38c22a92aaedee"
+    "507c89d276e488db32af25bde2687ff72947eb29c7a9ea11e96f7810ebcadb67"
 )
-REVIEWED_TEST_PRUNE_FILE_COUNT = 4346
-REVIEWED_TEST_PRUNE_BYTES = 61_897_658
+REVIEWED_TEST_PRUNE_FILE_COUNT = 4772
+REVIEWED_TEST_PRUNE_BYTES = 66_876_623
 REVIEWED_TEST_PRUNE_TREE_SHA256 = (
-    "0049ade336176c8c02ab35ef194e6256452e30e2980c148bfa2754b8e2aa5079"
+    "b3502d3595072822923803da456af14cfc2ce717a304e7b25d4eadd6d601d21a"
 )
 REVIEWED_SAMPLE_DATA_FILES = {
     "lib/python3.11/site-packages/networkx/generators/atlas.dat.gz": {
@@ -1912,6 +1916,13 @@ APPROVED_RUNTIME_DATA = {
             "7450ae70723a5ef9d341e3cee628c7cb0177f36ce42c44b7ed2bf3325f0f6d4c"
         ),
         "classification": "WhisperX mel-filter numerical data",
+    },
+    "lib/python3.11/site-packages/mlx_whisper/assets/mel_filters.npz": {
+        "bytes": 4_271,
+        "sha256": (
+            "7450ae70723a5ef9d341e3cee628c7cb0177f36ce42c44b7ed2bf3325f0f6d4c"
+        ),
+        "classification": "MLX Whisper mel-filter numerical data",
     },
     "lib/python3.11/site-packages/sentencepiece/package_data/nfkc.bin": {
         "bytes": 240_008,
