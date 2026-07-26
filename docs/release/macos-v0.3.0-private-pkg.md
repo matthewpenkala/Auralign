@@ -197,6 +197,9 @@ notary submission result, ticket, expanded product/components, BOMs, receipts,
 Distribution, Installer resources, script absence, app/runtime topology,
 bootstrap contents/modes/hashes, model exclusion from the app, executable-code
 exclusion from the bootstrap component, and private/credential/path scans.
+Expansion must also match the signed app's exact byte, mode, and relative-link
+inventory. Only its preverified internal runtime aliases may remain symbolic
+links; the model component permits no links or other irregular entries.
 The outer app keeps an exact empty entitlement dictionary. The embedded
 `Runtime/bin/python3.11` executable alone carries
 `com.apple.security.cs.allow-unsigned-executable-memory` because the locked

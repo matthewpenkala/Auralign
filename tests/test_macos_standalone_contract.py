@@ -774,6 +774,75 @@ def test_expanded_component_payload_layout_rejects_sibling_content(
         )
 
 
+def test_expanded_component_payload_layout_allows_only_exact_internal_symlinks(
+    tmp_path: Path,
+) -> None:
+    payload = tmp_path / "Payload"
+    required = payload / "Applications/Auralign.app"
+    runtime_bin = required / "Contents/Runtime/bin"
+    runtime_bin.mkdir(parents=True)
+    (runtime_bin / "python3.11").write_bytes(b"python")
+    alias = runtime_bin / "python3"
+    alias.symlink_to("python3.11")
+    alias_relative = alias.relative_to(payload).as_posix()
+    contract = {alias_relative: "python3.11"}
+
+    BUILDER_MODULE.verify_component_payload_layout(
+        payload,
+        label="application component",
+        required_prefix="Applications/Auralign.app",
+        allowed_symlinks=contract,
+    )
+
+    with pytest.raises(RuntimeError, match="unapproved symlink"):
+        BUILDER_MODULE.verify_component_payload_layout(
+            payload,
+            label="application component",
+            required_prefix="Applications/Auralign.app",
+        )
+
+    alias.unlink()
+    alias.symlink_to("../../../../outside")
+    with pytest.raises(RuntimeError, match="unapproved symlink"):
+        BUILDER_MODULE.verify_component_payload_layout(
+            payload,
+            label="application component",
+            required_prefix="Applications/Auralign.app",
+            allowed_symlinks=contract,
+        )
+
+    outside = payload / "outside"
+    outside.write_bytes(b"outside")
+    escaping_target = "../../../../../outside"
+    alias.unlink()
+    alias.symlink_to(escaping_target)
+    with pytest.raises(RuntimeError, match="escapes or is irregular"):
+        BUILDER_MODULE.verify_component_payload_layout(
+            payload,
+            label="application component",
+            required_prefix="Applications/Auralign.app",
+            allowed_symlinks={alias_relative: escaping_target},
+        )
+
+
+def test_expanded_component_payload_layout_rejects_omitted_approved_symlink(
+    tmp_path: Path,
+) -> None:
+    payload = tmp_path / "Payload"
+    required = payload / "Applications/Auralign.app"
+    required.mkdir(parents=True)
+
+    with pytest.raises(RuntimeError, match="omits an approved symlink"):
+        BUILDER_MODULE.verify_component_payload_layout(
+            payload,
+            label="application component",
+            required_prefix="Applications/Auralign.app",
+            allowed_symlinks={
+                "Applications/Auralign.app/Contents/Runtime/bin/python3": "python3.11"
+            },
+        )
+
+
 def test_installable_payload_modes_are_normalized_and_fail_closed(
     tmp_path: Path,
 ) -> None:

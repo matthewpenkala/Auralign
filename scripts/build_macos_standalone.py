@@ -5114,6 +5114,14 @@ def verify_expanded_package(
         app_component / "Payload",
         label="application component",
         required_prefix="Applications/Auralign.app",
+        allowed_symlinks={
+            (
+                "Applications/Auralign.app/"
+                + path.relative_to(signed_app).as_posix()
+            ): os.readlink(path)
+            for path in sorted(signed_app.rglob("*"))
+            if path.is_symlink()
+        },
     )
     verify_component_payload_layout(
         model_component / "Payload",
@@ -5240,8 +5248,9 @@ def verify_component_payload_layout(
     *,
     label: str,
     required_prefix: str,
+    allowed_symlinks: dict[str, str] | None = None,
 ) -> None:
-    """Reject every expanded payload entry outside one exact component tree."""
+    """Reject entries outside one tree and links outside an exact source contract."""
 
     require(
         payload_root.is_dir() and not payload_root.is_symlink(),
@@ -5254,7 +5263,20 @@ def verify_component_payload_layout(
         and ".." not in PurePosixPath(normalized_prefix).parts,
         f"{label} required payload prefix is unsafe",
     )
+    symlink_contract = dict(allowed_symlinks or {})
+    require(
+        all(
+            path.startswith(normalized_prefix + "/")
+            and not PurePosixPath(path).is_absolute()
+            and ".." not in PurePosixPath(path).parts
+            and not os.path.isabs(target)
+            for path, target in symlink_contract.items()
+        ),
+        f"{label} allowed-symlink contract is unsafe",
+    )
+    required_root = (payload_root / normalized_prefix).resolve(strict=True)
     matched_prefix = False
+    observed_symlinks: set[str] = set()
     for path in [payload_root, *sorted(payload_root.rglob("*"))]:
         metadata = path.lstat()
         relative = "." if path == payload_root else path.relative_to(payload_root).as_posix()
@@ -5269,9 +5291,21 @@ def verify_component_payload_layout(
             inside_required_prefix or is_required_ancestor,
             f"{label} expanded Payload contains an unexpected path: {relative}",
         )
+        if stat.S_ISLNK(metadata.st_mode):
+            target = os.readlink(path)
+            require(
+                symlink_contract.get(relative) == target,
+                f"{label} expanded Payload contains an unapproved symlink: {relative}",
+            )
+            resolved = path.resolve(strict=True)
+            require(
+                resolved.is_relative_to(required_root) and resolved.is_file(),
+                f"{label} expanded Payload symlink escapes or is irregular: {relative}",
+            )
+            observed_symlinks.add(relative)
+            continue
         require(
-            not stat.S_ISLNK(metadata.st_mode)
-            and (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)),
+            stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode),
             f"{label} expanded Payload contains an irregular entry: {relative}",
         )
         if relative == normalized_prefix:
@@ -5281,6 +5315,10 @@ def verify_component_payload_layout(
             )
             matched_prefix = True
     require(matched_prefix, f"{label} expanded Payload omits its required root")
+    require(
+        observed_symlinks == set(symlink_contract),
+        f"{label} expanded Payload omits an approved symlink",
+    )
 
 
 def build_package(
