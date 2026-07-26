@@ -53,6 +53,7 @@ _PRIVATE_PATH = re.compile(
     r")",
     re.IGNORECASE,
 )
+_FILE_URI = re.compile(r"file:/", re.IGNORECASE)
 _MODEL_PROPERTY_NAMES: Final = {
     "auralign:model-key",
     "auralign:model-role",
@@ -131,7 +132,10 @@ def _validate_privacy(payload: object, *, label: str) -> None:
     }
     for value in _iter_strings(payload):
         normalized = value.casefold().replace("\\", "/")
-        require("file:" not in normalized, f"{label}: SBOM contains a local file URI")
+        require(
+            _FILE_URI.search(normalized) is None,
+            f"{label}: SBOM contains a local file URI",
+        )
         require(
             _PRIVATE_PATH.search(value) is None,
             f"{label}: SBOM contains a private local path",

@@ -555,6 +555,42 @@ def test_complete_product_sbom_rejects_private_path() -> None:
         product_sbom.validate_payload(payload)
 
 
+def test_complete_product_sbom_accepts_human_readable_file_label() -> None:
+    product_sbom._validate_privacy(
+        {"label": "declared license file: LICENSE"},
+        label="fixture",
+    )
+
+
+@pytest.mark.parametrize(
+    "uri",
+    (
+        "file:///opt/local-model-cache",
+        "<file:///opt/local-model-cache>",
+        "[file:///opt/local-model-cache]",
+        "URL:file:///opt/local-model-cache",
+    ),
+)
+def test_complete_product_sbom_rejects_local_file_uri(uri: str) -> None:
+    with pytest.raises(product_sbom.ProductSBOMError, match="local file URI"):
+        product_sbom._validate_privacy(
+            {"url": uri},
+            label="fixture",
+        )
+
+
+def test_runtime_sbom_normalization_makes_leaf_dependencies_explicit() -> None:
+    payload = _complete_product_sbom()
+    leaf = next(row for row in payload["dependencies"] if not row["dependsOn"])
+    leaf.pop("dependsOn")
+
+    dependencies = standalone_builder.normalize_cyclonedx_dependency_graph(payload)
+
+    assert leaf["dependsOn"] == []
+    assert dependencies is payload["dependencies"]
+    assert product_sbom.validate_payload(payload) == len(payload["components"])
+
+
 def test_complete_product_sbom_preserves_runtime_subset_validation() -> None:
     payload = _complete_product_sbom()
     torch_component = next(

@@ -3636,6 +3636,37 @@ print("AURALIGN_SMOKE_JSON=" + json.dumps(payload, sort_keys=True))
         }
 
 
+def normalize_cyclonedx_dependency_graph(
+    payload: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Make CycloneDX leaf dependency rows explicit and deterministic."""
+
+    raw_dependencies = payload.setdefault("dependencies", [])
+    require(
+        isinstance(raw_dependencies, list),
+        "runtime SBOM dependency graph is invalid",
+    )
+    for row in raw_dependencies:
+        require(
+            isinstance(row, dict),
+            "runtime SBOM dependency row is invalid",
+        )
+        reference = row.get("ref")
+        require(
+            isinstance(reference, str) and reference,
+            "runtime SBOM dependency reference is invalid",
+        )
+        if "dependsOn" not in row:
+            row["dependsOn"] = []
+        targets = row.get("dependsOn")
+        require(
+            isinstance(targets, list)
+            and all(isinstance(target, str) and target for target in targets),
+            f"runtime SBOM dependency targets are invalid: {reference}",
+        )
+    return cast(list[dict[str, Any]], raw_dependencies)
+
+
 def write_runtime_sbom(runtime: Path, evidence: Path, sources: dict[str, Any]) -> Path:
     destination = evidence / (
         f"Auralign-{sources['product_version']}-{sources['build_number']}"
@@ -3836,8 +3867,7 @@ def write_runtime_sbom(runtime: Path, evidence: Path, sources: dict[str, Any]) -
     properties.sort(
         key=lambda item: (str(item.get("name", "")), str(item.get("value", "")))
     )
-    dependencies = payload.setdefault("dependencies", [])
-    require(isinstance(dependencies, list), "runtime SBOM dependency graph is invalid")
+    dependencies = normalize_cyclonedx_dependency_graph(payload)
     graph_refs = {
         str(item.get("ref"))
         for item in dependencies
@@ -3880,10 +3910,9 @@ def augment_product_sbom_with_models(
     verify_model_bundle(model_bundle)
     payload = json.loads(runtime_sbom.read_text(encoding="utf-8"))
     components = payload.get("components")
-    dependencies = payload.get("dependencies")
+    dependencies = normalize_cyclonedx_dependency_graph(payload)
     metadata = payload.get("metadata")
     require(isinstance(components, list), "product SBOM component list is invalid")
-    require(isinstance(dependencies, list), "product SBOM dependency graph is invalid")
     require(isinstance(metadata, dict), "product SBOM metadata is invalid")
     existing_refs = {
         str(component.get("bom-ref"))
