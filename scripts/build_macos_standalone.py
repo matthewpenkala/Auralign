@@ -4378,6 +4378,15 @@ def build_runtime(
         "pip",
         "download",
         "--require-hashes",
+        "--platform",
+        "macosx_14_0_arm64",
+        "--python-version",
+        "3.11",
+        "--implementation",
+        "cp",
+        "--abi",
+        "cp311",
+        "--no-deps",
         "--only-binary=:all:",
     )
     for contract in sources.get("pure_python_sdist_builds", []):

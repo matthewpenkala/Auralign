@@ -127,6 +127,12 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "require_clean_main()" in builder
     assert 'refs/remotes/origin/main^{commit}' in builder
     assert "local main and fetched origin/main to match exactly" in builder
+    assert '"--platform"' in builder
+    assert '"macosx_14_0_arm64"' in builder
+    assert '"--python-version"' in builder
+    assert '"--implementation"' in builder
+    assert '"--abi"' in builder
+    assert '"--no-deps"' in builder
     assert "GITHUB_RELEASE_ASSET_MAX_BYTES = 2 * 1024**3" in builder
     assert "for license_name in MODEL_BUNDLE_LICENSE_FILENAMES:" in builder
     assert "model_notices_path.write_bytes(model_bundle_notices_bytes())" in builder
