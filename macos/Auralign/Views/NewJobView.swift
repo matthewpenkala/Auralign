@@ -104,20 +104,29 @@ struct NewJobView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXL) {
-                    AuralignPageHeader(
-                        title: "New Transcription",
-                        subtitle: "Choose local media and a destination, then review the "
-                            + "effective run before starting it from the window toolbar.",
-                        symbol: "plus.square.on.square"
-                    )
+                    AuralignWorkspaceHeader(
+                        symbol: "plus.square.on.square",
+                        accessibilityHeading: "New transcription workspace"
+                    ) {
+                        workspaceContext
+                    }
 
-                    // The alignment canvas is the visual centre of the
-                    // workflow: it shows the journey the *effective
-                    // configuration* will actually take, including honestly
-                    // disabled phases, before anything runs.
+                    AuralignSection(
+                        title: "Local Source",
+                        subtitle:
+                            "Drop audio or video into the studio. Auralign inspects "
+                            + "the real file before it can run."
+                    ) {
+                        sourceWell
+                    }
+
+                    // The phase map is a direct route into the effective run
+                    // configuration. Its shapes remain representative rather
+                    // than claiming unavailable waveform or timing data.
                     AlignmentCanvasView(
                         projection: AlignmentCanvasProjection.live(model: model),
-                        sourceTitle: model.inputURL?.lastPathComponent
+                        sourceTitle: model.inputURL?.lastPathComponent,
+                        onSelectPhase: openConfiguration
                     )
 
                     if geometry.size.width >= AuralignBreakpoint.workbench {
@@ -133,10 +142,38 @@ struct NewJobView: View {
                 )
             }
         }
-        // Keep the native toolbar title concise at the 900-point minimum
-        // width and under localization expansion. The content heading below
-        // retains the more descriptive “New Transcription” label.
         .navigationTitle("New Job")
+    }
+
+    @ViewBuilder
+    private var workspaceContext: some View {
+        if let url = model.inputURL {
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
+                Text(url.lastPathComponent)
+                    .font(AuralignType.pageTitle)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(
+                    "Local source selected. Review the run below, then start it "
+                        + "from the toolbar."
+                )
+                .font(AuralignType.metadata)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
+                Text("No source selected yet")
+                    .font(AuralignType.pageTitle)
+                Text(
+                    "Drop local audio or video below, then review the effective "
+                        + "run before starting it from the toolbar."
+                )
+                .font(AuralignType.metadata)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     private var wideWorkbench: some View {
@@ -157,14 +194,6 @@ struct NewJobView: View {
 
     private var sourceAndDestination: some View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXL) {
-            AuralignSection(
-                title: "Source",
-                subtitle: "The local engine probes the selected file; its extension is "
-                    + "never treated as proof that the media is valid."
-            ) {
-                sourceWell
-            }
-
             AuralignSection(
                 title: "Destination",
                 subtitle: "Every run receives a new empty job directory."
@@ -232,115 +261,152 @@ struct NewJobView: View {
         .accessibilityIdentifier(AccessibilityIdentifier.mediaDropZone)
     }
 
-    private var emptySource: some View {
-        VStack(spacing: AuralignVisualSystem.spacingM) {
-            Image(systemName: "doc.badge.plus")
-                .font(.system(size: 30))
-                .foregroundStyle(isDropTargeted ? Color.accentColor : .secondary)
-                .accessibilityHidden(true)
-            VStack(spacing: AuralignVisualSystem.spacingXS) {
-                Text("Drop local audio or video here")
-                    .font(.headline)
-                Text("Auralign will inspect the real media before enabling Start.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            Button("Choose Media…") {
-                chooseMedia()
-            }
-            .accessibilityIdentifier(AccessibilityIdentifier.mediaChoose)
+    private func openConfiguration(_ phase: AlignmentCanvasPhase) {
+        let group: PipelineNavigationGroup
+        switch phase {
+        case .source:
+            group = .sourceAudio
+        case .recognition:
+            group = .recognition
+        case .speakers:
+            group = .speakers
+        case .refinement:
+            group = .refinement
+        case .delivery:
+            group = .delivery
         }
-        .padding(AuralignVisualSystem.spacingXL)
-        .frame(maxWidth: .infinity, minHeight: 150)
-        .background(
-            isDropTargeted
-                ? Color.accentColor.opacity(0.08)
-                : Color(nsColor: .controlBackgroundColor)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: AuralignVisualSystem.cornerRadius)
-                .strokeBorder(
-                    isDropTargeted
-                        ? Color.accentColor
-                        : Color(nsColor: .separatorColor),
-                    style: StrokeStyle(lineWidth: isDropTargeted ? 2 : 1, dash: [6, 4])
-                )
+        guard let sectionID = group.firstAvailableSection(in: model.catalog) else {
+            return
         }
-        .clipShape(
-            RoundedRectangle(cornerRadius: AuralignVisualSystem.cornerRadius)
-        )
+        model.selectedSection = .configuration(sectionID)
     }
 
-    private func selectedSource(_ url: URL) -> some View {
-        HStack(alignment: .top, spacing: AuralignVisualSystem.spacingM) {
-            Image(systemName: "doc.fill")
-                .font(.title2)
-                .foregroundStyle(.tint)
-                .frame(width: 28)
-                .accessibilityHidden(true)
+    // A confident, filled drop target: the same card shape and surface as
+    // the selected-source summary below, so the two states read as one
+    // component rather than two unrelated ones — only the fill accent,
+    // icon, and copy change.
+    private var emptySource: some View {
+        HStack(alignment: .center, spacing: AuralignVisualSystem.spacingL) {
+            ZStack {
+                RoundedRectangle(cornerRadius: AuralignRadius.control)
+                    .fill(
+                        (isDropTargeted
+                            ? Color.accentColor
+                            : AuralignSpectrumStop.source.color)
+                            .opacity(isDropTargeted ? 0.24 : 0.14)
+                    )
+                    .frame(width: 52, height: 52)
+                Image(systemName: "waveform.badge.plus")
+                    .font(.title2)
+                    .foregroundStyle(
+                        isDropTargeted
+                            ? Color.accentColor
+                            : AuralignSpectrumStop.source.color
+                    )
+            }
+            .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
-                Text(url.lastPathComponent)
-                    .font(.headline)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-                    .help(url.lastPathComponent)
-
-                sourceEvidence
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
+                Text(
+                    isDropTargeted
+                        ? "Release to add this file"
+                        : "No local source selected"
+                )
+                .font(AuralignType.rowTitle)
+                Text(
+                    "Drop local audio or video here, or choose a file. Auralign "
+                        + "inspects the real media before enabling Start."
+                )
+                .font(AuralignType.metadata)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: AuralignVisualSystem.spacingM)
 
-            Button("Change…") {
+            Button("Choose Media…") {
                 chooseMedia()
             }
+            .buttonStyle(.borderedProminent)
             .accessibilityIdentifier(AccessibilityIdentifier.mediaChoose)
         }
         .padding(AuralignVisualSystem.spacingL)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .frame(maxWidth: .infinity, minHeight: 158)
+        .background(AuralignSurface.raised)
         .overlay {
-            RoundedRectangle(cornerRadius: AuralignVisualSystem.cornerRadius)
-                .strokeBorder(Color(nsColor: .separatorColor))
+            RoundedRectangle(cornerRadius: AuralignRadius.group)
+                .strokeBorder(
+                    isDropTargeted ? Color.accentColor : AuralignSurface.hairline,
+                    lineWidth: isDropTargeted ? 2 : 1
+                )
         }
-        .clipShape(
-            RoundedRectangle(cornerRadius: AuralignVisualSystem.cornerRadius)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: AuralignRadius.group))
+    }
+
+    private func selectedSource(_ url: URL) -> some View {
+        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
+            AuralignMediaRow(
+                title: url.lastPathComponent,
+                metadata: sourceMetadataLine,
+                swatch: auralignMediaRowSwatch(
+                    symbol: "waveform",
+                    tint: AuralignSpectrumStop.source.color
+                ),
+                containsInteractiveTrailing: true,
+                trailing: {
+                    HStack(spacing: AuralignVisualSystem.spacingS) {
+                        sourceStatusBadge
+                            .accessibilityIdentifier(AccessibilityIdentifier.mediaProbe)
+                        Button("Change…") {
+                            chooseMedia()
+                        }
+                        .controlSize(.small)
+                        .accessibilityIdentifier(AccessibilityIdentifier.mediaChoose)
+                    }
+                }
+            )
+            .help(url.lastPathComponent)
+
+            if let error = model.inputProbeError {
+                Text(privacySafeMessage(error))
+                    .font(AuralignType.metadata)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, AuralignVisualSystem.spacingM)
+                    .accessibilityIdentifier(AccessibilityIdentifier.mediaProbeError)
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(AccessibilityIdentifier.mediaSummary)
     }
 
-    @ViewBuilder
-    private var sourceEvidence: some View {
+    private var sourceMetadataLine: String {
         if let probe = model.inputProbe {
-            HStack(spacing: AuralignVisualSystem.spacingS) {
-                AuralignStatusBadge(
-                    text: "Inspected",
-                    tone: .success,
-                    symbol: "checkmark.circle.fill"
-                )
-                Text(probeSummary(probe))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-            .accessibilityIdentifier(AccessibilityIdentifier.mediaProbe)
-        } else if let error = model.inputProbeError {
-            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
-                AuralignStatusBadge(
-                    text: "Inspection failed",
-                    tone: .failure,
-                    symbol: "xmark.octagon.fill"
-                )
-                Text(privacySafeMessage(error))
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityIdentifier(AccessibilityIdentifier.mediaProbeError)
+            return probeSummary(probe)
+        }
+        if model.inputProbeError != nil {
+            return "Inspection failed — see details below."
+        }
+        return "Inspecting local media…"
+    }
+
+    @ViewBuilder
+    private var sourceStatusBadge: some View {
+        if model.inputProbe != nil {
+            AuralignStatusBadge(
+                text: "Inspected",
+                tone: .success,
+                symbol: "checkmark.circle.fill"
+            )
+        } else if model.inputProbeError != nil {
+            AuralignStatusBadge(
+                text: "Failed",
+                tone: .failure,
+                symbol: "xmark.octagon.fill"
+            )
         } else {
             AuralignStatusBadge(
-                text: "Inspecting local media",
+                text: "Inspecting",
                 tone: .active,
                 symbol: "ellipsis.circle"
             )
@@ -418,6 +484,7 @@ struct NewJobView: View {
                 VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
                     if let root = model.outputRootURL {
                         Text((root.path as NSString).abbreviatingWithTildeInPath)
+                            .font(AuralignType.technicalBody)
                             .lineLimit(2)
                             .truncationMode(.middle)
                             .help("Selected output folder")
@@ -428,7 +495,7 @@ struct NewJobView: View {
                             .foregroundStyle(.secondary)
                     }
                     Text(proposedJobFolderText)
-                        .font(.caption.monospaced())
+                        .font(AuralignType.technical)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier(
@@ -448,7 +515,7 @@ struct NewJobView: View {
                     + "is new and empty at launch.",
                 systemImage: "folder.badge.plus"
             )
-            .font(.caption)
+            .font(AuralignType.metadata)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
@@ -482,21 +549,12 @@ struct NewJobView: View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXL) {
             AuralignSection(
                 title: "Run Plan",
-                subtitle: "A read-only projection of the effective configuration that "
-                    + "will be captured when the job starts."
+                subtitle: "The effective configuration that will be captured when "
+                    + "the job starts. The field above summarizes configured phase "
+                    + "categories; Activity lists real execution order once reported."
             ) {
-                VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
-                    summaryRow("Preset", plan.preset)
-                    summaryRow("Language", plan.language)
-                    summaryRow("Speaker count", plan.speakerCount)
-                    summaryRow("Offline mode", plan.offline ? "Required" : "Not required")
-                    summaryRow(
-                        "Overrides",
-                        plan.overrideCount == 0
-                            ? "None"
-                            : "\(plan.overrideCount) modified"
-                    )
-
+                VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
+                    runPlanTable
                     HStack {
                         Button("Edit Configuration") {
                             model.selectedSection = .configuration("general")
@@ -509,14 +567,6 @@ struct NewJobView: View {
                         .controlSize(.small)
                     }
                 }
-            }
-
-            AuralignSection(
-                title: "Ordered Sequence",
-                subtitle: "\(plan.stages.count) ordinal stages. Order and spacing do "
-                    + "not represent duration or progress."
-            ) {
-                stageLedger
             }
 
             AuralignSection(title: "Readiness") {
@@ -536,52 +586,99 @@ struct NewJobView: View {
         )
     }
 
-    private func summaryRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: AuralignVisualSystem.spacingM) {
-            Text(label)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: AuralignVisualSystem.spacingM)
+    // A compact table replaces five right-flushed label/value rows: each row
+    // carries a real category glyph, and `AuralignModifiedBadge` marks any
+    // value that differs from the engine's schema default rather than
+    // leaving the whole panel visually inert.
+    private var runPlanTable: some View {
+        Grid(
+            alignment: .leading,
+            horizontalSpacing: AuralignVisualSystem.spacingM,
+            verticalSpacing: AuralignVisualSystem.spacingS
+        ) {
+            runPlanRow(
+                symbol: "slider.horizontal.3",
+                label: "Preset",
+                value: plan.preset.capitalized,
+                modified: fieldDiffersFromDefault("preset")
+            )
+            GridRow { Divider().gridCellColumns(2) }
+            runPlanRow(
+                symbol: "globe",
+                label: "Language",
+                value: plan.language,
+                modified: fieldDiffersFromDefault("asr.language")
+            )
+            GridRow { Divider().gridCellColumns(2) }
+            runPlanRow(
+                symbol: "person.2",
+                label: "Speakers",
+                value: plan.speakerCount,
+                modified: speakerCountDiffersFromDefault
+            )
+            GridRow { Divider().gridCellColumns(2) }
+            runPlanRow(
+                symbol: plan.offline ? "wifi.slash" : "wifi",
+                label: "Offline mode",
+                value: plan.offline ? "Required" : "Not required",
+                modified: fieldDiffersFromDefault("offline")
+            )
+            GridRow { Divider().gridCellColumns(2) }
+            runPlanRow(
+                symbol: "pencil.and.list.clipboard",
+                label: "Overrides",
+                value: plan.overrideCount == 0
+                    ? "None"
+                    : "\(plan.overrideCount) modified",
+                modified: false
+            )
+        }
+        .padding(AuralignVisualSystem.spacingM)
+        .background(AuralignSurface.raised)
+        .clipShape(RoundedRectangle(cornerRadius: AuralignRadius.group))
+    }
+
+    private func runPlanRow(
+        symbol: String,
+        label: String,
+        value: String,
+        modified: Bool
+    ) -> some View {
+        GridRow {
+            HStack(spacing: AuralignVisualSystem.spacingS) {
+                Image(systemName: symbol)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                    .accessibilityHidden(true)
+                if modified {
+                    AuralignModifiedBadge()
+                }
+                Text(label)
+                    .font(AuralignType.rowTitle)
+                    .foregroundStyle(.secondary)
+            }
             Text(value)
-                .fontWeight(.medium)
+                .font(AuralignType.evidenceEmphasis)
                 .multilineTextAlignment(.trailing)
                 .textSelection(.enabled)
+                .gridColumnAlignment(.trailing)
         }
-        .font(.callout)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(label): \(value)" + (modified ? ", modified from default" : "")
+        )
     }
 
-    private var stageLedger: some View {
-        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
-            ForEach(Array(plan.stages.enumerated()), id: \.element.id) { index, stage in
-                HStack(alignment: .firstTextBaseline, spacing: AuralignVisualSystem.spacingS) {
-                    Text("\(index + 1)")
-                        .font(.caption.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 22, alignment: .trailing)
-                    Text(stage.title)
-                        .font(.callout)
-                    Spacer(minLength: AuralignVisualSystem.spacingS)
-                    if case .skipped = stage.status {
-                        Text("Disabled")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(
-                    "Stage \(index + 1) of \(plan.stages.count), \(stage.title)"
-                        + (isSkipped(stage) ? ", disabled" : "")
-                )
-                .accessibilityIdentifier(
-                    AccessibilityIdentifier.runPlanStage(stage.id)
-                )
-            }
-        }
-        .accessibilityIdentifier(AccessibilityIdentifier.runPlanStages)
+    private func fieldDiffersFromDefault(_ key: String) -> Bool {
+        guard let field = model.manifest.field(key) else { return false }
+        return model.config.effectiveValue(key) != field.default
     }
 
-    private func isSkipped(_ stage: PipelineStage) -> Bool {
-        if case .skipped = stage.status { return true }
-        return false
+    private var speakerCountDiffersFromDefault: Bool {
+        if model.config.effectiveValue("diarization.enabled").boolValue == false {
+            return fieldDiffersFromDefault("diarization.enabled")
+        }
+        return fieldDiffersFromDefault("diarization.num_speakers")
     }
 
     private var readinessSummary: some View {
@@ -593,7 +690,7 @@ struct NewJobView: View {
             )
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
                 Text(readinessDetail)
-                    .font(.caption)
+                    .font(AuralignType.metadata)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Runtime & Model Details") {
@@ -655,16 +752,16 @@ struct NewJobView: View {
             title: blocker == nil ? "Ready for Start" : "Next Safe Action",
             message: privacySafeMessage(
                 blocker?.message
-                    ?? "Use Start Transcription in the window toolbar. "
-                        + "No network upload or telemetry is involved."
+                    ?? "The source, destination, configuration, and local runtime "
+                        + "are checked. No network upload or telemetry is involved."
             ),
             tone: blocker == nil ? .success : .warning,
             symbol: blocker == nil
                 ? "checkmark.circle.fill"
                 : "arrow.forward.circle.fill",
-            actionTitle: recovery?.title,
+            actionTitle: blocker == nil ? "Start Transcription" : recovery?.title,
             actionIdentifier: AccessibilityIdentifier.nextSafeAction,
-            action: recovery?.action
+            action: blocker == nil ? { model.startJob() } : recovery?.action
         )
         .accessibilityIdentifier(AccessibilityIdentifier.nextSafeAction)
     }

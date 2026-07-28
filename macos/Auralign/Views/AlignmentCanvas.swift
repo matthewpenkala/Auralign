@@ -24,9 +24,9 @@ import SwiftUI
 // deliberately omits waveform, speaker-lane, and confidence layers rather than
 // simulating them. Every mark below traces to a value listed above.
 
-/// The five phases the user is taught to recognise. These are presentation
-/// groupings over the engine's real stage identifiers — they never invent a
-/// stage the engine does not run.
+/// The five phases the user is taught to recognise. These are a navigable
+/// configuration map over real stage identifiers, not a claim about literal
+/// execution order; engine stages can interleave across these groups.
 enum AlignmentCanvasPhase: Int, CaseIterable, Identifiable {
     case source
     case recognition
@@ -150,6 +150,11 @@ struct AlignmentCanvasProjection: Equatable {
     /// Fraction of phases that have genuinely completed, 0...1. Derived from
     /// counted phase status only — never from a timer.
     var completedFraction: Double
+    /// Deterministic seed for the decorative `SourceIdentityField`, derived
+    /// only from real probed facts. `nil` until the source has been probed —
+    /// see DESIGN.md's "Authorized exception" for why this decorative visual
+    /// is permitted at all.
+    var sourceIdentitySeed: SourceIdentitySeed?
 
     /// Builds the projection from the live contract.
     ///
@@ -160,7 +165,8 @@ struct AlignmentCanvasProjection: Equatable {
     init(
         stages: [PipelineStage],
         posture: Posture,
-        probe: MediaProbe?
+        probe: MediaProbe?,
+        privacySafeTransform: (String) -> String = { $0 }
     ) {
         self.posture = posture
 
@@ -194,11 +200,13 @@ struct AlignmentCanvasProjection: Equatable {
             let evidence = members.compactMap { stage -> String? in
                 switch stage.status {
                 case .skipped(let reason):
-                    return reason.isEmpty ? nil : "\(stage.title) — \(reason)"
+                    let safeReason = privacySafeTransform(reason)
+                    return safeReason.isEmpty
+                        ? nil
+                        : "\(stage.title) — \(safeReason)"
                 default:
-                    let trimmed = stage.detail.trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                    )
+                    let trimmed = privacySafeTransform(stage.detail)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
                     return trimmed.isEmpty ? nil : "\(stage.title) — \(trimmed)"
                 }
             }
@@ -234,10 +242,17 @@ struct AlignmentCanvasProjection: Equatable {
                 facts.append(codec)
             }
             sourceFacts = facts
+            sourceIdentitySeed = SourceIdentitySeed(
+                durationSeconds: probe.durationSeconds,
+                sampleRate: probe.sampleRate,
+                channels: probe.channels,
+                codec: probe.codec
+            )
         } else {
             sourceDurationSeconds = nil
             sourceDurationText = nil
             sourceFacts = []
+            sourceIdentitySeed = nil
         }
     }
 
@@ -310,7 +325,8 @@ extension AlignmentCanvasProjection {
         return AlignmentCanvasProjection(
             stages: stages,
             posture: posture,
-            probe: model.inputProbe
+            probe: model.inputProbe,
+            privacySafeTransform: model.privacySafePresentationMessage
         )
     }
 }
@@ -324,7 +340,6 @@ extension AlignmentCanvasProjection {
 /// phases in the same positions — so the canvas never collapses into an
 /// unrelated layout between states. Only fill, evidence, and emphasis change.
 struct AlignmentCanvasView: View {
-    @Environment(\.auralignReduceMotion) private var reduceMotion
     @Environment(\.auralignReduceTransparency) private var reduceTransparency
     @Environment(\.auralignIncreaseContrast) private var increaseContrast
     @Environment(\.auralignDifferentiateWithoutColor)
@@ -341,8 +356,14 @@ struct AlignmentCanvasView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
             sourceBand
-            ribbon
-            durationAxis
+            if let seed = projection.sourceIdentitySeed {
+                SourceIdentityField(seed: seed)
+            }
+            AuralignSignalChamber(emphasis: chamberEmphasis) {
+                AlignmentFieldView(projection: projection)
+            }
+            labelRow
+            caption
         }
         .padding(AuralignVisualSystem.spacingL)
         .background(canvasBackground)
@@ -395,6 +416,16 @@ struct AlignmentCanvasView: View {
         return active.phase.spectrumStop
     }
 
+    private var chamberEmphasis: AuralignSpectrumStop? {
+        guard controlActiveState != .inactive else { return nil }
+        if let active = projection.segments.first(where: {
+            $0.status == .active
+        }) {
+            return active.phase.spectrumStop
+        }
+        return selectedPhase?.spectrumStop
+    }
+
     private func bloomOffset(in width: CGFloat) -> CGFloat {
         guard let index = projection.segments.firstIndex(where: {
             $0.status == .active
@@ -440,36 +471,50 @@ struct AlignmentCanvasView: View {
 
     // MARK: Ribbon
 
-    private var ribbon: some View {
+    private var labelRow: some View {
         HStack(spacing: AuralignVisualSystem.spacingXS) {
             ForEach(projection.segments) { segment in
                 segmentView(segment)
             }
         }
-        .accessibilityIdentifier(AccessibilityIdentifier.alignmentCanvasRibbon)
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
     private func segmentView(_ segment: AlignmentCanvasSegment) -> some View {
         let isSelected = selectedPhase == segment.phase
-        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
-            // The bar. Fill encodes real status; it is never partially filled
-            // to imply sub-stage progress the engine does not report.
-            RoundedRectangle(cornerRadius: AuralignRadius.control)
-                .fill(fill(for: segment))
-                .frame(height: segment.status == .active ? 12 : 10)
-                .overlay {
-                    if segment.status == .skipped || increaseContrast {
-                        RoundedRectangle(cornerRadius: AuralignRadius.control)
-                            .strokeBorder(
-                                increaseContrast
-                                    ? Color.primary.opacity(0.6)
-                                    : AuralignSurface.hairline,
-                                lineWidth: segment.status == .skipped ? 1 : 0.5
-                            )
-                    }
-                }
+        if let onSelectPhase {
+            Button {
+                onSelectPhase(segment.phase)
+            } label: {
+                segmentLabel(segment, isSelected: isSelected)
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(segment.phase.title)
+            .accessibilityValue(accessibilityValue(for: segment))
+            .accessibilityIdentifier(
+                AccessibilityIdentifier.alignmentCanvasPhase(segment.phase.title)
+            )
+        } else {
+            segmentLabel(segment, isSelected: isSelected)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(segment.phase.title)
+                .accessibilityValue(accessibilityValue(for: segment))
+                .accessibilityIdentifier(
+                    AccessibilityIdentifier.alignmentCanvasPhase(segment.phase.title)
+                )
+        }
+    }
 
+    private func segmentLabel(
+        _ segment: AlignmentCanvasSegment,
+        isSelected: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
+            // The phase's visual weight now lives in the drawn field above.
+            // This row carries the semantics the field cannot: an accessible
+            // name, a non-colour status symbol, and explicit status text.
             HStack(spacing: AuralignVisualSystem.spacingXS) {
                 Image(systemName: statusSymbol(for: segment))
                     .font(.caption2)
@@ -480,8 +525,8 @@ struct AlignmentCanvasView: View {
                     .foregroundStyle(
                         segment.status == .skipped ? .secondary : .primary
                     )
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // Status is always carried as text, never by color alone.
@@ -505,14 +550,6 @@ struct AlignmentCanvasView: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture { onSelectPhase?(segment.phase) }
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(onSelectPhase == nil ? [] : .isButton)
-        .accessibilityLabel(segment.phase.title)
-        .accessibilityValue(accessibilityValue(for: segment))
-        .accessibilityIdentifier(
-            AccessibilityIdentifier.alignmentCanvasPhase(segment.phase.title)
-        )
     }
 
     private func accessibilityValue(for segment: AlignmentCanvasSegment) -> String {
@@ -521,36 +558,6 @@ struct AlignmentCanvasView: View {
             value += ". " + segment.evidence.joined(separator: ". ")
         }
         return value
-    }
-
-    private func fill(for segment: AlignmentCanvasSegment) -> AnyShapeStyle {
-        if differentiateWithoutColor || increaseContrast {
-            switch segment.status {
-            case .complete:
-                return AnyShapeStyle(Color.primary)
-            case .active:
-                return AnyShapeStyle(Color.accentColor)
-            case .pending, .halted, .skipped:
-                return AnyShapeStyle(Color.secondary.opacity(0.25))
-            }
-        }
-        switch segment.status {
-        case .complete, .active:
-            return AnyShapeStyle(segment.phase.spectrumStop.color)
-        case .pending:
-            // A planned phase carries its own spectrum stop at low intensity.
-            // The hue identifies *which* phase this is — it never claims the
-            // phase has run. Run status is carried by the symbol and the
-            // explicit status text beneath, so the tint adds identity without
-            // adding a claim.
-            return AnyShapeStyle(
-                segment.phase.spectrumStop.color.opacity(0.26)
-            )
-        case .halted:
-            return AnyShapeStyle(Color.secondary.opacity(0.3))
-        case .skipped:
-            return AnyShapeStyle(Color.clear)
-        }
     }
 
     private func statusSymbol(for segment: AlignmentCanvasSegment) -> String {
@@ -573,30 +580,25 @@ struct AlignmentCanvasView: View {
         }
     }
 
-    // MARK: Duration axis
+    // MARK: Caption
 
-    /// A real time axis, shown only when the media has actually been probed.
-    /// Absent otherwise — the canvas does not draw a speculative timeline.
+    /// States the visual's categorical boundary so a reader never mistakes
+    /// the phase map for a metric timeline or literal execution order.
     @ViewBuilder
-    private var durationAxis: some View {
-        if let seconds = projection.sourceDurationSeconds,
-           seconds.isFinite,
-           seconds > 0,
-           let text = projection.sourceDurationText {
-            HStack(spacing: AuralignVisualSystem.spacingXS) {
-                Text("0:00")
-                    .font(AuralignType.numericSmall)
-                    .foregroundStyle(.tertiary)
-                Rectangle()
-                    .fill(AuralignSurface.hairline)
-                    .frame(height: 1)
+    private var caption: some View {
+        HStack(spacing: AuralignVisualSystem.spacingXS) {
+            Text("Phase map — position and width do not show execution order or duration.")
+            .font(AuralignType.metadata)
+            .foregroundStyle(.tertiary)
+
+            Spacer(minLength: AuralignVisualSystem.spacingS)
+
+            if let text = projection.sourceDurationText {
                 Text(text)
                     .font(AuralignType.numericSmall)
                     .foregroundStyle(.tertiary)
+                    .accessibilityLabel("Source duration \(text)")
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Source timeline")
-            .accessibilityValue("Duration \(text)")
         }
     }
 }

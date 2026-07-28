@@ -14,11 +14,21 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                AuralignPageHeader(
+                    title: "Studio Settings",
+                    subtitle:
+                        "Inspect the local engine and offline model system. "
+                        + "These controls never enable cloud processing.",
+                    symbol: "gearshape.2"
+                )
+            }
             Section("Engine") {
 #if DEBUG
                 LabeledContent("Repository") {
-                    VStack(alignment: .trailing, spacing: 8) {
+                    VStack(alignment: .trailing, spacing: AuralignVisualSystem.spacingS) {
                         Text(abbreviatedRepositoryPath)
+                            .font(AuralignType.technicalBody)
                             .lineLimit(2)
                             .truncationMode(.middle)
                             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -29,7 +39,7 @@ struct SettingsView: View {
                             .accessibilityIdentifier(
                                 AccessibilityIdentifier.settingsRepository
                         )
-                        HStack(spacing: 8) {
+                        HStack(spacing: AuralignVisualSystem.spacingS) {
                             Button("Choose…") {
                                 if let url = LocalFilePanel.chooseDirectory(
                                     message: "Choose the Auralign repository checkout"
@@ -93,25 +103,27 @@ struct SettingsView: View {
                         + "environment (.venv). This checkout selector is excluded from "
                         + "Release builds."
                 )
-                .font(.caption)
+                .font(AuralignType.metadata)
                 .foregroundStyle(.secondary)
 #else
-                Text(
-                    "The signed application includes its local Python engine and media "
-                        + "tools. It does not require a source checkout, Homebrew, or a "
-                        + "system Python."
+                AuralignCausalityBanner(
+                    headline: "Using the bundled runtime — verified at launch",
+                    detail:
+                        "The signed application includes its local Python engine and "
+                        + "media tools. It does not require a source checkout, Homebrew, "
+                        + "or a system Python.",
+                    tone: model.enginePresentationStatus.isReady ? .success : .failure
                 )
-                .font(.caption)
-                .foregroundStyle(.secondary)
 #endif
                 if model.workMutationLocked {
-                    Label(
-                        "Engine settings are locked until the owned engine "
-                            + "process exits and is reaped.",
-                        systemImage: "lock.fill"
+                    AuralignCausalityBanner(
+                        headline: "Settings locked by the running engine process",
+                        detail:
+                            "Engine settings unlock once the owned engine process for "
+                            + "the current job exits and is reaped.",
+                        tone: .warning,
+                        symbol: "lock.fill"
                     )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                     .accessibilityIdentifier(
                         AccessibilityIdentifier.settingsLockReason
                     )
@@ -121,8 +133,9 @@ struct SettingsView: View {
             Section("Models") {
 #if DEBUG
                 LabeledContent("Development Model Directory") {
-                    VStack(alignment: .trailing, spacing: 8) {
+                    VStack(alignment: .trailing, spacing: AuralignVisualSystem.spacingS) {
                         Text(abbreviatedModelCachePath)
+                            .font(AuralignType.technicalBody)
                             .lineLimit(2)
                             .truncationMode(.middle)
                             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -134,7 +147,7 @@ struct SettingsView: View {
                             .accessibilityIdentifier(
                                 AccessibilityIdentifier.settingsModelCache
                             )
-                        HStack(spacing: 8) {
+                        HStack(spacing: AuralignVisualSystem.spacingS) {
                             Button("Choose…") {
                                 if let url = LocalFilePanel.chooseDirectory(
                                     message: "Choose a verified development model directory"
@@ -172,11 +185,11 @@ struct SettingsView: View {
                     "Debug overrides are for controlled development only. They are "
                         + "excluded from Release builds and never become product trust."
                 )
-                .font(.caption)
+                .font(AuralignType.metadata)
                 .foregroundStyle(.secondary)
 #else
                 LabeledContent("Offline Model Bundle") {
-                    VStack(alignment: .trailing, spacing: 6) {
+                    VStack(alignment: .trailing, spacing: AuralignVisualSystem.spacingS) {
                         AuralignStatusBadge(
                             text: model.engineLocation.modelBundlePresentationMessage,
                             tone: model.engineLocation.modelBundleDiagnosis == .ready
@@ -186,7 +199,7 @@ struct SettingsView: View {
                                 : "xmark.octagon.fill"
                         )
                         Text(abbreviatedModelComponentPath)
-                            .font(.caption)
+                            .font(AuralignType.technical)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                             .truncationMode(.middle)
@@ -203,21 +216,25 @@ struct SettingsView: View {
                         AccessibilityIdentifier.settingsModelCache
                     )
                 }
-                Text(
-                    "The signed installer supplies the exact pinned model component "
+                AuralignCausalityBanner(
+                    headline: "Verified before work begins — never fetched at runtime",
+                    detail:
+                        "The signed installer supplies the exact pinned model component "
                         + "as root-owned, read-only files. Auralign verifies its identity, "
                         + "completion records, revisions, and hashes before work begins; "
                         + "normal use is offline and requires no Hugging Face account, "
-                        + "token, Terminal, or developer tools."
+                        + "token, Terminal, or developer tools.",
+                    tone: model.engineLocation.modelBundleDiagnosis == .ready
+                        ? .success : .failure
                 )
-                .font(.caption)
-                .foregroundStyle(.secondary)
 #endif
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(AuralignStudioBackdrop())
         .frame(minWidth: 420, idealWidth: 620, maxWidth: 760)
-        .padding(.vertical, 8)
+        .padding(.vertical, AuralignVisualSystem.spacingS)
         .accessibilityIdentifier(AccessibilityIdentifier.settingsRoot)
     }
 

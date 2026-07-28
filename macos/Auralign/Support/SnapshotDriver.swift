@@ -218,6 +218,7 @@ enum SnapshotDriver {
             let captureSucceeded = await snapshot(
                 to: destination,
                 role: requestedWindowRole,
+                activity: requestedWindowActivity,
                 nonce: nonce,
                 model: model
             )
@@ -242,11 +243,19 @@ enum SnapshotDriver {
             if let window = window(for: role) {
                 return window
             }
-            if role == .settings,
-               !shouldAutoOpenSettings(
-                   environment: ProcessInfo.processInfo.environment
-               ) {
+            switch role {
+            case .settings
+                where !shouldAutoOpenSettings(
+                    environment: ProcessInfo.processInfo.environment
+                ):
                 return nil
+            case .modelSetup
+                where !shouldAutoOpenModelSetup(
+                    environment: ProcessInfo.processInfo.environment
+                ):
+                return nil
+            default:
+                break
             }
             try? await Task.sleep(nanoseconds: 100_000_000)
             if Task.isCancelled || !model.isPresentationFixture {
@@ -277,21 +286,26 @@ enum SnapshotDriver {
         attempts: Int = 50
     ) async -> Bool {
         for _ in 0..<attempts {
-            let matches: Bool
-            switch activity {
-            case .active:
-                matches = NSApp.isActive
-                    && window.isKeyWindow
-                    && window.isMainWindow
-            case .inactive:
-                matches = !NSApp.isActive && !window.isKeyWindow
-            }
-            if matches { return true }
+            if windowActivityMatches(activity, window: window) { return true }
             applyWindowActivity(activity, to: window)
             try? await Task.sleep(nanoseconds: 100_000_000)
             if Task.isCancelled { return false }
         }
         return false
+    }
+
+    private static func windowActivityMatches(
+        _ activity: SnapshotWindowActivity,
+        window: NSWindow
+    ) -> Bool {
+        switch activity {
+        case .active:
+            return NSApp.isActive
+                && window.isKeyWindow
+                && window.isMainWindow
+        case .inactive:
+            return !NSApp.isActive && !window.isKeyWindow
+        }
     }
 
     private static func waitForNavigationRecovery(
@@ -511,6 +525,7 @@ enum SnapshotDriver {
                 _ = await snapshot(
                     to: argument,
                     role: .main,
+                    activity: .active,
                     nonce: UUID(),
                     model: model
                 )
@@ -613,38 +628,66 @@ enum SnapshotDriver {
     private static func snapshot(
         to path: String,
         role: SnapshotWindowRole,
+        activity: SnapshotWindowActivity,
         nonce: UUID,
         model: AppModel
     ) async -> Bool {
         guard let window = window(for: role),
               let destination = authorizedDestination(path)
         else { return false }
-        window.layoutIfNeeded()
-        window.displayIfNeeded()
         let scale = max(1, window.backingScaleFactor)
         let expectedPixelSize = CGSize(
             width: (window.frame.width * scale).rounded(),
             height: (window.frame.height * scale).rounded()
         )
 
-        if #available(macOS 14.4, *),
-           let image = await captureOwnWindow(window),
-           isVisuallyValid(image, expectedPixelSize: expectedPixelSize),
-           let png = NSBitmapImageRep(cgImage: image)
-            .representation(using: .png, properties: [:]),
-           publishCapture(
-               png,
-               image: image,
-               to: destination,
-               renderer: "ScreenCaptureKit.currentProcess",
-               role: role,
-               nonce: nonce,
-               window: window,
-               model: model
-           ) {
-            return true
+        if #available(macOS 14.4, *) {
+            // ScreenCaptureKit can yield while preparing the current-process
+            // window. Another foreground transition during that await would
+            // otherwise publish inactive chrome under an "active" receipt.
+            // Reassert, settle, capture, and verify the state on both sides of
+            // the asynchronous boundary before accepting the frame.
+            for _ in 0..<3 {
+                applyWindowActivity(activity, to: window)
+                guard await waitForWindowActivity(activity, window: window)
+                else { continue }
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                window.layoutIfNeeded()
+                window.displayIfNeeded()
+
+                guard windowActivityMatches(activity, window: window),
+                      let image = await captureOwnWindow(window),
+                      windowActivityMatches(activity, window: window),
+                      isVisuallyValid(
+                          image,
+                          expectedPixelSize: expectedPixelSize
+                      ),
+                      let png = NSBitmapImageRep(cgImage: image)
+                        .representation(using: .png, properties: [:])
+                else { continue }
+
+                if publishCapture(
+                    png,
+                    image: image,
+                    to: destination,
+                    renderer: "ScreenCaptureKit.currentProcess",
+                    role: role,
+                    nonce: nonce,
+                    window: window,
+                    model: model
+                ) {
+                    return true
+                }
+            }
         }
 
+        applyWindowActivity(activity, to: window)
+        guard await waitForWindowActivity(activity, window: window) else {
+            return false
+        }
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        window.layoutIfNeeded()
+        window.displayIfNeeded()
         guard let frameView = window.contentView?.superview,
               let rep = frameView.bitmapImageRepForCachingDisplay(in: frameView.bounds)
         else { return false }
@@ -678,6 +721,7 @@ enum SnapshotDriver {
         frameView.displayIfNeeded()
         frameView.cacheDisplay(in: frameView.bounds, to: rep)
         guard let image = rep.cgImage,
+              windowActivityMatches(activity, window: window),
               isVisuallyValid(image, expectedPixelSize: expectedPixelSize),
               let png = rep.representation(using: .png, properties: [:])
         else { return false }
@@ -791,6 +835,10 @@ enum SnapshotDriver {
                   options: .mappedIfSafe
               ),
               !executableData.isEmpty,
+              let codeIdentity = codeIdentity(
+                  executableURL: executableURL,
+                  executableData: executableData
+              ),
               !FileManager.default.fileExists(atPath: receiptDestination.path),
               writeNewAtomically(png, to: destination)
         else { return false }
@@ -810,8 +858,23 @@ enum SnapshotDriver {
             workspaceState.accessibilityDisplayShouldIncreaseContrast
         let systemDifferentiateWithoutColor =
             workspaceState.accessibilityDisplayShouldDifferentiateWithoutColor
+        let effectiveReduceMotion =
+            accessibilityOverrides?.reduceMotion ?? systemReduceMotion
+        let effectiveReduceTransparency =
+            accessibilityOverrides?.reduceTransparency
+                ?? systemReduceTransparency
+        let effectiveIncreaseContrast =
+            accessibilityOverrides?.increaseContrast ?? systemIncreaseContrast
+        let effectiveDifferentiateWithoutColor =
+            accessibilityOverrides?.differentiateWithoutColor
+                ?? systemDifferentiateWithoutColor
+        let rendererEffectTier = AuralignOpticalRenderingPolicy.effectTier(
+            reduceTransparency: effectiveReduceTransparency,
+            increaseContrast: effectiveIncreaseContrast,
+            differentiateWithoutColor: effectiveDifferentiateWithoutColor
+        )
         let receipt = SnapshotReceipt(
-            schemaVersion: "auralign.snapshot.v3",
+            schemaVersion: "auralign.snapshot.v5",
             evidenceClass: "synthetic_fixture",
             nonce: nonce.uuidString.lowercased(),
             capturedAt: ISO8601DateFormatter().string(from: Date()),
@@ -858,21 +921,27 @@ enum SnapshotDriver {
             systemDifferentiateWithoutColor: systemDifferentiateWithoutColor,
             presentationAccessibilityOverrideApplied:
                 accessibilityOverrides != nil,
-            effectiveReduceMotion:
-                accessibilityOverrides?.reduceMotion ?? systemReduceMotion,
-            effectiveReduceTransparency:
-                accessibilityOverrides?.reduceTransparency
-                    ?? systemReduceTransparency,
-            effectiveIncreaseContrast:
-                accessibilityOverrides?.increaseContrast
-                    ?? systemIncreaseContrast,
+            effectiveReduceMotion: effectiveReduceMotion,
+            effectiveReduceTransparency: effectiveReduceTransparency,
+            effectiveIncreaseContrast: effectiveIncreaseContrast,
             effectiveDifferentiateWithoutColor:
-                accessibilityOverrides?.differentiateWithoutColor
-                    ?? systemDifferentiateWithoutColor,
+                effectiveDifferentiateWithoutColor,
             renderer: renderer,
+            rendererEffectTier: rendererEffectTier.rawValue,
+            opticalPhase: AuralignOpticalRenderingPolicy.fixedPhase,
+            operatingSystemVersion:
+                ProcessInfo.processInfo.operatingSystemVersionString,
+            sdkName:
+                Bundle.main.object(forInfoDictionaryKey: "DTSDKName")
+                    as? String,
+            xcodeBuild:
+                Bundle.main.object(forInfoDictionaryKey: "DTXcodeBuild")
+                    as? String,
             fixture: requestedFixtureName(),
             pngSHA256: sha256(png),
-            executableSHA256: sha256(executableData)
+            executableSHA256: sha256(executableData),
+            codeIdentityComponents: codeIdentity.components,
+            codeIdentitySHA256: codeIdentity.digest
         )
         guard let receiptData = try? JSONEncoder().encode(receipt),
               writeNewAtomically(receiptData, to: receiptDestination)
@@ -908,6 +977,49 @@ enum SnapshotDriver {
 
     private static func sha256(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func codeIdentity(
+        executableURL: URL,
+        executableData: Data,
+        fileManager: FileManager = .default
+    ) -> (components: [String: String], digest: String)? {
+        let executableName = executableURL.lastPathComponent
+        let implementationURL = executableURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("\(executableName).debug.dylib")
+        var componentData = [
+            "Contents/MacOS/\(executableName)": executableData,
+        ]
+        if fileManager.fileExists(atPath: implementationURL.path) {
+            guard let implementationData = try? Data(
+                contentsOf: implementationURL,
+                options: .mappedIfSafe
+            ), !implementationData.isEmpty
+            else { return nil }
+            componentData["Contents/MacOS/\(implementationURL.lastPathComponent)"] =
+                implementationData
+        }
+        guard let resourcesURL = Bundle.main.resourceURL else { return nil }
+        let metallibURL = resourcesURL.appendingPathComponent(
+            "default.metallib",
+            isDirectory: false
+        )
+        guard fileManager.fileExists(atPath: metallibURL.path),
+              let metallibData = try? Data(
+                  contentsOf: metallibURL,
+                  options: .mappedIfSafe
+              ),
+              !metallibData.isEmpty
+        else { return nil }
+        componentData["Contents/Resources/default.metallib"] = metallibData
+
+        let components = componentData.mapValues(sha256)
+        let manifest = components.keys.sorted().map { path in
+            "\(path)\u{0}\(components[path]!)\n"
+        }.joined()
+        guard let manifestData = manifest.data(using: .utf8) else { return nil }
+        return (components, sha256(manifestData))
     }
 
     private struct SnapshotReceipt: Codable {
@@ -951,9 +1063,16 @@ enum SnapshotDriver {
         let effectiveIncreaseContrast: Bool
         let effectiveDifferentiateWithoutColor: Bool
         let renderer: String
+        let rendererEffectTier: String
+        let opticalPhase: String
+        let operatingSystemVersion: String
+        let sdkName: String?
+        let xcodeBuild: String?
         let fixture: String?
         let pngSHA256: String
         let executableSHA256: String
+        let codeIdentityComponents: [String: String]
+        let codeIdentitySHA256: String
     }
 
     @available(macOS 14.4, *)
@@ -1015,10 +1134,34 @@ enum SnapshotDriver {
         environment: [String: String],
         fileManager: FileManager = .default
     ) -> Bool {
+        shouldAutoOpenAuxiliaryWindow(
+            .settings,
+            environment: environment,
+            fileManager: fileManager
+        )
+    }
+
+    static func shouldAutoOpenModelSetup(
+        environment: [String: String],
+        fileManager: FileManager = .default
+    ) -> Bool {
+        shouldAutoOpenAuxiliaryWindow(
+            .modelSetup,
+            environment: environment,
+            fileManager: fileManager
+        )
+    }
+
+    private static func shouldAutoOpenAuxiliaryWindow(
+        _ role: SnapshotWindowRole,
+        environment: [String: String],
+        fileManager: FileManager
+    ) -> Bool {
+        guard role == .settings || role == .modelSetup else { return false }
         guard environment[PresentationFixture.enableEnvironmentKey] == "1",
               environment["AURALIGN_ENABLE_DEBUG_AUTOMATION"] == "1",
               environment["AURALIGN_SNAPSHOT_WINDOW_ROLE"]
-                == SnapshotWindowRole.settings.rawValue,
+                == role.rawValue,
               let nonce = environment["AURALIGN_SNAPSHOT_NONCE"],
               UUID(uuidString: nonce) != nil,
               let destination = environment["AURALIGN_SNAPSHOT_ON_LAUNCH"],

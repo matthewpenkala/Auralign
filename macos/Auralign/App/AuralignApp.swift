@@ -286,16 +286,17 @@ struct AuralignApp: App {
                 .modifier(
                     AuralignAccessibilityEnvironmentModifier()
                 )
-                .background(WindowRoleMarker(role: .main))
+                .background(
+                    WindowRoleMarker(
+                        role: .main,
+                        minimumFrameSize: NSSize(width: 900, height: 600)
+                    )
+                )
                 #if DEBUG
-                .background(DebugSettingsAutoOpener())
+                .background(DebugAuxiliaryWindowAutoOpener())
                 #endif
                 .onAppear {
                     applicationDelegate.attach(model: model)
-                    if let window = NSApp.keyWindow
-                        ?? NSApp.windows.first(where: \.isVisible) {
-                        window.minSize = NSSize(width: 900, height: 600)
-                    }
                     #if DEBUG
                     SnapshotDriver.activate(model: model)
                     #endif
@@ -348,7 +349,7 @@ struct AuralignApp: App {
             ModelSetupCommands(controller: model.modelSetup)
         }
         Window("Complete Offline Setup", id: "offline-setup") {
-            ModelSetupView(controller: model.modelSetup)
+            modelSetupContent
                 .modifier(AuralignAccessibilityEnvironmentModifier())
                 .background(WindowRoleMarker(role: .modelSetup))
         }
@@ -406,6 +407,28 @@ struct AuralignApp: App {
         SettingsView()
         #endif
     }
+
+    @ViewBuilder
+    private var modelSetupContent: some View {
+        #if DEBUG
+        switch debugPresentationMode {
+        case .fixture(let fixture):
+            VStack(spacing: 0) {
+                PresentationFixtureBanner(fixture: fixture)
+                ModelSetupView(controller: model.modelSetup)
+            }
+        case .invalid:
+            VStack(spacing: 0) {
+                InvalidFixtureRequestBanner()
+                ModelSetupView(controller: model.modelSetup)
+            }
+        case .live:
+            ModelSetupView(controller: model.modelSetup)
+        }
+        #else
+        ModelSetupView(controller: model.modelSetup)
+        #endif
+    }
 }
 
 private struct ModelSetupCommands: Commands {
@@ -440,6 +463,7 @@ private struct ModelSetupCommands: Commands {
 
 private struct WindowRoleMarker: NSViewRepresentable {
     let role: SnapshotWindowRole
+    var minimumFrameSize: NSSize? = nil
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
@@ -453,7 +477,11 @@ private struct WindowRoleMarker: NSViewRepresentable {
 
     private func assignRole(to view: NSView) {
         DispatchQueue.main.async {
-            view.window?.identifier = NSUserInterfaceItemIdentifier(role.windowIdentifier)
+            guard let window = view.window else { return }
+            window.identifier = NSUserInterfaceItemIdentifier(role.windowIdentifier)
+            if let minimumFrameSize {
+                window.minSize = minimumFrameSize
+            }
         }
     }
 }
@@ -555,8 +583,9 @@ struct AuralignAccessibilityEnvironmentModifier: ViewModifier {
 }
 
 #if DEBUG
-private struct DebugSettingsAutoOpener: View {
+private struct DebugAuxiliaryWindowAutoOpener: View {
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Color.clear
@@ -565,9 +594,17 @@ private struct DebugSettingsAutoOpener: View {
                 let environment = ProcessInfo.processInfo.environment
                 guard SnapshotDriver.shouldAutoOpenSettings(
                     environment: environment
+                ) || SnapshotDriver.shouldAutoOpenModelSetup(
+                    environment: environment
                 ) else { return }
                 await Task.yield()
-                openSettings()
+                if SnapshotDriver.shouldAutoOpenSettings(
+                    environment: environment
+                ) {
+                    openSettings()
+                } else {
+                    openWindow(id: "offline-setup")
+                }
             }
     }
 }

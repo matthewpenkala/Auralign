@@ -13,6 +13,17 @@ enum ParameterLibraryFilter: String, CaseIterable, Identifiable {
     case readOnly = "Read-only"
 
     var id: String { rawValue }
+
+    var symbol: String {
+        switch self {
+        case .all: return "list.bullet"
+        case .modified: return "pencil.circle.fill"
+        case .invalid: return "exclamationmark.circle.fill"
+        case .advanced: return "slider.horizontal.3"
+        case .experimental: return "flask.fill"
+        case .readOnly: return "lock.fill"
+        }
+    }
 }
 
 struct ParameterLibraryRow: Identifiable {
@@ -122,20 +133,20 @@ struct AllParametersView: View {
                 uncataloguedBanner
             }
             GeometryReader { geometry in
-                if geometry.size.width >= 840 {
+                if geometry.size.width >= AuralignBreakpoint.parameterLibrary {
                     HStack(spacing: 0) {
-                        categoryIndex
-                            .frame(minWidth: 148, idealWidth: 160, maxWidth: 176)
+                        libraryIndex
+                            .frame(width: 210)
                         Divider()
                         parameterList
-                            .frame(minWidth: 440)
+                            .frame(minWidth: 420, maxWidth: .infinity)
                         Divider()
                         parameterInspector
-                            .frame(minWidth: 250, idealWidth: 270, maxWidth: 290)
+                            .frame(width: 270)
                     }
                 } else {
                     VStack(spacing: 0) {
-                        compactCategoryPicker
+                        compactIndexPicker
                         Divider()
                         parameterList
                     }
@@ -157,28 +168,28 @@ struct AllParametersView: View {
         }
     }
 
+    // MARK: - Header
+
     private var libraryHeader: some View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
-            AuralignPageHeader(
-                title: "Parameter Library",
-                subtitle: "Search and inspect \(allRows.count) production parameters. "
-                    + "All \(model.manifest.fields.count) schema fields remain audited.",
-                symbol: "list.bullet.rectangle"
-            )
+            AuralignWorkspaceHeader(
+                symbol: "list.bullet.rectangle",
+                accessibilityHeading: "Parameter Library"
+            ) {
+                Text(librarySelectionSummary)
+                    .font(AuralignType.body)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: AuralignVisualSystem.spacingM) {
                     searchField
-                    filterPicker
                     Spacer(minLength: 0)
                     resultCount
                 }
                 VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
                     searchField
-                    HStack {
-                        filterPicker
-                        Spacer()
-                        resultCount
-                    }
+                    resultCount
                 }
             }
         }
@@ -188,6 +199,19 @@ struct AllParametersView: View {
         .layoutPriority(1)
     }
 
+    private var librarySelectionSummary: String {
+        var scope: [String] = []
+        if filter != .all { scope.append(filter.rawValue) }
+        if selectedCategoryID != Self.allCategoryID {
+            scope.append(categoryTitle(selectedCategoryID))
+        }
+        if scope.isEmpty {
+            return "All \(allRows.count) production parameters, of "
+                + "\(model.manifest.fields.count) audited schema fields."
+        }
+        return "\(scope.joined(separator: " · ")) — \(rows.count) of \(allRows.count) shown."
+    }
+
     private var searchField: some View {
         TextField("Search label, help, key, or choice", text: $searchText)
             .textFieldStyle(.roundedBorder)
@@ -195,20 +219,9 @@ struct AllParametersView: View {
             .accessibilityIdentifier(AccessibilityIdentifier.parameterSearch)
     }
 
-    private var filterPicker: some View {
-        Picker("Filter", selection: $filter) {
-            ForEach(ParameterLibraryFilter.allCases) { item in
-                Text(item.rawValue).tag(item)
-            }
-        }
-        .pickerStyle(.menu)
-        .fixedSize()
-        .accessibilityIdentifier(AccessibilityIdentifier.parameterFilter)
-    }
-
     private var resultCount: some View {
         Text("\(rows.count) of \(allRows.count)")
-            .font(.caption.monospacedDigit())
+            .font(AuralignType.numericSmall)
             .foregroundStyle(.secondary)
             .accessibilityLabel("\(rows.count) of \(allRows.count) parameters")
             .accessibilityIdentifier(AccessibilityIdentifier.parameterCount)
@@ -239,36 +252,180 @@ struct AllParametersView: View {
         }
     }
 
-    private var categoryIndex: some View {
-        List(selection: categorySelection) {
-            Label("All Categories", systemImage: "square.grid.2x2")
-                .tag(Self.allCategoryID)
-            ForEach(model.catalog.sections) { section in
-                Label(section.title, systemImage: section.symbol)
-                    .tag(section.id)
+    // MARK: - Sidebar: saved filters and category taxonomy
+
+    /// Little Snitch's rule-browser pattern: saved queries over the same data
+    /// with live count badges, presented alongside — not instead of — the
+    /// existing flat category taxonomy.
+    private var libraryIndex: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingL) {
+                indexGroup(title: "Filters") {
+                    ForEach(ParameterLibraryFilter.allCases) { item in
+                        indexRow(
+                            title: item.rawValue,
+                            symbol: item.symbol,
+                            count: filterCount(item),
+                            isSelected: filter == item,
+                            identifier: "parameters.filter.\(stableIdentifierComponent(item.rawValue))"
+                        ) {
+                            filter = item
+                        }
+                    }
+                }
+                indexGroup(title: "Categories") {
+                    indexRow(
+                        title: "All Categories",
+                        symbol: "square.grid.2x2",
+                        count: categoryCount(nil),
+                        isSelected: selectedCategoryID == Self.allCategoryID,
+                        identifier: "\(AccessibilityIdentifier.parameterCategory).all"
+                    ) {
+                        selectedCategoryID = Self.allCategoryID
+                    }
+                    ForEach(model.catalog.sections) { section in
+                        indexRow(
+                            title: section.title,
+                            symbol: section.symbol,
+                            count: categoryCount(section.id),
+                            isSelected: selectedCategoryID == section.id,
+                            identifier:
+                                "\(AccessibilityIdentifier.parameterCategory)."
+                                    + stableIdentifierComponent(section.id)
+                        ) {
+                            selectedCategoryID = section.id
+                        }
+                    }
+                }
             }
+            .padding(.vertical, AuralignVisualSystem.spacingM)
         }
-        .listStyle(.sidebar)
-        .accessibilityLabel("Parameter categories")
+        .background(AuralignSurface.canvas)
+        .accessibilityLabel("Parameter filters and categories")
         .accessibilityIdentifier(AccessibilityIdentifier.parameterCategory)
     }
 
-    private var compactCategoryPicker: some View {
-        HStack {
-            Picker("Category", selection: $selectedCategoryID) {
-                Text("All Categories").tag(Self.allCategoryID)
-                ForEach(model.catalog.sections) { section in
-                    Text(section.title).tag(section.id)
+    private func indexGroup<Content: View>(
+        title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
+            Text(title)
+                .font(AuralignType.metadataStrong)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, AuralignVisualSystem.spacingM)
+                .accessibilityAddTraits(.isHeader)
+            content()
+        }
+    }
+
+    private func indexRow(
+        title: String,
+        symbol: String,
+        count: Int,
+        isSelected: Bool,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: AuralignVisualSystem.spacingS) {
+                Image(systemName: symbol)
+                    .font(.callout)
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                    .frame(width: 16)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(AuralignType.rowTitle)
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+                Spacer(minLength: AuralignVisualSystem.spacingS)
+                Text("\(count)")
+                    .font(AuralignType.numericSmall)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, AuralignVisualSystem.spacingM)
+            .padding(.vertical, AuralignVisualSystem.spacingXS)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: AuralignRadius.control)
+                        .fill(Color.accentColor.opacity(0.14))
                 }
             }
-            .pickerStyle(.menu)
-            .accessibilityIdentifier(AccessibilityIdentifier.parameterCategory)
-            Spacer(minLength: 0)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityLabel("\(title), \(count) parameter\(count == 1 ? "" : "s")")
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func filterCount(_ filterCase: ParameterLibraryFilter) -> Int {
+        allRows.filter { row in
+            categoryMatches(row)
+                && searchMatches(row)
+                && ParameterLibraryProjection.matches(
+                    filter: filterCase,
+                    entry: row.entry,
+                    isModified: model.config.isModified(row.field.key),
+                    hasErrors: !model.config.errors(for: row.field.key).isEmpty
+                )
+        }.count
+    }
+
+    private func categoryCount(_ sectionID: String?) -> Int {
+        allRows.filter { row in
+            (sectionID == nil || row.entry.section == sectionID)
+                && filterMatches(row)
+                && searchMatches(row)
+        }.count
+    }
+
+    private func stableIdentifierComponent(_ value: String) -> String {
+        value.unicodeScalars.map { scalar in
+            CharacterSet.alphanumerics.contains(scalar) ? String(scalar) : "-"
+        }.joined()
+    }
+
+    private var compactIndexPicker: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AuralignVisualSystem.spacingM) {
+                compactFilterPicker
+                compactCategoryPickerControl
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
+                compactFilterPicker
+                compactCategoryPickerControl
+            }
         }
         .padding(.horizontal, AuralignVisualSystem.spacingXL)
         .padding(.vertical, AuralignVisualSystem.spacingS)
         .background(.bar)
     }
+
+    private var compactFilterPicker: some View {
+        Picker("Filter", selection: $filter) {
+            ForEach(ParameterLibraryFilter.allCases) { item in
+                Text("\(item.rawValue) (\(filterCount(item)))").tag(item)
+            }
+        }
+        .pickerStyle(.menu)
+        .fixedSize()
+        .accessibilityIdentifier(AccessibilityIdentifier.parameterFilter)
+    }
+
+    private var compactCategoryPickerControl: some View {
+        Picker("Category", selection: $selectedCategoryID) {
+            Text("All Categories (\(categoryCount(nil)))").tag(Self.allCategoryID)
+            ForEach(model.catalog.sections) { section in
+                Text("\(section.title) (\(categoryCount(section.id)))").tag(section.id)
+            }
+        }
+        .pickerStyle(.menu)
+        .accessibilityIdentifier(AccessibilityIdentifier.parameterCategory)
+    }
+
+    // MARK: - Parameter list
 
     @ViewBuilder
     private var parameterList: some View {
@@ -306,28 +463,17 @@ struct AllParametersView: View {
         }
     }
 
+    /// The schema key is demoted to a hover tooltip here — the scanning list
+    /// leads with the human label (`FieldRowView`'s own title row), never a
+    /// monospace identifier promoted above it.
     private func parameterRow(_ row: ParameterLibraryRow) -> some View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
-            HStack(spacing: AuralignVisualSystem.spacingS) {
-                Text(row.field.key)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                Spacer(minLength: 0)
-                if model.config.isModified(row.field.key) {
-                    AuralignStatusBadge(
-                        text: "Modified",
-                        tone: .active,
-                        symbol: "pencil.circle.fill"
-                    )
-                }
-                if !model.config.errors(for: row.field.key).isEmpty {
-                    AuralignStatusBadge(
-                        text: "Invalid",
-                        tone: .failure,
-                        symbol: "exclamationmark.circle.fill"
-                    )
-                }
+            if !model.config.errors(for: row.field.key).isEmpty {
+                AuralignStatusBadge(
+                    text: "Invalid",
+                    tone: .failure,
+                    symbol: "exclamationmark.circle.fill"
+                )
             }
             FieldRowView(
                 config: model.config,
@@ -337,8 +483,11 @@ struct AllParametersView: View {
             )
         }
         .padding(.vertical, AuralignVisualSystem.spacingXS)
+        .help(row.field.key)
         .accessibilityIdentifier(AccessibilityIdentifier.parameterRow(row.field.key))
     }
+
+    // MARK: - Inspector
 
     @ViewBuilder
     private var parameterInspector: some View {
@@ -346,56 +495,57 @@ struct AllParametersView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
                     Text(row.entry.title)
-                        .font(.title3.weight(.semibold))
+                        .font(AuralignType.workspaceTitle)
                         .accessibilityAddTraits(.isHeader)
                     Text(row.field.key)
-                        .font(.caption.monospaced())
+                        .font(AuralignType.technical)
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                     Divider()
                     Text(row.entry.help)
-                        .font(.callout)
+                        .font(AuralignType.body)
                         .fixedSize(horizontal: false, vertical: true)
-                    inspectorValue("Category", categoryTitle(row.entry.section))
-                    inspectorValue("Type", row.field.kind.rawValue)
-                    inspectorValue("Disposition", dispositionTitle(row.entry.disposition))
-                    inspectorValue("Effective", model.config.effectiveValue(row.field.key).displayText)
-                    inspectorValue("Preset", model.config.presetValue(row.field.key).displayText)
-                    inspectorValue("Engine default", row.field.default.displayText)
-                    if let range = row.field.rangeDescription {
-                        inspectorValue("Constraint", range)
-                    }
+
+                    AuralignCausalityBanner(
+                        headline: effectiveHeadline(row),
+                        detail: effectiveDetail(row),
+                        tone: model.config.isModified(row.field.key) ? .active : .neutral,
+                        symbol: model.config.isModified(row.field.key)
+                            ? "pencil.circle.fill" : "checkmark.circle",
+                        linkTitle: resetLinkTitle(row),
+                        linkIdentifier: resetLinkTitle(row) == nil
+                            ? nil : "parameters.inspector.reset",
+                        link: resetLinkTitle(row) == nil
+                            ? nil : { model.config.clearOverride(row.field.key) }
+                    )
+
+                    inspectorDetails(row)
+
                     if let choices = row.field.choices, !choices.isEmpty {
                         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
-                            Text("Choices").font(.caption.weight(.semibold))
+                            Text("Choices").font(AuralignType.metadataStrong)
                             Text(choices.joined(separator: ", "))
-                                .font(.caption.monospaced())
+                                .font(AuralignType.technical)
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
                         }
                     }
                     if row.entry.isExperimental {
                         Label("Experimental", systemImage: "flask.fill")
-                            .font(.caption)
+                            .font(AuralignType.status)
                             .foregroundStyle(.orange)
                     }
                     if row.entry.disposition == .readonly {
                         Label("Read-only by engine contract", systemImage: "lock.fill")
-                            .font(.caption)
+                            .font(AuralignType.status)
                             .foregroundStyle(.secondary)
-                    }
-                    if model.config.isModified(row.field.key) {
-                        Button("Reset to Preset Value") {
-                            model.config.clearOverride(row.field.key)
-                        }
-                        .disabled(model.workMutationLocked)
                     }
                     Spacer(minLength: 0)
                 }
                 .padding(AuralignVisualSystem.spacingL)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(Color(nsColor: .windowBackgroundColor))
+            .background(AuralignSurface.canvas)
             .accessibilityIdentifier(AccessibilityIdentifier.parameterInspector)
         } else {
             ContentUnavailableView(
@@ -404,6 +554,77 @@ struct AllParametersView: View {
                 description: Text("Details remain secondary to the editable list.")
             )
         }
+    }
+
+    /// The one governing fact — Little Snitch's rule-inspector statement —
+    /// replaces the flat Effective/Preset/Engine-default triple of lines.
+    private func effectiveHeadline(_ row: ParameterLibraryRow) -> String {
+        let effective = model.config.effectiveValue(row.field.key).displayText
+        if model.config.isModified(row.field.key) {
+            let preset = model.config.presetValue(row.field.key).displayText
+            return "Effective: \(effective) — overridden from preset value \(preset)."
+        }
+        if model.config.presetValue(row.field.key) != row.field.default {
+            return "Effective: \(effective) — set by the active preset, not overridden."
+        }
+        return "Effective: \(effective) — matches the engine default, not overridden."
+    }
+
+    private func effectiveDetail(_ row: ParameterLibraryRow) -> String? {
+        let isModified = model.config.isModified(row.field.key)
+        let presetDiffersFromDefault =
+            model.config.presetValue(row.field.key) != row.field.default
+        guard isModified || presetDiffersFromDefault else { return nil }
+        return "Engine default is \(row.field.default.displayText)."
+    }
+
+    private func resetLinkTitle(_ row: ParameterLibraryRow) -> String? {
+        guard model.config.isModified(row.field.key), !model.workMutationLocked else {
+            return nil
+        }
+        return "Reset to Preset Value"
+    }
+
+    private func inspectorDetails(_ row: ParameterLibraryRow) -> some View {
+        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
+            Text("Details")
+                .font(AuralignType.metadataStrong)
+                .foregroundStyle(.secondary)
+            VStack(
+                alignment: .leading,
+                spacing: AuralignVisualSystem.spacingXS
+            ) {
+                detailRow("Category", categoryTitle(row.entry.section))
+                detailRow("Type", row.field.kind.rawValue, technical: true)
+                detailRow("Disposition", dispositionTitle(row.entry.disposition))
+                if let range = row.field.rangeDescription {
+                    detailRow("Constraint", range, technical: true)
+                }
+            }
+        }
+    }
+
+    private func detailRow(
+        _ label: String,
+        _ value: String,
+        technical: Bool = false
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: AuralignVisualSystem.spacingM) {
+            Text(label)
+                .font(AuralignType.metadata)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: AuralignVisualSystem.spacingS)
+            Text(value)
+                .font(
+                    technical
+                        ? AuralignType.technical : AuralignType.metadataStrong
+                )
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var selectedRow: ParameterLibraryRow? {
@@ -417,13 +638,6 @@ struct AllParametersView: View {
             guard let values = grouped[section.id], !values.isEmpty else { return nil }
             return (section.id, values)
         }
-    }
-
-    private var categorySelection: Binding<String?> {
-        Binding(
-            get: { selectedCategoryID },
-            set: { selectedCategoryID = $0 ?? Self.allCategoryID }
-        )
     }
 
     private func normalizeSelection() {
@@ -459,18 +673,6 @@ struct AllParametersView: View {
         )
     }
 
-    private func inspectorValue(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.caption.weight(.semibold))
-            Text(value)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
     private func categoryTitle(_ sectionID: String) -> String {
         model.catalog.section(sectionID)?.title ?? sectionID
     }
@@ -484,21 +686,14 @@ struct AllParametersView: View {
     }
 
     private var uncataloguedBanner: some View {
-        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
-            Label(
-                "The engine declares \(model.config.uncataloguedLiveFields.count) "
-                    + "parameter(s) this app build does not present yet.",
-                systemImage: "exclamationmark.triangle.fill"
-            )
-            .font(.callout)
-            .foregroundStyle(.orange)
-            Text("Regenerate the manifest and catalog; unknown fields fail closed.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
+        AuralignCausalityBanner(
+            headline: "The engine declares \(model.config.uncataloguedLiveFields.count) "
+                + "parameter(s) this app build does not present yet.",
+            detail: "Regenerate the manifest and catalog; unknown fields fail closed.",
+            tone: .warning,
+            symbol: "exclamationmark.triangle.fill"
+        )
         .padding(.horizontal, AuralignVisualSystem.spacingXL)
         .padding(.vertical, AuralignVisualSystem.spacingS)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.08))
     }
 }

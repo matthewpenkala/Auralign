@@ -52,6 +52,7 @@ struct ModelSetupView: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .frame(minWidth: 720, minHeight: 560)
+        .background(AuralignStudioBackdrop())
         .navigationTitle("Complete Offline Setup")
         .accessibilityIdentifier(AccessibilityIdentifier.modelSetupRoot)
         .confirmationDialog(
@@ -91,21 +92,34 @@ struct ModelSetupView: View {
                 + "file before installation; transcription remains local and offline.",
             symbol: "arrow.down.circle"
         ) {
-            if controller.hasActiveDownloads {
+            if let activePack = controller.packs.first(where: { $0.phase.isActive }) {
+                let statusText =
+                    "\(activePack.phase.label) \(activePack.displayName) — "
+                    + activePack.progressDescription
                 if reduceMotion {
-                    Label("Setup active", systemImage: "arrow.down.circle.fill")
+                    Label(statusText, systemImage: activePack.phase.symbol)
+                        .font(AuralignType.numericSmall)
                         .foregroundStyle(.secondary)
                 } else {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel("Model setup active")
+                    HStack(spacing: AuralignVisualSystem.spacingS) {
+                        ProgressView(value: activePack.fractionComplete)
+                            .frame(width: 120)
+                        Text(statusText)
+                            .font(AuralignType.numericSmall)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(statusText)
                 }
             }
         }
     }
 
     private var summary: some View {
-        GroupBox {
+        AuralignSection(
+            title: controller.needsOfflineSetup
+                ? "Setup is incomplete" : "Offline setup complete"
+        ) {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .center, spacing: AuralignVisualSystem.spacingL) {
                     summaryFacts
@@ -117,29 +131,23 @@ struct ModelSetupView: View {
                     primaryAction
                 }
             }
-            .padding(.vertical, AuralignVisualSystem.spacingXS)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(AccessibilityIdentifier.modelSetupSummary)
     }
 
     private var summaryFacts: some View {
-        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
-            Text(controller.needsOfflineSetup ? "Setup is incomplete" : "Offline setup complete")
-                .font(.headline)
-                .accessibilityAddTraits(.isHeader)
-            Text(
-                "\(controller.requiredPacks.filter { $0.phase == .installed }.count) "
-                    + "of \(controller.requiredPacks.count) required packs installed · "
-                    + ByteCountFormatter.string(
-                        fromByteCount: controller.totalRequiredBytes,
-                        countStyle: .file
-                    )
-                    + " total"
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-        }
+        Text(
+            "\(controller.requiredPacks.filter { $0.phase == .installed }.count) "
+                + "of \(controller.requiredPacks.count) required packs installed · "
+                + ByteCountFormatter.string(
+                    fromByteCount: controller.totalRequiredBytes,
+                    countStyle: .file
+                )
+                + " total"
+        )
+        .font(AuralignType.numeric)
+        .foregroundStyle(.secondary)
     }
 
     @ViewBuilder
@@ -182,10 +190,10 @@ struct ModelSetupView: View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
                 Text(title)
-                    .font(.title3.weight(.semibold))
+                    .font(AuralignType.workspaceTitle)
                     .accessibilityAddTraits(.isHeader)
                 Text(explanation)
-                    .font(.callout)
+                    .font(AuralignType.body)
                     .foregroundStyle(.secondary)
             }
             ForEach(packs) { pack in
@@ -195,31 +203,19 @@ struct ModelSetupView: View {
     }
 
     private func packRow(_ pack: ModelPackSnapshot) -> some View {
-        GroupBox {
+        AuralignSection(title: pack.displayName, subtitle: pack.description) {
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
                 HStack(alignment: .top, spacing: AuralignVisualSystem.spacingM) {
-                    Image(systemName: pack.phase.symbol)
-                        .foregroundStyle(tone(for: pack.phase).color)
-                        .frame(width: 22)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
-                        Text(pack.displayName)
-                            .font(.headline)
-                        Text(pack.description)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(
-                            "Quality: \(pack.quality) · Speed: \(pack.speed) · "
-                                + "Memory: \(pack.memory)"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
+                    Text(
+                        "Quality: \(pack.quality) · Speed: \(pack.speed) · "
+                            + "Memory: \(pack.memory)"
+                    )
+                    .font(AuralignType.metadata)
+                    .foregroundStyle(.secondary)
                     Spacer(minLength: AuralignVisualSystem.spacingM)
                     VStack(alignment: .trailing, spacing: AuralignVisualSystem.spacingXS) {
-                        Text(pack.phase.label)
-                            .font(.callout.weight(.semibold))
+                        Label(pack.phase.label, systemImage: pack.phase.symbol)
+                            .font(AuralignType.bodyEmphasis)
                             .foregroundStyle(tone(for: pack.phase).color)
                         Text(
                             ByteCountFormatter.string(
@@ -227,7 +223,7 @@ struct ModelSetupView: View {
                                 countStyle: .file
                             )
                         )
-                        .font(.caption)
+                        .font(AuralignType.numericSmall)
                         .foregroundStyle(.secondary)
                     }
                 }
@@ -244,7 +240,7 @@ struct ModelSetupView: View {
                             AccessibilityIdentifier.modelSetupProgress(pack.id)
                         )
                     Text(pack.progressDescription)
-                        .font(.caption)
+                        .font(AuralignType.numericSmall)
                         .foregroundStyle(.secondary)
                 }
 
@@ -266,14 +262,13 @@ struct ModelSetupView: View {
                             )
                     }
                     Text(pack.licenseExpressions.joined(separator: ", "))
-                        .font(.caption)
+                        .font(AuralignType.technical)
                         .foregroundStyle(.secondary)
                         .accessibilityLabel(
                             "License \(pack.licenseExpressions.joined(separator: ", "))"
                         )
                 }
             }
-            .padding(.vertical, AuralignVisualSystem.spacingXS)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(pack.accessibilityLabel)
@@ -315,7 +310,7 @@ struct ModelSetupView: View {
             )
         case .verifying, .publishing:
             Text("Verification cannot be paused.")
-                .font(.caption)
+                .font(AuralignType.metadata)
                 .foregroundStyle(.secondary)
         case .installed:
             Label("Verified", systemImage: "checkmark.shield.fill")
@@ -330,7 +325,7 @@ struct ModelSetupView: View {
 
     private func problemText(_ message: String) -> some View {
         Label(message, systemImage: "exclamationmark.triangle.fill")
-            .font(.callout)
+            .font(AuralignType.body)
             .foregroundStyle(.red)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -345,7 +340,7 @@ struct ModelSetupView: View {
         } icon: {
             Image(systemName: "lock.shield")
         }
-        .font(.callout)
+        .font(AuralignType.body)
         .foregroundStyle(.secondary)
         .accessibilityIdentifier(AccessibilityIdentifier.modelSetupPrivacy)
     }

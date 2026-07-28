@@ -30,6 +30,14 @@ final class NavigationArchitectureTests: XCTestCase {
         }
     }
 
+    func testExpertWideLayoutFitsItsDeclaredMinimumColumns() {
+        let requiredWidth: CGFloat = 210 + 1 + 420 + 1 + 270
+        XCTAssertGreaterThanOrEqual(
+            AuralignBreakpoint.parameterLibrary,
+            requiredWidth + 38
+        )
+    }
+
     func testAccessibilityIdentifierFamiliesAreStableAndStructural() {
         XCTAssertEqual(
             AccessibilityIdentifier.fieldControl("qa.enabled"),

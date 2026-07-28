@@ -16,10 +16,10 @@ struct PresentationFixtureBanner: View {
             Image(systemName: "testtube.2")
                 .accessibilityHidden(true)
             Text(PresentationFixture.evidenceLabel)
-                .font(.caption.weight(.semibold))
+                .font(AuralignType.status)
             Spacer()
             Text(fixture.rawValue)
-                .font(.caption.monospaced())
+                .font(AuralignType.technical)
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, AuralignVisualSystem.spacingM)
@@ -48,7 +48,7 @@ struct PresentationFixtureToolbarItem: ToolbarContent {
                     .accessibilityHidden(true)
                 Text("Synthetic")
             }
-                .font(.caption.weight(.semibold))
+                .font(AuralignType.status)
                 .foregroundStyle(.orange)
                 .fixedSize()
                 .help(
@@ -68,10 +68,10 @@ struct InvalidFixtureRequestBanner: View {
             Image(systemName: "testtube.2")
                 .accessibilityHidden(true)
             Text(PresentationFixture.evidenceLabel)
-                .font(.caption.weight(.semibold))
+                .font(AuralignType.status)
             Spacer()
             Text("invalid request — live startup blocked")
-                .font(.caption.monospaced())
+                .font(AuralignType.technical)
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, AuralignVisualSystem.spacingM)

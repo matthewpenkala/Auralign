@@ -12,13 +12,12 @@ struct ProcessingView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.auralignReduceMotion) private var reduceMotion
     @State private var showTechnicalDetails = false
-    @State private var now = Date()
     @FocusState private var partialRevealFocused: Bool
     @AccessibilityFocusState private var partialRevealAccessibilityFocused: Bool
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingL) {
                 statusHeader
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier(AccessibilityIdentifier.activitySummary)
@@ -45,19 +44,6 @@ struct ProcessingView: View {
             .frame(maxWidth: AuralignBreakpoint.workbench, alignment: .leading)
         }
         .navigationTitle("Processing")
-        .task(id: model.job.isRunning) {
-            guard model.job.isRunning else { return }
-            now = Date()
-            while !Task.isCancelled, model.job.isRunning {
-                do {
-                    try await Task.sleep(nanoseconds: 1_000_000_000)
-                } catch {
-                    return
-                }
-                guard !Task.isCancelled else { return }
-                now = Date()
-            }
-        }
         .alert(
             "File action not performed",
             isPresented: Binding(
@@ -84,103 +70,156 @@ struct ProcessingView: View {
 
     // MARK: - Header
 
-    @ViewBuilder
+    /// The active stage's real title and real elapsed time, promoted into the
+    /// workspace header slot instead of a generic restated "Processing" title
+    /// — the toolbar already carries that text via `.navigationTitle`.
     private var statusHeader: some View {
-        HStack(spacing: 12) {
-            switch model.job.phase {
-            case .idle:
-                Image(systemName: "moon.zzz")
-                    .font(.title2)
+        AuralignWorkspaceHeader(
+            symbol: headerSymbol,
+            accessibilityHeading: headerAccessibilityHeading
+        ) {
+            headerContext
+        } accessory: {
+            headerAccessory
+        }
+    }
+
+    private var headerSymbol: String {
+        switch model.job.phase {
+        case .idle: return "moon.zzz"
+        case .running: return "waveform"
+        case .resultPendingExit: return "hourglass"
+        case .stopping: return "stop.circle"
+        case .completed: return "checkmark.circle.fill"
+        case .failed: return "xmark.octagon.fill"
+        case .cancelled: return "stop.circle.fill"
+        }
+    }
+
+    private var headerAccessibilityHeading: String {
+        switch model.job.phase {
+        case .idle: return "No job running"
+        case .running: return "Processing \(activeStageTitle)"
+        case .resultPendingExit: return "Finalizing engine process"
+        case .stopping: return "Stopping job"
+        case .completed: return "Job completed"
+        case .failed: return "Job failed"
+        case .cancelled: return "Job cancelled"
+        }
+    }
+
+    @ViewBuilder
+    private var headerContext: some View {
+        switch model.job.phase {
+        case .idle:
+            VStack(alignment: .leading, spacing: 2) {
+                Text("No job running").font(AuralignType.pageTitle)
+                Text("Start a transcription from New Transcription.")
+                    .font(AuralignType.evidence)
                     .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("No job running").font(.title3.weight(.semibold))
-                    Text("Start a transcription from New Transcription.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-            case .running:
+            }
+        case .running:
+            HStack(spacing: AuralignVisualSystem.spacingM) {
                 activityIndicator()
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(activeStageTitle).font(.title3.weight(.semibold))
+                    Text(activeStageTitle).font(AuralignType.pageTitle)
                     elapsedText
                 }
-            case .resultPendingExit:
+            }
+        case .resultPendingExit:
+            HStack(spacing: AuralignVisualSystem.spacingM) {
                 activityIndicator(symbol: "hourglass")
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Finalizing engine process…")
-                        .font(.title3.weight(.semibold))
+                        .font(AuralignType.pageTitle)
                     Text(
                         "The engine reported a provisional result. Auralign is "
                             + "waiting for a successful process exit and reaping "
                             + "before publishing Results."
                     )
-                    .font(.callout)
+                    .font(AuralignType.evidence)
                     .foregroundStyle(.secondary)
                 }
-            case .stopping:
+            }
+        case .stopping:
+            HStack(spacing: AuralignVisualSystem.spacingM) {
                 activityIndicator(symbol: "stop.circle")
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Stopping…").font(.title3.weight(.semibold))
+                    Text("Stopping…").font(AuralignType.pageTitle)
                     Text(
                         "Asked the engine to stop. If it does not exit within 20 seconds "
                             + "it and its child processes will be force-terminated; "
                             + "partial artifacts may remain."
                     )
-                    .font(.callout)
+                    .font(AuralignType.evidence)
                     .foregroundStyle(.secondary)
                 }
-            case .completed(let result):
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.green)
+            }
+        case .completed(let result):
+            HStack(spacing: AuralignVisualSystem.spacingM) {
+                statusIcon("checkmark.circle.fill", tone: .success)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Completed").font(.title3.weight(.semibold))
+                    Text("Completed").font(AuralignType.pageTitle)
                     Text(
                         "\(result.speakerTurns) speaker turns · \(result.words) words"
                             + (elapsedString.map { " · \($0)" } ?? "")
                     )
-                    .font(.callout)
+                    .font(AuralignType.numeric)
                     .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                }
-                Spacer()
-                Button("View Results") { model.selectedSection = .results }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier(
-                        AccessibilityIdentifier.activityViewResults
-                    )
-            case .failed:
-                Image(systemName: "xmark.octagon.fill")
-                    .font(.title2)
-                    .foregroundStyle(.red)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Job failed").font(.title3.weight(.semibold))
-                    elapsedText
-                }
-            case .cancelled(let directory, let artifacts):
-                Image(systemName: "stop.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.orange)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Cancelled").font(.title3.weight(.semibold))
-                    Text(cancelledAvailabilityText(directory: directory, artifacts: artifacts))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                if directory != nil {
-                    Spacer()
-                    Button("Reveal Partial Output in Finder") {
-                        model.job.revealOutputDirectory()
-                    }
-                    .buttonStyle(.bordered)
-                    .focused($partialRevealFocused)
-                    .accessibilityFocused($partialRevealAccessibilityFocused)
-                    .accessibilityIdentifier(
-                        AccessibilityIdentifier.activityPartialReveal
-                    )
-                    .disabled(model.isPresentationFixture)
                 }
             }
+        case .failed:
+            HStack(spacing: AuralignVisualSystem.spacingM) {
+                statusIcon("xmark.octagon.fill", tone: .failure)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Job failed").font(AuralignType.pageTitle)
+                    elapsedText
+                }
+            }
+        case .cancelled(let directory, let artifacts):
+            HStack(spacing: AuralignVisualSystem.spacingM) {
+                statusIcon("stop.circle.fill", tone: .warning)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Cancelled").font(AuralignType.pageTitle)
+                    Text(cancelledAvailabilityText(directory: directory, artifacts: artifacts))
+                        .font(AuralignType.evidence)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func statusIcon(_ symbol: String, tone: AuralignStatusTone) -> some View {
+        Image(systemName: symbol)
+            .font(.title2)
+            .foregroundStyle(tone.color)
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var headerAccessory: some View {
+        switch model.job.phase {
+        case .completed:
+            Button("View Results") { model.selectedSection = .results }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier(
+                    AccessibilityIdentifier.activityViewResults
+                )
+        case .cancelled(let directory, _):
+            if directory != nil {
+                Button("Reveal Partial Output in Finder") {
+                    model.job.revealOutputDirectory()
+                }
+                .buttonStyle(.bordered)
+                .focused($partialRevealFocused)
+                .accessibilityFocused($partialRevealAccessibilityFocused)
+                .accessibilityIdentifier(
+                    AccessibilityIdentifier.activityPartialReveal
+                )
+                .disabled(model.isPresentationFixture)
+            }
+        default:
+            EmptyView()
         }
     }
 
@@ -220,7 +259,6 @@ struct ProcessingView: View {
 
     private var elapsedString: String? {
         guard let elapsed = model.job.elapsed else { return nil }
-        _ = now
         guard elapsed.isFinite, elapsed >= 0, elapsed <= 315_576_000 else {
             return "Elapsed time unavailable"
         }
@@ -231,74 +269,100 @@ struct ProcessingView: View {
 
     @ViewBuilder
     private var elapsedText: some View {
+        if model.job.isRunning {
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                elapsedLabel
+            }
+        } else {
+            elapsedLabel
+        }
+    }
+
+    @ViewBuilder
+    private var elapsedLabel: some View {
         if let text = elapsedString {
             Text(text)
-                .font(.callout)
+                .font(AuralignType.numeric)
                 .foregroundStyle(.secondary)
-                .monospacedDigit()
         }
     }
 
     // MARK: - Stages
 
+    /// Compressor's job-list pattern: a colored status word in its own
+    /// column (folding any engine sub-phase detail into that word rather than
+    /// a separate widget), real elapsed seconds right-aligned only when the
+    /// engine actually reported `done(seconds:)`. No numeric progress or ETA
+    /// is ever synthesized for the indeterminate `.active` state.
     private var stageList: some View {
-        GroupBox("Pipeline stages") {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(
-                    "Stages are listed in engine order. Row spacing does not represent "
-                        + "duration; elapsed values appear only when the engine reports them."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.bottom, 6)
+        AuralignSection(
+            title: "Pipeline Stages",
+            subtitle:
+                "Stages are listed in engine order. Elapsed values appear only "
+                + "when the engine reports them.",
+            headerIdentifier: AccessibilityIdentifier.activityStages
+        ) {
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
                 ForEach(model.job.stages) { stage in
                     responsiveStageRow(stage)
-                    .padding(.vertical, 4)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(
-                        "\(stage.title). \(stageAccessibilityValue(stage))"
-                    )
-                    .accessibilityIdentifier(
-                        AccessibilityIdentifier.activityStage(stage.id)
-                    )
+                        .padding(.vertical, AuralignVisualSystem.spacingXS)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(
+                            "\(stage.title). \(stageAccessibilityValue(stage))"
+                        )
+                        .accessibilityIdentifier(
+                            AccessibilityIdentifier.activityStage(stage.id)
+                        )
                     if stage.id != model.job.stages.last?.id {
                         Divider().opacity(0.35)
                     }
                 }
             }
-            .padding(4)
         }
-        .accessibilityIdentifier(AccessibilityIdentifier.activityStages)
     }
 
     private func responsiveStageRow(_ stage: PipelineStage) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+        let tone = stageTone(stage.status)
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: AuralignVisualSystem.spacingM) {
                 stageIcon(stage.status)
                     .frame(width: 18)
                 Text(stage.title)
+                    .font(AuralignType.rowTitle)
                     .fontWeight(stageIsActive(stage.status) ? .semibold : .regular)
                     .frame(minWidth: 150, idealWidth: 190, alignment: .leading)
-                Text(stage.detail)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                Spacer(minLength: AuralignVisualSystem.spacingS)
+                Text(stageStatusWord(stage))
+                    .font(AuralignType.metadataStrong)
+                    .foregroundStyle(tone.color)
                     .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                stageStatus(stage.status)
+                    .frame(maxWidth: 260, alignment: .trailing)
+                if let elapsed = stageElapsedText(stage.status) {
+                    Text(elapsed)
+                        .font(AuralignType.numericSmall)
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 48, alignment: .trailing)
+                }
             }
 
-            HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .top, spacing: AuralignVisualSystem.spacingM) {
                 stageIcon(stage.status)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(stage.title)
+                        .font(AuralignType.rowTitle)
                         .fontWeight(stageIsActive(stage.status) ? .semibold : .regular)
-                    Text(stage.detail)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    stageStatus(stage.status)
+                    HStack(spacing: AuralignVisualSystem.spacingS) {
+                        Text(stageStatusWord(stage))
+                            .font(AuralignType.metadataStrong)
+                            .foregroundStyle(tone.color)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let elapsed = stageElapsedText(stage.status) {
+                            Text(elapsed)
+                                .font(AuralignType.numericSmall)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 Spacer(minLength: 0)
             }
@@ -324,7 +388,7 @@ struct ProcessingView: View {
             }
         case .done:
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(AuralignStatusTone.success.color)
                 .accessibilityHidden(true)
         case .skipped:
             Image(systemName: "minus.circle")
@@ -333,31 +397,39 @@ struct ProcessingView: View {
         }
     }
 
-    @ViewBuilder
-    private func stageStatus(_ status: PipelineStage.Status) -> some View {
+    private func stageTone(_ status: PipelineStage.Status) -> AuralignStatusTone {
         switch status {
-        case .pending:
-            Text("Pending")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        case .active:
-            Text("Active")
-                .font(.caption.weight(.semibold))
-        case .done(let seconds):
-            Text(
-                seconds.map {
-                    "Completed · \(JobController.timeText($0))"
-                } ?? "Completed"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
-        case .skipped(let reason):
-            Text("Skipped · \(reason)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        case .pending: return .neutral
+        case .active: return .active
+        case .done: return .success
+        case .skipped: return .neutral
         }
+    }
+
+    /// Folds any real engine sub-phase detail into the status word itself
+    /// ("Processing: transcoding…") rather than a separate line, per the
+    /// Compressor reference pattern — the word is always literal text, never
+    /// a synthesized fraction.
+    private func stageStatusWord(_ stage: PipelineStage) -> String {
+        let detail = model
+            .privacySafePresentationMessage(stage.detail)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        switch stage.status {
+        case .pending:
+            return "Waiting"
+        case .active:
+            return detail.isEmpty ? "Processing" : "Processing: \(detail)"
+        case .done:
+            return detail.isEmpty ? "Successful" : "Successful · \(detail)"
+        case .skipped(let reason):
+            let safeReason = model.privacySafePresentationMessage(reason)
+            return safeReason.isEmpty ? "Skipped" : "Skipped · \(safeReason)"
+        }
+    }
+
+    private func stageElapsedText(_ status: PipelineStage.Status) -> String? {
+        guard case .done(let seconds) = status, let seconds else { return nil }
+        return JobController.timeText(seconds)
     }
 
     private func stageIsActive(_ status: PipelineStage.Status) -> Bool {
@@ -366,26 +438,17 @@ struct ProcessingView: View {
     }
 
     private func stageAccessibilityValue(_ stage: PipelineStage) -> String {
-        let status: String
-        switch stage.status {
-        case .pending:
-            status = "Pending"
-        case .active:
-            status = "Active"
-        case .done(let seconds):
-            status = seconds.map {
-                "Completed in \(JobController.timeText($0))"
-            } ?? "Completed"
-        case .skipped(let reason):
-            status = "Skipped. \(reason)"
+        var value = stageStatusWord(stage)
+        if let elapsed = stageElapsedText(stage.status) {
+            value += ", elapsed \(elapsed)"
         }
-        return stage.detail.isEmpty ? status : "\(status). \(stage.detail)"
+        return value
     }
 
     // MARK: - Config summary and warnings
 
     private var configSummary: some View {
-        GroupBox("Run configuration") {
+        AuralignSection(title: "Run Configuration") {
             if let config = model.job.runConfiguration {
                 LazyVGrid(
                     columns: [
@@ -395,7 +458,7 @@ struct ProcessingView: View {
                         )
                     ],
                     alignment: .leading,
-                    spacing: 10
+                    spacing: AuralignVisualSystem.spacingM
                 ) {
                     chip("Preset", config.preset)
                     chip("ASR", config.asrModel)
@@ -406,7 +469,6 @@ struct ProcessingView: View {
                         chip("Offline", "yes")
                     }
                 }
-                .padding(4)
             }
         }
         .accessibilityIdentifier(AccessibilityIdentifier.activityConfiguration)
@@ -414,24 +476,23 @@ struct ProcessingView: View {
 
     private func chip(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(title).font(.caption2).foregroundStyle(.tertiary)
-            Text(value).font(.callout.weight(.medium))
+            Text(title).font(AuralignType.metadata).foregroundStyle(.tertiary)
+            Text(value).font(AuralignType.rowTitle)
         }
     }
 
     private var warningsBox: some View {
-        GroupBox("Warnings") {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(
-                    Array(model.job.warnings.enumerated()),
-                    id: \.offset
-                ) { _, warning in
-                    Label(warning, systemImage: "exclamationmark.triangle.fill")
-                        .font(.callout)
-                        .foregroundStyle(.orange)
-                }
-            }
-            .padding(4)
+        AuralignSection(title: "Warnings") {
+            AuralignCausalityBanner(
+                headline:
+                    "The engine reported \(model.job.warnings.count) "
+                    + (model.job.warnings.count == 1 ? "warning" : "warnings")
+                    + " during this run.",
+                detail: model.job.warnings
+                    .map(model.privacySafePresentationMessage)
+                    .joined(separator: "\n"),
+                tone: .warning
+            )
         }
         .accessibilityIdentifier(AccessibilityIdentifier.activityWarnings)
     }
@@ -439,19 +500,16 @@ struct ProcessingView: View {
     @ViewBuilder
     private var failureBox: some View {
         if case .failed(let failure) = model.job.phase {
-            GroupBox("Failure") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(model.privacySafePresentationMessage(failure.message))
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let remediation = failure.remediation {
-                        Label(
-                            model.privacySafePresentationMessage(remediation),
-                            systemImage: "lightbulb"
-                        )
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
+            AuralignSection(title: "Failure") {
+                VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
+                    AuralignCausalityBanner(
+                        headline: model.privacySafePresentationMessage(failure.message),
+                        detail: failure.remediation.map {
+                            model.privacySafePresentationMessage($0)
+                        },
+                        tone: .failure
+                    )
+                    .textSelection(.enabled)
                     if failure.outputDirectory != nil {
                         Button("Reveal Partial Output in Finder") {
                             model.job.revealOutputDirectory()
@@ -464,7 +522,6 @@ struct ProcessingView: View {
                         )
                     }
                 }
-                .padding(4)
             }
             .accessibilityIdentifier(AccessibilityIdentifier.activityFailure)
         }
@@ -475,44 +532,47 @@ struct ProcessingView: View {
     @ViewBuilder
     private var technicalDetails: some View {
         if model.job.phase != .idle {
-            DisclosureGroup("Technical details", isExpanded: $showTechnicalDetails) {
-                VStack(alignment: .leading, spacing: 8) {
+            // QLab's "Logs" tab pattern: raw technical detail belongs in one
+            // dedicated, clearly labeled area rather than scattered through
+            // the main reading path above. Monospace here is expected.
+            DisclosureGroup("Technical Details", isExpanded: $showTechnicalDetails) {
+                VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
                     if case .failed(let failure) = model.job.phase {
                         Text("Failure type")
-                            .font(.caption.weight(.semibold))
+                            .font(AuralignType.metadataStrong)
                             .foregroundStyle(.secondary)
                         Text(failure.errorType)
-                            .font(.caption.monospaced())
+                            .font(AuralignType.technical)
                             .textSelection(.enabled)
                     }
                     if !model.job.recentEvents.isEmpty {
                         Text("Bridge events (redacted)")
-                            .font(.caption.weight(.semibold))
+                            .font(AuralignType.metadataStrong)
                             .foregroundStyle(.secondary)
                         ScrollView {
                             Text(model.job.recentEvents.suffix(60).joined(separator: "\n"))
-                                .font(.caption.monospaced())
+                                .font(AuralignType.technical)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .frame(height: 140)
-                        .background(Color(nsColor: .textBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .background(AuralignSurface.inset)
+                        .clipShape(RoundedRectangle(cornerRadius: AuralignRadius.control))
                     }
                     let diagnostics = model.job.diagnosticsTail
                     if !diagnostics.isEmpty {
                         Text("Engine stderr (local view only)")
-                            .font(.caption.weight(.semibold))
+                            .font(AuralignType.metadataStrong)
                             .foregroundStyle(.secondary)
                         ScrollView {
                             Text(diagnostics)
-                                .font(.caption.monospaced())
+                                .font(AuralignType.technical)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .frame(height: 120)
-                        .background(Color(nsColor: .textBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .background(AuralignSurface.inset)
+                        .clipShape(RoundedRectangle(cornerRadius: AuralignRadius.control))
                     }
                     Button("Copy Diagnostics") {
                         NSPasteboard.general.clearContents()
@@ -523,12 +583,12 @@ struct ProcessingView: View {
                     }
                     .controlSize(.small)
                     Text("Copied diagnostics are redacted; raw stderr is omitted.")
-                        .font(.caption)
+                        .font(AuralignType.metadata)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.top, 6)
+                .padding(.top, AuralignVisualSystem.spacingS)
             }
-            .font(.callout)
+            .font(AuralignType.evidence)
             .accessibilityIdentifier(
                 AccessibilityIdentifier.activityTechnicalDetails
             )

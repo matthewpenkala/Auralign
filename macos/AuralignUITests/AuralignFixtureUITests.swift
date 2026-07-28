@@ -47,16 +47,25 @@ final class AuralignFixtureUITests: XCTestCase {
         let launched = FixtureApplication.launch("selected-run-plan")
         app = launched
 
-        XCTAssertTrue(launched.windows.firstMatch.waitForExistence(timeout: 3))
-        let banner = launched.descendants(matching: .any)[
-            "fixture.synthetic-evidence"
-        ]
+        let mainWindow = launched.windows.matching(
+            identifier: "com.auralign.studio.window.main"
+        ).firstMatch
+        XCTAssertTrue(mainWindow.waitForExistence(timeout: 3))
+        let banner = mainWindow.descendants(matching: .any).matching(
+            identifier: "fixture.synthetic-evidence"
+        ).firstMatch
         XCTAssertTrue(banner.exists)
         XCTAssertTrue(
             accessibilityText(banner).contains(
                 "Synthetic UI Fixture — Not live engine evidence"
             )
         )
+        for phase in ["Source", "Recognition", "Speakers", "Refinement", "Delivery"] {
+            XCTAssertTrue(
+                element("canvas.phase.\(phase.lowercased())", in: launched).exists,
+                "Expected the keyboard-accessible \(phase) phase control."
+            )
+        }
         assertSinglePrimaryAction(in: launched, labelContains: "Start")
     }
 
@@ -233,7 +242,7 @@ final class AuralignFixtureUITests: XCTestCase {
         XCTAssertTrue(asrStage.exists)
         XCTAssertTrue(
             accessibilityText(asrStage)
-                .localizedCaseInsensitiveContains("active")
+                .localizedCaseInsensitiveContains("processing")
         )
 
         launched.terminate()

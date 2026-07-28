@@ -13,6 +13,9 @@ import SwiftUI
 /// action-time identity checks; this view never opens a remembered path.
 struct ResultsView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.auralignIncreaseContrast) private var increaseContrast
+    @Environment(\.auralignDifferentiateWithoutColor)
+    private var differentiateWithoutColor
     @State private var lastArtifactActionIndex: Int?
     @FocusState private var artifactActionFocus: Int?
     @AccessibilityFocusState private var artifactActionAccessibilityFocus: Int?
@@ -48,12 +51,7 @@ struct ResultsView: View {
                     artifacts: failure.partialArtifacts
                 )
             case .idle:
-                pendingBody(
-                    title: "No results yet",
-                    message: "Choose a source, check readiness, and start a transcription.",
-                    symbol: "doc.text.magnifyingglass",
-                    tone: .neutral
-                )
+                emptyResultsBody()
             case .running:
                 pendingBody(
                     title: "Results pending",
@@ -106,6 +104,78 @@ struct ResultsView: View {
         .accessibilityIdentifier(AccessibilityIdentifier.resultsRoot)
     }
 
+    // MARK: - Empty state
+
+    /// The measured baseline was ~92% void: one bordered row, then a black
+    /// rectangle. A confident, content-proportioned panel with the action
+    /// that fills it replaces the bordered sentence in a void.
+    private func emptyResultsBody() -> some View {
+        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXL) {
+            AuralignWorkspaceHeader(
+                symbol: "doc.text",
+                accessibilityHeading: "Results"
+            ) {
+                Text("No run has completed in this workspace yet.")
+                    .font(AuralignType.body)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+
+            HStack {
+                Spacer(minLength: 0)
+                emptyResultsCard
+                Spacer(minLength: 0)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(AuralignVisualSystem.spacingXL)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var emptyResultsCard: some View {
+        VStack(spacing: AuralignVisualSystem.spacingM) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 30))
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+            Text("No results yet")
+                .font(AuralignType.pageTitle)
+                .accessibilityAddTraits(.isHeader)
+            Text(
+                "Results appear here only after the local engine completes a "
+                    + "job and its output is verified. Choose a source and "
+                    + "check readiness to start one."
+            )
+            .font(AuralignType.body)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: 360)
+            Button {
+                model.selectedSection = .newJob
+            } label: {
+                Label("Start a New Transcription", systemImage: "waveform.badge.plus")
+            }
+            .controlSize(.large)
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("results.empty.start-new-job")
+        }
+        .padding(AuralignVisualSystem.spacingXL)
+        .frame(maxWidth: 420)
+        .background(AuralignSurface.raised)
+        .overlay {
+            RoundedRectangle(cornerRadius: AuralignRadius.group)
+                .strokeBorder(
+                    increaseContrast ? Color.primary : AuralignSurface.hairline,
+                    lineWidth: increaseContrast ? 1 : 0.5
+                )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: AuralignRadius.group))
+    }
+
     // MARK: - Incomplete lifecycle states
 
     private func pendingBody(
@@ -115,11 +185,15 @@ struct ResultsView: View {
         tone: AuralignStatusTone
     ) -> some View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingL) {
-            AuralignPageHeader(
-                title: "Results",
-                subtitle: "Verified local output from the current Auralign job.",
-                symbol: "doc.text"
-            )
+            AuralignWorkspaceHeader(
+                symbol: "doc.text",
+                accessibilityHeading: "Results"
+            ) {
+                Text("Verified local output from the current Auralign job.")
+                    .font(AuralignType.body)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             AuralignStatusBanner(
                 title: title,
                 message: message,
@@ -149,19 +223,15 @@ struct ResultsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingL) {
                 completedHeader(result)
-                // The journey settles rather than collapsing into a generic
-                // success card. Results stays transcript-first: the canvas is a
-                // compact band above the reading surface, not a dashboard.
-                AlignmentCanvasView(
-                    projection: AlignmentCanvasProjection.live(model: model),
-                    sourceTitle: result.sourceURL.lastPathComponent
-                )
-                if let explanation = model.resultDrift.explanation {
-                    AuralignStatusBanner(
-                        title: "Results are from an earlier job state",
-                        message: explanation,
+                if model.resultDrift.isStale, let explanation = model.resultDrift.explanation {
+                    AuralignCausalityBanner(
+                        headline: staleHeadline(model.resultDrift),
+                        detail: explanation,
                         tone: .warning,
-                        symbol: "clock.arrow.circlepath"
+                        symbol: "clock.arrow.circlepath",
+                        linkTitle: "Start a New Transcription",
+                        linkIdentifier: "results.stale.start-new-job",
+                        link: { model.selectedSection = .newJob }
                     )
                     .accessibilityIdentifier(AccessibilityIdentifier.resultsStale)
                 }
@@ -170,13 +240,13 @@ struct ResultsView: View {
                 }
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: AuralignVisualSystem.spacingXL) {
-                        transcriptSurface(result.transcriptPreview)
+                        transcriptSurface(result)
                             .frame(minWidth: 440, maxWidth: .infinity)
                         resultInspector(result)
                             .frame(width: AuralignVisualSystem.inspectorWidth)
                     }
                     VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingL) {
-                        transcriptSurface(result.transcriptPreview)
+                        transcriptSurface(result)
                         DisclosureGroup("Run details and artifacts") {
                             resultInspector(result)
                                 .padding(.top, AuralignVisualSystem.spacingM)
@@ -188,16 +258,27 @@ struct ResultsView: View {
                 }
             }
             .padding(AuralignVisualSystem.spacingXL)
-            .frame(maxWidth: 1_180, alignment: .leading)
+            .frame(maxWidth: 1_320, alignment: .leading)
         }
     }
 
     private func completedHeader(_ result: JobResult) -> some View {
-        AuralignPageHeader(
-            title: "Results",
-            subtitle: "Completed after successful engine exit and verified local output.",
-            symbol: "checkmark.seal"
+        AuralignWorkspaceHeader(
+            symbol: "checkmark.seal",
+            accessibilityHeading:
+                "Completed results for \(result.outputDirectory.lastPathComponent)"
         ) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(result.sourceURL.lastPathComponent)
+                    .font(AuralignType.rowTitle)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(completedSummaryLine(result))
+                    .font(AuralignType.metadata)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        } accessory: {
             Button {
                 model.job.revealOutputDirectory()
             } label: {
@@ -207,75 +288,53 @@ struct ResultsView: View {
             .help("Revalidate and reveal the completed job folder in Finder.")
             .accessibilityIdentifier(AccessibilityIdentifier.resultsRevealFolder)
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(
-            "Completed results for \(result.outputDirectory.lastPathComponent)"
-        )
     }
 
-    private func transcriptSurface(
-        _ preview: ResultTranscriptPreview
-    ) -> some View {
-        AuralignSection(
-            title: "Transcript Preview",
+    private func completedSummaryLine(_ result: JobResult) -> String {
+        var parts = ["Completed"]
+        parts.append("\(result.words) word\(result.words == 1 ? "" : "s")")
+        parts.append("\(result.segments) segment\(result.segments == 1 ? "" : "s")")
+        if result.speakerTurns > 0 {
+            parts.append(
+                "\(result.speakerTurns) speaker turn\(result.speakerTurns == 1 ? "" : "s")"
+            )
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func staleHeadline(_ drift: ResultDrift) -> String {
+        switch (drift.sourceChanged, drift.configurationChanged) {
+        case (true, true):
+            return "Stale — the source and configuration changed after this run."
+        case (true, false):
+            return "Stale — the selected source changed after this run."
+        case (false, true):
+            return "Stale — the configuration changed after this run."
+        case (false, false):
+            return "Results are current."
+        }
+    }
+
+    // MARK: - Transcript
+
+    /// Generous, document-shaped reading content in a single reading
+    /// measure — never a monospace-adjacent box. No structure beyond the flat
+    /// preview text and the scalar counts the contract actually supplies.
+    private func transcriptSurface(_ result: JobResult) -> some View {
+        let preview = result.transcriptPreview
+        return AuralignSection(
+            title: "Transcript",
             subtitle: transcriptSubtitle(preview)
         ) {
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
+                if preview.status == .available {
+                    transcriptStatLine(result)
+                }
                 switch preview.status {
                 case .available:
                     if let text = preview.text {
-                        ScrollView {
-                            Text(text)
-                                .font(.body)
-                                .textSelection(.enabled)
-                                .frame(
-                                    maxWidth: .infinity,
-                                    minHeight: 300,
-                                    alignment: .topLeading
-                                )
-                                .padding(AuralignVisualSystem.spacingL)
-                        }
-                        .frame(minHeight: 320, idealHeight: 430, maxHeight: 620)
-                        .background(Color(nsColor: .textBackgroundColor))
-                        .overlay {
-                            RoundedRectangle(
-                                cornerRadius: AuralignVisualSystem.cornerRadius
-                            )
-                            .strokeBorder(Color(nsColor: .separatorColor))
-                        }
-                        .clipShape(
-                            RoundedRectangle(
-                                cornerRadius: AuralignVisualSystem.cornerRadius
-                            )
-                        )
-                        .accessibilityIdentifier(
-                            AccessibilityIdentifier.resultsTranscript
-                        )
-
-                        HStack(alignment: .firstTextBaseline) {
-                            if preview.truncated {
-                                Label(
-                                    "Preview is truncated; the verified transcript file "
-                                        + "contains the complete local output.",
-                                    systemImage: "ellipsis.circle"
-                                )
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .accessibilityIdentifier(
-                                    AccessibilityIdentifier.resultsTranscriptTruncated
-                                )
-                            }
-                            Spacer(minLength: AuralignVisualSystem.spacingM)
-                            Button("Copy Preview") {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(text, forType: .string)
-                            }
-                            .controlSize(.small)
-                            .accessibilityIdentifier(
-                                AccessibilityIdentifier.resultsCopyTranscript
-                            )
-                        }
+                        transcriptReadingSurface(text)
+                        transcriptFooter(preview: preview, text: text)
                     }
                 case .empty:
                     transcriptUnavailable(
@@ -285,30 +344,101 @@ struct ResultsView: View {
                 case .missing:
                     transcriptUnavailable(
                         title: "Transcript preview unavailable",
-                        message: "This completed result did not declare a transcript.txt artifact."
+                        message: "This completed result did not declare a transcript.txt "
+                            + "artifact."
                     )
                 }
             }
         }
     }
 
-    private func transcriptSubtitle(_ preview: ResultTranscriptPreview) -> String {
-        switch preview.status {
-        case .available:
-            let displayed = ByteCountFormatter.string(
-                fromByteCount: Int64(preview.displayedBytes),
-                countStyle: .file
-            )
-            if let sourceBytes = preview.sourceBytes {
-                let source = ByteCountFormatter.string(
+    private func transcriptStatLine(_ result: JobResult) -> some View {
+        HStack(spacing: AuralignVisualSystem.spacingL) {
+            transcriptStat(value: result.words, label: "words")
+            transcriptStat(value: result.segments, label: "segments")
+            if result.speakerTurns > 0 {
+                transcriptStat(value: result.speakerTurns, label: "speaker turns")
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func transcriptStat(value: Int, label: String) -> some View {
+        HStack(spacing: 4) {
+            Text("\(value)")
+                .font(AuralignType.numeric)
+            Text(label)
+                .font(AuralignType.metadata)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func transcriptReadingSurface(_ text: String) -> some View {
+        ScrollView {
+            Text(text)
+                .font(AuralignType.transcript)
+                .lineSpacing(7)
+                .textSelection(.enabled)
+                .frame(maxWidth: 640, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(AuralignVisualSystem.spacingXL)
+        }
+        .frame(minHeight: 320, idealHeight: 440, maxHeight: 640)
+        .background(AuralignSurface.inset)
+        .overlay {
+            RoundedRectangle(cornerRadius: AuralignRadius.group)
+                .strokeBorder(
+                    increaseContrast ? Color.primary : AuralignSurface.hairline,
+                    lineWidth: increaseContrast ? 1 : 0.5
+                )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: AuralignRadius.group))
+        .accessibilityIdentifier(AccessibilityIdentifier.resultsTranscript)
+    }
+
+    private func transcriptFooter(
+        preview: ResultTranscriptPreview,
+        text: String
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            if preview.truncated, let sourceBytes = preview.sourceBytes {
+                let shown = ByteCountFormatter.string(
+                    fromByteCount: Int64(preview.displayedBytes),
+                    countStyle: .file
+                )
+                let total = ByteCountFormatter.string(
                     fromByteCount: sourceBytes,
                     countStyle: .file
                 )
-                return preview.truncated
-                    ? "Showing \(displayed) of \(source) from transcript.txt."
-                    : "Showing the verified \(source) transcript.txt preview."
+                Label(
+                    "Showing the first \(shown) of \(total) — open the full "
+                        + "transcript to read the rest.",
+                    systemImage: "ellipsis.circle"
+            )
+                .font(AuralignType.metadata)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(
+                    AccessibilityIdentifier.resultsTranscriptTruncated
+                )
             }
-            return "Bounded preview from the verified transcript.txt artifact."
+            Spacer(minLength: AuralignVisualSystem.spacingM)
+            Button("Copy Preview") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            }
+            .controlSize(.small)
+            .accessibilityIdentifier(AccessibilityIdentifier.resultsCopyTranscript)
+        }
+    }
+
+    private func transcriptSubtitle(_ preview: ResultTranscriptPreview) -> String {
+        switch preview.status {
+        case .available:
+            return preview.truncated
+                ? "Bounded preview from the verified transcript.txt artifact."
+                : "The complete verified transcript.txt artifact."
         case .empty:
             return "Verified transcript artifact with no text."
         case .missing:
@@ -330,40 +460,11 @@ struct ResultsView: View {
 
     private func resultInspector(_ result: JobResult) -> some View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingL) {
-            runFacts(result)
             qaEvidence(result.qa)
             artifactList(result.artifacts)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(AccessibilityIdentifier.resultsInspector)
-    }
-
-    private func runFacts(_ result: JobResult) -> some View {
-        AuralignSection(
-            title: "Run Facts",
-            subtitle: "Counts reported by the completed local engine job."
-        ) {
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
-                factRow("Language", result.language ?? "Not reported")
-                factRow("Speaker turns", String(result.speakerTurns))
-                factRow("Words", String(result.words))
-                factRow("Segments", String(result.segments))
-                factRow("Artifacts", String(result.artifacts.count))
-            }
-        }
-    }
-
-    private func factRow(_ label: String, _ value: String) -> some View {
-        GridRow {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.callout.weight(.medium))
-                .monospacedDigit()
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -372,56 +473,46 @@ struct ResultsView: View {
             title: "Automated QA",
             subtitle: "Deterministic evidence from qa_report.json; not a quality score."
         ) {
-            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
-                AuralignStatusBadge(
-                    text: qaStatusTitle(qa),
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
+                AuralignCausalityBanner(
+                    headline: qaStatusTitle(qa),
+                    detail: qaStatusDetail(qa),
                     tone: qaStatusTone(qa),
                     symbol: qaStatusSymbol(qa)
                 )
-                if qa.status == .available {
-                    if let flagCount = qa.flagCount {
-                        Text(
-                            "\(flagCount) reported flag\(flagCount == 1 ? "" : "s")"
-                                + qaChangedSpanSuffix(qa)
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                    }
-                    ForEach(qa.flags) { flag in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Label(
-                                flag.message,
-                                systemImage: qaFlagSymbol(flag.severity)
-                            )
-                            .font(.callout)
-                            .foregroundStyle(qaFlagTone(flag.severity).color)
-                            Text(flag.code)
-                                .font(.caption2.monospaced())
-                                .foregroundStyle(.tertiary)
+                if qa.status == .available, !qa.flags.isEmpty {
+                    VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
+                        ForEach(qa.flags) { flag in
+                            qaFlagRow(flag)
                         }
-                        .accessibilityElement(children: .combine)
+                        if qa.omittedFlagCount > 0 {
+                            Text(
+                                "\(qa.omittedFlagCount) additional flag"
+                                    + "\(qa.omittedFlagCount == 1 ? " was" : "s were") "
+                                    + "omitted from this bounded projection."
+                            )
+                            .font(AuralignType.metadata)
+                            .foregroundStyle(.secondary)
+                        }
                     }
-                    if qa.omittedFlagCount > 0 {
-                        Text(
-                            "\(qa.omittedFlagCount) additional flag"
-                                + "\(qa.omittedFlagCount == 1 ? " was" : "s were") "
-                                + "omitted from this bounded projection."
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                } else {
-                    Text(qaStatusExplanation(qa.status))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Automated QA")
         .accessibilityIdentifier(AccessibilityIdentifier.resultsQA)
+    }
+
+    private func qaFlagRow(_ flag: ResultQAFlag) -> some View {
+        AuralignMediaRow(
+            title: flag.message,
+            metadata: flag.code,
+            swatch: auralignMediaRowSwatch(
+                symbol: qaFlagSymbol(flag.severity),
+                tint: presentationTint(qaFlagTone(flag.severity).color)
+            ),
+            allowsMultiline: true
+        )
     }
 
     private func qaStatusTitle(_ qa: ResultQAProjection) -> String {
@@ -439,6 +530,16 @@ struct ResultsView: View {
         case .oversized:
             return "QA report exceeds preview limit"
         }
+    }
+
+    private func qaStatusDetail(_ qa: ResultQAProjection) -> String? {
+        if qa.status == .available {
+            guard let flagCount = qa.flagCount else { return nil }
+            return "\(flagCount) reported flag\(flagCount == 1 ? "" : "s")"
+                + qaChangedSpanSuffix(qa) + "."
+        }
+        let explanation = qaStatusExplanation(qa.status)
+        return explanation.isEmpty ? nil : explanation
     }
 
     private func qaStatusTone(_ qa: ResultQAProjection) -> AuralignStatusTone {
@@ -516,10 +617,13 @@ struct ResultsView: View {
     }
 
     private func runWarnings(_ warnings: [String]) -> some View {
-        AuralignStatusBanner(
-            title: warnings.count == 1 ? "Run warning" : "Run warnings",
-            message: warnings.joined(separator: "\n"),
-            tone: .warning
+        AuralignCausalityBanner(
+            headline: warnings.count == 1 ? "Run warning" : "\(warnings.count) run warnings",
+            detail: warnings
+                .map(model.privacySafePresentationMessage)
+                .joined(separator: "\n"),
+            tone: .warning,
+            symbol: "exclamationmark.triangle.fill"
         )
         .accessibilityIdentifier(AccessibilityIdentifier.resultsWarnings)
     }
@@ -531,16 +635,13 @@ struct ResultsView: View {
         ) {
             if artifacts.isEmpty {
                 Text("No regular-file artifacts were declared for this result.")
-                    .font(.callout)
+                    .font(AuralignType.body)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
                     ForEach(Array(artifacts.enumerated()), id: \.element.id) {
                         index, artifact in
                         artifactRow(artifact, index: index)
-                        if artifact.id != artifacts.last?.id {
-                            Divider()
-                        }
                     }
                 }
             }
@@ -548,77 +649,56 @@ struct ResultsView: View {
     }
 
     private func artifactRow(_ artifact: JobArtifact, index: Int) -> some View {
-        HStack(spacing: AuralignVisualSystem.spacingS) {
-            Image(systemName: symbolFor(artifact.name))
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(artifact.name)
-                    .font(.callout.monospaced())
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text(artifact.sizeText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-            Spacer(minLength: AuralignVisualSystem.spacingS)
-            Menu {
-                Button("Open") {
-                    lastArtifactActionIndex = index
-                    model.job.openArtifact(artifact)
-                }
-                .disabled(model.isPresentationFixture)
-                Button("Reveal in Finder") {
-                    lastArtifactActionIndex = index
-                    model.job.revealArtifact(artifact)
-                }
-                .disabled(model.isPresentationFixture)
-                Button("Copy Path") {
-                    lastArtifactActionIndex = index
-                    model.job.copyArtifactPath(artifact)
-                }
-                .disabled(model.isPresentationFixture)
-            } label: {
-                Label(
-                    "Actions for \(artifact.name)",
-                    systemImage: "ellipsis.circle"
-                )
-                .labelStyle(.iconOnly)
-            }
-            .menuStyle(.borderlessButton)
-            .focused($artifactActionFocus, equals: index)
-            .accessibilityFocused(
-                $artifactActionAccessibilityFocus,
-                equals: index
-            )
-            .accessibilityLabel("Actions for \(artifact.name)")
-            .accessibilityIdentifier(
-                AccessibilityIdentifier.artifactActions(index: index)
-            )
-            .help("Actions revalidate this artifact before using its local path.")
+        AuralignMediaRow(
+            title: artifact.name,
+            metadata: artifact.sizeText,
+            swatch: auralignMediaRowSwatch(
+                symbol: symbolFor(artifact.name),
+                tint: presentationTint(tintFor(artifact.name))
+            ),
+            containsInteractiveTrailing: true,
+            contentIdentifier: AccessibilityIdentifier.artifact(index: index)
+        ) {
+            artifactActionsMenu(artifact, index: index)
         }
-        .padding(.vertical, AuralignVisualSystem.spacingS)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(AccessibilityIdentifier.artifact(index: index))
         .contextMenu {
-            Button("Open") {
-                lastArtifactActionIndex = index
-                model.job.openArtifact(artifact)
-            }
-            .disabled(model.isPresentationFixture)
-            Button("Reveal in Finder") {
-                lastArtifactActionIndex = index
-                model.job.revealArtifact(artifact)
-            }
-            .disabled(model.isPresentationFixture)
-            Button("Copy Path") {
-                lastArtifactActionIndex = index
-                model.job.copyArtifactPath(artifact)
-            }
-            .disabled(model.isPresentationFixture)
+            artifactMenuItems(artifact, index: index)
         }
+    }
+
+    private func artifactActionsMenu(_ artifact: JobArtifact, index: Int) -> some View {
+        Menu {
+            artifactMenuItems(artifact, index: index)
+        } label: {
+            Label("Actions for \(artifact.name)", systemImage: "ellipsis.circle")
+                .labelStyle(.iconOnly)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .focused($artifactActionFocus, equals: index)
+        .accessibilityFocused($artifactActionAccessibilityFocus, equals: index)
+        .accessibilityLabel("Actions for \(artifact.name)")
+        .accessibilityIdentifier(AccessibilityIdentifier.artifactActions(index: index))
+        .help("Actions revalidate this artifact before using its local path.")
+    }
+
+    @ViewBuilder
+    private func artifactMenuItems(_ artifact: JobArtifact, index: Int) -> some View {
+        Button("Open") {
+            lastArtifactActionIndex = index
+            model.job.openArtifact(artifact)
+        }
+        .disabled(model.isPresentationFixture)
+        Button("Reveal in Finder") {
+            lastArtifactActionIndex = index
+            model.job.revealArtifact(artifact)
+        }
+        .disabled(model.isPresentationFixture)
+        Button("Copy Path") {
+            lastArtifactActionIndex = index
+            model.job.copyArtifactPath(artifact)
+        }
+        .disabled(model.isPresentationFixture)
     }
 
     private func symbolFor(_ name: String) -> String {
@@ -633,6 +713,22 @@ struct ResultsView: View {
         if name.hasSuffix(".md") || name.hasSuffix(".txt") { return "doc.text" }
         if name.hasSuffix(".rttm") { return "person.2.wave.2" }
         return "doc"
+    }
+
+    /// A categorical tint for the artifact's format glyph — never a
+    /// fabricated per-file waveform. Collapses to `.secondary` whenever
+    /// decorative color must be suppressed.
+    private func tintFor(_ name: String) -> Color {
+        if name.hasSuffix(".wav") { return .teal }
+        if name.hasSuffix(".srt") || name.hasSuffix(".vtt") { return .blue }
+        if name.hasSuffix(".json") || name.hasSuffix(".jsonl") { return .purple }
+        if name.hasSuffix(".csv") { return .green }
+        if name.hasSuffix(".rttm") { return .pink }
+        return .secondary
+    }
+
+    private func presentationTint(_ color: Color) -> Color {
+        increaseContrast || differentiateWithoutColor ? .secondary : color
     }
 
     private func restoreArtifactActionFocus() {
@@ -683,11 +779,17 @@ struct ResultsView: View {
     ) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingL) {
-                AuralignPageHeader(
-                    title: "Results",
-                    subtitle: "Incomplete local output is kept separate from completed Results.",
-                    symbol: "doc.text"
-                )
+                AuralignWorkspaceHeader(
+                    symbol: "doc.text",
+                    accessibilityHeading: "Results"
+                ) {
+                    Text(
+                        "Incomplete local output is kept separate from completed Results."
+                    )
+                    .font(AuralignType.body)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
                 AuralignStatusBanner(
                     title: state.title,
                     message: message,
@@ -704,7 +806,7 @@ struct ResultsView: View {
                 if let remediation, !remediation.isEmpty {
                     AuralignSection(title: "Recovery") {
                         Text(remediation)
-                            .font(.callout)
+                            .font(AuralignType.body)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -714,13 +816,10 @@ struct ResultsView: View {
                         subtitle: "These files were inventoried after process exit. "
                             + "They do not indicate successful completion."
                     ) {
-                        VStack(alignment: .leading, spacing: 0) {
+                        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
                             ForEach(Array(artifacts.enumerated()), id: \.element.id) {
                                 index, artifact in
                                 artifactRow(artifact, index: index)
-                                if artifact.id != artifacts.last?.id {
-                                    Divider()
-                                }
                             }
                         }
                     }
@@ -729,18 +828,18 @@ struct ResultsView: View {
                     DisclosureGroup("Technical Details") {
                         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
                             Text("Failure type")
-                                .font(.caption)
+                                .font(AuralignType.metadata)
                                 .foregroundStyle(.secondary)
                             Text(technicalType)
-                                .font(.callout.monospaced())
+                                .font(AuralignType.technicalBody)
                                 .textSelection(.enabled)
                             if let technicalDiagnostics, !technicalDiagnostics.isEmpty {
                                 Text("Local diagnostic tail")
-                                    .font(.caption)
+                                    .font(AuralignType.metadata)
                                     .foregroundStyle(.secondary)
                                     .padding(.top, AuralignVisualSystem.spacingS)
                                 Text(technicalDiagnostics)
-                                    .font(.caption.monospaced())
+                                    .font(AuralignType.technical)
                                     .textSelection(.enabled)
                             }
                         }

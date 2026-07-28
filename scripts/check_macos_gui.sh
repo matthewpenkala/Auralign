@@ -658,6 +658,7 @@ Contents/Resources/FieldCatalog.json
 Contents/Resources/MIT.txt
 Contents/Resources/audio-waveform-icon.icns
 Contents/Resources/config_manifest.json
+Contents/Resources/default.metallib
 Contents/Resources/model_delivery_catalog.json
 Contents/_CodeSignature/CodeResources
 EOF

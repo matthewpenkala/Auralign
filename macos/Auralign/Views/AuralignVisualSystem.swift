@@ -113,7 +113,7 @@ struct AuralignStatusBadge: View {
 
     var body: some View {
         Label(text, systemImage: symbol ?? tone.defaultSymbol)
-            .font(.caption.weight(.medium))
+            .font(AuralignType.status)
             .foregroundStyle(
                 increaseContrast ? Color.primary : presentationColor
             )
@@ -162,7 +162,21 @@ struct AuralignStatusBanner: View {
             }
         }
         .padding(AuralignVisualSystem.spacingM)
-        .background(statusBackground)
+        .background {
+            ZStack {
+                RoundedRectangle(
+                    cornerRadius: AuralignVisualSystem.cornerRadius,
+                    style: .continuous
+                )
+                .fill(statusBackground)
+
+                AuralignOpticalSurface(
+                    cornerRadius: AuralignVisualSystem.cornerRadius,
+                    intensity: 0.38,
+                    accentColor: presentationColor
+                )
+            }
+        }
         .overlay(alignment: .leading) {
             Rectangle()
                 .fill(presentationColor)
@@ -201,9 +215,9 @@ struct AuralignStatusBanner: View {
 
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
                 Text(title)
-                    .font(.callout.weight(.semibold))
+                    .font(AuralignType.bodyEmphasis)
                 Text(message)
-                    .font(.callout)
+                    .font(AuralignType.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -230,7 +244,7 @@ struct AuralignPageHeader<Accessory: View>: View {
     let title: String
     let subtitle: String
     let symbol: String
-    @ViewBuilder let accessory: () -> Accessory
+    let accessory: Accessory
 
     init(
         title: String,
@@ -241,21 +255,23 @@ struct AuralignPageHeader<Accessory: View>: View {
         self.title = title
         self.subtitle = subtitle
         self.symbol = symbol
-        self.accessory = accessory
+        self.accessory = accessory()
     }
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: AuralignVisualSystem.spacingM) {
-                headerCopy
-                Spacer(minLength: AuralignVisualSystem.spacingL)
-                accessory()
-            }
+        AuralignStudioPanel(accent: .delivery) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: AuralignVisualSystem.spacingM) {
+                    headerCopy
+                    Spacer(minLength: AuralignVisualSystem.spacingL)
+                    accessory
+                }
 
-            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
-                headerCopy
-                accessory()
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
+                    headerCopy
+                    accessory
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .fixedSize(horizontal: false, vertical: true)
@@ -271,10 +287,10 @@ struct AuralignPageHeader<Accessory: View>: View {
 
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
                 Text(title)
-                    .font(.title2.weight(.semibold))
+                    .font(AuralignType.display)
                     .accessibilityAddTraits(.isHeader)
                 Text(subtitle)
-                    .font(.callout)
+                    .font(AuralignType.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -290,29 +306,82 @@ extension AuralignPageHeader where Accessory == EmptyView {
     }
 }
 
-/// A separator-led section avoids the baseline's nested-card hierarchy while
-/// retaining clear grouping and a predictable keyboard/VoiceOver order.
+/// A studio plane groups one coherent unit of work. The offset index and
+/// spectral rule create rhythm without changing the semantic reading order.
 struct AuralignSection<Content: View>: View {
     let title: String
     var subtitle: String?
-    @ViewBuilder let content: () -> Content
+    var headerIdentifier: String? = nil
+    let content: Content
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        headerIdentifier: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.headerIdentifier = headerIdentifier
+        self.content = content()
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
-            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
-                Text(title)
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+        AuralignStudioPanel(accent: accent) {
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingL) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(sectionIndex)
+                        .font(AuralignType.sectionIndex)
+                        .foregroundStyle(accent.color)
+                        .accessibilityHidden(true)
+                    VStack(
+                        alignment: .leading,
+                        spacing: AuralignVisualSystem.spacingXS
+                    ) {
+                        Text(title)
+                            .font(AuralignType.workspaceTitle)
+                            .accessibilityAddTraits(.isHeader)
+                            .modifier(
+                                AuralignSectionIdentifier(
+                                    identifier: headerIdentifier
+                                )
+                            )
+                        if let subtitle {
+                            Text(subtitle)
+                                .font(AuralignType.metadata)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
+                content
             }
+        }
+    }
 
-            Divider()
-            content()
+    private var sectionIndex: String {
+        String(format: "%02d", titleSeed % 99 + 1)
+    }
+
+    private var accent: AuralignSpectrumStop {
+        AuralignSpectrumStop.allCases[
+            titleSeed % AuralignSpectrumStop.allCases.count
+        ]
+    }
+
+    private var titleSeed: Int {
+        abs(title.unicodeScalars.reduce(0) { $0 + Int($1.value) })
+    }
+}
+
+private struct AuralignSectionIdentifier: ViewModifier {
+    let identifier: String?
+
+    func body(content: Content) -> some View {
+        if let identifier {
+            content.accessibilityIdentifier(identifier)
+        } else {
+            content
         }
     }
 }

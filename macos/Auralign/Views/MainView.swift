@@ -43,10 +43,10 @@ struct MainView: View {
     private var workspace: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView()
-                .navigationSplitViewColumnWidth(min: 200, ideal: 225, max: 300)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 248, max: 320)
         } detail: {
             WorkspaceDetailView()
-                .frame(minWidth: 560)
+                .frame(minWidth: 600)
         }
         .toolbar {
             PrimaryJobToolbar(model: model)
@@ -81,23 +81,33 @@ struct WorkspaceDetailView: View {
 
     @ViewBuilder
     var body: some View {
-        switch model.selectedSection {
-        case .newJob, .none:
-            NewJobView()
-        case .configuration(let sectionID):
-            if let group = PipelineNavigationGroup.containing(sectionID: sectionID) {
-                PipelineConfigurationView(group: group, sectionID: sectionID)
-            } else {
-                ConfigSectionView(sectionID: sectionID)
+        ZStack {
+            AuralignStudioBackdrop()
+            Group {
+                switch model.selectedSection {
+                case .newJob, .none:
+                    NewJobView()
+                case .configuration(let sectionID):
+                    if let group = PipelineNavigationGroup.containing(
+                        sectionID: sectionID
+                    ) {
+                        PipelineConfigurationView(
+                            group: group,
+                            sectionID: sectionID
+                        )
+                    } else {
+                        ConfigSectionView(sectionID: sectionID)
+                    }
+                case .allParameters:
+                    AllParametersView()
+                case .readiness:
+                    ReadinessView()
+                case .processing:
+                    ProcessingView()
+                case .results:
+                    ResultsView()
+                }
             }
-        case .allParameters:
-            AllParametersView()
-        case .readiness:
-            ReadinessView()
-        case .processing:
-            ProcessingView()
-        case .results:
-            ResultsView()
         }
     }
 }
@@ -111,11 +121,12 @@ struct PrimaryJobToolbar: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             if model.job.showsCancellationAuthority {
-                Button {
+                Button(role: .destructive) {
                     model.job.cancel()
                 } label: {
                     Label("Cancel Job", systemImage: "stop.fill")
                 }
+                .buttonStyle(AuralignPrimaryActionButtonStyle(destructive: true))
                 .help("Stop the running transcription.")
                 .disabled(!model.job.canRequestCancellation)
                 .accessibilityIdentifier(AccessibilityIdentifier.primaryAction)
@@ -125,6 +136,7 @@ struct PrimaryJobToolbar: ToolbarContent {
                 } label: {
                     Label("Start Transcription", systemImage: "play.fill")
                 }
+                .buttonStyle(AuralignPrimaryActionButtonStyle())
                 .help(
                     model.startBlocker == nil
                         ? "Start transcription with the checked effective configuration."
@@ -235,6 +247,44 @@ struct PrimaryJobToolbar: ToolbarContent {
         }
     }
 
+    /// Mirrors the tone mapping `ReadinessView.decisionTone` applies to
+    /// `ReadinessLevel`, so the sidebar footer's status color agrees with the
+    /// Runtime & Models workspace rather than inventing a second scale.
+    var statusTone: AuralignStatusTone {
+        switch model.job.phase {
+        case .running, .resultPendingExit: return .active
+        case .stopping: return .warning
+        case .completed: return .success
+        case .failed: return .failure
+        case .cancelled: return .neutral
+        case .idle:
+            if model.selectedSection == .readiness {
+                switch model.readinessLevel {
+                case .unknown, .unavailable: return .neutral
+                case .checking: return .active
+                case .stale, .warnings: return .warning
+                case .ready: return .success
+                case .blocked: return .failure
+                }
+            }
+            switch model.startBlocker {
+            case .engineConnecting, .inputInspectionPending,
+                    .configurationValidating, .readinessChecking, .jobRunning:
+                return .active
+            case .resourceFailure, .noEngine, .configurationUnavailable:
+                return .failure
+            case .invalidInput, .invalidOutputRoot,
+                    .plannedJobDirectoryExists, .invalidConfiguration,
+                    .readinessBlocked, .noInput, .noOutputRoot, .readinessStale:
+                return .warning
+            case .readinessUnknown:
+                return .neutral
+            case nil:
+                return .success
+            }
+        }
+    }
+
     var primaryActionStatus: String {
         switch model.job.phase {
         case .running:
@@ -283,22 +333,19 @@ struct GlobalStatusFooter: View {
         Button {
             model.selectedSection = presentation.statusDestination
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: presentation.statusSymbol)
-                    .font(.caption.weight(.semibold))
-                    .frame(width: 16)
-                    .accessibilityHidden(true)
-                Text(presentation.compactStatusLabel)
-                    .font(.caption.weight(.medium))
-                    .lineLimit(1)
-                Spacer(minLength: 4)
+            HStack(spacing: AuralignVisualSystem.spacingS) {
+                AuralignStatusBadge(
+                    text: presentation.compactStatusLabel,
+                    tone: presentation.statusTone,
+                    symbol: presentation.statusSymbol
+                )
+                Spacer(minLength: AuralignVisualSystem.spacingXS)
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, AuralignVisualSystem.spacingM)
             .frame(height: 38)
             .contentShape(Rectangle())
         }
@@ -317,84 +364,76 @@ struct GlobalStatusFooter: View {
 
 struct SidebarView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
-            List(selection: destinationBinding) {
-                Section("Workflow") {
-                    Label("New Transcription", systemImage: "plus.square.on.square")
-                        .tag(SidebarDestination.newJob)
-                        .accessibilityIdentifier(
-                            AccessibilityIdentifier.navigation("new-job")
+            brand
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 18) {
+                    navigationGroup("FLOW", index: "01") {
+                        navigationButton(
+                            "New Transcription",
+                            symbol: "waveform.badge.plus",
+                            destination: .newJob,
+                            identifier: AccessibilityIdentifier.navigation("new-job")
                         )
-                    Label("Activity", systemImage: processingSymbol)
-                        .tag(SidebarDestination.processing)
-                        .accessibilityIdentifier(
-                            AccessibilityIdentifier.navigation("activity")
+                        navigationButton(
+                            "Activity",
+                            symbol: processingSymbol,
+                            destination: .processing,
+                            identifier: AccessibilityIdentifier.navigation("activity")
                         )
-                    Label("Results", systemImage: resultsSymbol)
-                        .tag(SidebarDestination.results)
-                        .accessibilityIdentifier(
-                            AccessibilityIdentifier.navigation("results")
+                        navigationButton(
+                            "Results",
+                            symbol: resultsSymbol,
+                            destination: .results,
+                            identifier: AccessibilityIdentifier.navigation("results")
                         )
-                }
-                Section("Configuration") {
-                    ForEach(PipelineNavigationGroup.allCases) { group in
-                        HStack {
-                            Label(group.title, systemImage: group.symbol)
-                            Spacer()
-                            if modifiedCount(group) > 0 {
-                                Text("\(modifiedCount(group))")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(Color.accentColor)
-                                    .monospacedDigit()
-                            }
-                        }
-                        .tag(SidebarDestination.pipeline(group))
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(group.title)
-                        .accessibilityValue(
-                            modifiedCount(group) == 0
-                                ? "No modified parameters"
-                                : "\(modifiedCount(group)) modified parameters"
-                        )
-                        .accessibilityIdentifier(
-                            AccessibilityIdentifier.navigation(
-                                "pipeline.\(group.rawValue)"
+                    }
+
+                    navigationGroup("DESIGN THE RUN", index: "02") {
+                        navigationButton(
+                            "Signal Setup",
+                            symbol: "point.3.connected.trianglepath.dotted",
+                            destination: .pipeline(.sourceAudio),
+                            count: modifiedCountAll,
+                            identifier: AccessibilityIdentifier.navigation(
+                                "pipeline.sourceAudio"
                             )
                         )
                     }
-                }
-                Section("Expert") {
-                    Label("Parameter Library", systemImage: "list.bullet.rectangle")
-                        .tag(SidebarDestination.allParameters)
-                        .accessibilityIdentifier(
-                            AccessibilityIdentifier.navigation(
+
+                    navigationGroup("SYSTEM", index: "03") {
+                        navigationButton(
+                            "Parameter Library",
+                            symbol: "slider.horizontal.3",
+                            destination: .allParameters,
+                            identifier: AccessibilityIdentifier.navigation(
                                 "parameter-library"
                             )
                         )
-                }
-                Section("System") {
-                    HStack {
-                        Label("Runtime & Models", systemImage: "cpu")
-                        Spacer()
-                        Image(systemName: model.readinessLevel.symbol)
-                            .foregroundStyle(model.readinessLevel.color)
-                            .font(.caption)
+                        navigationButton(
+                            "Runtime & Models",
+                            symbol: model.readinessLevel.symbol,
+                            destination: .readiness,
+                            status: model.readinessLevel.label,
+                            identifier: AccessibilityIdentifier.navigation(
+                                "runtime-models"
+                            )
+                        )
                     }
-                    .tag(SidebarDestination.readiness)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Runtime & Models")
-                    .accessibilityValue(model.readinessLevel.label)
-                    .accessibilityIdentifier(
-                        AccessibilityIdentifier.navigation("runtime-models")
-                    )
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 14)
             }
-            .listStyle(.sidebar)
-            Divider()
+
             GlobalStatusFooter(model: model)
+                .padding(10)
+                .background(.ultraThinMaterial)
         }
+        .background(sidebarBackground)
     }
 
     private enum SidebarDestination: Hashable {
@@ -406,21 +445,155 @@ struct SidebarView: View {
         case readiness
     }
 
-    private var destinationBinding: Binding<SidebarDestination?> {
-        Binding(
-            get: { selectedDestination },
-            set: { destination in
-                guard let destination else { return }
-                Task { @MainActor in
-                    // AppKit can invoke List's selection setter while SwiftUI
-                    // is still reconciling the sidebar. Route on the next task
-                    // turn so the ObservableObject is never published from
-                    // inside that view update.
-                    await Task.yield()
-                    navigate(to: destination)
+    private var brand: some View {
+        HStack(spacing: 11) {
+            AuralignSidebarBrandMark()
+
+            VStack(alignment: .leading, spacing: 2) {
+                // The product lockup is fixed brand artwork expressed as live
+                // text, not localized interface copy. Keep it stable under
+                // NSDoubleLocalizedStrings layout-stress captures.
+                Text(verbatim: "AURALIGN")
+                    .font(AuralignType.brandWordmark)
+                    .tracking(1.1)
+                Text(verbatim: "NEURAL AUDIO\nINTELLIGENCE")
+                    .font(AuralignType.brandDescriptor)
+                    .tracking(1.2)
+                    .lineSpacing(0)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 18)
+        .padding(.bottom, 12)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Auralign, neural audio intelligence")
+    }
+
+    private var sidebarBackground: some View {
+        ZStack {
+            if colorScheme == .dark {
+                Color(red: 0.048, green: 0.044, blue: 0.075)
+            } else {
+                Color(red: 0.965, green: 0.975, blue: 0.988)
+            }
+            LinearGradient(
+                colors: [
+                    AuralignSpectrumStop.source.color.opacity(
+                        colorScheme == .dark ? 0.11 : 0.08
+                    ),
+                    Color.clear,
+                    AuralignSpectrumStop.alignment.color.opacity(
+                        colorScheme == .dark ? 0.13 : 0.09
+                    )
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    private func navigationGroup<Content: View>(
+        _ title: String,
+        index: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                Text(index)
+                    .font(AuralignType.sectionIndex)
+                    .foregroundStyle(AuralignSpectrumStop.alignment.color)
+                Text(title)
+                    .font(AuralignType.badge.weight(.bold))
+                    .tracking(1.25)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 9)
+            .accessibilityHidden(true)
+
+            content()
+        }
+    }
+
+    private func navigationButton(
+        _ title: String,
+        symbol: String,
+        destination: SidebarDestination,
+        count: Int = 0,
+        status: String? = nil,
+        identifier: String
+    ) -> some View {
+        let isSelected = selectedDestination == destination
+        return Button {
+            navigate(to: destination)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(width: 18)
+                    .foregroundStyle(
+                        isSelected
+                            ? AuralignSpectrumStop.alignment.color
+                            : Color.secondary
+                    )
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(AuralignType.navigation(selected: isSelected))
+                        .foregroundStyle(Color.primary)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                    if let status {
+                        Text(status)
+                            .font(AuralignType.badge)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 6)
+                if count > 0 {
+                    Text("\(count)")
+                        .font(AuralignType.navigationCount)
+                        .foregroundStyle(AuralignSpectrumStop.delivery.color)
+                }
+                if isSelected {
+                    Circle()
+                        .fill(AuralignSpectrumStop.source.color)
+                        .frame(width: 5, height: 5)
+                        .accessibilityHidden(true)
                 }
             }
+            .padding(.horizontal, 10)
+            .frame(minHeight: status == nil ? 34 : 42)
+            .contentShape(RoundedRectangle(cornerRadius: 9))
+            .background {
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(
+                        isSelected
+                            ? AuralignSpectrumStop.alignment.color.opacity(0.17)
+                            : Color.clear
+                    )
+            }
+            .overlay(alignment: .leading) {
+                if isSelected {
+                    Capsule()
+                        .fill(AuralignSpectrumStop.alignment.color)
+                        .frame(width: 2.5, height: 18)
+                        .padding(.leading, 1)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(
+            status
+                ?? (count == 0
+                    ? (isSelected ? "Selected" : "")
+                    : "\(count) modified parameters")
         )
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .accessibilityIdentifier(identifier)
     }
 
     private var selectedDestination: SidebarDestination? {
@@ -436,8 +609,9 @@ struct SidebarView: View {
         case .readiness:
             return .readiness
         case .configuration(let sectionID):
-            return PipelineNavigationGroup.containing(sectionID: sectionID)
-                .map(SidebarDestination.pipeline)
+            return PipelineNavigationGroup.containing(sectionID: sectionID) == nil
+                ? nil
+                : .pipeline(.sourceAudio)
         }
     }
 
@@ -462,8 +636,9 @@ struct SidebarView: View {
         }
     }
 
-    private func modifiedCount(_ group: PipelineNavigationGroup) -> Int {
-        group.sectionIDs
+    private var modifiedCountAll: Int {
+        PipelineNavigationGroup.allCases
+            .flatMap(\.sectionIDs)
             .flatMap(model.catalog.entries(inSection:))
             .filter { model.config.isModified($0.key) }
             .count

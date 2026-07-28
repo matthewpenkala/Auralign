@@ -32,10 +32,10 @@ private func srgb(
 /// The Auralign identity spectrum.
 ///
 /// The four stops are ordered as the product's own story — a source becomes
-/// recognized speech, is aligned, and is delivered as artifacts. The spectrum
-/// is therefore *positional*: a stop only appears where the corresponding real
-/// stage or evidence exists. It is never used as an ambient wallpaper wash,
-/// which would reduce it to the "rainbow AI dashboard" the guardrails reject.
+/// recognized speech, is aligned, and is delivered as artifacts. Exact
+/// evidence views use that position literally; ambient studio surfaces may
+/// abstract the spectrum into a restrained atmosphere without implying
+/// measurements the engine did not report.
 enum AuralignSpectrumStop: Int, CaseIterable, Equatable {
     case source
     case recognition
@@ -250,28 +250,119 @@ enum AuralignBreakpoint {
 
     /// Maximum measure for single-column reading content.
     static let readingMaxWidth: CGFloat = 780
+
+    /// The expert browser's three columns total 902 points
+    /// including dividers. Leave breathing room before adopting that layout.
+    static let parameterLibrary: CGFloat = 940
 }
 
 // MARK: - Typography
 
-/// A disciplined type ladder. Every scale maps to a system text style so
-/// Dynamic Type and enlarged-text settings continue to work.
+/// Auralign's type system, built from two system font designs.
+///
+/// The families are system-provided font designs, not bundled font files:
+///
+/// - Default SF gives display titles, navigation, compact headings, and short state language
+///   a precise, non-rounded macOS voice without changing native metrics.
+/// - Default remains the calm interface and transcript face; measure and
+///   leading distinguish those roles.
+/// - Monospaced distinguishes exact evidence and keeps changing values stable.
+///
+/// Every role starts from a semantic text style so enlarged-text settings,
+/// script-specific fallback, and localization continue to work. Keep exact
+/// point sizes limited to SF Symbols and other non-text geometry.
 enum AuralignType {
-    /// Reserved for the single hero value or state name on a surface.
-    static let display = Font.system(.largeTitle, design: .default).weight(.semibold)
-    static let pageTitle = Font.title2.weight(.semibold)
-    static let sectionTitle = Font.headline
+    // MARK: Product voice
+
+    /// The single dominant state or object name on a workspace.
+    ///
+    /// Large utility/setup titles use non-rounded system SF, consistent with
+    /// every human-readable product title while retaining semantic sizing.
+    static let display =
+        Font.system(.largeTitle, design: .default).weight(.semibold)
+
+    /// Major state within a workspace, empty state, setup, or recovery screen.
+    static let pageTitle = Font.system(.title2, design: .default).weight(.semibold)
+
+    /// Coherent studio-plane or inspector title.
+    static let workspaceTitle = Font.system(.title3, design: .default).weight(.semibold)
+
+    /// Compact section or disclosure heading.
+    static let sectionTitle = Font.system(.headline, design: .default).weight(.semibold)
+
+    /// Short all-caps studio label. Tracking is applied only at the call site
+    /// when the source string is intentionally authored for that treatment.
+    static let eyebrow = Font.system(.caption, design: .default).weight(.bold)
+
+    /// Auralign wordmark rendered as live, accessible text. The title-three
+    /// scale makes its optical width meet the two-line instrument descriptor
+    /// at sidebar size without turning the lockup into a second page heading.
+    static let brandWordmark =
+        Font.system(.title3, design: .default).weight(.bold)
+
+    /// Short active-state and badge language.
+    static let status = Font.system(.caption, design: .default).weight(.medium)
+    static let badge = Font.system(.caption2, design: .default).weight(.semibold)
+
+    /// Native-looking primary and secondary action labels.
+    static let button = Font.system(.callout, design: .default).weight(.semibold)
+
+    static func navigation(selected: Bool) -> Font {
+        Font.system(.callout, design: .default)
+            .weight(selected ? .semibold : .regular)
+    }
+
+    static func phaseLabel(selected: Bool) -> Font {
+        Font.system(.caption, design: .default)
+            .weight(selected ? .semibold : .regular)
+    }
+
+    // MARK: Interface voice — system default
+
+    static let body = Font.system(.callout, design: .default)
+    static let bodyEmphasis = Font.callout.weight(.semibold)
+    static let control = Font.callout
+    static let controlEmphasis = Font.callout.weight(.semibold)
     static let rowTitle = Font.callout.weight(.medium)
     static let evidence = Font.callout
+    static let evidenceEmphasis = Font.callout.weight(.medium)
     static let metadata = Font.caption
     static let metadataStrong = Font.caption.weight(.medium)
+    static let microcopy = Font.caption2
 
-    /// Canonical keys, revisions, hashes, and exact paths.
-    static let mono = Font.system(.caption, design: .monospaced)
+    // MARK: Instrument voice — system monospaced
 
-    /// Durations, timestamps, counts — anything that should align in a column.
-    static let numeric = Font.callout.monospacedDigit()
-    static let numericSmall = Font.caption.monospacedDigit()
+    /// Secondary brand descriptor: it signals a local technical instrument
+    /// without turning ordinary navigation or prose into code.
+    static let brandDescriptor =
+        Font.system(.caption2, design: .monospaced).weight(.medium)
+
+    /// Decorative section indices and compact technical counters.
+    static let sectionIndex =
+        Font.system(.caption2, design: .monospaced).weight(.bold)
+    static let navigationCount =
+        Font.system(.caption2, design: .monospaced).weight(.bold)
+
+    /// Canonical identifiers and diagnostic values at body, caption, and
+    /// microcopy scales.
+    static let technicalBody = Font.system(.callout, design: .monospaced)
+    static let technical = Font.system(.caption, design: .monospaced)
+    static let technicalSmall = Font.system(.caption2, design: .monospaced)
+
+    /// Backward-compatible semantic name for exact keys, revisions, hashes,
+    /// and paths. New call sites should prefer the scale-specific names above.
+    static let mono = technical
+
+    /// Durations, timestamps, counts, and other instrument readouts.
+    static let numeric = Font.system(.callout, design: .monospaced)
+    static let numericSmall = Font.system(.caption, design: .monospaced)
+
+    // MARK: Reading voice — system default
+
+    /// Human-language transcript content only. Its semantic body scale,
+    /// constrained measure, and generous leading create the reading voice;
+    /// technical logs and diagnostics remain monospaced.
+    static let transcript = Font.system(.body, design: .default)
 }
 
 // MARK: - Motion

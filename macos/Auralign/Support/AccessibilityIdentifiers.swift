@@ -38,7 +38,6 @@ enum AccessibilityIdentifier {
     static let outputJobFolder = "output.job-folder"
     static let debugReport = "job.debug-report"
     static let runPlan = "job.run-plan"
-    static let runPlanStages = "job.run-plan.stages"
     static let nextSafeAction = "job.next-safe-action"
     static let resultsTranscript = "results.transcript"
     static let resultsTranscriptTruncated = "results.transcript.truncated"
@@ -162,10 +161,6 @@ enum AccessibilityIdentifier {
 
     static func parameterRow(_ key: String) -> String {
         "parameters.row.\(key)"
-    }
-
-    static func runPlanStage(_ stageID: String) -> String {
-        "job.run-plan.stage.\(stageID)"
     }
 
     /// One phase of the alignment canvas. The phase title is a fixed

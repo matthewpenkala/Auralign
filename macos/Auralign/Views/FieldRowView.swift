@@ -117,20 +117,14 @@ struct FieldRowView: View {
 
     private var titleView: some View {
         HStack(spacing: 6) {
-            if isModified {
-                Text("Modified")
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .overlay {
-                        Capsule().stroke(Color.accentColor, lineWidth: 1)
-                    }
+            if effectiveDiffersFromDefault {
+                AuralignModifiedBadge()
             }
             Text(entry.title)
-                .fontWeight(isModified ? .medium : .regular)
+                .font(AuralignType.rowTitle)
             if entry.isExperimental {
                 Text("EXPERIMENTAL")
-                    .font(.caption2.weight(.semibold))
+                    .font(AuralignType.badge)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
                     .background(Color.orange.opacity(0.18), in: Capsule())
@@ -147,6 +141,34 @@ struct FieldRowView: View {
                     )
             }
         }
+        .help(rowTooltip)
+    }
+
+    /// The one fact operators actually want when scanning a dense list: does
+    /// the effective value differ from the engine's schema default? This is
+    /// deliberately broader than `isModified` (an active override), since a
+    /// preset alone can also carry a field away from its schema default.
+    private var effectiveDiffersFromDefault: Bool {
+        effective != field.default
+    }
+
+    /// The schema key and numeric constraints move here instead of their own
+    /// promoted text line — the parameter row rule demotes debug identifiers
+    /// below the human label a scanning list actually reads.
+    private var rowTooltip: String {
+        var parts = [field.key]
+        if let range = field.rangeDescription {
+            parts.append("Range \(range)")
+        }
+        if isModified {
+            parts.append("Preset value \(config.presetValue(field.key).displayText)")
+        } else if !config.isManaged(field.key),
+                  config.presetValue(field.key) != field.default {
+            parts.append(
+                "Preset overrides engine default \(field.default.displayText)"
+            )
+        }
+        return parts.joined(separator: " · ")
     }
 
     @ViewBuilder
@@ -154,31 +176,18 @@ struct FieldRowView: View {
         VStack(alignment: .leading, spacing: 2) {
             if !compact {
                 Text(entry.help)
-                    .font(.caption)
+                    .font(AuralignType.metadata)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: 8) {
-                if let range = field.rangeDescription {
-                    Text(range).font(.caption2).foregroundStyle(.tertiary)
-                }
-                if isModified {
-                    Text("Preset: \(config.presetValue(field.key).displayText)")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                } else if config.isManaged(field.key) {
-                    Text("Managed by the installed application")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                } else if config.presetValue(field.key) != field.default {
-                    Text("Preset override · engine default: \(field.default.displayText)")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+            if config.isManaged(field.key) {
+                Text("Managed by the installed application")
+                    .font(AuralignType.microcopy)
+                    .foregroundStyle(.tertiary)
             }
             if let requirement = unmetRequirement {
                 Text(requirementExplanation(requirement))
-                    .font(.caption)
+                    .font(AuralignType.metadata)
                     .foregroundStyle(.secondary)
                     .italic()
             }
@@ -193,14 +202,17 @@ struct FieldRowView: View {
             }
             ForEach(Array(fieldErrors.enumerated()), id: \.element.id) {
                 index, error in
-                errorText(error.message, suffix: "engine.\(index)")
+                errorText(
+                    model.privacySafePresentationMessage(error.message),
+                    suffix: "engine.\(index)"
+                )
             }
         }
     }
 
     private func errorText(_ message: String, suffix: String) -> some View {
         Label(message, systemImage: "exclamationmark.circle.fill")
-            .font(.caption)
+            .font(AuralignType.metadata)
             .foregroundStyle(.red)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier(
@@ -223,7 +235,7 @@ struct FieldRowView: View {
                 )
                 .foregroundStyle(.tertiary)
             }
-            .font(.caption)
+            .font(AuralignType.metadata)
             .foregroundStyle(selectedModelEntry.isRuntimeSelectable ? Color.secondary : Color.red)
             .fixedSize(horizontal: false, vertical: true)
         } else if effective.stringValue != nil {
@@ -556,7 +568,9 @@ struct FieldRowView: View {
                     )
                 }
                 if let unit = entry.unit, unit != "directory" {
-                    Text(unit).font(.caption).foregroundStyle(.secondary)
+                    Text(unit)
+                        .font(AuralignType.metadata)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -739,14 +753,14 @@ struct PathControl: View {
         HStack(spacing: 6) {
             if let value {
                 Text(abbreviate(value))
-                    .font(.callout)
+                    .font(AuralignType.technicalBody)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .frame(maxWidth: 200, alignment: .trailing)
                     .help(value)
             } else {
                 Text(optional ? "Not set" : "Required")
-                    .font(.callout)
+                    .font(AuralignType.control)
                     .foregroundStyle(.secondary)
             }
             Button("Choose…") { choose() }
@@ -815,7 +829,7 @@ struct PathListControl: View {
                     let path = values[index]
                 HStack(spacing: 6) {
                     Text((path as NSString).abbreviatingWithTildeInPath)
-                        .font(.callout)
+                        .font(AuralignType.technicalBody)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .help(path)
@@ -921,7 +935,7 @@ struct NumericDraftTextField: View {
             .textFieldStyle(.roundedBorder)
             .frame(width: width)
             .multilineTextAlignment(.trailing)
-            .monospacedDigit()
+            .font(AuralignType.numeric)
             .focused($focused)
             .accessibilityFocused($accessibilityFocused)
             .accessibilityHint(Text(accessibilityHint))

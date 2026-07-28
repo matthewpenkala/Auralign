@@ -35,6 +35,7 @@ struct ReadinessView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXL) {
                         pageHeader
+                        offlineCoreMap
                         decisionPanel(proxy: proxy)
                         evidenceLayout(
                             showsSideInspector: geometry.size.width >= 900,
@@ -78,14 +79,18 @@ struct ReadinessView: View {
     }
 
     private var pageHeader: some View {
-        AuralignPageHeader(
-            title: "Runtime & Models",
-            subtitle:
-                "Accepted local evidence for the exact effective configuration. "
-                + "Explicit setup can install exact verified model packs; "
-                + "readiness and processing never download automatically.",
-            symbol: "cpu"
+        AuralignWorkspaceHeader(
+            symbol: "cpu",
+            accessibilityHeading: "Runtime & Models"
         ) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(engineConnectionText)
+                    .font(AuralignType.rowTitle)
+                Text("Preset: \(model.config.selectedPreset.capitalized)")
+                    .font(AuralignType.metadata)
+                    .foregroundStyle(.secondary)
+            }
+        } accessory: {
             if model.isRunningDoctor {
                 if reduceMotion {
                     Image(systemName: "clock")
@@ -106,53 +111,195 @@ struct ReadinessView: View {
         }
     }
 
-    private func decisionPanel(proxy: ScrollViewProxy) -> some View {
-        HStack(alignment: .top, spacing: AuralignVisualSystem.spacingM) {
-            Image(systemName: decision.level.symbol)
-                .font(.title3)
-                .foregroundStyle(decisionTone.color)
-                .frame(width: 24)
-                .accessibilityHidden(true)
+    private var engineConnectionText: String {
+        if model.isConnectingEngine { return "Connecting to local engine…" }
+        if model.bridge != nil, model.handshake != nil {
+            return "Engine connected · \(model.engineVersionText)"
+        }
+        return "Engine not connected"
+    }
 
-            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
-                Text(decision.headline)
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier(AccessibilityIdentifier.readinessHeadline)
+    /// A representative system topology, not a diagnostic graph. Its four
+    /// nodes are driven by the accepted evidence summaries below; the exact
+    /// ledger remains the textual authority.
+    private var offlineCoreMap: some View {
+        AuralignStudioPanel(accent: .source) {
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("OFFLINE CORE")
+                            .font(AuralignType.eyebrow)
+                            .tracking(1.45)
+                            .foregroundStyle(.secondary)
+                        Text("One sealed local system")
+                            .font(AuralignType.workspaceTitle)
+                    }
+                    Spacer()
+                    Text(decision.level.label.uppercased())
+                        .font(AuralignType.badge.weight(.bold))
+                        .tracking(1.1)
+                        .foregroundStyle(decisionTone.color)
+                }
 
-                Text(decision.explanation)
-                    .font(.callout)
+                GeometryReader { geometry in
+                    Canvas { context, size in
+                        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                        for index in 0..<min(facetValues.count, 4) {
+                            var path = Path()
+                            path.move(to: center)
+                            path.addLine(to: coreNodePoint(index, in: size))
+                            context.stroke(
+                                path,
+                                with: .color(
+                                    facetValues[index].tone.color.opacity(0.38)
+                                ),
+                                style: StrokeStyle(
+                                    lineWidth: 1,
+                                    dash: [4, 6]
+                                )
+                            )
+                        }
+                    }
+                    .accessibilityHidden(true)
+
+                    ZStack {
+                        coreSeal
+                            .position(
+                                x: geometry.size.width / 2,
+                                y: geometry.size.height / 2
+                            )
+                        ForEach(Array(facetValues.prefix(4).enumerated()), id: \.element.id) {
+                            index, facet in
+                            coreNode(facet)
+                                .position(coreNodePoint(index, in: geometry.size))
+                        }
+                    }
+                    .accessibilityHidden(true)
+                }
+                .frame(height: 238)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "Offline core. "
+                + facetValues.prefix(4)
+                .map { "\($0.title): \($0.value)" }
+                .joined(separator: ". ")
+        )
+    }
+
+    private var coreSeal: some View {
+        AuralignCoreLens(
+            tone: decisionTone,
+            symbol: decision.level.symbol,
+            connectorColors: Array(
+                facetValues.prefix(4).map { $0.tone.color }
+            ),
+            isActiveOperation:
+                model.isConnectingEngine || model.isRunningDoctor
+        )
+    }
+
+    private func coreNode(_ facet: ReadinessFacet) -> some View {
+        HStack(spacing: 9) {
+            ZStack {
+                Circle()
+                    .fill(facet.tone.color.opacity(0.14))
+                    .frame(width: 34, height: 34)
+                Image(systemName: facet.symbol)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(facet.tone.color)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(facet.title)
+                    .font(AuralignType.status)
+                    .lineLimit(1)
+                Text(facet.value)
+                    .font(AuralignType.microcopy)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 11)
+        .frame(width: 168, height: 52, alignment: .leading)
+        .background(
+            AuralignSurface.raised,
+            in: RoundedRectangle(cornerRadius: AuralignRadius.group)
+        )
+    }
 
-                if let cause = decision.cause {
-                    Text(cause)
-                        .font(.callout.weight(.medium))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+    private func coreNodePoint(_ index: Int, in size: CGSize) -> CGPoint {
+        switch index {
+        case 0:
+            return CGPoint(x: 92, y: 50)
+        case 1:
+            return CGPoint(x: size.width - 92, y: 50)
+        case 2:
+            return CGPoint(x: 92, y: size.height - 50)
+        default:
+            return CGPoint(x: size.width - 92, y: size.height - 50)
+        }
+    }
 
-                if decision.recovery == .refresh {
-                    Text("Use Refresh Readiness in the toolbar to collect current evidence.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+    private func decisionPanel(proxy: ScrollViewProxy) -> some View {
+        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
+            AuralignCausalityBanner(
+                headline: decision.headline,
+                detail: decisionDetail,
+                tone: decisionTone,
+                symbol: decision.level.symbol
+            )
+            .accessibilityIdentifier(AccessibilityIdentifier.readinessHeadline)
+
+            // Only the states whose accepted evidence was itself rejected
+            // (malformed/partial/inconsistent) get this row — a plain blocking
+            // check or missing model never populates `doctorEvidenceFailure`/
+            // `modelEvidenceFailure`, so this keeps that class of state
+            // structurally distinct above the fold rather than sharing the
+            // blocked banner's exact shape.
+            if let promotedFailure {
+                evidenceFailureRow(promotedFailure)
+                    .padding(AuralignVisualSystem.spacingM)
+                    .background(Color.primary.opacity(0.035))
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: AuralignVisualSystem.cornerRadius)
+                    )
             }
 
-            Spacer(minLength: AuralignVisualSystem.spacingM)
-            recoveryControl(proxy: proxy)
+            if recoveryControlIsVisible {
+                recoveryControl(proxy: proxy)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
         }
-        .padding(AuralignVisualSystem.spacingM)
-        .background(decisionTone.color.opacity(0.08))
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(decisionTone.color)
-                .frame(width: 3)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: AuralignVisualSystem.cornerRadius))
         .accessibilityElement(children: .contain)
         .accessibilityFocused($summaryAccessibilityFocused)
         .accessibilityIdentifier(AccessibilityIdentifier.readinessSummary)
         .id(AccessibilityIdentifier.readinessSummary)
+    }
+
+    private var decisionDetail: String {
+        var lines = [decision.explanation]
+        if let cause = decision.cause {
+            lines.append(cause)
+        }
+        if decision.recovery == .refresh {
+            lines.append("Use Refresh Readiness in the toolbar to collect current evidence.")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// The one rejected-evidence fact, when the current decision is actually
+    /// caused by unusable doctor/model evidence rather than an ordinary
+    /// blocking check or missing model.
+    private var promotedFailure: ReadinessEvidenceFailure? {
+        model.doctorEvidenceFailure ?? model.modelEvidenceFailure
+    }
+
+    private var recoveryControlIsVisible: Bool {
+        switch decision.recovery {
+        case .none, .refresh: return false
+        default: return true
+        }
     }
 
     @ViewBuilder
@@ -206,10 +353,7 @@ struct ReadinessView: View {
     ) -> some View {
         if showsSideInspector {
             HStack(alignment: .top, spacing: AuralignVisualSystem.spacingXL) {
-                primaryEvidence(
-                    facetColumnCount: selectedEvidence == nil ? 4 : 2,
-                    proxy: proxy
-                )
+                primaryEvidence(proxy: proxy)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
 
                 if let selectedEvidence {
@@ -220,7 +364,7 @@ struct ReadinessView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXL) {
-                primaryEvidence(facetColumnCount: 2, proxy: proxy)
+                primaryEvidence(proxy: proxy)
                 if let selectedEvidence {
                     AuralignSection(
                         title: "Selected Evidence",
@@ -233,30 +377,25 @@ struct ReadinessView: View {
         }
     }
 
-    private func primaryEvidence(
-        facetColumnCount: Int,
-        proxy: ScrollViewProxy
-    ) -> some View {
+    private func primaryEvidence(proxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXL) {
-            facets(columnCount: facetColumnCount)
+            facets()
             requiredModels(proxy: proxy)
             doctorEvidence(proxy: proxy)
         }
     }
 
-    private func facets(columnCount: Int) -> some View {
+    /// Four accepted-evidence facts as a real differentiated list rather than
+    /// a grid of equal-weight tiles distinguished only by a small glyph: each
+    /// row's swatch, trailing value, and metadata line all vary with the
+    /// real `AuralignStatusTone`, and every row stays legible in greyscale
+    /// because status is also carried as explicit text, not fill alone.
+    private func facets() -> some View {
         AuralignSection(
             title: "Readiness Evidence",
             subtitle: "Summary first; exact causes and provenance remain inspectable below."
         ) {
-            LazyVGrid(
-                columns: Array(
-                    repeating: GridItem(.flexible(minimum: 0), spacing: 12),
-                    count: columnCount
-                ),
-                alignment: .leading,
-                spacing: 12
-            ) {
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
                 ForEach(facetValues) { facet in
                     facetView(facet)
                 }
@@ -353,29 +492,18 @@ struct ReadinessView: View {
     }
 
     private func facetView(_ facet: ReadinessFacet) -> some View {
-        HStack(alignment: .top, spacing: AuralignVisualSystem.spacingS) {
-            Image(systemName: facet.symbol)
-                .foregroundStyle(facet.tone.color)
-                .frame(width: 20)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(facet.title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        AuralignMediaRow(
+            title: facet.title,
+            metadata: facet.detail,
+            swatch: auralignMediaRowSwatch(symbol: facet.symbol, tint: facet.tone.color),
+            trailing: {
                 Text(facet.value)
-                    .font(.callout.weight(.semibold))
-                Text(facet.detail)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(AuralignVisualSystem.spacingM)
-        .frame(maxWidth: .infinity, minHeight: 86, alignment: .topLeading)
-        .background(Color.primary.opacity(0.035))
-        .clipShape(RoundedRectangle(cornerRadius: AuralignVisualSystem.cornerRadius))
-        .accessibilityElement(children: .combine)
+                    .font(AuralignType.rowTitle)
+                    .foregroundStyle(facet.tone.color)
+                    .multilineTextAlignment(.trailing)
+            },
+            action: nil
+        )
         .accessibilityLabel(facet.title)
         .accessibilityValue("\(facet.value). \(facet.detail)")
         .accessibilityIdentifier(AccessibilityIdentifier.readinessFacet(facet.id))
@@ -387,42 +515,41 @@ struct ReadinessView: View {
             subtitle:
                 "Only models selected by the effective configuration can establish readiness."
         ) {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
                 if let failure = model.modelEvidenceFailure {
                     evidenceFailureRow(failure)
                 } else if selectedStatuses.isEmpty {
                     Text("Required-model evidence has not been accepted for this configuration.")
-                        .font(.callout)
+                        .font(AuralignType.body)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     ForEach(selectedStatuses) { status in
                         modelRow(status, required: true, proxy: proxy)
-                        if status.id != selectedStatuses.last?.id {
-                            Divider().opacity(0.5)
-                        }
                     }
                 }
 
                 if !otherStatuses.isEmpty {
-                    Divider().padding(.top, AuralignVisualSystem.spacingS)
                     DisclosureGroup(
                         "Other reviewed models (\(otherStatuses.count))",
                         isExpanded: $otherModelsExpanded
                     ) {
-                        VStack(alignment: .leading, spacing: 0) {
+                        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
                             ForEach(otherStatuses) { status in
                                 modelRow(status, required: false, proxy: proxy)
                             }
                         }
                         .padding(.top, AuralignVisualSystem.spacingS)
                     }
-                    .font(.callout)
+                    .font(AuralignType.body)
                 }
             }
         }
     }
 
+    /// A list-of-facts row (installed models) as `AuralignMediaRow`: swatch
+    /// tint and trailing text both carry the real `AuralignStatusTone`, so a
+    /// row's state is never distinguished only by its 20pt glyph.
     private func modelRow(
         _ status: ModelCacheStatus,
         required: Bool,
@@ -431,50 +558,31 @@ struct ReadinessView: View {
         let state = modelPresentation(status, required: required)
         let selection = ReadinessEvidenceSelection.model(status.id)
         let entry = manifestEntry(for: status)
+        let metadata = [status.role, status.modelId, status.gated ? "Gated terms" : nil]
+            .compactMap { $0 }
+            .joined(separator: " · ")
 
         return Button {
             selectEvidence(selection, proxy: proxy)
         } label: {
-            HStack(alignment: .top, spacing: AuralignVisualSystem.spacingM) {
-                Image(systemName: state.symbol)
-                    .foregroundStyle(state.tone.color)
-                    .frame(width: 20)
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: AuralignVisualSystem.spacingS) {
-                        Text(entry?.key ?? status.key)
-                            .font(.callout.weight(.semibold))
-                        Text(status.role)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        if status.gated {
-                            Text("Gated terms")
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(.orange)
-                        }
-                    }
-                    Text(status.modelId)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-
-                Spacer(minLength: AuralignVisualSystem.spacingM)
-
-                Text(state.label)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(state.tone.color)
-                    .multilineTextAlignment(.trailing)
-            }
-            .contentShape(Rectangle())
-            .padding(.vertical, 9)
-            .padding(.horizontal, AuralignVisualSystem.spacingS)
-            .background(
-                selectedEvidence == selection
-                    ? Color.accentColor.opacity(0.09) : Color.clear
+            AuralignMediaRow(
+                title: entry?.key ?? status.key,
+                metadata: metadata,
+                swatch: auralignMediaRowSwatch(symbol: state.symbol, tint: state.tone.color),
+                trailing: {
+                    Text(state.label)
+                        .font(AuralignType.metadataStrong)
+                        .foregroundStyle(state.tone.color)
+                        .multilineTextAlignment(.trailing)
+                },
+                action: nil
             )
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                if selectedEvidence == selection {
+                    RoundedRectangle(cornerRadius: AuralignRadius.group)
+                        .stroke(Color.accentColor, lineWidth: 2)
+                }
+            }
         }
         .buttonStyle(.plain)
         .focused($focusedEvidence, equals: selection)
@@ -508,22 +616,19 @@ struct ReadinessView: View {
                             "Previous report shown for context; it does not describe the current configuration.",
                             systemImage: "arrow.clockwise.circle"
                         )
-                        .font(.callout)
+                        .font(AuralignType.body)
                         .foregroundStyle(.orange)
                     } else if issueChecks.isEmpty {
                         Label(
                             "No blocking or warning checks.",
                             systemImage: "checkmark.circle.fill"
                         )
-                        .font(.callout)
+                        .font(AuralignType.body)
                         .foregroundStyle(.green)
                     } else {
-                        VStack(alignment: .leading, spacing: 0) {
+                        VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
                             ForEach(issueChecks) { check in
                                 checkRow(check, proxy: proxy)
-                                if check.id != issueChecks.last?.id {
-                                    Divider().opacity(0.5)
-                                }
                             }
                         }
                     }
@@ -533,21 +638,21 @@ struct ReadinessView: View {
                             "Passed and informational checks (\(passedChecks.count))",
                             isExpanded: $passedExpanded
                         ) {
-                            VStack(alignment: .leading, spacing: 0) {
+                            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
                                 ForEach(passedChecks) { check in
                                     checkRow(check, proxy: proxy)
                                 }
                             }
                             .padding(.top, AuralignVisualSystem.spacingS)
                         }
-                        .font(.callout)
+                        .font(AuralignType.body)
                         .accessibilityIdentifier(
                             AccessibilityIdentifier.readinessPassedDisclosure
                         )
                     }
                 } else {
                     Text("Runtime checks have not produced accepted evidence.")
-                        .font(.callout)
+                        .font(AuralignType.body)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -558,7 +663,7 @@ struct ReadinessView: View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingXS) {
             if decision.level == .stale {
                 Text("Previous report")
-                    .font(.caption.weight(.semibold))
+                    .font(AuralignType.metadataStrong)
             }
             HStack(spacing: AuralignVisualSystem.spacingL) {
                 Label(
@@ -576,12 +681,16 @@ struct ReadinessView: View {
                 )
             }
         }
-        .font(.caption)
+        .font(AuralignType.numericSmall)
         .foregroundStyle(.secondary)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(AccessibilityIdentifier.readinessCounts)
     }
 
+    /// A list-of-facts row (runtime dependency checks) as `AuralignMediaRow`.
+    /// The full check message remains available, with text selection, in the
+    /// evidence inspector once a row is selected — this scanning row only
+    /// needs to say enough to tell rows apart.
     private func checkRow(
         _ check: DoctorCheck,
         proxy: ScrollViewProxy
@@ -591,33 +700,23 @@ struct ReadinessView: View {
         return Button {
             selectEvidence(selection, proxy: proxy)
         } label: {
-            HStack(alignment: .top, spacing: AuralignVisualSystem.spacingM) {
-                Image(systemName: state.symbol)
-                    .foregroundStyle(state.tone.color)
-                    .frame(width: 20)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(userFacingCheckTitle(check))
-                        .font(.callout.weight(.semibold))
-                    Text(safeMessage(check.message))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                }
-                Spacer(minLength: AuralignVisualSystem.spacingM)
-                Text(state.label)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(state.tone.color)
-            }
-            .contentShape(Rectangle())
-            .padding(.vertical, 9)
-            .padding(.horizontal, AuralignVisualSystem.spacingS)
-            .background(
-                selectedEvidence == selection
-                    ? Color.accentColor.opacity(0.09) : Color.clear
+            AuralignMediaRow(
+                title: userFacingCheckTitle(check),
+                metadata: safeMessage(check.message),
+                swatch: auralignMediaRowSwatch(symbol: state.symbol, tint: state.tone.color),
+                trailing: {
+                    Text(state.label)
+                        .font(AuralignType.metadataStrong)
+                        .foregroundStyle(state.tone.color)
+                },
+                action: nil
             )
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                if selectedEvidence == selection {
+                    RoundedRectangle(cornerRadius: AuralignRadius.group)
+                        .stroke(Color.accentColor, lineWidth: 2)
+                }
+            }
         }
         .buttonStyle(.plain)
         .focused($focusedEvidence, equals: selection)
@@ -635,28 +734,29 @@ struct ReadinessView: View {
     }
 
     private func evidenceFailureRow(_ failure: ReadinessEvidenceFailure) -> some View {
-        HStack(alignment: .top, spacing: AuralignVisualSystem.spacingM) {
+        let tone: AuralignStatusTone = failure.kind == .unavailable ? .neutral : .failure
+        return HStack(alignment: .top, spacing: AuralignVisualSystem.spacingM) {
             Image(
                 systemName: failure.kind == .unavailable
                     ? "bolt.slash" : "xmark.octagon.fill"
             )
-            .foregroundStyle(failure.kind == .unavailable ? Color.gray : Color.red)
+            .foregroundStyle(tone.color)
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(failure.summary)
-                    .font(.callout.weight(.semibold))
+                    .font(AuralignType.rowTitle)
                 Text("Evidence classification: \(failure.kind.label).")
-                    .font(.caption)
+                    .font(AuralignType.metadata)
                     .foregroundStyle(.secondary)
                 if let detail = failure.technicalDetail {
                     DisclosureGroup("Technical detail") {
                         Text(safeMessage(detail))
-                            .font(.caption.monospaced())
+                            .font(AuralignType.technical)
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .font(.caption)
+                    .font(AuralignType.metadata)
                 }
             }
         }
@@ -668,7 +768,7 @@ struct ReadinessView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
             Text("Evidence Detail")
-                .font(.headline)
+                .font(AuralignType.sectionTitle)
                 .accessibilityAddTraits(.isHeader)
             Divider()
             evidenceInspectorContent(selection, proxy: proxy)
@@ -707,9 +807,9 @@ struct ReadinessView: View {
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(entry.key)
-                        .font(.title3.weight(.semibold))
+                        .font(AuralignType.workspaceTitle)
                     Text(entry.role)
-                        .font(.caption)
+                        .font(AuralignType.metadata)
                         .foregroundStyle(.secondary)
                     AuralignStatusBadge(
                         text: state.label,
@@ -718,15 +818,27 @@ struct ReadinessView: View {
                     )
                 }
 
-                LabeledContent("Model ID", value: entry.modelId)
-                LabeledContent("Revision", value: entry.revision ?? "Unpinned")
-                LabeledContent(
+                technicalLabeledContent("Model ID", value: entry.modelId)
+                technicalLabeledContent(
+                    "Revision",
+                    value: entry.revision ?? "Unpinned"
+                )
+                technicalLabeledContent(
                     "License",
                     value: entry.licenseExpression ?? "Unrecorded"
                 )
-                LabeledContent("Review", value: entry.reviewStatus ?? "Unrecorded")
-                LabeledContent("Runtime", value: entry.runtimeStatus ?? "Unrecorded")
-                LabeledContent("Local directory", value: entry.directoryName)
+                technicalLabeledContent(
+                    "Review",
+                    value: entry.reviewStatus ?? "Unrecorded"
+                )
+                technicalLabeledContent(
+                    "Runtime",
+                    value: entry.runtimeStatus ?? "Unrecorded"
+                )
+                technicalLabeledContent(
+                    "Local directory",
+                    value: entry.directoryName
+                )
 
                 fileContract(entry)
 
@@ -734,13 +846,13 @@ struct ReadinessView: View {
                     Label(
                         "The operator must separately accept upstream gated terms.",
                         systemImage: "lock"
-                    )
-                    .font(.caption)
+                )
+                    .font(AuralignType.metadata)
                     .foregroundStyle(.secondary)
                 }
                 if let problem = status.problem {
                     Text(safeMessage(problem))
-                        .font(.caption)
+                        .font(AuralignType.metadata)
                         .foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -751,7 +863,7 @@ struct ReadinessView: View {
                     Link("Upstream terms", destination: url)
                 }
             }
-            .font(.callout)
+            .font(AuralignType.body)
             .textSelection(.enabled)
         } else {
             Text("The selected model row is no longer part of current accepted evidence.")
@@ -762,34 +874,46 @@ struct ReadinessView: View {
     private func fileContract(_ entry: ModelManifestEntry) -> some View {
         VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
             Text("Expected Files")
-                .font(.callout.weight(.semibold))
+                .font(AuralignType.bodyEmphasis)
                 .accessibilityAddTraits(.isHeader)
 
             if !entry.requiredFiles.isEmpty {
                 Text("Required")
-                    .font(.caption)
+                    .font(AuralignType.metadata)
                     .foregroundStyle(.secondary)
                 ForEach(entry.requiredFiles, id: \.self) { filename in
                     Label(filename, systemImage: "doc")
-                        .font(.caption.monospaced())
+                        .font(AuralignType.technical)
                 }
             }
 
             if !entry.anyRequiredFiles.isEmpty {
                 Text("At least one alternative")
-                    .font(.caption)
+                    .font(AuralignType.metadata)
                     .foregroundStyle(.secondary)
                 ForEach(entry.anyRequiredFiles, id: \.self) { filename in
                     Label(filename, systemImage: "doc")
-                        .font(.caption.monospaced())
+                        .font(AuralignType.technical)
                 }
             }
 
             Text("\(entry.runtimeFiles.count) reviewed runtime file"
                     + (entry.runtimeFiles.count == 1 ? "" : "s")
                     + " in the local allowlist.")
-                .font(.caption2)
+                .font(AuralignType.technicalSmall)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private func technicalLabeledContent(
+        _ label: String,
+        value: String
+    ) -> some View {
+        LabeledContent(label) {
+            Text(value)
+                .font(AuralignType.technicalBody)
+                .multilineTextAlignment(.trailing)
+                .textSelection(.enabled)
         }
     }
 
@@ -799,22 +923,22 @@ struct ReadinessView: View {
             let state = checkPresentation(check)
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM) {
                 Text(userFacingCheckTitle(check))
-                    .font(.title3.weight(.semibold))
+                    .font(AuralignType.workspaceTitle)
                 AuralignStatusBadge(
                     text: state.label,
                     tone: state.tone,
                     symbol: state.symbol
                 )
                 Text(safeMessage(check.message))
-                    .font(.callout)
+                    .font(AuralignType.body)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Technical check identifier")
-                        .font(.caption)
+                        .font(AuralignType.metadata)
                         .foregroundStyle(.secondary)
                     Text(check.name)
-                        .font(.caption.monospaced())
+                        .font(AuralignType.technical)
                         .textSelection(.enabled)
                 }
             }
@@ -831,14 +955,14 @@ struct ReadinessView: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Local-first runtime")
-                    .font(.callout.weight(.semibold))
+                    .font(AuralignType.bodyEmphasis)
                 Text(
                     "Readiness checks and normal processing use verified local files only. "
                         + "Auralign downloads public model data only after an explicit "
                         + "Complete Offline Setup action; it does not upload media, send "
                         + "telemetry, or acquire gated access."
                 )
-                .font(.caption)
+                .font(AuralignType.metadata)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             }
@@ -1106,6 +1230,259 @@ struct ReadinessView: View {
                     + "\(decision.announcementToken.hashValue)"
             )
         }
+    }
+}
+
+/// The Offline Core's single purpose-built optical object.
+///
+/// Large structural planes share `AuralignOpticalSurface`; this smaller lens
+/// earns a different construction because it represents the accepted system
+/// decision at the center of the topology. Its refraction is static and
+/// decorative, while the real readiness level remains semantic text in the
+/// surrounding workspace and accessibility label.
+private struct AuralignCoreLens: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.auralignDifferentiateWithoutColor)
+    private var differentiateWithoutColor
+    @Environment(\.auralignIncreaseContrast) private var increaseContrast
+    @Environment(\.auralignReduceTransparency) private var reduceTransparency
+    @Environment(\.controlActiveState) private var controlActiveState
+
+    let tone: AuralignStatusTone
+    let symbol: String
+    let connectorColors: [Color]
+    let isActiveOperation: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(presentationColor.opacity(outerFillOpacity))
+                .frame(width: 92, height: 92)
+
+            if opticalDetailIsVisible {
+                AuralignCoreConnectorRefraction(colors: connectorColors)
+                    .frame(width: 72, height: 72)
+                    .clipShape(Circle())
+            }
+
+            Circle()
+                .fill(lensBackdropScrim)
+                .frame(width: 72, height: 72)
+
+            Circle()
+                .fill(lensFill)
+                .frame(width: 72, height: 72)
+
+            AuralignCoreLensMetalMaterial(
+                accent: presentationColor,
+                isActiveOperation: isActiveOperation
+            )
+                .frame(width: 72, height: 72)
+
+            Circle()
+                .strokeBorder(
+                    presentationColor.opacity(increaseContrast ? 1 : 0.72),
+                    lineWidth: increaseContrast ? 2 : 1.35
+                )
+                .frame(width: 72, height: 72)
+
+            if opticalDetailIsVisible {
+                Circle()
+                    .trim(from: 0.54, to: 0.84)
+                    .stroke(
+                        Color.white.opacity(0.48),
+                        style: StrokeStyle(
+                            lineWidth: 1.05,
+                            lineCap: .round
+                        )
+                    )
+                    .rotationEffect(.degrees(18))
+                    .frame(width: 66, height: 66)
+
+                Circle()
+                    .trim(from: 0.06, to: 0.27)
+                    .stroke(
+                        AuralignSpectrumStop.source.color.opacity(0.34),
+                        style: StrokeStyle(
+                            lineWidth: 0.75,
+                            lineCap: .round
+                        )
+                    )
+                    .frame(width: 80, height: 80)
+                    .offset(x: -0.45, y: -0.25)
+
+                Circle()
+                    .trim(from: 0.55, to: 0.76)
+                    .stroke(
+                        AuralignSpectrumStop.delivery.color.opacity(0.30),
+                        style: StrokeStyle(
+                            lineWidth: 0.75,
+                            lineCap: .round
+                        )
+                    )
+                    .frame(width: 80, height: 80)
+                    .offset(x: 0.45, y: 0.25)
+            }
+
+            Image(systemName: symbol)
+                .font(.system(size: 24, weight: .medium))
+                .foregroundStyle(presentationColor)
+        }
+        .saturation(controlActiveState == .inactive ? 0.42 : 1)
+        .shadow(
+            color: presentationColor.opacity(
+                opticalDetailIsVisible
+                    ? (controlActiveState == .inactive ? 0.05 : 0.11)
+                    : 0
+            ),
+            radius: 9,
+            y: 2
+        )
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var presentationColor: Color {
+        if increaseContrast || differentiateWithoutColor {
+            return .primary
+        }
+        if controlActiveState == .inactive {
+            return .secondary
+        }
+        return tone.color
+    }
+
+    private var opticalDetailIsVisible: Bool {
+        !reduceTransparency
+            && !increaseContrast
+            && !differentiateWithoutColor
+    }
+
+    private var outerFillOpacity: Double {
+        reduceTransparency ? 0.12 : (increaseContrast ? 0.08 : 0.13)
+    }
+
+    private var lensBackdropScrim: AnyShapeStyle {
+        if reduceTransparency || increaseContrast {
+            return AnyShapeStyle(AuralignSurface.canvas)
+        }
+        return AnyShapeStyle(
+            colorScheme == .dark
+                ? Color(red: 0.025, green: 0.030, blue: 0.075).opacity(0.46)
+                : Color.white.opacity(0.54)
+        )
+    }
+
+    private var lensFill: AnyShapeStyle {
+        if !opticalDetailIsVisible {
+            return AnyShapeStyle(presentationColor.opacity(0.10))
+        }
+        return AnyShapeStyle(
+            RadialGradient(
+                stops: [
+                    .init(
+                        color: Color.white.opacity(
+                            colorScheme == .dark ? 0.20 : 0.52
+                        ),
+                        location: 0
+                    ),
+                    .init(
+                        color: presentationColor.opacity(
+                            colorScheme == .dark ? 0.18 : 0.12
+                        ),
+                        location: 0.42
+                    ),
+                    .init(
+                        color: Color.black.opacity(
+                            colorScheme == .dark ? 0.22 : 0.05
+                        ),
+                        location: 1
+                    ),
+                ],
+                center: UnitPoint(x: 0.32, y: 0.24),
+                startRadius: 0,
+                endRadius: 58
+            )
+        )
+    }
+}
+
+/// A static, bounded echo of the topology lines inside the lens.
+///
+/// The production bridge exposes categorical readiness facets, not an optical
+/// scene, so this intentionally redraws only the already-decorative connector
+/// geometry. Each ray bows away from the optical axis inside the 72-point
+/// circle, making the Core read as a convex magnifying lens without sampling
+/// or filtering semantic text, controls, or the surrounding workspace.
+private struct AuralignCoreConnectorRefraction: View {
+    let colors: [Color]
+
+    var body: some View {
+        ZStack {
+            ForEach(Array(colors.prefix(4).enumerated()), id: \.offset) {
+                index, color in
+                AuralignCoreRefractedRay(index: index)
+                    .stroke(
+                        color.opacity(0.62),
+                        style: StrokeStyle(
+                            lineWidth: 1.05,
+                            lineCap: .round,
+                            dash: [3, 3.5]
+                        )
+                    )
+
+                AuralignCoreRefractedRay(index: index)
+                    .stroke(
+                        spectralEcho(for: index).opacity(0.22),
+                        style: StrokeStyle(
+                            lineWidth: 0.55,
+                            lineCap: .round,
+                            dash: [3, 3.5]
+                        )
+                    )
+                    .offset(
+                        x: index.isMultiple(of: 2) ? -0.65 : 0.65,
+                        y: index < 2 ? -0.45 : 0.45
+                    )
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func spectralEcho(for index: Int) -> Color {
+        index.isMultiple(of: 2)
+            ? AuralignSpectrumStop.source.color
+            : AuralignSpectrumStop.delivery.color
+    }
+}
+
+private struct AuralignCoreRefractedRay: Shape {
+    let index: Int
+
+    func path(in rect: CGRect) -> Path {
+        let leftSide = index.isMultiple(of: 2)
+        let upperSide = index < 2
+        let horizontalSign: CGFloat = leftSide ? -1 : 1
+        let verticalSign: CGFloat = upperSide ? -1 : 1
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let edge = CGPoint(
+            x: leftSide ? rect.minX - 1 : rect.maxX + 1,
+            y: center.y + verticalSign * 8.5
+        )
+        let refractedCenter = CGPoint(
+            x: center.x + horizontalSign * 2.4,
+            y: center.y + verticalSign * 5.4
+        )
+        let control = CGPoint(
+            x: center.x + horizontalSign * 21,
+            y: center.y + verticalSign * 10.2
+        )
+
+        var path = Path()
+        path.move(to: edge)
+        path.addQuadCurve(to: refractedCenter, control: control)
+        return path
     }
 }
 

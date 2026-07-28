@@ -21,7 +21,12 @@ enum FixtureApplication {
         ]
         app.launch()
 
-        let banner = app.descendants(matching: .any)["fixture.synthetic-evidence"]
+        let mainWindow = app.windows.matching(
+            identifier: "com.auralign.studio.window.main"
+        ).firstMatch
+        let banner = mainWindow.descendants(matching: .any).matching(
+            identifier: "fixture.synthetic-evidence"
+        ).firstMatch
         XCTAssertTrue(
             banner.waitForExistence(timeout: 5),
             "The dual-gated synthetic evidence banner did not appear.",

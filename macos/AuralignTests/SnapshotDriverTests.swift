@@ -170,6 +170,20 @@ final class SnapshotDriverTests: XCTestCase {
         var mainRole = valid
         mainRole["AURALIGN_SNAPSHOT_WINDOW_ROLE"] = SnapshotWindowRole.main.rawValue
         XCTAssertFalse(SnapshotDriver.shouldAutoOpenSettings(environment: mainRole))
+        XCTAssertFalse(
+            SnapshotDriver.shouldAutoOpenModelSetup(environment: valid)
+        )
+        var modelSetupRole = valid
+        modelSetupRole["AURALIGN_SNAPSHOT_WINDOW_ROLE"] =
+            SnapshotWindowRole.modelSetup.rawValue
+        XCTAssertTrue(
+            SnapshotDriver.shouldAutoOpenModelSetup(
+                environment: modelSetupRole
+            )
+        )
+        XCTAssertFalse(
+            SnapshotDriver.shouldAutoOpenSettings(environment: modelSetupRole)
+        )
         var outside = valid
         outside["AURALIGN_SNAPSHOT_ON_LAUNCH"] = root
             .deletingLastPathComponent()

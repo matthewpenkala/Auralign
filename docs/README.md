@@ -37,6 +37,9 @@ canonical sources for implementation details and operational policy.
 
 - [Native macOS GUI](macos-gui.md): SwiftUI workbench, engine-bridge trust
   boundary, source-development and embedded-runtime lanes, privacy, and gates.
+- [July 28, 2026 macOS Neural Audio Intelligence redesign](design/macos-ui-redesign-2026-07-28.md):
+  reconstructed requirements, attached-bundle research, audit findings,
+  implementation, architecture decision, closure ledger, and validation record.
 - [API](api.md): localhost service and job lifecycle.
 - [Speaker identification](speaker-id.md): local profiles, matching, and
   offline identity resolution and named-speaker delivery.

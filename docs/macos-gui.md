@@ -35,6 +35,32 @@ current effective configuration:
 Changing the engine checkout or effective configuration invalidates that
 evidence. The Start action fails closed until the new state has been checked.
 
+## Neural Audio Intelligence Interface
+
+The current product presents the engine as one neural audio intelligence
+workspace centered on private, offline transcription:
+
+- **New Transcription** composes a source, representative five-phase topology,
+  destination, run intent, readiness, and contextual Start.
+- **Activity** monitors the owned local process with a categorical signal
+  field plus exact ordered stage evidence.
+- **Results** makes the verified transcript the dominant reading surface with
+  concise QA and artifact actions beside it.
+- **Signal Setup** groups the exact schema into five human workflow phases.
+- **Runtime & Models** summarizes the accepted local evidence as an Offline
+  Core while retaining the complete doctor/model ledger.
+- **Parameter Library** remains the exhaustive expert schema surface.
+
+Representative visuals, copy, data summaries, parameter groupings, and
+controls are permitted when they clarify the product. Enabled actions and
+state claims remain real, while exact engine/schema evidence stays available
+in the expert or evidence layer.
+
+The current visual and architecture authority is
+[`macos/DESIGN.md`](../macos/DESIGN.md). The complete reconstruction, audit,
+implementation, and closure record is the
+[July 28 Neural Audio Intelligence redesign dossier](design/macos-ui-redesign-2026-07-28.md).
+
 ## Requirements By Lane
 
 Both lanes require macOS 14 or later on Apple Silicon. Source development uses
@@ -181,16 +207,35 @@ fixture launch; Release always follows the real system accessibility settings.
 `-NSDoubleLocalizedStrings YES` can be passed through the standard argument
 domain for text-expansion review.
 
+Generate the complete synthetic visual-state matrix with:
+
+```bash
+bash scripts/capture_ui_matrix.sh /tmp/auralign-ui-matrix
+```
+
+The matrix builder compiles the current Debug source before launch, explicitly
+freezes all four presentation-accessibility values for ordinary frames,
+passes pseudo-localization as a real application argument, and requires every
+active frame to remain key, main, and application-active across the
+asynchronous capture boundary. Its final receipt audit rejects missing frames,
+stale launcher, Debug implementation, or Metal-library hashes, mixed activity
+states, incorrect accessibility effects, and pseudo-localization that was
+requested but not applied.
+
 Every accepted PNG has an adjacent `.capture.json` receipt using
-`auralign.snapshot.v3`. The receipt binds the capture to its nonce, fixture,
+`auralign.snapshot.v5`. The receipt binds the capture to its nonce, fixture,
 requested and selected section, role, activity, sidebar state, appearance,
 point and pixel dimensions, effective accessibility state, pseudo-localization
-state, executable SHA-256, PNG SHA-256, and—when applicable—the exact
-hidden-field focus-recovery request and focused accessibility identifier. Final
-synthetic visual evidence must use `ScreenCaptureKit.currentProcess`; flattened
-material fallback output is diagnostic only. Destinations, selectors, roles,
-values, and duplicate paths fail closed, and existing evidence is never
-overwritten.
+state, launcher SHA-256, complete Debug code-identity component manifest,
+implementation and `default.metallib` SHA-256 values, renderer effect tier,
+static optical phase, build/OS identity, PNG SHA-256, and—when applicable—the
+exact hidden-field focus-recovery request and focused accessibility identifier.
+Binding `Auralign`, `Auralign.debug.dylib`, and `default.metallib` prevents the
+stable Debug launcher stub from disguising stale Swift implementation or shader
+code. Final synthetic visual
+evidence must use `ScreenCaptureKit.currentProcess`; flattened material fallback
+output is diagnostic only. Destinations, selectors, roles, values, and
+duplicate paths fail closed, and existing evidence is never overwritten.
 
 ## Verification Scope
 

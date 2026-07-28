@@ -23,6 +23,7 @@ PROJECT = MACOS / "Auralign.xcodeproj" / "project.pbxproj"
 APP_ICON = APP / "Assets.xcassets" / "AppIcon.appiconset"
 ICON_COMPOSER_DOCUMENT = APP / "audio-waveform-icon.icon"
 ASSET_PROVENANCE = MACOS / "ASSET_PROVENANCE.md"
+CAPTURE_MATRIX = ROOT / "scripts" / "capture_ui_matrix.sh"
 
 ICON_PACKAGE_HASHES = {
     "Assets/01-structural-frame.svg": (
@@ -99,6 +100,56 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def test_visual_capture_matrix_freezes_presentation_and_receipt_state() -> None:
+    script = CAPTURE_MATRIX.read_text(encoding="utf-8")
+    app = (APP / "App" / "AuralignApp.swift").read_text(encoding="utf-8")
+
+    assert script.count('\ncapture "') == 44
+    assert "AURALIGN_SKIP_CAPTURE_BUILD" in script
+    assert '"AURALIGN_PRESENTATION_REDUCE_TRANSPARENCY=${reduce_transparency}"' in script
+    assert '"AURALIGN_PRESENTATION_INCREASE_CONTRAST=${increase_contrast}"' in script
+    assert '"AURALIGN_PRESENTATION_REDUCE_MOTION=${reduce_motion}"' in script
+    assert (
+        '"AURALIGN_PRESENTATION_DIFFERENTIATE_WITHOUT_COLOR='
+        '${differentiate_without_color}"'
+    ) in script
+    assert "application_arguments=(" in script
+    assert "-NSDoubleLocalizedStrings YES" in script
+    assert "if (( extra_environment_count > 0 )); then" in script
+    assert (
+        'capture "70-settings-valid-dark" settings-valid newJob dark 900 600'
+        in script
+    )
+    assert (
+        'capture "73-model-setup-required-dark" model-unavailable-gated '
+        "newJob dark 900 680"
+        in script
+    )
+    assert (
+        'capture "71-settings-locked-dark" settings-locked newJob dark 900 600'
+        in script
+    )
+    assert '"$binary" "${application_arguments[@]}"' in script
+    assert "expected 44 matrix PNGs" in script
+    assert "stale executable receipt" in script
+    assert "stale code-identity components" in script
+    assert "stale code-identity receipt" in script
+    assert 'binary.with_name(f"{binary.name}.debug.dylib")' in script
+    assert "captured a non-active window state" in script
+    assert "double-strings capture did not pass NSDoubleLocalizedStrings" in script
+    assert "DebugAuxiliaryWindowAutoOpener" in app
+    assert "private var modelSetupContent: some View" in app
+    assert app.count("PresentationFixtureBanner(fixture: fixture)") >= 2
+
+    subprocess.run(
+        ["bash", "-n", str(CAPTURE_MATRIX)],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
 def _has_quarantine(path: Path) -> bool:
     if sys.platform != "darwin":
         return False
@@ -169,6 +220,346 @@ def test_passive_global_status_is_not_rendered_as_a_toolbar_control() -> None:
     assert "AccessibilityIdentifier.primaryActionStatus" in main_view
 
 
+def test_sidebar_brand_uses_a_simplified_auralign_app_icon_adaptation() -> None:
+    main_view = (APP / "Views" / "MainView.swift").read_text(encoding="utf-8")
+    brand_mark = (
+        APP / "Views" / "AuralignBrandMark.swift"
+    ).read_text(encoding="utf-8")
+    brand = main_view.split("private var brand: some View {", maxsplit=1)[1].split(
+        "private var sidebarBackground:", maxsplit=1
+    )[0]
+
+    assert "AuralignSidebarBrandMark()" in brand
+    assert 'systemName: "point.3.connected.trianglepath.dotted"' not in brand
+    assert 'Text(verbatim: "AURALIGN")' in brand
+    assert 'Text(verbatim: "NEURAL AUDIO\\nINTELLIGENCE")' in brand
+    assert 'accessibilityLabel("Auralign, neural audio intelligence")' in brand
+    assert "AuralignType.brandWordmark" in brand
+    assert ".tracking(1.1)" in brand
+    assert "VStack(alignment: .leading, spacing: 2)" in brand
+    assert "LOCAL SIGNAL STUDIO" not in brand
+    assert "OFFLINE TRANSCRIPTION" not in brand
+    assert "struct AuralignSidebarBrandMark: View" in brand_mark
+    assert "let amplitudes: [CGFloat]" in brand_mark
+    assert "drawRails" not in brand_mark
+    assert "[0.28, 0.50, 0.72]" not in brand_mark
+    assert "AuralignSpectrumStop.source.color" in brand_mark
+    assert ".accessibilityHidden(true)" in brand_mark
+    assert "NSApplication.shared.applicationIconImage" not in brand_mark
+
+
+def test_workspace_heroes_are_content_proportional() -> None:
+    components = (APP / "Views" / "AuralignComponents.swift").read_text(
+        encoding="utf-8"
+    )
+    hero = components.split(
+        "struct AuralignWorkspaceHeader<Context: View, Accessory: View>: View {",
+        maxsplit=1,
+    )[1].split("// MARK: - Causality banner", maxsplit=1)[0]
+
+    assert ".frame(minHeight:" not in hero
+    assert ".padding(.vertical, AuralignVisualSystem.spacingL)" in hero
+    assert ".frame(maxWidth: .infinity, alignment: .leading)" in hero
+    assert "AuralignHeroMetalOptics(intensity: 0.86)" in hero
+    assert "HStack(alignment: .center" in hero
+    assert "VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingM)" in hero
+
+
+def test_large_structural_surfaces_share_a_restrained_optical_finish() -> None:
+    chrome = (APP / "Views" / "AuralignStudioChrome.swift").read_text(
+        encoding="utf-8"
+    )
+    components = (APP / "Views" / "AuralignComponents.swift").read_text(
+        encoding="utf-8"
+    )
+    visual_system = (
+        APP / "Views" / "AuralignVisualSystem.swift"
+    ).read_text(encoding="utf-8")
+    optical = chrome.split(
+        "struct AuralignOpticalSurface: View {", maxsplit=1
+    )[1].split(
+        "struct AuralignStudioBackdrop: View {", maxsplit=1
+    )[0]
+    panel = chrome.split(
+        "struct AuralignStudioPanel<Content: View>: View {", maxsplit=1
+    )[1].split(
+        "struct AuralignPrimaryActionButtonStyle:", maxsplit=1
+    )[0]
+    hero = components.split(
+        "struct AuralignWorkspaceHeader<Context: View, Accessory: View>: View {",
+        maxsplit=1,
+    )[1].split("// MARK: - Causality banner", maxsplit=1)[0]
+
+    assert "specularWash" in optical
+    assert "spectralRim" in optical
+    assert "topEdgeMask" in optical
+    assert "bottomEdgeMask" in optical
+    assert "auralignReduceTransparency" in optical
+    assert "auralignIncreaseContrast" in optical
+    assert "auralignDifferentiateWithoutColor" in optical
+    assert "controlActiveState == .inactive" in optical
+    assert ".allowsHitTesting(false)" in optical
+    assert ".accessibilityHidden(true)" in optical
+    assert "glassEffect" not in optical
+    assert "Metal" not in optical
+    assert "AuralignOpticalSurface(" in panel
+    assert "AuralignOpticalSurface(" in hero
+    assert components.count("AuralignOpticalSurface(") >= 2
+    assert "struct AuralignStatusBanner: View" in visual_system
+    assert "AuralignOpticalSurface(" in visual_system
+
+
+def test_offline_core_lens_has_bounded_accessible_material_fallbacks() -> None:
+    readiness = (APP / "Views" / "ReadinessView.swift").read_text(
+        encoding="utf-8"
+    )
+    core = readiness.split(
+        "private struct AuralignCoreLens: View {", maxsplit=1
+    )[1].split(
+        "private struct ReadinessFacet:", maxsplit=1
+    )[0]
+
+    assert "AuralignCoreLens(" in readiness
+    assert "RadialGradient(" in core
+    assert "AuralignSpectrumStop.source.color" in core
+    assert "AuralignSpectrumStop.delivery.color" in core
+    assert "auralignReduceTransparency" in core
+    assert "auralignIncreaseContrast" in core
+    assert "auralignDifferentiateWithoutColor" in core
+    assert "controlActiveState == .inactive" in core
+    assert "AuralignCoreLensMetalMaterial(" in core
+    assert "AuralignCoreConnectorRefraction(colors: connectorColors)" in core
+    assert "AuralignCoreRefractedRay" in readiness
+    assert "path.addQuadCurve(" in readiness
+    assert ".clipShape(Circle())" in core
+    assert "isActiveOperation: isActiveOperation" in core
+    assert ".allowsHitTesting(false)" in core
+    assert ".accessibilityHidden(true)" in core
+    assert "TimelineView" not in core
+
+
+def test_gpu_optics_are_original_bounded_decorative_and_receipted() -> None:
+    views = APP / "Views"
+    shader = (APP / "Shaders" / "AuralignOptics.metal").read_text(
+        encoding="utf-8"
+    )
+    optics = (views / "AuralignMetalOptics.swift").read_text(encoding="utf-8")
+    chrome = (views / "AuralignStudioChrome.swift").read_text(encoding="utf-8")
+    components = (views / "AuralignComponents.swift").read_text(
+        encoding="utf-8"
+    )
+    readiness = (views / "ReadinessView.swift").read_text(encoding="utf-8")
+    alignment_field = (views / "AlignmentField.swift").read_text(
+        encoding="utf-8"
+    )
+    results = (views / "ResultsView.swift").read_text(encoding="utf-8")
+    processing = (views / "ProcessingView.swift").read_text(encoding="utf-8")
+    snapshot = (APP / "Support" / "SnapshotDriver.swift").read_text(
+        encoding="utf-8"
+    )
+    matrix = (ROOT / "scripts" / "capture_ui_matrix.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert shader.count("[[ stitchable ]]") == 5
+    assert "auralignHeroDiffusion" in shader
+    assert "auralignHeroDiffusionDisplacement" in shader
+    assert "auralignAlignmentFieldDisplacement" in shader
+    assert "auralignCoreLensMaterial" in shader
+    assert "auralignCoreLensDisplacement" in shader
+    assert shader.count("layer.sample(") == 9
+    assert "min(1.0, edge * 0.82 * intensity)" in shader
+    assert "for (" not in shader
+    assert "while (" not in shader
+    assert "float time" not in shader
+    assert "elapsed" not in shader.lower()
+    assert "texture2d" not in shader
+    assert shader.count("float4 bounds") == 5
+    assert shader.count("half4 source") == 0
+    assert "fast::sin" not in shader
+    assert "fast::cos" not in shader
+    assert "pow(" not in shader
+    assert "return half4(spectral * alpha, alpha)" in shader
+    assert "return half4(color * alpha, alpha)" in shader
+
+    assert "enum AuralignOpticalRenderingPolicy" in optics
+    assert "enum AuralignOpticalIntensity" in optics
+    assert "static let subtleLift: Double = 1.06" in optics
+    assert "min(max(intensity * subtleLift, 0), 1)" in optics
+    assert "enum AuralignOpticalMotionPolicy" in optics
+    assert "maximumRefreshRate: Double = 15" in optics
+    assert "loopPeriod: TimeInterval = 8" in optics
+    assert "ShaderLibrary.auralignHeroDiffusion" in optics
+    assert "ShaderLibrary.auralignHeroDiffusionDisplacement" in optics
+    assert "ShaderLibrary.auralignCoreLensMaterial" in optics
+    assert "ShaderLibrary.auralignCoreLensDisplacement" in optics
+    assert "maxSampleOffset: CGSize(width: 1, height: 1)" in optics
+    assert "auralignReduceTransparency" in optics
+    assert "auralignIncreaseContrast" in optics
+    assert "auralignReduceMotion" in optics
+    assert "auralignDifferentiateWithoutColor" in optics
+    assert "controlActiveState != .inactive" in optics
+    assert "isActiveOperation" in optics
+    assert 'environment["AURALIGN_SNAPSHOT_ON_LAUNCH"] == nil' in optics
+    assert "TimelineView(" in optics
+    assert ".animation(" in optics
+    assert "paused: !animationIsAllowed" in optics
+    assert "if metalIsEnabled {" in optics
+    assert optics.count(".boundingRect") == 4
+    assert ".fill(heroShader)" in optics
+    assert "shader.dithersColor = true" in optics
+    assert ".colorEffect(" not in optics
+    assert "GeometryReader" not in optics
+    assert "highlightCenter(at: opticalPhase)" in optics
+    assert ".float2(highlightCenter)" in optics
+    assert optics.count(".allowsHitTesting(false)") == 2
+    assert optics.count(".accessibilityHidden(true)") == 2
+    assert "AuralignOpticalIntensity.lifted(intensity)" in chrome
+
+    assert "AuralignHeroMetalOptics(intensity: 0.86)" in components
+    assert "AuralignCoreLensMetalMaterial(" in readiness
+    assert "ShaderLibrary.auralignAlignmentFieldDisplacement" in alignment_field
+    assert "maxSampleOffset: CGSize(width: 1, height: 1)" in alignment_field
+    assert "model.isConnectingEngine || model.isRunningDoctor" in readiness
+    assert "AuralignHeroMetalOptics" not in results
+    assert "AuralignCoreLensMetalMaterial" not in results
+    assert "AuralignHeroMetalOptics" not in processing
+    assert "AuralignCoreLensMetalMaterial" not in processing
+
+    assert 'schemaVersion: "auralign.snapshot.v5"' in snapshot
+    assert '"Contents/Resources/default.metallib"' in snapshot
+    assert "rendererEffectTier: rendererEffectTier.rawValue" in snapshot
+    assert "opticalPhase: AuralignOpticalRenderingPolicy.fixedPhase" in snapshot
+    assert "auralign.snapshot.v5" in matrix
+    assert '"default.metallib"' in matrix
+    assert '"rendererEffectTier"' in matrix
+
+
+def test_signal_setup_selected_phase_uses_low_intensity_optical_depth() -> None:
+    pipeline = (
+        APP / "Views" / "PipelineConfigurationView.swift"
+    ).read_text(encoding="utf-8")
+    navigator = pipeline.split(
+        "private var phaseNavigator: some View {", maxsplit=1
+    )[1].split(
+        "private var sectionBinding:", maxsplit=1
+    )[0]
+
+    assert "if isSelected {" in navigator
+    assert "AuralignOpticalSurface(" in navigator
+    assert "accent: .alignment" in navigator
+    assert "intensity: 0.46" in navigator
+    assert ".buttonStyle(.plain)" in navigator
+    assert ".accessibilityAddTraits(isSelected ? [.isSelected] : [])" in navigator
+
+
+def test_restrained_optical_depth_covers_every_major_workspace_posture() -> None:
+    views = APP / "Views"
+    workspace_hero_files = (
+        "NewJobView.swift",
+        "ProcessingView.swift",
+        "ResultsView.swift",
+        "AllParametersView.swift",
+        "ReadinessView.swift",
+    )
+    section_files = (
+        "NewJobView.swift",
+        "ProcessingView.swift",
+        "ResultsView.swift",
+        "ReadinessView.swift",
+        "ModelSetupView.swift",
+    )
+
+    for name in workspace_hero_files:
+        source = (views / name).read_text(encoding="utf-8")
+        assert "AuralignWorkspaceHeader(" in source
+
+    for name in section_files:
+        source = (views / name).read_text(encoding="utf-8")
+        assert "AuralignSection(" in source
+
+    settings = (views / "SettingsView.swift").read_text(encoding="utf-8")
+    setup = (views / "ModelSetupView.swift").read_text(encoding="utf-8")
+    fatal = (views / "FatalBootstrapView.swift").read_text(encoding="utf-8")
+    assert "AuralignPageHeader(" in settings
+    assert "AuralignPageHeader(" in setup
+    assert "AuralignStatusBanner(" in fatal
+    assert "AuralignCausalityBanner(" in fatal
+
+
+def test_optical_depth_is_static_deterministic_and_absent_from_reading_wells() -> None:
+    views = APP / "Views"
+    chrome = (views / "AuralignStudioChrome.swift").read_text(encoding="utf-8")
+    readiness = (views / "ReadinessView.swift").read_text(encoding="utf-8")
+    results = (views / "ResultsView.swift").read_text(encoding="utf-8")
+    processing = (views / "ProcessingView.swift").read_text(encoding="utf-8")
+    parameters = (views / "AllParametersView.swift").read_text(encoding="utf-8")
+    config = (views / "ConfigSectionView.swift").read_text(encoding="utf-8")
+
+    optical = chrome.split(
+        "struct AuralignOpticalSurface: View {", maxsplit=1
+    )[1].split(
+        "struct AuralignStudioBackdrop: View {", maxsplit=1
+    )[0]
+    panel = chrome.split(
+        "struct AuralignStudioPanel<Content: View>: View {", maxsplit=1
+    )[1].split(
+        "struct AuralignPrimaryActionButtonStyle:", maxsplit=1
+    )[0]
+    core = readiness.split(
+        "private struct AuralignCoreLens: View {", maxsplit=1
+    )[1].split(
+        "private struct ReadinessFacet:", maxsplit=1
+    )[0]
+    transcript = results.split(
+        "private func transcriptReadingSurface(_ text: String) -> some View {",
+        maxsplit=1,
+    )[1].split(
+        "private func transcriptFooter(", maxsplit=1
+    )[0]
+    logs = processing.split(
+        "private var technicalDetails: some View {", maxsplit=1
+    )[1].split(
+        "private func restorePartialRevealFocus()", maxsplit=1
+    )[0]
+    inspector = parameters.split(
+        "private var parameterInspector: some View {", maxsplit=1
+    )[1].split(
+        "private func effectiveHeadline(", maxsplit=1
+    )[0]
+
+    forbidden_dynamic_effects = (
+        "TimelineView",
+        "Canvas",
+        ".blur(",
+        "CIFilter",
+        "Shader",
+        "distortionEffect",
+        "layerEffect",
+        "colorEffect",
+        ".animation(",
+        "withAnimation",
+        "Date(",
+        "UUID(",
+        ".random(",
+    )
+    for source in (optical, panel, core):
+        for forbidden in forbidden_dynamic_effects:
+            assert forbidden not in source
+
+    assert "AuralignWrappedPanelHighlightPath" in chrome
+    assert "addQuadCurve(" in chrome
+    assert "startPoint: .bottomLeading" in chrome
+    assert "endPoint: .topTrailing" in chrome
+
+    assert ".background(AuralignSurface.inset)" in transcript
+    assert ".background(AuralignSurface.inset)" in logs
+    assert ".background(AuralignSurface.canvas)" in inspector
+    for source in (transcript, logs, inspector, config):
+        assert "AuralignOpticalSurface(" not in source
+        assert "AuralignCoreLens(" not in source
+
+
 def test_passive_status_component_never_looks_like_an_input_capsule() -> None:
     visual_system = (
         APP / "Views" / "AuralignVisualSystem.swift"
@@ -183,6 +574,74 @@ def test_passive_status_component_never_looks_like_an_input_capsule() -> None:
     assert "Capsule()" not in status_component
     assert ".background(" not in status_component
     assert ".overlay" not in status_component
+
+
+def test_typography_system_uses_reviewed_system_font_designs_only() -> None:
+    foundations = (
+        APP / "Views" / "AuralignDesignFoundations.swift"
+    ).read_text(encoding="utf-8")
+    info = (APP / "Info.plist").read_text(encoding="utf-8")
+    swift_source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(APP.rglob("*.swift"))
+    )
+
+    # Display, product, interface, instrument, and transcript voices remain
+    # semantic, system-provided designs. Transcript prose intentionally uses
+    # the default system face so its reading surface belongs to the app.
+    # No unreviewed font file or runtime registration can silently become part
+    # of the signed application.
+    assert "design: .rounded" not in foundations
+    assert foundations.count("design: .default") >= 10
+    assert "design: .default" in foundations
+    assert "design: .monospaced" in foundations
+    assert "design: .serif" not in foundations
+    assert (
+        "static let transcript = Font.system(.body, design: .default)"
+        in foundations
+    )
+    assert "static let technicalBody" in foundations
+    assert "static func navigation(selected: Bool)" in foundations
+    assert "Font.custom" not in swift_source
+    assert "CTFontManager" not in swift_source
+    assert "UIAppFonts" not in info
+    assert not [
+        path
+        for path in APP.rglob("*")
+        if path.suffix.lower() in {".ttf", ".otf", ".woff", ".woff2"}
+    ]
+
+
+def test_semantic_typography_roles_reach_each_major_ui_posture() -> None:
+    views = APP / "Views"
+    main = (views / "MainView.swift").read_text(encoding="utf-8")
+    results = (views / "ResultsView.swift").read_text(encoding="utf-8")
+    readiness = (views / "ReadinessView.swift").read_text(encoding="utf-8")
+    parameters = (views / "AllParametersView.swift").read_text(encoding="utf-8")
+    fields = (views / "FieldRowView.swift").read_text(encoding="utf-8")
+    setup = (views / "ModelSetupView.swift").read_text(encoding="utf-8")
+    fatal = (views / "FatalBootstrapView.swift").read_text(encoding="utf-8")
+    transcript_surface = results.split(
+        "private func transcriptReadingSurface(_ text: String) -> some View {",
+        maxsplit=1,
+    )[1].split(
+        "private func transcriptFooter(",
+        maxsplit=1,
+    )[0]
+
+    assert "AuralignType.brandWordmark" in main
+    assert "AuralignType.brandDescriptor" in main
+    assert "AuralignType.navigation(selected:" in main
+    assert "AuralignType.transcript" in transcript_surface
+    assert ".lineSpacing(7)" in transcript_surface
+    assert ".frame(maxWidth: 640, alignment: .leading)" in transcript_surface
+    assert ".textSelection(.enabled)" in transcript_surface
+    assert "AuralignType.numeric" in results
+    assert "AuralignType.technical" in readiness
+    assert "AuralignType.workspaceTitle" in parameters
+    assert "AuralignType.technicalBody" in fields
+    assert "AuralignType.numericSmall" in setup
+    assert "AuralignType.technical" in fatal
 
 
 def test_genuine_icon_composer_document_matches_authoritative_snapshot() -> None:

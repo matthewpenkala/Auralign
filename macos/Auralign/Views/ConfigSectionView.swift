@@ -51,7 +51,7 @@ struct ConfigSectionView: View {
                             "A job is running; configuration is read-only until it finishes.",
                             systemImage: "lock.fill"
                         )
-                        .font(.callout)
+                        .font(AuralignType.body)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 6)
@@ -74,6 +74,12 @@ struct ConfigSectionView: View {
                     .padding(.vertical, 6)
 
                     if !advanced.isEmpty {
+                        let advancedModifiedCount = advanced.filter {
+                            model.config.isModified($0.0.key)
+                        }.count
+                        let advancedErrorCount = advanced.filter {
+                            !model.config.errors(for: $0.0.key).isEmpty
+                        }.count
                         DisclosureGroup(isExpanded: $advancedExpanded) {
                             VStack(alignment: .leading, spacing: 0) {
                                 ForEach(advanced, id: \.0.key) { field, entry in
@@ -91,8 +97,11 @@ struct ConfigSectionView: View {
                             }
                             .padding(.top, 4)
                         } label: {
-                            Text("Advanced")
-                                .font(.headline)
+                            advancedLabel(
+                                count: advanced.count,
+                                modifiedCount: advancedModifiedCount,
+                                errorCount: advancedErrorCount
+                            )
                         }
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)
@@ -147,6 +156,7 @@ struct ConfigSectionView: View {
                 model.consumeSectionNavigationRequest(request.id)
             }
         }
+        .background(AuralignSurface.canvas.opacity(0.82))
         .navigationTitle(section?.title ?? sectionID)
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -203,7 +213,7 @@ struct ConfigSectionView: View {
                     model.privacySafePresentationMessage(error.message),
                     systemImage: "exclamationmark.circle.fill"
                 )
-                .font(.callout)
+                .font(AuralignType.body)
                 .foregroundStyle(.red)
                 .fixedSize(horizontal: false, vertical: true)
             }
@@ -226,12 +236,12 @@ struct ConfigSectionView: View {
                     Image(systemName: section.symbol)
                         .foregroundStyle(Color.accentColor)
                     Text(section.title)
-                        .font(.title3.weight(.semibold))
+                        .font(AuralignType.workspaceTitle)
                         .accessibilityAddTraits(.isHeader)
                 }
                 if modifiedCount > 0 {
-                    Text("\(modifiedCount) modified")
-                        .font(.caption)
+                    Text("\(modifiedCount) overridden")
+                        .font(AuralignType.status)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Color.accentColor.opacity(0.15), in: Capsule())
@@ -240,7 +250,7 @@ struct ConfigSectionView: View {
             }
             if let section {
                 Text(section.summary)
-                    .font(.callout)
+                    .font(AuralignType.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -248,6 +258,37 @@ struct ConfigSectionView: View {
         .padding(.horizontal, 20)
         .padding(.top, 16)
         .padding(.bottom, 8)
+    }
+
+    // Audio Hijack's block-popover pattern: the collapsed disclosure states
+    // how many fields it hides, how many are overridden, and — critically —
+    // whether any hidden field is currently invalid, so a validation problem
+    // never sits silently behind a closed twist.
+    private func advancedLabel(
+        count: Int,
+        modifiedCount: Int,
+        errorCount: Int
+    ) -> some View {
+        HStack(spacing: AuralignVisualSystem.spacingS) {
+            Text("Advanced")
+                .font(AuralignType.sectionTitle)
+            Text("\(count) fields")
+                .font(AuralignType.metadata)
+                .foregroundStyle(.secondary)
+            if modifiedCount > 0 {
+                Text("· \(modifiedCount) overridden")
+                    .font(AuralignType.metadata)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            if errorCount > 0, !advancedExpanded {
+                AuralignStatusBadge(
+                    text: errorCount == 1 ? "1 issue hidden" : "\(errorCount) issues hidden",
+                    tone: .failure,
+                    symbol: "exclamationmark.triangle.fill"
+                )
+            }
+        }
     }
 
     private func returnButtonTitle(for section: WorkspaceSection?) -> String {

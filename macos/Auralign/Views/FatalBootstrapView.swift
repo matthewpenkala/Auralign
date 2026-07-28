@@ -12,63 +12,52 @@ struct FatalBootstrapView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: AuralignVisualSystem.spacingL) {
-                Image(systemName: "exclamationmark.shield.fill")
-                    .font(.system(size: 42))
-                    .foregroundStyle(.red)
-                    .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingL) {
+                AuralignStatusBanner(
+                    title: "Auralign could not load its configuration resources",
+                    message:
+                        "The application is blocked so an incomplete schema can "
+                        + "never be edited or sent to the engine.",
+                    tone: .failure,
+                    symbol: "exclamationmark.shield.fill"
+                )
+                .accessibilityAddTraits(.isHeader)
 
-                VStack(spacing: AuralignVisualSystem.spacingS) {
-                    Text("Auralign could not load its configuration resources")
-                        .font(.title2.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                        .accessibilityAddTraits(.isHeader)
-                    Text(
-                        "The application is blocked so an incomplete schema can never "
-                            + "be edited or sent to the engine."
-                    )
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
+                AuralignCausalityBanner(
+                    headline: "Safe recovery",
+                    detail:
+                        "Quit Auralign, verify the repository checkout, regenerate "
+                        + "the bundled manifest and field catalog, then rebuild the app.",
+                    tone: .neutral,
+                    symbol: "arrow.clockwise.circle"
+                )
 
-                VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingS) {
-                    Text("Safe recovery")
-                        .font(.headline)
-                        .accessibilityAddTraits(.isHeader)
-                    Text(
-                        "Quit Auralign, verify the repository checkout, regenerate the "
-                            + "bundled manifest and field catalog, then rebuild the app."
-                    )
-                    .font(.callout)
+                Text(detail)
+                    .font(AuralignType.technical)
                     .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
-                    Text(detail)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(AuralignVisualSystem.spacingL)
-                .frame(maxWidth: 520, alignment: .leading)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .overlay {
-                    RoundedRectangle(cornerRadius: AuralignVisualSystem.cornerRadius)
-                        .stroke(Color(nsColor: .separatorColor))
-                }
-                .clipShape(RoundedRectangle(cornerRadius: AuralignVisualSystem.cornerRadius))
+                    .padding(AuralignVisualSystem.spacingM)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AuralignSurface.inset)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AuralignRadius.group)
+                            .stroke(AuralignSurface.hairline)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: AuralignRadius.group))
 
                 Button("Quit Auralign") {
                     NSApp.terminate(nil)
                 }
                 .keyboardShortcut(.defaultAction)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
             .padding(AuralignVisualSystem.spacingXL)
-            .frame(maxWidth: .infinity, minHeight: 552)
+            .frame(maxWidth: 520)
+            .frame(maxWidth: .infinity, minHeight: 552, alignment: .center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(AuralignStudioBackdrop())
         .accessibilityIdentifier("bootstrap.resource-failure")
     }
 }
