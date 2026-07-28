@@ -279,6 +279,7 @@ def test_subtitle_export_config_file_values_are_honored(tmp_path: Path) -> None:
                 "  split_long_cues: false",
                 "  max_line_width: 32",
                 "  max_line_count: 1",
+                "  max_cue_duration: 6.5",
                 "  speaker_labels: false",
                 "  use_mapped_names: false",
                 "  highlight_words: true",
@@ -292,6 +293,7 @@ def test_subtitle_export_config_file_values_are_honored(tmp_path: Path) -> None:
     assert config.subtitle_export.split_long_cues is False
     assert config.subtitle_export.max_line_width == 32
     assert config.subtitle_export.max_line_count == 1
+    assert config.subtitle_export.max_cue_duration == 6.5
     assert config.subtitle_export.speaker_labels is False
     assert config.subtitle_export.use_mapped_names is False
     assert config.subtitle_export.highlight_words is True

@@ -13,6 +13,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from local_transcript_max.export.csv_export import formula_safe_cell
+from local_transcript_max.export.subtitle import timestamp_milliseconds
 from local_transcript_max.schemas import SpeakerTurn, Transcript
 
 from .identity_models import (
@@ -80,7 +81,13 @@ def render_identity_srt(
         if timing is None:
             raise ValueError("canonical SRT contains an invalid timing line")
         start = _timestamp_seconds(timing, prefix="s")
-        turn_index = _turn_at_time(transcript, start)
+        canonical_line = _line_content(lines[block[2]])
+        canonical_speaker = _canonical_speaker_prefix(canonical_line, transcript)
+        turn_index = _turn_at_time(
+            transcript,
+            start,
+            expected_speaker=canonical_speaker,
+        )
         if turn_index is not None:
             lines[block[2]] = _replace_label_line(
                 lines[block[2]],
@@ -102,7 +109,13 @@ def render_identity_vtt(
         if timing is None or index + 1 >= len(lines):
             continue
         start = _timestamp_seconds(timing, prefix="s")
-        turn_index = _turn_at_time(transcript, start)
+        canonical_line = _line_content(lines[index + 1])
+        canonical_speaker = _canonical_speaker_prefix(canonical_line, transcript)
+        turn_index = _turn_at_time(
+            transcript,
+            start,
+            expected_speaker=canonical_speaker,
+        )
         if turn_index is not None:
             lines[index + 1] = _replace_label_line(
                 lines[index + 1],
@@ -263,16 +276,54 @@ def _decision_labels(
     return labels
 
 
-def _turn_at_time(transcript: Transcript, timestamp: float) -> int | None:
-    for index, turn in enumerate(transcript.speaker_turns):
-        if abs(turn.start - timestamp) <= 0.001:
+def _turn_at_time(
+    transcript: Transcript,
+    timestamp: float,
+    *,
+    expected_speaker: str | None = None,
+) -> int | None:
+    indexed_turns = list(enumerate(transcript.speaker_turns))
+    expected = [
+        (index, turn)
+        for index, turn in indexed_turns
+        if expected_speaker is not None and turn.speaker == expected_speaker
+    ]
+    timestamp_tick = timestamp_milliseconds(timestamp)
+
+    # The exporter rounds starts to milliseconds. Resolve within that same
+    # quantization domain and use the canonical label prefix when two turns
+    # fall in the same rounding bucket.
+    for index, turn in expected:
+        if timestamp_milliseconds(turn.start) == timestamp_tick:
             return index
-    for index, turn in enumerate(transcript.speaker_turns):
-        if turn.start - 0.001 <= timestamp < turn.end - 0.001:
+    for index, turn in expected:
+        if turn.start <= timestamp < turn.end:
+            return index
+    for index, turn in expected:
+        if turn.start - 0.001 <= timestamp <= turn.end + 0.001:
+            return index
+
+    for index, turn in indexed_turns:
+        if timestamp_milliseconds(turn.start) == timestamp_tick:
+            return index
+    for index, turn in indexed_turns:
+        if turn.start <= timestamp < turn.end:
+            return index
+    for index, turn in indexed_turns:
+        if turn.start - 0.001 <= timestamp <= turn.end + 0.001:
             return index
     if transcript.speaker_turns and abs(transcript.speaker_turns[-1].end - timestamp) <= 0.001:
         return len(transcript.speaker_turns) - 1
     return None
+
+
+def _canonical_speaker_prefix(line: str, transcript: Transcript) -> str | None:
+    speakers = sorted(
+        {turn.speaker for turn in transcript.speaker_turns},
+        key=len,
+        reverse=True,
+    )
+    return next((speaker for speaker in speakers if line.startswith(f"{speaker}:")), None)
 
 
 def _timestamp_seconds(match: re.Match[str], *, prefix: str) -> float:

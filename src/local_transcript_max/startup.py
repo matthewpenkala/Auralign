@@ -13,7 +13,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from .alignment.forced_alignment import preflight_forced_alignment
+from .alignment.forced_alignment import (
+    _load_inference_alignment_model,
+    preflight_forced_alignment,
+)
 from .asr.faster_whisper_backend import (
     require_faster_whisper_vad_asset,
     resolve_compute_type,
@@ -194,16 +197,14 @@ def _probe_pyannote(config: PipelineConfig, *, device: str | None) -> str:
 
 def _probe_whisperx(config: PipelineConfig, *, device: str) -> str:
     verify_generated_punkt(config.model_cache)
-    import whisperx
 
     path = preflight_forced_alignment(config)
     language = config.alignment.language or "en"
-    model, metadata = whisperx.load_align_model(
-        language_code=language,
+    model, metadata = _load_inference_alignment_model(
+        language=language,
         device=device,
         model_name=path,
-        model_dir=str(config.model_cache.expanduser()),
-        model_cache_only=True,
+        model_dir=config.model_cache.expanduser(),
     )
     if not isinstance(metadata, dict) or not metadata.get("dictionary"):
         raise RuntimeError("WhisperX alignment metadata is incomplete")

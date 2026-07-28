@@ -6,10 +6,11 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 from local_transcript_max.config import PipelineConfig
-from local_transcript_max.schemas import AlignedWord, ASRResult
+from local_transcript_max.schemas import AlignedWord, ASRResult, ASRSegment
 
 
 class FallbackWordTimestampAlignment:
@@ -21,35 +22,54 @@ class FallbackWordTimestampAlignment:
         words: list[AlignedWord] = []
         cursor = 0.0
         for segment in asr_result.segments:
-            if segment.words:
-                for word in segment.words:
-                    repaired = normalize_word_timing(word, cursor, source="whisper")
-                    words.append(repaired)
-                    if repaired.end is not None:
-                        cursor = repaired.end
-                continue
-            tokens = segment.text.split()
-            if not tokens:
-                continue
-            span = max(0.0, segment.end - segment.start)
-            step = span / len(tokens) if tokens else 0.0
-            for index, token in enumerate(tokens):
-                start = segment.start + index * step
-                word = normalize_word_timing(
-                    AlignedWord(
-                        text=token,
-                        start=start,
-                        end=start + step,
-                        alignment_source="estimated",
-                        warnings=["estimated_from_segment_timing"],
-                    ),
-                    cursor,
-                    source="estimated",
-                )
-                words.append(word)
-                if word.end is not None:
-                    cursor = word.end
+            segment_words, cursor = fallback_segment_words(segment, cursor)
+            words.extend(segment_words)
         return words
+
+
+def fallback_segment_words(
+    segment: ASRSegment,
+    cursor: float,
+    *,
+    warning: str | None = None,
+    reason: str | None = None,
+) -> tuple[list[AlignedWord], float]:
+    """Return one complete, monotonic segment from preserved ASR timing evidence."""
+
+    words: list[AlignedWord] = []
+    warning_values = [value for value in (warning, reason) if value]
+    if segment.words:
+        for word in segment.words:
+            repaired = normalize_word_timing(word, cursor, source="whisper")
+            repaired = _append_warnings(repaired, warning_values)
+            words.append(repaired)
+            if repaired.end is not None:
+                cursor = repaired.end
+        return words, cursor
+
+    tokens = segment.text.split()
+    if not tokens:
+        return words, cursor
+    span = max(0.0, segment.end - segment.start)
+    step = span / len(tokens)
+    for index, token in enumerate(tokens):
+        start = segment.start + index * step
+        word = normalize_word_timing(
+            AlignedWord(
+                text=token,
+                start=start,
+                end=start + step,
+                alignment_source="estimated",
+                warnings=["estimated_from_segment_timing"],
+            ),
+            cursor,
+            source="estimated",
+        )
+        word = _append_warnings(word, warning_values)
+        words.append(word)
+        if word.end is not None:
+            cursor = word.end
+    return words, cursor
 
 
 def normalize_word_timing(word: AlignedWord, cursor: float, *, source: str) -> AlignedWord:
@@ -61,6 +81,16 @@ def normalize_word_timing(word: AlignedWord, cursor: float, *, source: str) -> A
             warnings.append("missing_word_timestamp")
         return word.model_copy(
             update={"alignment_source": "missing", "warnings": sorted(set(warnings))}
+        )
+    if not math.isfinite(start) or not math.isfinite(end):
+        warnings.append("invalid_word_timestamp")
+        return word.model_copy(
+            update={
+                "start": None,
+                "end": None,
+                "alignment_source": "missing",
+                "warnings": sorted(set(warnings)),
+            }
         )
     if end < start:
         end = start
@@ -80,4 +110,12 @@ def normalize_word_timing(word: AlignedWord, cursor: float, *, source: str) -> A
             "alignment_source": source,
             "warnings": sorted(set(warnings)),
         }
+    )
+
+
+def _append_warnings(word: AlignedWord, warnings: list[str]) -> AlignedWord:
+    if not warnings:
+        return word
+    return word.model_copy(
+        update={"warnings": sorted(set((*word.warnings, *warnings)))}
     )

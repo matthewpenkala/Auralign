@@ -318,6 +318,45 @@ def test_startup_probe_rejects_excluded_faster_whisper_vad_model(
         startup_module._probe_faster_whisper(config, device="cpu")
 
 
+def test_alignment_startup_probe_uses_shared_inference_only_loader(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = PipelineConfig()
+    config.model_cache = tmp_path
+    config.alignment.language = "en"
+    calls: list[dict[str, object]] = []
+
+    monkeypatch.setattr(startup_module, "verify_generated_punkt", lambda _cache: None)
+    monkeypatch.setattr(
+        startup_module,
+        "preflight_forced_alignment",
+        lambda _config: "local-alignment-model",
+    )
+
+    def fake_loader(**kwargs):
+        calls.append(kwargs)
+        return object(), {"dictionary": {"a": 1}}
+
+    monkeypatch.setattr(
+        startup_module,
+        "_load_inference_alignment_model",
+        fake_loader,
+    )
+
+    message = startup_module._probe_whisperx(config, device="cpu")
+
+    assert calls == [
+        {
+            "language": "en",
+            "device": "cpu",
+            "model_name": "local-alignment-model",
+            "model_dir": tmp_path,
+        }
+    ]
+    assert "loaded pinned local CTC model" in message
+
+
 def test_startup_evidence_schema_rejects_unknown_versions_and_false_counts() -> None:
     with pytest.raises(ValidationError):
         StartupEvidence.model_validate(

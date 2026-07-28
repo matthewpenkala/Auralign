@@ -72,6 +72,13 @@ validated across the CLI, pipeline, API, benchmarks, and tests.
   separate artifacts.
 - Estimated timestamps are labeled as estimated and are never presented as
   successful forced alignment.
+- WhisperX operates with interpolation disabled and preserves original ASR
+  source-segment identity even when its sentence tokenizer emits multiple
+  aligned subsegments. Character-level CTC evidence is projected onto the
+  authoritative ASR word sequence without upstream timestamp interpolation.
+  `auto` may retain valid CTC segments alongside
+  privacy-audited localized ASR-timestamp fallback; strict forced mode rejects
+  every mixed-source result.
 - Subtitle exports are rendered only after alignment, diarization, and
   speaker-turn fusion.
 - Diagnostics and reports use counts, indexes, reason codes, and redacted paths
@@ -134,9 +141,46 @@ record for total time and final resources; core stage timings remain sourced
 from run metadata.
 
 SRT and VTT are rendered from fused speaker turns. Their line width, line count,
-speaker labels, cue duration, and related behavior are controlled by the
-`subtitle_export` YAML section; see the example configurations and config schema
-before changing delivery defaults.
+speaker labels, maximum cue duration, and related behavior are controlled by the
+`subtitle_export` YAML section. Word-timed turns are partitioned globally rather
+than greedily so the minimum feasible cue count can still avoid short orphan
+tails and prefer pause or punctuation boundaries. The primary artifact is a
+timestamped conversational transcript for human and machine comprehension, not
+a broadcast caption track: defaults therefore allow 120 characters per line,
+four lines, and a 30-second target maximum cue duration. The width applies to
+the complete rendered line, including the speaker prefix, so first-line
+wrapping and cue feasibility reserve the exact label width. An indivisible
+speaker label or word that is itself wider than the configured limit remains a
+truthful best-effort exception. Splitting requires complete, valid,
+non-overlapping word timestamps so the exporter never fabricates timing. A turn
+with unavailable timing treats the visual and duration limits as best-effort.
+Pauses above 2.5 seconds are mandatory cue boundaries; shorter pauses are
+graded evidence so ordinary telephone hesitations do not fragment an otherwise
+coherent turn. Japanese and Chinese wrapping uses basic compact-script
+character units instead of assuming whitespace-delimited words; complex
+Unicode legal-break and code-switch cases remain best-effort without adding a
+new segmentation dependency.
+Stricter on-screen caption profiles can override the defaults in configuration;
+see the example configurations and config schema before changing delivery
+defaults.
+
+The optional punctuation cleanup lane writes a separate derived transcript
+rather than mutating aligned evidence. It may change capitalization and
+punctuation only when the normalized lexical word sequence remains exactly
+identical. Accepted changes are projected onto copies of the timed word objects,
+preserving word count, order, timestamps, alignment sources, speaker
+attribution, and identity mapping across top-level, segment, and speaker-turn
+containers. Long input is processed in 230-word windows with 30 words of
+overlap; each validated window owns only its center, and a malformed window
+falls back locally. The derived SRT and VTT freeze the original cue ownership
+and timing plan, then overlay validated word surfaces, so punctuation cannot
+silently retime cues. If punctuation would make an otherwise conforming frozen
+cue exceed its line-width or line-count limit, the overlay preserves
+capitalization and strong sentence marks while dropping only the minimum
+weakest newly added punctuation needed to fit; an irreducible cue retains its
+original presentation. Any inserted, deleted, substituted, split, merged, or
+reordered lexical word fails closed. The broader readability scope remains a
+separate untimed text aid and is never projected onto word timing.
 
 ## Dependency and Deployment Edges
 

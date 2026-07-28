@@ -239,6 +239,9 @@ Agentic diarization, re-decode, speaker matching, and local cleanup write
 separate artifacts; they do not overwrite raw ASR or diarization. See
 [architecture](docs/architecture.md), [alignment](docs/alignment.md), and
 [diarization](docs/diarization.md) for the stage contracts.
+Punctuation cleanup additionally requires exact lexical-word preservation
+before it can project casing and punctuation onto copied word timings and emit
+derived `transcript.cleaned.srt` and `transcript.cleaned.vtt` files.
 
 `run_metadata.json` is the immutable core-run record and declares
 `timing_scope: pipeline_core.v1`. Its real-time factor and `pipeline_core`
@@ -309,8 +312,8 @@ Never commit or publish:
 The relevant directories and artifact patterns are covered by `.gitignore`.
 Offline mode rejects non-local cleanup endpoints and fails fast when required
 local assets are missing. Explicit remote cleanup sends transcript text to the
-configured endpoint; cleanup diff artifacts can contain short original and
-cleaned text previews and must remain private. See
+configured endpoint; cleanup outputs remain sensitive, while the diff report
+records counts and reason codes without transcript previews. See
 [security and privacy](docs/security-privacy.md).
 
 ## License, Contributions, And Security

@@ -208,6 +208,74 @@ after the short smoke passes.
 MLX backend jobs in that mode are recorded as skipped with
 `unsupported_backend_for_compute_matrix`.
 
+### MLX whole-file versus VAD-windowed canary
+
+VAD-windowed MLX is an experimental comparison dimension, not a production
+default. Use the same verified model, source configuration, media, machine, and
+reference for both runs; change only `asr.mlx_vad_windowed`. Keep both output
+directories fresh and private:
+
+```bash
+LTM_OFFLINE=1 ltm transcribe /path/to/call.wav \
+  --config examples/config.apple-silicon-mlx.yaml \
+  --out benchmark_runs/mlx_vad_whole \
+  --no-asr-mlx-vad-windowed
+
+LTM_OFFLINE=1 ltm transcribe /path/to/call.wav \
+  --config examples/config.apple-silicon-mlx.yaml \
+  --out benchmark_runs/mlx_vad_windowed \
+  --asr-mlx-vad-windowed \
+  --asr-mlx-vad-window-seconds 30 \
+  --asr-mlx-vad-window-padding-seconds 0
+
+LTM_OFFLINE=1 ltm benchmark benchmark_runs/mlx_vad_whole \
+  --reference-text /path/to/private/reference.txt \
+  --out benchmark_runs/mlx_vad_whole_report
+LTM_OFFLINE=1 ltm benchmark benchmark_runs/mlx_vad_windowed \
+  --reference-text /path/to/private/reference.txt \
+  --out benchmark_runs/mlx_vad_windowed_report
+LTM_OFFLINE=1 ltm benchmark compare \
+  benchmark_runs/mlx_vad_whole_report \
+  benchmark_runs/mlx_vad_windowed_report \
+  --out benchmark_runs/mlx_vad_comparison
+```
+
+Promotion requires equal or better reviewed text, no lost or duplicated boundary
+words, no hallucination/repetition regression, complete timing coverage, and a
+material runtime or peak-memory benefit across representative long calls.
+One successful file or a speed-only result is insufficient.
+
+`local_transcript_max.benchmark.mlx_vad_canary.evaluate_mlx_vad_gate` is the
+pure, fail-closed per-media pre-gate for that promotion evidence. It accepts
+privacy-minimal manifests rather than reading media or transcripts. The
+manifests hash-bind the input, canonical audio, VAD artifact, reviewed
+reference, raw transcript, source configuration evidence, run metadata,
+completion timing, quality evidence, boundary evidence, source revision,
+machine/host conditions, and reproducible per-variant result. Typed bindings
+also require the exact model revision/checkpoint, backend/runtime versions, and
+observed `mlx:gpu` Metal execution. Only `asr.mlx_vad_windowed` may differ.
+
+A per-media pass requires at least one excluded artifact/plan-bound warmup and
+three alternating measured warm runs per variant; actual non-fallback window
+execution; non-overlapping window
+ownership; an audit of every internal boundary; complete finite, bounded,
+positive, monotonic timestamps; no WER/CER,
+insertion/deletion/repetition/boundary gap/overlap regression; a material
+ASR-time, process-RSS, or MLX-allocator improvement; and no ASR or end-to-end
+worst-case regression. Process RSS and MLX allocator peaks are separate
+overlapping views of unified memory and must never be summed. Volatile
+per-run artifacts remain individually hash-bound but are not expected to be
+byte-identical; a separate canonical transcript-result hash establishes
+within-variant reproducibility.
+
+The evaluator deliberately does not run transcription or manufacture the
+reviewed reference/boundary evidence. A `PASS` therefore means only that one
+bound media case satisfies this pre-gate;
+`automatic_promotion_eligible` remains false. Until a trusted runner builds the
+manifests from locally reviewed artifacts and a suite-level gate passes multiple
+representative long calls, the manual commands above are experimental data
+collection only and cannot authorize promotion.
+
 Use `--diarization-devices mps` only to add an explicit Torch MPS pyannote
 diarization experiment; Apple Silicon `auto` defaults to CPU for pyannote.
 Use `--alignment-devices mps` only for explicit WhisperX alignment experiments.

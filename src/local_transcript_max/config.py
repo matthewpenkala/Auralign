@@ -995,8 +995,9 @@ class CleanupConfig(BaseModel):
 
 class SubtitleExportConfig(BaseModel):
     split_long_cues: bool = True
-    max_line_width: int | None = Field(default=45, gt=0)
-    max_line_count: int | None = Field(default=2, gt=0)
+    max_line_width: int | None = Field(default=120, gt=0)
+    max_line_count: int | None = Field(default=4, gt=0)
+    max_cue_duration: float = Field(default=30.0, gt=0.0, le=60.0)
     speaker_labels: bool = True
     use_mapped_names: bool = True
     highlight_words: bool = False

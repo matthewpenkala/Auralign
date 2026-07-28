@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import importlib.util
+import math
 import os
 import platform
 import re
@@ -311,6 +312,7 @@ def alignment_diagnostic_payload(
     warnings: list[str],
     duration_seconds: float | None,
     metadata: dict[str, Any] | None = None,
+    reference_words: list[AlignedWord] | None = None,
 ) -> dict[str, Any]:
     source_counts = Counter(word.alignment_source for word in words)
     word_warning_counts: Counter[str] = Counter()
@@ -318,7 +320,14 @@ def alignment_diagnostic_payload(
     span_start: int | None = None
     for index, word in enumerate(words):
         word_warning_counts.update(word.warnings)
-        missing = word.start is None or word.end is None or word.alignment_source == "missing"
+        missing = (
+            word.start is None
+            or word.end is None
+            or not math.isfinite(word.start)
+            or not math.isfinite(word.end)
+            or word.end <= word.start
+            or word.alignment_source == "missing"
+        )
         if missing and span_start is None:
             span_start = index
         if not missing and span_start is not None:
@@ -339,18 +348,61 @@ def alignment_diagnostic_payload(
             }
         )
     word_count = len(words)
-    timed_word_count = sum(1 for word in words if word.start is not None and word.end is not None)
+    timed_word_count = sum(
+        1
+        for word in words
+        if word.start is not None
+        and word.end is not None
+        and math.isfinite(word.start)
+        and math.isfinite(word.end)
+        and word.end > word.start
+    )
     invalid_or_nonmonotonic = alignment_timestamp_defect_count(words)
-    fallback_used = requested_backend in {"auto", "forced"} and backend == "whisper-word-timestamps"
     metadata_payload = metadata or {}
     forced_count = source_counts["forced"]
     whisper_count = source_counts["whisper"]
+    # WhisperX interpolation is disabled. Keep an explicit zero-valued field so
+    # reports can prove that no heuristic timestamp was published as acoustic.
+    interpolated_count = 0
     estimated_count = source_counts["estimated"]
     missing_count = word_count - timed_word_count
+    localized_fallback_segments = metadata_payload.get("localized_fallback_segments")
+    localized_fallback_count = (
+        len(localized_fallback_segments)
+        if isinstance(localized_fallback_segments, list)
+        else 0
+    )
+    localized_fallback_reason_counts = Counter(
+        str(item.get("reason"))
+        for item in localized_fallback_segments or []
+        if isinstance(item, dict) and item.get("reason")
+    )
+    full_fallback_used = (
+        requested_backend in {"auto", "forced"} and backend == "whisper-word-timestamps"
+    )
+    fallback_used = full_fallback_used or localized_fallback_count > 0
+    fallback_mode = (
+        "full"
+        if full_fallback_used
+        else "localized"
+        if localized_fallback_count
+        else "none"
+    )
     fallback_reasons = [
         reason
         for reason in (
             metadata_payload.get("fallback_reason"),
+            *(
+                sorted(
+                    {
+                        str(item.get("reason"))
+                        for item in localized_fallback_segments
+                        if isinstance(item, dict) and item.get("reason")
+                    }
+                )
+                if isinstance(localized_fallback_segments, list)
+                else []
+            ),
             *warnings,
         )
         if reason
@@ -363,16 +415,29 @@ def alignment_diagnostic_payload(
         "alignment_backend": backend,
         "device": device,
         "fallback_used": fallback_used,
+        "fallback_mode": fallback_mode,
         "fallback_reasons": fallback_reasons,
+        "localized_fallback_segment_count": localized_fallback_count,
+        "localized_fallback_word_count": int(
+            metadata_payload.get("localized_fallback_word_count") or 0
+        ),
+        "localized_fallback_reason_counts": dict(
+            sorted(localized_fallback_reason_counts.items())
+        ),
+        "segment_coverage": _alignment_segment_coverage(metadata_payload),
         "word_count": word_count,
         "timed_word_count": timed_word_count,
         "forced_aligned_word_count": forced_count,
         "forced_aligned_word_percentage": percent(forced_count, word_count),
         "whisper_timestamp_word_count": whisper_count,
         "whisper_timestamp_word_percentage": percent(whisper_count, word_count),
-        "estimated_interpolated_word_count": estimated_count,
+        "interpolated_word_count": interpolated_count,
+        "interpolated_word_percentage": percent(interpolated_count, word_count),
+        "estimated_word_count": estimated_count,
+        "estimated_word_percentage": percent(estimated_count, word_count),
+        "estimated_interpolated_word_count": estimated_count + interpolated_count,
         "estimated_interpolated_word_percentage": percent(
-            estimated_count,
+            estimated_count + interpolated_count,
             word_count,
         ),
         "missing_timestamp_count": missing_count,
@@ -390,7 +455,206 @@ def alignment_diagnostic_payload(
         "missing_timestamp_spans": missing_spans,
         "backend_warnings": warnings,
         "duration_seconds": duration_seconds,
+        "asr_timestamp_displacement": timestamp_displacement_payload(
+            reference_words,
+            words,
+        ),
+        "timing_repair_displacement": timing_repair_displacement_payload(
+            reference_words,
+            words,
+        ),
         "metadata": metadata_payload,
+    }
+
+
+def timestamp_displacement_payload(
+    reference_words: list[AlignedWord] | None,
+    words: list[AlignedWord],
+) -> dict[str, Any]:
+    """Summarize raw-ASR to published timing movement without exposing word text."""
+
+    if not reference_words:
+        return {
+            "available": False,
+            "reason": "no_asr_word_timestamps",
+            "reference_word_count": len(reference_words or []),
+            "published_word_count": len(words),
+        }
+    if len(reference_words) != len(words):
+        return {
+            "available": False,
+            "reason": "word_count_mismatch",
+            "reference_word_count": len(reference_words),
+            "published_word_count": len(words),
+        }
+    if any(
+        reference.text.strip() != published.text.strip()
+        for reference, published in zip(reference_words, words, strict=True)
+    ):
+        return {
+            "available": False,
+            "reason": "word_sequence_mismatch",
+            "reference_word_count": len(reference_words),
+            "published_word_count": len(words),
+        }
+
+    start_displacements = _timestamp_displacements(reference_words, words, field="start")
+    end_displacements = _timestamp_displacements(reference_words, words, field="end")
+    final_endpoint_delta: float | None = None
+    reference_end = reference_words[-1].end
+    published_end = words[-1].end
+    if reference_end is not None and published_end is not None:
+        final_endpoint_delta = round(published_end - reference_end, 9)
+    return {
+        "available": True,
+        "reason": None,
+        "reference_word_count": len(reference_words),
+        "published_word_count": len(words),
+        "start": _displacement_statistics(start_displacements),
+        "end": _displacement_statistics(end_displacements),
+        "final_endpoint_delta_seconds": final_endpoint_delta,
+    }
+
+
+def timing_repair_displacement_payload(
+    reference_words: list[AlignedWord] | None,
+    words: list[AlignedWord],
+) -> dict[str, Any]:
+    """Measure only words explicitly changed by the monotonic repair layer."""
+
+    compatibility = _word_comparison_compatibility(reference_words, words)
+    if compatibility is not None:
+        return compatibility
+    assert reference_words is not None
+    affected_indices = [
+        index
+        for index, word in enumerate(words)
+        if any(warning.startswith("repaired_") for warning in word.warnings)
+    ]
+    affected_reference = [reference_words[index] for index in affected_indices]
+    affected_words = [words[index] for index in affected_indices]
+    reason_counts = Counter(
+        warning
+        for word in affected_words
+        for warning in word.warnings
+        if warning.startswith("repaired_")
+    )
+    final_endpoint_delta: float | None = 0.0
+    if (
+        len(words) - 1 in affected_indices
+        and reference_words[-1].end is not None
+        and words[-1].end is not None
+    ):
+        final_endpoint_delta = round(words[-1].end - reference_words[-1].end, 9)
+    return {
+        "available": True,
+        "reason": None,
+        "affected_word_count": len(affected_indices),
+        "affected_word_percentage": percent(len(affected_indices), len(words)),
+        "reason_counts": dict(sorted(reason_counts.items())),
+        "start": _displacement_statistics(
+            _timestamp_displacements(affected_reference, affected_words, field="start")
+        ),
+        "end": _displacement_statistics(
+            _timestamp_displacements(affected_reference, affected_words, field="end")
+        ),
+        "final_endpoint_delta_seconds": final_endpoint_delta,
+    }
+
+
+def _word_comparison_compatibility(
+    reference_words: list[AlignedWord] | None,
+    words: list[AlignedWord],
+) -> dict[str, Any] | None:
+    if not reference_words:
+        return {
+            "available": False,
+            "reason": "no_asr_word_timestamps",
+            "reference_word_count": len(reference_words or []),
+            "published_word_count": len(words),
+        }
+    if len(reference_words) != len(words):
+        return {
+            "available": False,
+            "reason": "word_count_mismatch",
+            "reference_word_count": len(reference_words),
+            "published_word_count": len(words),
+        }
+    if any(
+        reference.text.strip() != published.text.strip()
+        for reference, published in zip(reference_words, words, strict=True)
+    ):
+        return {
+            "available": False,
+            "reason": "word_sequence_mismatch",
+            "reference_word_count": len(reference_words),
+            "published_word_count": len(words),
+        }
+    return None
+
+
+def _timestamp_displacements(
+    reference_words: list[AlignedWord],
+    words: list[AlignedWord],
+    *,
+    field: str,
+) -> list[float]:
+    values: list[float] = []
+    for reference, published in zip(reference_words, words, strict=True):
+        reference_value = getattr(reference, field)
+        published_value = getattr(published, field)
+        if reference_value is None or published_value is None:
+            continue
+        values.append(abs(float(published_value) - float(reference_value)))
+    return values
+
+
+def _displacement_statistics(values: list[float]) -> dict[str, int | float | None]:
+    if not values:
+        return {
+            "comparable_count": 0,
+            "adjusted_count": 0,
+            "total_absolute_seconds": 0.0,
+            "maximum_seconds": None,
+            "p50_seconds": None,
+            "p95_seconds": None,
+            "p99_seconds": None,
+        }
+    ordered = sorted(values)
+    return {
+        "comparable_count": len(ordered),
+        "adjusted_count": sum(value > 1e-12 for value in ordered),
+        "total_absolute_seconds": round(sum(ordered), 9),
+        "maximum_seconds": round(ordered[-1], 9),
+        "p50_seconds": round(_percentile(ordered, 0.50), 9),
+        "p95_seconds": round(_percentile(ordered, 0.95), 9),
+        "p99_seconds": round(_percentile(ordered, 0.99), 9),
+    }
+
+
+def _percentile(ordered: list[float], fraction: float) -> float:
+    if len(ordered) == 1:
+        return ordered[0]
+    position = (len(ordered) - 1) * fraction
+    lower = int(position)
+    upper = min(len(ordered) - 1, lower + 1)
+    weight = position - lower
+    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
+
+
+def _alignment_segment_coverage(metadata: dict[str, Any]) -> dict[str, int | bool]:
+    expected = int(metadata.get("expected_segment_count") or 0)
+    forced = int(metadata.get("aligned_segment_count") or 0)
+    localized = int(metadata.get("localized_fallback_segment_count") or 0)
+    missing = int(metadata.get("missing_segment_count") or 0)
+    accounted = forced + localized + missing
+    return {
+        "expected_segment_count": expected,
+        "forced_segment_count": forced,
+        "localized_fallback_segment_count": localized,
+        "missing_segment_count": missing,
+        "accounted_segment_count": accounted,
+        "coverage_is_exhaustive": expected == accounted,
     }
 
 
@@ -406,8 +670,10 @@ def alignment_timestamp_defect_count(words: list[AlignedWord]) -> int:
         if start is None or end is None:
             continue
         if (
-            start < 0
-            or end < start
+            not math.isfinite(start)
+            or not math.isfinite(end)
+            or start < 0
+            or end <= start
             or start < previous_start
             or end < previous_end
         ):

@@ -929,7 +929,7 @@
     {
       "key": "subtitle_export.max_line_width",
       "title": "Max line width",
-      "help": "Character budget per subtitle line. Automatic removes the limit.",
+      "help": "Dialogue-body character budget per line; the semantic speaker prefix is not counted. Automatic removes the limit.",
       "section": "subtitles",
       "disposition": "primary"
     },
@@ -937,6 +937,13 @@
       "key": "subtitle_export.max_line_count",
       "title": "Max lines per cue",
       "help": "Line budget per subtitle cue. Automatic removes the limit.",
+      "section": "subtitles",
+      "disposition": "primary"
+    },
+    {
+      "key": "subtitle_export.max_cue_duration",
+      "title": "Max cue duration",
+      "help": "Target maximum seconds per generated transcript cue. Complete word timing enables balanced pause or punctuation-aware splits; missing timing and indivisible words remain truthful instead of receiving invented timestamps.",
       "section": "subtitles",
       "disposition": "primary"
     },

@@ -244,11 +244,14 @@ def test_alignment_diagnostic_payload_counts_sources_without_text() -> None:
     )
 
     assert payload["fallback_used"] is True
+    assert payload["fallback_mode"] == "full"
     assert payload["alignment_backend"] == "whisper-word-timestamps"
     assert payload["source_counts"] == {"forced": 1, "missing": 1}
     assert payload["forced_aligned_word_count"] == 1
     assert payload["forced_aligned_word_percentage"] == 50.0
     assert payload["whisper_timestamp_word_count"] == 0
+    assert payload["interpolated_word_count"] == 0
+    assert payload["estimated_word_count"] == 0
     assert payload["estimated_interpolated_word_count"] == 0
     assert payload["missing_timestamp_count"] == 1
     assert payload["timestamp_coverage_percentage"] == 50.0
@@ -258,3 +261,153 @@ def test_alignment_diagnostic_payload_counts_sources_without_text() -> None:
     ]
     assert "private" not in str(payload)
     assert payload["word_warning_counts"] == {"missing_word_timestamp": 1}
+    assert payload["asr_timestamp_displacement"]["available"] is False
+
+
+def test_alignment_diagnostic_payload_reports_localized_fallback_and_displacement() -> None:
+    reference = [
+        AlignedWord(text="one", start=0.0, end=0.4, alignment_source="whisper"),
+        AlignedWord(text="two", start=0.3, end=0.8, alignment_source="whisper"),
+        AlignedWord(text="three", start=0.8, end=1.0, alignment_source="whisper"),
+    ]
+    published = [
+        AlignedWord(text="one", start=0.0, end=0.4, alignment_source="forced"),
+        AlignedWord(
+            text="two",
+            start=0.4,
+            end=0.9,
+            alignment_source="whisper",
+            warnings=[
+                "forced_alignment_localized_fallback",
+                "repaired_non_monotonic_start",
+            ],
+        ),
+        AlignedWord(
+            text="three",
+            start=0.9,
+            end=1.1,
+            alignment_source="estimated",
+            warnings=["repaired_zero_duration"],
+        ),
+    ]
+
+    payload = alignment_diagnostic_payload(
+        requested_backend="auto",
+        backend="whisperx-forced",
+        device="cpu",
+        words=published,
+        warnings=["localized fallback"],
+        duration_seconds=2.5,
+        metadata={
+            "localized_fallback_segments": [
+                {
+                    "segment_index": 1,
+                    "reason": "missing_timestamp",
+                    "fallback_word_count": 1,
+                }
+            ],
+            "localized_fallback_word_count": 1,
+            "localized_fallback_segment_count": 1,
+            "expected_segment_count": 2,
+            "aligned_segment_count": 1,
+            "missing_segment_count": 0,
+            "interpolation_method": "ignore",
+        },
+        reference_words=reference,
+    )
+
+    assert payload["fallback_used"] is True
+    assert payload["fallback_mode"] == "localized"
+    assert payload["fallback_reasons"] == ["missing_timestamp", "localized fallback"]
+    assert payload["localized_fallback_reason_counts"] == {"missing_timestamp": 1}
+    assert payload["segment_coverage"]["coverage_is_exhaustive"] is True
+    assert payload["source_counts"] == {
+        "estimated": 1,
+        "forced": 1,
+        "whisper": 1,
+    }
+    assert payload["interpolated_word_count"] == 0
+    assert payload["estimated_word_count"] == 1
+    assert payload["estimated_interpolated_word_count"] == 1
+    displacement = payload["asr_timestamp_displacement"]
+    assert displacement["available"] is True
+    assert displacement["start"]["adjusted_count"] == 2
+    assert displacement["start"]["maximum_seconds"] == 0.1
+    assert displacement["end"]["adjusted_count"] == 2
+    assert displacement["end"]["maximum_seconds"] == 0.1
+    assert displacement["final_endpoint_delta_seconds"] == 0.1
+    repair = payload["timing_repair_displacement"]
+    assert repair["affected_word_count"] == 2
+    assert repair["reason_counts"] == {
+        "repaired_non_monotonic_start": 1,
+        "repaired_zero_duration": 1,
+    }
+    assert repair["start"]["maximum_seconds"] == 0.1
+    assert repair["end"]["maximum_seconds"] == 0.1
+    assert repair["final_endpoint_delta_seconds"] == 0.1
+    assert "private transcript phrase" not in str(payload)
+
+
+def test_repair_endpoint_delta_excludes_unrelated_forced_alignment_movement() -> None:
+    reference = [
+        AlignedWord(text="one", start=0.0, end=0.4, alignment_source="whisper"),
+        AlignedWord(text="two", start=0.5, end=1.0, alignment_source="whisper"),
+    ]
+    published = [
+        AlignedWord(
+            text="one",
+            start=0.1,
+            end=0.5,
+            alignment_source="whisper",
+            warnings=["repaired_non_monotonic_start"],
+        ),
+        AlignedWord(text="two", start=0.7, end=1.2, alignment_source="forced"),
+    ]
+
+    payload = alignment_diagnostic_payload(
+        requested_backend="auto",
+        backend="whisperx-forced",
+        device="cpu",
+        words=published,
+        warnings=[],
+        duration_seconds=1.0,
+        reference_words=reference,
+    )
+
+    assert payload["asr_timestamp_displacement"]["final_endpoint_delta_seconds"] == 0.2
+    assert payload["timing_repair_displacement"]["final_endpoint_delta_seconds"] == 0.0
+
+
+def test_alignment_diagnostics_do_not_count_nonfinite_or_zero_duration_as_timed() -> None:
+    payload = alignment_diagnostic_payload(
+        requested_backend="whisper",
+        backend="whisper-word-timestamps",
+        device=None,
+        words=[
+            AlignedWord(
+                text="nan",
+                start=float("nan"),
+                end=1.0,
+                alignment_source="whisper",
+            ),
+            AlignedWord(
+                text="zero",
+                start=1.0,
+                end=1.0,
+                alignment_source="whisper",
+            ),
+            AlignedWord(
+                text="valid",
+                start=1.0,
+                end=2.0,
+                alignment_source="whisper",
+            ),
+        ],
+        warnings=[],
+        duration_seconds=2.0,
+    )
+
+    assert payload["timed_word_count"] == 1
+    assert payload["missing_timestamp_count"] == 2
+    assert payload["timestamp_coverage_percentage"] == 33.333
+    assert payload["invalid_or_non_monotonic_timestamp_count"] == 2

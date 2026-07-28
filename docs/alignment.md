@@ -19,12 +19,40 @@ alignment.
 The alignment model is optional. The default runtime behavior is:
 
 1. Try local forced alignment when dependencies and language support are present.
-2. Fall back to Whisper word timestamps.
-3. Use estimated segment-derived timestamps only as a last resort.
+2. In `auto`, retain every complete source segment that CTC aligned successfully
+   and use the original ASR word timestamps only for a failed source segment.
+3. If the forced backend cannot run or its output cannot be safely reconciled,
+   fall back to Whisper word timestamps for the complete transcript.
+4. Use estimated segment-derived timestamps only as a last resort.
+
+WhisperX is called once per original ASR source segment after loading the model
+and waveform once. This preserves source identity when WhisperX splits one input
+segment into multiple sentence-level outputs. Auralign passes
+`interpolate_method: ignore`; missing acoustic evidence is never filled inside
+WhisperX and then mislabeled as forced. Each source segment must preserve the
+recognized text and contain complete, finite, bounded, monotonic timestamps.
+WhisperX character alignments are aggregated onto Auralign's authoritative ASR
+word sequence, so different WhisperX word tokenization cannot silently merge or
+split recognized words. A word remains forced only when every non-whitespace
+character carries a complete, valid acoustic start/end pair.
+
+`alignment.backend: forced` remains strict: any failed, missing, estimated, or
+Whisper-timed source segment is a hard failure. `auto` may publish a mixed result,
+but every word retains its real `alignment_source`.
 
 The English alignment asset must be a CTC ASR model with tokenizer/vocabulary
 files and PyTorch or safetensors weights. Generic Wav2Vec2 pretraining
 checkpoints are not considered forced-alignment ready.
+
+The pinned Wav2Vec2 model is loaded through an inference-only in-memory
+configuration. Auralign disables SpecAugment and its time/feature masking
+probabilities before model construction, moves the model to the selected
+device, calls `eval()`, and fails if training mode or the training-only
+`masked_spec_embed` parameter remains. The immutable cached `config.json` and
+weights are never rewritten. Auralign does not broadly suppress Transformers
+model-loading warnings. The former randomly initialized `masked_spec_embed`
+warning was inference-loading hygiene only: the parameter is inactive in
+evaluation mode and was not the cause of invalid MPS alignment timestamps.
 
 ## Report
 
@@ -33,10 +61,19 @@ Every transcription run writes `alignment_report.json`. It records:
 - requested alignment backend and actual backend
 - device and local model metadata when forced alignment runs
 - whether fallback was used
+- whether fallback was complete or localized
+- forced, localized-fallback, and missing segment coverage with privacy-safe
+  indexes, segment IDs, and reason codes
 - word counts, timed word counts, and missing timestamp counts
 - alignment source counts and percentages
+- upstream interpolation method and explicit interpolated count, which is zero
+  for the supported `ignore` contract
+- inference-hygiene evidence for evaluation mode, disabled SpecAugment, zero
+  mask probabilities, and absence of `masked_spec_embed`
 - word warning counts and backend warnings
 - missing timestamp spans by word index only
+- raw-ASR-to-published timestamp displacement and a separate displacement
+  summary limited to words actually changed by timing repair
 
 The report deliberately omits transcript text. Use it with `qa_report.json` and
 `run_metadata.json` to decide whether an export is timing-grade or should be
@@ -72,9 +109,9 @@ uv run ltm transcribe input.wav --forced-alignment on --alignment-device cpu
 uv run ltm transcribe input.wav --no-alignment
 ```
 
-Use `--forced-alignment on` only when missing forced-alignment support should be
-a hard failure. Use `auto` only when a clearly reported Whisper-timestamp
-fallback is acceptable.
+Use `--forced-alignment on` only when anything short of complete, lexically
+conserved forced alignment should be a hard failure. Use `auto` only when a
+clearly reported localized or complete Whisper-timestamp fallback is acceptable.
 
 Alignment device resolution is independent from ASR and diarization. On Apple
 Silicon, an unset or `auto` alignment device resolves to CPU; MLX ASR never

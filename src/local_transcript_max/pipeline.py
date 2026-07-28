@@ -362,6 +362,12 @@ def transcribe_file(
             warnings=alignment.warnings,
             duration_seconds=alignment_timing.duration_seconds,
             metadata=alignment.metadata,
+            reference_words=[
+                word
+                for segment in asr_result.segments
+                for word in segment.words
+                if word.text.strip()
+            ],
         )
         write_json_artifact(out_dir / "alignment_report.json", alignment_report)
         emit_progress(
@@ -988,8 +994,12 @@ def align_words(
     fallback = FallbackWordTimestampAlignment()
     alignment_decision = resolve_runtime_policy(config).alignment
     if not config.alignment.enabled or config.alignment.backend in {"off", "whisper", "fallback"}:
+        fallback_words = fallback.align(audio_path, asr_result, config)
+        validate_publishable_alignment_words(fallback_words)
+        validate_alignment_text_conservation(fallback_words, asr_result)
+        validate_alignment_segment_bounds(fallback_words, asr_result)
         return AlignmentOutcome(
-            words=fallback.align(audio_path, asr_result, config),
+            words=fallback_words,
             backend="whisper-word-timestamps",
             warnings=[],
             device=None,
@@ -1004,11 +1014,27 @@ def align_words(
     backend = alignment_backend or WhisperXForcedAlignment()
     try:
         words = backend.align(audio_path, asr_result, config)
-        validate_forced_alignment_words(words)
+        if config.alignment.backend == "forced":
+            validate_forced_alignment_words(words)
+        else:
+            validate_publishable_alignment_words(words)
+        validate_alignment_text_conservation(words, asr_result)
+        validate_alignment_segment_bounds(words, asr_result)
+        localized_fallback_segment_count = len(
+            getattr(backend, "last_localized_fallback_segments", [])
+        )
+        warnings = (
+            [
+                "WhisperX forced alignment used localized ASR word-timestamp "
+                f"fallback for {localized_fallback_segment_count} segment(s)."
+            ]
+            if localized_fallback_segment_count
+            else []
+        )
         return AlignmentOutcome(
             words=words,
             backend=getattr(backend, "name", "forced"),
-            warnings=[],
+            warnings=warnings,
             device=_optional_metadata_str(getattr(backend, "last_device", None)),
             metadata={
                 "language": config.alignment.language or asr_result.language,
@@ -1026,6 +1052,28 @@ def align_words(
                 "missing_segment_count": getattr(
                     backend, "last_missing_segment_count", None
                 ),
+                "forced_word_count": getattr(backend, "last_forced_word_count", None),
+                "localized_fallback_word_count": getattr(
+                    backend, "last_localized_fallback_word_count", None
+                ),
+                "localized_fallback_segments": getattr(
+                    backend, "last_localized_fallback_segments", []
+                ),
+                "localized_fallback_segment_count": localized_fallback_segment_count,
+                "fallback_reason": (
+                    "localized_segment_fallback"
+                    if localized_fallback_segment_count
+                    else None
+                ),
+                "interpolation_method": getattr(
+                    backend, "last_interpolation_method", None
+                ),
+                "alignment_call_count": getattr(
+                    backend, "last_alignment_call_count", None
+                ),
+                "inference_hygiene": getattr(
+                    backend, "last_inference_hygiene", {}
+                ),
                 "requested_device": alignment_decision.requested_device,
                 "resolved_device": alignment_decision.resolved_device,
                 "actual_device": _optional_metadata_str(
@@ -1035,15 +1083,22 @@ def align_words(
         )
     except BackendUnavailableError as exc:
         if config.alignment.backend == "forced":
-            raise
+            raise BackendUnavailableError(
+                "Forced alignment backend unavailable."
+            ) from exc
+        fallback_reason = "forced_alignment_backend_unavailable"
+        fallback_words = fallback.align(audio_path, asr_result, config)
+        validate_publishable_alignment_words(fallback_words)
+        validate_alignment_text_conservation(fallback_words, asr_result)
+        validate_alignment_segment_bounds(fallback_words, asr_result)
         return AlignmentOutcome(
-            words=fallback.align(audio_path, asr_result, config),
+            words=fallback_words,
             backend="whisper-word-timestamps",
-            warnings=[privacy_safe_text(str(exc))],
+            warnings=[fallback_reason],
             device=None,
             metadata={
                 "source": "asr_word_timestamps",
-                "fallback_reason": privacy_safe_text(str(exc)),
+                "fallback_reason": fallback_reason,
                 "requested_backend": config.alignment.backend,
                 "requested_device": alignment_decision.requested_device,
                 "resolved_device": alignment_decision.resolved_device,
@@ -1068,7 +1123,7 @@ def validate_forced_alignment_words(words: list[AlignedWord]) -> None:
             or not math.isfinite(start)
             or not math.isfinite(end)
             or start < 0
-            or end < start
+            or end <= start
             or start < previous_start
             or end < previous_end
         ):
@@ -1077,6 +1132,123 @@ def validate_forced_alignment_words(words: list[AlignedWord]) -> None:
             )
         previous_start = start
         previous_end = end
+
+
+def validate_publishable_alignment_words(words: list[AlignedWord]) -> None:
+    """Require complete monotonic timing while permitting truthful mixed sources."""
+
+    if not words:
+        raise BackendUnavailableError("Alignment returned no word timestamps.")
+    previous_start = -math.inf
+    previous_end = -math.inf
+    for index, word in enumerate(words):
+        start = word.start
+        end = word.end
+        if (
+            word.alignment_source == "missing"
+            or start is None
+            or end is None
+            or not math.isfinite(start)
+            or not math.isfinite(end)
+            or start < 0
+            or end <= start
+            or start < previous_start
+            or end < previous_end
+        ):
+            raise BackendUnavailableError(
+                f"Forced alignment returned an invalid timestamp at word index {index}."
+            )
+        previous_start = start
+        previous_end = end
+
+
+def validate_alignment_text_conservation(
+    words: list[AlignedWord],
+    asr_result: ASRResult,
+) -> None:
+    """Reject alignment output that drops or invents recognized transcript text."""
+
+    expected_parts: list[str] = []
+    for segment in asr_result.segments:
+        segment_text = segment.text
+        if not segment_text.strip():
+            segment_text = " ".join(
+                word.text for word in segment.words if word.text.strip()
+            )
+        expected_parts.append(
+            "".join(
+                character
+                for character in segment_text
+                if not character.isspace()
+            )
+        )
+    expected = "".join(expected_parts)
+    actual = "".join(
+        character
+        for word in words
+        for character in word.text
+        if not character.isspace()
+    )
+    if expected != actual:
+        raise BackendUnavailableError(
+            "Alignment output did not preserve the recognized transcript text."
+        )
+    segments_with_text = [
+        segment
+        for segment in asr_result.segments
+        if segment.text.strip() or any(word.text.strip() for word in segment.words)
+    ]
+    if segments_with_text and all(segment.words for segment in segments_with_text):
+        expected_word_sequence = [
+            "".join(character for character in word.text if not character.isspace())
+            for segment in segments_with_text
+            for word in segment.words
+            if word.text.strip()
+        ]
+        actual_word_sequence = [
+            "".join(character for character in word.text if not character.isspace())
+            for word in words
+            if word.text.strip()
+        ]
+        if expected_word_sequence != actual_word_sequence:
+            raise BackendUnavailableError(
+                "Alignment output did not preserve the recognized word sequence."
+            )
+
+
+def validate_alignment_segment_bounds(
+    words: list[AlignedWord],
+    asr_result: ASRResult,
+) -> None:
+    """Fail closed when source-word-preserving alignment escapes its source span."""
+
+    cursor = 0
+    tolerance_seconds = 0.05
+    for segment in asr_result.segments:
+        source_words = [word for word in segment.words if word.text.strip()]
+        expected_word_count = (
+            len(source_words)
+            if source_words
+            else len([token for token in segment.text.split() if token])
+        )
+        if expected_word_count == 0:
+            continue
+        aligned_segment_words = words[cursor : cursor + expected_word_count]
+        cursor += expected_word_count
+        if len(aligned_segment_words) != expected_word_count or any(
+            word.start is None
+            or word.end is None
+            or word.start < segment.start - tolerance_seconds
+            or word.end > segment.end + tolerance_seconds
+            for word in aligned_segment_words
+        ):
+            raise BackendUnavailableError(
+                "Alignment output escaped an ASR source-segment boundary."
+            )
+    if cursor != len(words):
+        raise BackendUnavailableError(
+            "Alignment output could not be mapped to ASR source-segment boundaries."
+        )
 
 
 class DisabledDiarizationBackend:

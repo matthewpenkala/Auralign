@@ -136,9 +136,9 @@ For a bounded explicit canary:
 
 ```bash
 LTM_OFFLINE=1 ltm apple-silicon-canary \
-  --media /path/to/private/canary.wav \
-  --baseline-device cpu \
-  --candidate-device mps
+  /path/to/private/canary.wav \
+  --num-speakers 2 \
+  --out benchmark_runs/apple_silicon_canary
 ```
 
 Keep private media, model packs, transcripts, and generated benchmark evidence

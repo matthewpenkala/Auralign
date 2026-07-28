@@ -33,10 +33,15 @@ For long files, the default ASR config disables `condition_on_previous_text` to
 reduce runaway context loops in chunked transcription.
 
 `--forced-alignment auto` attempts local forced alignment when WhisperX support
-is available for the detected or configured language. If it is unavailable, the
-pipeline falls back to faster-whisper word timestamps, then estimated segment
+is available for the detected or configured language. WhisperX interpolation is
+disabled. A source segment that cannot be completely and monotonically CTC
+aligned uses its preserved Whisper/MLX word timestamps while successfully
+forced-aligned source segments remain forced. If the backend cannot run or the
+mixed result cannot conserve the recognized text, the pipeline falls back to
+Whisper word timestamps for the complete transcript, then estimated segment
 timings only as a last resort. The exported words mark the actual
-`alignment_source`; estimated timestamps are never reported as forced alignment.
+`alignment_source`; fallback and estimated timestamps are never reported as
+forced alignment. Strict forced mode permits no mixed-source result.
 
 ## Targeted Re-Decode
 

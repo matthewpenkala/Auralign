@@ -886,5 +886,5 @@ def test_strict_alignment_preflight_fails_before_inference(
 
     monkeypatch.setattr(pipeline_module, "preflight_forced_alignment", unavailable)
 
-    with pytest.raises(BackendUnavailableError, match="forced alignment unavailable"):
+    with pytest.raises(BackendUnavailableError, match="alignment unavailable"):
         preflight_required_models(config)

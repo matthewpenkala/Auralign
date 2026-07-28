@@ -152,8 +152,10 @@ translate, invent names, or change meaning.
 A permitted remote cleanup endpoint receives the transcript text being cleaned
 and is therefore a separate trust boundary. Do not enable it for sensitive
 content without an approved endpoint and data-handling policy. Generated
-`cleanup_diff.json` data can include up to 500 characters each of original and
-cleaned preview text; treat cleanup reports and outputs as sensitive.
+`cleanup_diff.json` records only counts and reason codes, not transcript
+previews. Treat all cleanup outputs as sensitive. Punctuation cleanup is
+projected onto copied timed words only after exact normalized lexical-word
+identity passes; the broader readability result remains untimed derived text.
 
 Before permitting remote cleanup, document the endpoint operator, location,
 purpose, legal basis, authentication, encryption, access controls, retention,

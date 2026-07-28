@@ -55,11 +55,11 @@ REGENERATE_HINT = (
     "--write macos/Auralign/Resources/config_manifest.json"
 )
 
-EXPECTED_FIELD_COUNT = 112
+EXPECTED_FIELD_COUNT = 113
 EXPECTED_KIND_COUNTS = {
     "bool": 30,
     "enum": 19,
-    "float": 17,
+    "float": 18,
     "float_or_float_list": 1,
     "int": 18,
     "path": 11,
@@ -79,7 +79,7 @@ EXPECTED_SECTION_IDS = [
     "subtitles",
 ]
 EXPECTED_DISPOSITION_COUNTS = {
-    "primary": 35,
+    "primary": 36,
     "advanced": 76,
     "readonly": 1,
 }
@@ -87,7 +87,7 @@ EXPECTED_CONTROL_COUNTS = {
     "toggle": 30,
     "enum_picker": 19,
     "integer_editor": 18,
-    "float_editor": 17,
+    "float_editor": 18,
     "text_editor": 10,
     "model_picker": 5,
     "path_picker": 11,

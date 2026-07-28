@@ -277,6 +277,41 @@ def test_subtitle_cue_at_shared_boundary_maps_to_the_turn_that_starts_there() ->
     assert "Unattributed: Generic response." in rendered
 
 
+def test_subtitle_cue_one_millisecond_before_boundary_stays_with_containing_turn() -> None:
+    transcript = synthetic_transcript()
+    transcript.speaker_turns[0].end = 1.5
+    transcript.speaker_turns[1].start = 1.5
+    canonical = "1\n00:00:01,499 --> 00:00:01,500\nSPEAKER_00: Synthetic line.\n"
+
+    rendered = render_identity_srt(canonical, transcript, complete_decisions())
+
+    assert "Participant Alpha: Synthetic line." in rendered
+
+
+@pytest.mark.parametrize(
+    ("boundary", "rendered_timestamp"),
+    [
+        (1.5005, "00:00:01,500"),
+        (1.5015, "00:00:01,502"),
+    ],
+)
+def test_subtitle_cue_at_half_millisecond_boundary_uses_canonical_speaker_prefix(
+    boundary: float,
+    rendered_timestamp: str,
+) -> None:
+    transcript = synthetic_transcript()
+    transcript.speaker_turns[0].end = boundary
+    transcript.speaker_turns[1].start = boundary
+    canonical = (
+        f"1\n{rendered_timestamp} --> 00:00:02,500\n"
+        "SPEAKER_01: Generic response.\n"
+    )
+
+    rendered = render_identity_srt(canonical, transcript, complete_decisions())
+
+    assert "Unattributed: Generic response." in rendered
+
+
 def test_vtt_export_changes_only_the_label_prefix() -> None:
     transcript = synthetic_transcript()
     canonical = (

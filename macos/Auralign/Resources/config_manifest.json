@@ -782,18 +782,26 @@
       "optional": false
     },
     {
-      "default": 45,
+      "default": 120,
       "gt": 0,
       "key": "subtitle_export.max_line_width",
       "kind": "int",
       "optional": true
     },
     {
-      "default": 2,
+      "default": 4,
       "gt": 0,
       "key": "subtitle_export.max_line_count",
       "kind": "int",
       "optional": true
+    },
+    {
+      "default": 30.0,
+      "gt": 0.0,
+      "key": "subtitle_export.max_cue_duration",
+      "kind": "float",
+      "le": 60.0,
+      "optional": false
     },
     {
       "default": true,

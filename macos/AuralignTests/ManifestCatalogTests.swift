@@ -88,14 +88,14 @@ final class ManifestCatalogTests: XCTestCase {
             by: { controlProjection(for: $0).rawValue }
         ).mapValues { $0.count }
 
-        XCTAssertEqual(keys.count, 112)
-        XCTAssertEqual(Set(keys).count, 112, "manifest field keys must be unique")
+        XCTAssertEqual(keys.count, 113)
+        XCTAssertEqual(Set(keys).count, 113, "manifest field keys must be unique")
         XCTAssertEqual(
             kindCounts,
             [
                 "bool": 30,
                 "enum": 19,
-                "float": 17,
+                "float": 18,
                 "float_or_float_list": 1,
                 "int": 18,
                 "path": 11,
@@ -109,7 +109,7 @@ final class ManifestCatalogTests: XCTestCase {
                 "toggle": 30,
                 "enumPicker": 19,
                 "integerEditor": 18,
-                "floatEditor": 17,
+                "floatEditor": 18,
                 "textEditor": 10,
                 "modelPicker": 5,
                 "pathPicker": 11,
@@ -137,8 +137,8 @@ final class ManifestCatalogTests: XCTestCase {
         let catalog = try loadCatalog()
         let manifestKeys = Set(manifest.fields.map(\.key))
         let catalogKeys = Set(catalog.fields.map(\.key))
-        XCTAssertEqual(manifest.fields.count, 112)
-        XCTAssertEqual(catalog.fields.count, 112)
+        XCTAssertEqual(manifest.fields.count, 113)
+        XCTAssertEqual(catalog.fields.count, 113)
         XCTAssertEqual(manifestKeys.count, manifest.fields.count, "duplicate manifest key")
         XCTAssertEqual(catalogKeys.count, catalog.fields.count, "duplicate catalog key")
         XCTAssertEqual(
@@ -165,7 +165,7 @@ final class ManifestCatalogTests: XCTestCase {
                 "asr.mlx_model_path",
             ]
         )
-        XCTAssertEqual(catalog.fields.filter(\.isProductVisible).count, 110)
+        XCTAssertEqual(catalog.fields.filter(\.isProductVisible).count, 111)
         XCTAssertEqual(
             manifest.field("asr.backend")?.choices,
             ["faster-whisper", "mlx-whisper"]
@@ -284,7 +284,7 @@ final class ManifestCatalogTests: XCTestCase {
         XCTAssertEqual(
             dispositions,
             [
-                "primary": 35,
+                "primary": 36,
                 "advanced": 76,
                 "readonly": 1,
             ]
