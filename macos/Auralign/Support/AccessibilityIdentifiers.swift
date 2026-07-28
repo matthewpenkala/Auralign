@@ -59,6 +59,8 @@ enum AccessibilityIdentifier {
     static let activityTechnicalDetails = "activity.technical-details"
     static let activityPartialReveal = "activity.partial-reveal"
     static let activityViewResults = "activity.view-results"
+    static let alignmentCanvas = "canvas.root"
+    static let alignmentCanvasRibbon = "canvas.ribbon"
     static let configurationReturnToOrigin = "configuration.return-to-origin"
     static let settingsRoot = "settings.root"
     static let settingsRepository = "settings.engine.repository"
@@ -164,6 +166,12 @@ enum AccessibilityIdentifier {
 
     static func runPlanStage(_ stageID: String) -> String {
         "job.run-plan.stage.\(stageID)"
+    }
+
+    /// One phase of the alignment canvas. The phase title is a fixed
+    /// presentation constant, never user content.
+    static func alignmentCanvasPhase(_ phaseTitle: String) -> String {
+        "canvas.phase.\(stableComponent(phaseTitle.lowercased()))"
     }
 
     private static func stableComponent(_ value: String) -> String {

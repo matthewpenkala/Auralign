@@ -111,14 +111,26 @@ struct NewJobView: View {
                         symbol: "plus.square.on.square"
                     )
 
-                    if geometry.size.width >= 860 {
+                    // The alignment canvas is the visual centre of the
+                    // workflow: it shows the journey the *effective
+                    // configuration* will actually take, including honestly
+                    // disabled phases, before anything runs.
+                    AlignmentCanvasView(
+                        projection: AlignmentCanvasProjection.live(model: model),
+                        sourceTitle: model.inputURL?.lastPathComponent
+                    )
+
+                    if geometry.size.width >= AuralignBreakpoint.workbench {
                         wideWorkbench
                     } else {
                         compactWorkbench
                     }
                 }
                 .padding(AuralignVisualSystem.spacingXL)
-                .frame(maxWidth: 1_180, alignment: .leading)
+                .frame(
+                    maxWidth: AuralignBreakpoint.workbenchMaxWidth,
+                    alignment: .leading
+                )
             }
         }
         // Keep the native toolbar title concise at the 900-point minimum

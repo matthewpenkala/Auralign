@@ -75,6 +75,96 @@ final class NewJobRunPlanTests: XCTestCase {
         )
     }
 
+    func testAlignmentCanvasProjectionUsesOnlyRealStageAndProbeEvidence() throws {
+        let projection = AlignmentCanvasProjection(
+            stages: [
+                PipelineStage(
+                    id: "canonical_audio",
+                    title: "Prepare audio",
+                    status: .done(seconds: 1.2),
+                    detail: "Ready"
+                ),
+                PipelineStage(
+                    id: "asr",
+                    title: "Transcribe",
+                    status: .active,
+                    detail: "MLX"
+                ),
+                PipelineStage(
+                    id: "diarization",
+                    title: "Separate speakers",
+                    status: .skipped(reason: "Disabled in configuration")
+                ),
+                PipelineStage(
+                    id: "alignment",
+                    title: "Align words",
+                    status: .pending
+                ),
+                PipelineStage(
+                    id: "export",
+                    title: "Export",
+                    status: .pending
+                ),
+            ],
+            posture: .running,
+            probe: MediaProbe(
+                durationSeconds: 65,
+                sampleRate: 48_000,
+                channels: 1,
+                codec: "pcm_s16le",
+                formatName: "wav"
+            )
+        )
+
+        XCTAssertEqual(
+            try XCTUnwrap(
+                projection.segments.first { $0.phase == .source }
+            ).status,
+            .complete
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(
+                projection.segments.first { $0.phase == .recognition }
+            ).status,
+            .active
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(
+                projection.segments.first { $0.phase == .speakers }
+            ).status,
+            .skipped
+        )
+        XCTAssertEqual(projection.completedFraction, 0.25)
+        XCTAssertEqual(projection.sourceDurationText, "1:05")
+        XCTAssertEqual(projection.sourceFacts, ["mono", "48 kHz", "pcm_s16le"])
+        XCTAssertTrue(projection.accessibilitySummary.contains("Recognition: Active."))
+        XCTAssertTrue(projection.accessibilitySummary.contains("Speakers: Disabled."))
+    }
+
+    func testAlignmentCanvasMarksUnreachedRunnablePhasesAsHalted() throws {
+        let projection = AlignmentCanvasProjection(
+            stages: [
+                PipelineStage(
+                    id: "asr",
+                    title: "Transcribe",
+                    status: .pending
+                )
+            ],
+            posture: .failed,
+            probe: nil
+        )
+
+        XCTAssertEqual(
+            try XCTUnwrap(
+                projection.segments.first { $0.phase == .recognition }
+            ).status,
+            .halted
+        )
+        XCTAssertEqual(projection.completedFraction, 0)
+        XCTAssertNil(projection.sourceDurationSeconds)
+        XCTAssertTrue(projection.sourceFacts.isEmpty)
+    }
+
     func testPrivacySafePresentationReplacesKnownLocalLocations() {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let input = home.appendingPathComponent("Private/secret.wav")

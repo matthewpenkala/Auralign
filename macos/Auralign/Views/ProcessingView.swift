@@ -23,6 +23,13 @@ struct ProcessingView: View {
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier(AccessibilityIdentifier.activitySummary)
                 if !model.job.stages.isEmpty {
+                    // The same canvas the user met on New Transcription, now
+                    // carrying live engine stage state. Keeping it structurally
+                    // identical is what makes the run legible as one journey.
+                    AlignmentCanvasView(
+                        projection: AlignmentCanvasProjection.live(model: model),
+                        sourceTitle: model.inputURL?.lastPathComponent
+                    )
                     stageList
                 }
                 if model.job.runConfiguration != nil {
@@ -34,8 +41,8 @@ struct ProcessingView: View {
                 failureBox
                 technicalDetails
             }
-            .padding(20)
-            .frame(maxWidth: 720, alignment: .leading)
+            .padding(AuralignVisualSystem.spacingXL)
+            .frame(maxWidth: AuralignBreakpoint.workbench, alignment: .leading)
         }
         .navigationTitle("Processing")
         .task(id: model.job.isRunning) {

@@ -149,6 +149,13 @@ struct ResultsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AuralignVisualSystem.spacingL) {
                 completedHeader(result)
+                // The journey settles rather than collapsing into a generic
+                // success card. Results stays transcript-first: the canvas is a
+                // compact band above the reading surface, not a dashboard.
+                AlignmentCanvasView(
+                    projection: AlignmentCanvasProjection.live(model: model),
+                    sourceTitle: result.sourceURL.lastPathComponent
+                )
                 if let explanation = model.resultDrift.explanation {
                     AuralignStatusBanner(
                         title: "Results are from an earlier job state",
