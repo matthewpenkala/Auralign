@@ -383,12 +383,26 @@ def test_models_payload_declares_strict_complete_status_coverage(tmp_path: Path)
     assert payload["observed_ids"] == payload["expected_ids"]
     assert payload["expected_count"] == len(payload["expected_ids"])
     assert payload["observed_count"] == len(payload["observed_ids"])
-    assert {row["status_id"] for row in payload["models"]} == set(
-        payload["observed_ids"]
-    )
+    assert [row["status_id"] for row in payload["models"]] == payload["observed_ids"]
     serialized = json.dumps(payload)
     assert str(private_cache) not in serialized
     assert all("/" not in identity and "?" not in identity for identity in payload["expected_ids"])
+
+
+def test_models_payload_canonicalizes_status_row_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    statuses = list(reversed(models_module.all_statuses(tmp_path / "models")))
+    monkeypatch.setattr(models_module, "all_statuses", lambda _cache: statuses)
+
+    payload = models_payload({"model_cache": str(tmp_path / "models")})
+    row_ids = [row["status_id"] for row in payload["models"]]
+
+    assert row_ids == sorted(row_ids)
+    assert row_ids == payload["observed_ids"]
+    assert payload["observed_ids"] == payload["expected_ids"]
+    assert payload["complete"] is True
 
 
 def test_models_payload_reports_missing_status_rows_without_silent_success(
@@ -423,6 +437,30 @@ def test_model_status_completeness_schema_is_strict() -> None:
             complete=False,
             expected_ids=["asr:large-v3"],
             observed_ids=[],
+            expected_count=1,
+            observed_count=1,
+        )
+    with pytest.raises(ValidationError, match="duplicate"):
+        ModelStatusCompleteness(
+            complete=True,
+            expected_ids=["asr:large-v3", "asr:large-v3"],
+            observed_ids=["asr:large-v3", "asr:large-v3"],
+            expected_count=2,
+            observed_count=2,
+        )
+    with pytest.raises(ValidationError, match="canonically ordered"):
+        ModelStatusCompleteness(
+            complete=True,
+            expected_ids=["asr:turbo", "asr:large-v3"],
+            observed_ids=["asr:turbo", "asr:large-v3"],
+            expected_count=2,
+            observed_count=2,
+        )
+    with pytest.raises(ValidationError, match="unexpected identifier"):
+        ModelStatusCompleteness(
+            complete=False,
+            expected_ids=["asr:large-v3"],
+            observed_ids=["asr:turbo"],
             expected_count=1,
             observed_count=1,
         )

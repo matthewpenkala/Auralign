@@ -157,10 +157,20 @@ class ModelStatusCompleteness(BaseModel):
 
     @model_validator(mode="after")
     def validate_completeness(self) -> ModelStatusCompleteness:
+        for label, identifiers in (
+            ("expected_ids", self.expected_ids),
+            ("observed_ids", self.observed_ids),
+        ):
+            if len(set(identifiers)) != len(identifiers):
+                raise ValueError(f"model status {label} contains duplicate identifiers")
+            if identifiers != sorted(identifiers):
+                raise ValueError(f"model status {label} is not canonically ordered")
         if self.expected_count != len(self.expected_ids):
             raise ValueError("model status expected_count does not match expected_ids")
         if self.observed_count != len(self.observed_ids):
             raise ValueError("model status observed_count does not match observed_ids")
+        if not set(self.observed_ids).issubset(self.expected_ids):
+            raise ValueError("model status observed_ids contains an unexpected identifier")
         if self.complete != (self.observed_ids == self.expected_ids):
             raise ValueError("model status complete does not match observed row coverage")
         return self
@@ -523,7 +533,10 @@ def models_payload(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         raise BridgeUsageError("models 'model_cache' must be a path string")
     selected = _selected_model_ids(payload)
-    model_statuses = all_statuses(cache_dir)
+    model_statuses = sorted(
+        all_statuses(cache_dir),
+        key=lambda status: _model_status_id(status.entry),
+    )
     statuses = []
     for status in model_statuses:
         statuses.append(
@@ -540,7 +553,7 @@ def models_payload(payload: dict[str, Any]) -> dict[str, Any]:
             }
         )
     expected_ids = sorted(_model_status_id(entry) for entry in MODEL_MANIFEST.values())
-    observed_ids = sorted(_model_status_id(status.entry) for status in model_statuses)
+    observed_ids = [_model_status_id(status.entry) for status in model_statuses]
     completeness = ModelStatusCompleteness(
         complete=observed_ids == expected_ids,
         expected_ids=expected_ids,
