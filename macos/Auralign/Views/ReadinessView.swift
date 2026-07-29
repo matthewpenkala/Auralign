@@ -145,9 +145,15 @@ struct ReadinessView: View {
                     Canvas { context, size in
                         let center = CGPoint(x: size.width / 2, y: size.height / 2)
                         for index in 0..<min(facetValues.count, 4) {
+                            let node = coreNodePoint(index, in: size)
                             var path = Path()
-                            path.move(to: center)
-                            path.addLine(to: coreNodePoint(index, in: size))
+                            path.move(
+                                to: coreConnectorStartPoint(
+                                    from: center,
+                                    toward: node
+                                )
+                            )
+                            path.addLine(to: node)
                             context.stroke(
                                 path,
                                 with: .color(
@@ -163,7 +169,7 @@ struct ReadinessView: View {
                     .accessibilityHidden(true)
 
                     ZStack {
-                        coreSeal
+                        coreSeal(in: geometry.size)
                             .position(
                                 x: geometry.size.width / 2,
                                 y: geometry.size.height / 2
@@ -188,13 +194,14 @@ struct ReadinessView: View {
         )
     }
 
-    private var coreSeal: some View {
+    private func coreSeal(in size: CGSize) -> some View {
         AuralignCoreLens(
             tone: decisionTone,
             symbol: decision.level.symbol,
             connectorColors: Array(
                 facetValues.prefix(4).map { $0.tone.color }
             ),
+            connectorDirections: coreConnectorDirections(in: size),
             isActiveOperation:
                 model.isConnectingEngine || model.isRunningDoctor
         )
@@ -239,6 +246,38 @@ struct ReadinessView: View {
         default:
             return CGPoint(x: size.width - 92, y: size.height - 50)
         }
+    }
+
+    private func coreConnectorDirections(in size: CGSize) -> [CGVector] {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        return (0..<min(facetValues.count, 4)).map { index in
+            let node = coreNodePoint(index, in: size)
+            let delta = CGVector(
+                dx: node.x - center.x,
+                dy: node.y - center.y
+            )
+            let distance = max(hypot(delta.dx, delta.dy), 1)
+            return CGVector(
+                dx: delta.dx / distance,
+                dy: delta.dy / distance
+            )
+        }
+    }
+
+    private func coreConnectorStartPoint(
+        from center: CGPoint,
+        toward node: CGPoint
+    ) -> CGPoint {
+        let delta = CGVector(
+            dx: node.x - center.x,
+            dy: node.y - center.y
+        )
+        let distance = max(hypot(delta.dx, delta.dy), 1)
+        let lensRadius = AuralignCoreLiquidLensTuning.radius
+        return CGPoint(
+            x: center.x + delta.dx / distance * lensRadius,
+            y: center.y + delta.dy / distance * lensRadius
+        )
     }
 
     private func decisionPanel(proxy: ScrollViewProxy) -> some View {
@@ -1233,6 +1272,14 @@ struct ReadinessView: View {
     }
 }
 
+private enum AuralignCoreLiquidLensTuning {
+    static let visibleDiameter: CGFloat = 72
+    static let radius: CGFloat = visibleDiameter / 2
+    static let sampleEnvelope: CGFloat = 6
+    static let sourceDiameter: CGFloat =
+        visibleDiameter + sampleEnvelope * 2
+}
+
 /// The Offline Core's single purpose-built optical object.
 ///
 /// Large structural planes share `AuralignOpticalSurface`; this smaller lens
@@ -1251,40 +1298,54 @@ private struct AuralignCoreLens: View {
     let tone: AuralignStatusTone
     let symbol: String
     let connectorColors: [Color]
+    let connectorDirections: [CGVector]
     let isActiveOperation: Bool
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(presentationColor.opacity(outerFillOpacity))
+                .fill(outerFill)
                 .frame(width: 92, height: 92)
 
             if opticalDetailIsVisible {
-                AuralignCoreConnectorRefraction(colors: connectorColors)
-                    .frame(width: 72, height: 72)
+                AuralignCoreConnectorRefraction(
+                    colors: connectorColors,
+                    directions: connectorDirections
+                )
+                    .frame(
+                        width: AuralignCoreLiquidLensTuning.visibleDiameter,
+                        height: AuralignCoreLiquidLensTuning.visibleDiameter
+                    )
                     .clipShape(Circle())
             }
 
-            Circle()
-                .fill(lensBackdropScrim)
-                .frame(width: 72, height: 72)
-
-            Circle()
-                .fill(lensFill)
-                .frame(width: 72, height: 72)
+            if !opticalDetailIsVisible {
+                Circle()
+                    .fill(lensFill)
+                    .frame(
+                        width: AuralignCoreLiquidLensTuning.visibleDiameter,
+                        height: AuralignCoreLiquidLensTuning.visibleDiameter
+                    )
+            }
 
             AuralignCoreLensMetalMaterial(
                 accent: presentationColor,
                 isActiveOperation: isActiveOperation
             )
-                .frame(width: 72, height: 72)
+                .frame(
+                    width: AuralignCoreLiquidLensTuning.visibleDiameter,
+                    height: AuralignCoreLiquidLensTuning.visibleDiameter
+                )
 
             Circle()
                 .strokeBorder(
                     presentationColor.opacity(increaseContrast ? 1 : 0.72),
                     lineWidth: increaseContrast ? 2 : 1.35
                 )
-                .frame(width: 72, height: 72)
+                .frame(
+                    width: AuralignCoreLiquidLensTuning.visibleDiameter,
+                    height: AuralignCoreLiquidLensTuning.visibleDiameter
+                )
 
             if opticalDetailIsVisible {
                 Circle()
@@ -1358,19 +1419,15 @@ private struct AuralignCoreLens: View {
             && !differentiateWithoutColor
     }
 
-    private var outerFillOpacity: Double {
-        reduceTransparency ? 0.12 : (increaseContrast ? 0.08 : 0.13)
-    }
-
-    private var lensBackdropScrim: AnyShapeStyle {
-        if reduceTransparency || increaseContrast {
-            return AnyShapeStyle(AuralignSurface.canvas)
+    private var outerFill: Color {
+        if !opticalDetailIsVisible {
+            return presentationColor.opacity(
+                reduceTransparency ? 0.12 : 0.08
+            )
         }
-        return AnyShapeStyle(
-            colorScheme == .dark
-                ? Color(red: 0.025, green: 0.030, blue: 0.075).opacity(0.46)
-                : Color.white.opacity(0.54)
-        )
+        return colorScheme == .dark
+            ? Color.white.opacity(0.026)
+            : Color.black.opacity(0.022)
     }
 
     private var lensFill: AnyShapeStyle {
@@ -1382,19 +1439,19 @@ private struct AuralignCoreLens: View {
                 stops: [
                     .init(
                         color: Color.white.opacity(
-                            colorScheme == .dark ? 0.20 : 0.52
+                            colorScheme == .dark ? 0.14 : 0.30
                         ),
                         location: 0
                     ),
                     .init(
                         color: presentationColor.opacity(
-                            colorScheme == .dark ? 0.18 : 0.12
+                            colorScheme == .dark ? 0.12 : 0.08
                         ),
                         location: 0.42
                     ),
                     .init(
                         color: Color.black.opacity(
-                            colorScheme == .dark ? 0.22 : 0.05
+                            colorScheme == .dark ? 0.10 : 0.02
                         ),
                         location: 1
                     ),
@@ -1407,82 +1464,206 @@ private struct AuralignCoreLens: View {
     }
 }
 
-/// A static, bounded echo of the topology lines inside the lens.
+/// A static, bounded refraction of the Core's localized decorative backdrop.
 ///
 /// The production bridge exposes categorical readiness facets, not an optical
-/// scene, so this intentionally redraws only the already-decorative connector
-/// geometry. Each ray bows away from the optical axis inside the 72-point
-/// circle, making the Core read as a convex magnifying lens without sampling
-/// or filtering semantic text, controls, or the surrounding workspace.
+/// scene, so this reconstructs the small panel region beneath the lens from a
+/// matching appearance-aware base, restrained field contours, energy marks,
+/// and exactly one connector per facet. The original straight connectors stop
+/// at the lens boundary; a shape-aware GPU warp bends and disperses this single
+/// local layer inside the circle without sampling or filtering semantic
+/// content.
 private struct AuralignCoreConnectorRefraction: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.controlActiveState) private var controlActiveState
+
     let colors: [Color]
+    let directions: [CGVector]
 
     var body: some View {
-        ZStack {
-            ForEach(Array(colors.prefix(4).enumerated()), id: \.offset) {
-                index, color in
-                AuralignCoreRefractedRay(index: index)
-                    .stroke(
-                        color.opacity(0.62),
-                        style: StrokeStyle(
-                            lineWidth: 1.05,
-                            lineCap: .round,
-                            dash: [3, 3.5]
+        sourcePlane
+            .layerEffect(
+                ShaderLibrary.auralignCoreConnectorRefraction(
+                    .boundingRect,
+                    .float(
+                        AuralignOpticalRenderingPolicy.resolvedIntensity(
+                            0.92,
+                            windowIsActive: controlActiveState != .inactive
                         )
                     )
+                ),
+                maxSampleOffset: CGSize(
+                    width: AuralignCoreLiquidLensTuning.sampleEnvelope,
+                    height: AuralignCoreLiquidLensTuning.sampleEnvelope
+                ),
+                isEnabled: true
+            )
+            .frame(
+                width: AuralignCoreLiquidLensTuning.visibleDiameter,
+                height: AuralignCoreLiquidLensTuning.visibleDiameter
+            )
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
 
-                AuralignCoreRefractedRay(index: index)
-                    .stroke(
-                        spectralEcho(for: index).opacity(0.22),
-                        style: StrokeStyle(
-                            lineWidth: 0.55,
-                            lineCap: .round,
-                            dash: [3, 3.5]
-                        )
+    private var sourcePlane: some View {
+        ZStack {
+            Rectangle()
+                .fill(localizedPanelTone)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        stops: [
+                            .init(
+                                color: Color.white.opacity(
+                                    colorScheme == .dark ? 0.055 : 0.18
+                                ),
+                                location: 0
+                            ),
+                            .init(
+                                color: AuralignSpectrumStop.source.color.opacity(
+                                    colorScheme == .dark ? 0.08 : 0.045
+                                ),
+                                location: 0.50
+                            ),
+                            .init(color: Color.clear, location: 1),
+                        ],
+                        center: UnitPoint(x: 0.34, y: 0.27),
+                        startRadius: 0,
+                        endRadius: 58
                     )
-                    .offset(
-                        x: index.isMultiple(of: 2) ? -0.65 : 0.65,
-                        y: index < 2 ? -0.45 : 0.45
-                    )
+                )
+
+            Canvas { context, size in
+                drawFieldContours(context: &context, in: size)
+                drawEnergyMarks(context: &context, in: size)
+                drawConnectors(context: &context, in: size)
             }
         }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+        .frame(
+            width: AuralignCoreLiquidLensTuning.sourceDiameter,
+            height: AuralignCoreLiquidLensTuning.sourceDiameter
+        )
     }
 
-    private func spectralEcho(for index: Int) -> Color {
-        index.isMultiple(of: 2)
-            ? AuralignSpectrumStop.source.color
-            : AuralignSpectrumStop.delivery.color
+    private var localizedPanelTone: Color {
+        if colorScheme == .dark {
+            return Color(red: 0.080, green: 0.066, blue: 0.112)
+        }
+        return Color(red: 0.995, green: 0.980, blue: 1)
     }
-}
 
-private struct AuralignCoreRefractedRay: Shape {
-    let index: Int
-
-    func path(in rect: CGRect) -> Path {
-        let leftSide = index.isMultiple(of: 2)
-        let upperSide = index < 2
-        let horizontalSign: CGFloat = leftSide ? -1 : 1
-        let verticalSign: CGFloat = upperSide ? -1 : 1
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        let edge = CGPoint(
-            x: leftSide ? rect.minX - 1 : rect.maxX + 1,
-            y: center.y + verticalSign * 8.5
+    private func drawFieldContours(
+        context: inout GraphicsContext,
+        in size: CGSize
+    ) {
+        var upperContour = Path()
+        upperContour.move(to: CGPoint(x: -4, y: size.height * 0.32))
+        upperContour.addCurve(
+            to: CGPoint(x: size.width + 4, y: size.height * 0.54),
+            control1: CGPoint(x: size.width * 0.27, y: size.height * 0.16),
+            control2: CGPoint(x: size.width * 0.67, y: size.height * 0.70)
         )
-        let refractedCenter = CGPoint(
-            x: center.x + horizontalSign * 2.4,
-            y: center.y + verticalSign * 5.4
-        )
-        let control = CGPoint(
-            x: center.x + horizontalSign * 21,
-            y: center.y + verticalSign * 10.2
+        context.stroke(
+            upperContour,
+            with: .color(
+                AuralignSpectrumStop.source.color.opacity(
+                    colorScheme == .dark ? 0.20 : 0.13
+                )
+            ),
+            style: StrokeStyle(lineWidth: 0.70, lineCap: .round)
         )
 
-        var path = Path()
-        path.move(to: edge)
-        path.addQuadCurve(to: refractedCenter, control: control)
-        return path
+        var lowerContour = Path()
+        lowerContour.move(to: CGPoint(x: -4, y: size.height * 0.72))
+        lowerContour.addCurve(
+            to: CGPoint(x: size.width + 4, y: size.height * 0.40),
+            control1: CGPoint(x: size.width * 0.30, y: size.height * 0.84),
+            control2: CGPoint(x: size.width * 0.73, y: size.height * 0.20)
+        )
+        context.stroke(
+            lowerContour,
+            with: .color(
+                AuralignSpectrumStop.delivery.color.opacity(
+                    colorScheme == .dark ? 0.18 : 0.11
+                )
+            ),
+            style: StrokeStyle(lineWidth: 0.65, lineCap: .round)
+        )
+    }
+
+    private func drawEnergyMarks(
+        context: inout GraphicsContext,
+        in size: CGSize
+    ) {
+        let marks: [(CGPoint, CGFloat, Color)] = [
+            (
+                CGPoint(x: size.width * 0.22, y: size.height * 0.24),
+                5,
+                AuralignSpectrumStop.source.color
+            ),
+            (
+                CGPoint(x: size.width * 0.72, y: size.height * 0.20),
+                7,
+                AuralignSpectrumStop.recognition.color
+            ),
+            (
+                CGPoint(x: size.width * 0.30, y: size.height * 0.78),
+                6,
+                AuralignSpectrumStop.alignment.color
+            ),
+            (
+                CGPoint(x: size.width * 0.78, y: size.height * 0.70),
+                4,
+                AuralignSpectrumStop.delivery.color
+            ),
+        ]
+        for (point, length, color) in marks {
+            var mark = Path()
+            mark.move(to: CGPoint(x: point.x, y: point.y - length / 2))
+            mark.addLine(to: CGPoint(x: point.x, y: point.y + length / 2))
+            context.stroke(
+                mark,
+                with: .color(
+                    color.opacity(colorScheme == .dark ? 0.42 : 0.27)
+                ),
+                style: StrokeStyle(
+                    lineWidth: 0.85,
+                    lineCap: .round
+                )
+            )
+        }
+    }
+
+    private func drawConnectors(
+        context: inout GraphicsContext,
+        in size: CGSize
+    ) {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let count = min(colors.count, directions.count, 4)
+        let extent = max(size.width, size.height)
+
+        for index in 0..<count {
+            let direction = directions[index]
+            var path = Path()
+            path.move(to: center)
+            path.addLine(
+                to: CGPoint(
+                    x: center.x + direction.dx * extent,
+                    y: center.y + direction.dy * extent
+                )
+            )
+            context.stroke(
+                path,
+                with: .color(colors[index].opacity(0.82)),
+                style: StrokeStyle(
+                    lineWidth: 1.10,
+                    lineCap: .round,
+                    dash: [3, 3.5]
+                )
+            )
+        }
     }
 }
 

@@ -328,10 +328,19 @@ def test_offline_core_lens_has_bounded_accessible_material_fallbacks() -> None:
     assert "auralignDifferentiateWithoutColor" in core
     assert "controlActiveState == .inactive" in core
     assert "AuralignCoreLensMetalMaterial(" in core
-    assert "AuralignCoreConnectorRefraction(colors: connectorColors)" in core
-    assert "AuralignCoreRefractedRay" in readiness
-    assert "path.addQuadCurve(" in readiness
+    assert "AuralignCoreConnectorRefraction(" in core
+    assert "colors: connectorColors" in core
+    assert "directions: connectorDirections" in core
+    assert "AuralignCoreRefractedRay" not in readiness
+    assert "coreConnectorStartPoint(" in readiness
+    assert "ShaderLibrary.auralignCoreConnectorRefraction(" in core
+    assert "AuralignCoreLiquidLensTuning.sampleEnvelope" in core
+    assert "AuralignCoreLiquidLensTuning.sourceDiameter" in core
+    assert "visibleDiameter + sampleEnvelope * 2" in readiness
+    assert "static let sampleEnvelope: CGFloat = 6" in readiness
     assert ".clipShape(Circle())" in core
+    assert "lensBackdropScrim" not in core
+    assert ".foregroundStyle(presentationColor)" in core
     assert "isActiveOperation: isActiveOperation" in core
     assert ".allowsHitTesting(false)" in core
     assert ".accessibilityHidden(true)" in core
@@ -348,6 +357,7 @@ def test_gpu_optics_are_original_bounded_decorative_and_receipted() -> None:
     components = (views / "AuralignComponents.swift").read_text(
         encoding="utf-8"
     )
+    assert "auralignCoreConnectorRefraction(" in shader
     readiness = (views / "ReadinessView.swift").read_text(encoding="utf-8")
     alignment_field = (views / "AlignmentField.swift").read_text(
         encoding="utf-8"
@@ -361,26 +371,35 @@ def test_gpu_optics_are_original_bounded_decorative_and_receipted() -> None:
         encoding="utf-8"
     )
 
-    assert shader.count("[[ stitchable ]]") == 5
+    assert shader.count("[[ stitchable ]]") == 6
     assert "auralignHeroDiffusion" in shader
     assert "auralignHeroDiffusionDisplacement" in shader
     assert "auralignAlignmentFieldDisplacement" in shader
     assert "auralignCoreLensMaterial" in shader
     assert "auralignCoreLensDisplacement" in shader
-    assert shader.count("layer.sample(") == 9
+    assert "const half preserveSignature = accent.a * 0.0h;" in shader
+    assert shader.count("layer.sample(") == 20
+    assert "const float lensRadius = 36.0;" in shader
+    assert "0.30 * intensity" in shader
+    assert "const float domeDepth =" in shader
+    assert shader.count("distanceInside") >= 3
+    assert "centerSample * 0.20h" in shader
+    assert "axialSamples * 0.12h" in shader
+    assert "diagonalSamples * 0.08h" in shader
+    assert "mix(0.76, 0.10, edge)" in shader
     assert "min(1.0, edge * 0.82 * intensity)" in shader
     assert "for (" not in shader
     assert "while (" not in shader
     assert "float time" not in shader
     assert "elapsed" not in shader.lower()
     assert "texture2d" not in shader
-    assert shader.count("float4 bounds") == 5
+    assert shader.count("float4 bounds") == 6
     assert shader.count("half4 source") == 0
     assert "fast::sin" not in shader
     assert "fast::cos" not in shader
     assert "pow(" not in shader
     assert "return half4(spectral * alpha, alpha)" in shader
-    assert "return half4(color * alpha, alpha)" in shader
+    assert "min(straightColor * alpha, half3(alpha))" in shader
 
     assert "enum AuralignOpticalRenderingPolicy" in optics
     assert "enum AuralignOpticalIntensity" in optics
@@ -509,6 +528,11 @@ def test_optical_depth_is_static_deterministic_and_absent_from_reading_wells() -
     core = readiness.split(
         "private struct AuralignCoreLens: View {", maxsplit=1
     )[1].split(
+        "private struct AuralignCoreConnectorRefraction:", maxsplit=1
+    )[0]
+    core_refraction = readiness.split(
+        "private struct AuralignCoreConnectorRefraction:", maxsplit=1
+    )[1].split(
         "private struct ReadinessFacet:", maxsplit=1
     )[0]
     transcript = results.split(
@@ -546,6 +570,18 @@ def test_optical_depth_is_static_deterministic_and_absent_from_reading_wells() -
     for source in (optical, panel, core):
         for forbidden in forbidden_dynamic_effects:
             assert forbidden not in source
+
+    for forbidden in (
+        "TimelineView",
+        ".blur(",
+        "CIFilter",
+        ".animation(",
+        "withAnimation",
+        "Date(",
+        "UUID(",
+        ".random(",
+    ):
+        assert forbidden not in core_refraction
 
     assert "AuralignWrappedPanelHighlightPath" in chrome
     assert "addQuadCurve(" in chrome

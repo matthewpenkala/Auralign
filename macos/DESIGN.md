@@ -254,30 +254,36 @@ dense evidence rows intentionally remain calmer and opaque. The Offline Core
 center seal is the one small bespoke lens: concentric fallback material,
 analytic depth, a bounded chromatic self-displacement, and a restrained
 highlight make the accepted readiness decision feel like the topology's focal
-object without obscuring the textual evidence. Its already-decorative
-connector geometry is explicitly supplied as a bounded background plane:
-clipped copies bow away from the optical axis and separate chromatically
-beneath a lens-local tonal scrim and the crisp center glyph. Topology geometry
-therefore participates in the lens without general workspace capture or
-semantic filtering. The highlight shifts slowly only while the engine is
-connecting or readiness is actively being checked.
+object without obscuring the textual evidence. Its localized decorative
+backdrop is explicitly supplied as one bounded, coordinate-aligned source
+containing the panel tone, field contours, energy marks, and exactly one
+connector per facet. A padded copy is magnified through a Hermite-smoothed
+plano-convex inverse map, softened with one center and eight compact
+neighboring reads, and given restrained RGB edge dispersion beneath the crisp
+center glyph. The original connectors stop at the lens boundary, so topology
+participates without a straight duplicate, scrim, general workspace capture,
+or semantic filtering. The
+highlight shifts slowly only while the engine is connecting or readiness is
+actively being checked.
 Signal Setup applies a lower-intensity version of the shared rim only to the
 selected phase control, preserving the full native Button and making the
 current configuration context spatially explicit.
 
 Most material depth uses inexpensive static SwiftUI gradients, vector strokes,
-masks, and shallow platform shadows. Five original stitchable SwiftUI Metal
+masks, and shallow platform shadows. Six original stitchable SwiftUI Metal
 functions are isolated to pure decorative layers: a texture-free analytic hero
 diffusion fill, its bounded three-sample chromatic bend, a shallow
-three-sample Alignment Field bend, a 72-point analytic Core lens material, and
-its three-sample self-displacement. Every sampled effect declares a one-point
-maximum envelope. The two zero-sample analytic materials fill their shapes
-directly; the lens highlight center is computed once per UI update and passed
-as a uniform. This is not a custom renderer, general backdrop-refraction
-system, or broad filter pipeline. Text, controls, transcripts, logs, and whole
-panel hierarchies are never filtered. Reduce Transparency, Increase Contrast,
-and Differentiate Without Color omit the GPU optical subtrees; inactive
-windows attenuate them.
+three-sample Alignment Field bend, a 72-point analytic Core lens material, its
+three-sample self-displacement, and the Core's fixed eleven-read local-backdrop
+refraction. The first three sampled effects declare one-point envelopes; the
+Core backdrop pass declares a mathematically bounded six-point envelope and
+uses an 84-point padded source for its visible 72-point crop. The two
+zero-sample analytic materials fill their shapes directly; the lens highlight
+center is computed once per UI update and passed as a uniform. This is not a
+custom renderer, general backdrop-refraction system, or broad filter pipeline.
+Text, controls, transcripts, logs, and whole panel hierarchies are never
+filtered. Reduce Transparency, Increase Contrast, and Differentiate Without
+Color omit the GPU optical subtrees; inactive windows attenuate them.
 
 `AuralignSection` gives each coherent unit a title and generated visual index.
 The index is decorative; title semantics remain the authority.
@@ -386,9 +392,12 @@ and a complete dependency, accessibility, privacy, and release impact record.
   during a real readiness operation. It is capped at 15 frames per second,
   absolute-time phased over eight seconds, and suspended while idle, inactive,
   under Reduce Motion, or in deterministic capture.
-- Hero, Alignment Field, and lens displacement each use exactly three coherent
-  reads with a declared one-point sample envelope. Analytic color functions
-  use no texture, loop, or data-dependent sample count.
+- Hero, Alignment Field, and lens-material displacement each use exactly three
+  coherent reads with a declared one-point sample envelope. The static Core
+  backdrop pass uses one center read, eight compact soft-field reads, and two
+  restrained RGB endpoints over one padded decorative source, with a proven
+  six-point envelope. Analytic color functions use no texture, loop, or
+  data-dependent sample count.
 - Seeded source components are computed once per draw.
 - The elapsed clock is isolated in a small one-second TimelineView rather than
   invalidating the complete Activity workspace every second.

@@ -145,9 +145,9 @@ Finding: no evidence justified a wholesale AppKit, web, Rive, or direct Metal
 replacement. The binding constraints were information architecture, broad
 observable invalidation, impossible breakpoints, redundant rendering, and an
 ambiguous phase-field model. Later research, bounded-work analysis, and
-earlier attributed profiling supported five original stitchable SwiftUI
+earlier attributed profiling supported six original stitchable SwiftUI
 shaders on isolated decorative hero, Alignment Field, and Core-lens layers.
-The exact final five-shader candidate has not produced per-command GPU timing
+The exact final six-shader candidate has not produced per-command GPU timing
 or power evidence, so this record makes no quantified performance claim.
 Semantic composition, the state-aware Canvas, and all content remain native
 SwiftUI.
@@ -239,11 +239,13 @@ treated as implementation bugs, not test expectations to waive.
   line. It is not a stack of translucent cards.
 - Added one bespoke lens to the center of the Offline Core topology, where the
   accepted readiness decision warrants a stronger focal object.
-- The Core lens explicitly receives the already-decorative connector geometry
-  as a bounded background plane. Clipped copies bow away from its optical axis
-  and separate chromatically beneath a masked tonal scrim and the crisp status
-  glyph. This provides real local background participation without capturing
-  the general workspace, filtering semantic content, or adding a
+- The Core lens receives one coordinate-aligned, appearance-aware decorative
+  reconstruction of the local panel beneath it: panel tone, field contours,
+  energy marks, and exactly one connector per facet. A bounded dome refraction
+  magnifies and softens that source beneath the unchanged crisp status glyph.
+  The original connectors stop at the lens boundary, so no straight or echo
+  copy remains underneath. This provides real local background participation
+  without a scrim, general workspace capture, semantic filtering, or a
   general-purpose glass pipeline.
 - Applied a lower-intensity shared rim only to Signal Setup's selected phase,
   preserving its native Button semantics and keeping unselected phases quiet.
@@ -257,17 +259,22 @@ treated as implementation bugs, not test expectations to waive.
   shallow three-sample cylindrical bend inside its existing decorative Canvas.
   Both use one-point sample envelopes and leave their semantic overlays crisp.
 - Added an original analytic Core lens material and bounded three-sample
-  chromatic self-displacement. The lens material displaces only its own
-  decorative pixels; its stronger background-lensing cue comes from the
-  separately supplied, clipped connector plane described above.
+  chromatic self-displacement. Its stronger background-lensing cue comes from
+  a separately supplied 84-point local decorative backdrop. A Hermite-smoothed
+  plano-convex inverse map produces approximately 1.43× center magnification;
+  one shared center, eight compact soft-field reads, and two restrained RGB
+  endpoints keep the center optical while preserving sharper edge geometry.
+  The visible 72-point crop has a proven six-point sample envelope; the status
+  glyph remains a crisp native layer above it.
 - Both zero-sample analytic materials are direct shader-backed shape fills.
   Uniform highlight motion is calculated once per UI update rather than per
   fragment, and static accessibility tiers omit the optical subtree entirely.
 - Kept workspace diffusion static. The Core highlight shifts at 15 FPS only
   while the engine is connecting or a readiness check is active. The existing
   Alignment Field remains the primary 30 FPS active-processing animation.
-- Added no imported material asset, third-party visual dependency, broad blur,
-  full-panel filter, or custom renderer.
+- Added no imported material asset, third-party visual dependency, full-panel
+  filter, or custom renderer. The only broader optical scatter is the fixed,
+  bounded frost kernel inside the 72-point Core lens.
 
 ### Baked 2D/2.5D adaptation
 
@@ -299,11 +306,13 @@ Stack Overflow, blogs, and other code hosts were searched as discovery and
 practitioner evidence, then checked for source origin, exact revision, license,
 sampling bounds, platform support, and energy behavior.
 
-No external effect package or source file was adopted. Broad/high-sample blur
-packages, private `CAFilter`/backdrop APIs, unlicensed gists, Shadertoy-derived
-noncommercial work, zero-bound displaced sampling, CPU-timer gradients, and
-always-running animation were rejected. The final Metal code is original
-Auralign-owned source with constant bounded work.
+No external effect package or source file was adopted. General-purpose
+broad/high-sample blur packages, private `CAFilter`/backdrop APIs, unlicensed
+gists, Shadertoy-derived noncommercial work, zero-bound displaced sampling,
+CPU-timer gradients, and always-running animation were rejected. The bounded
+Core lens implementation was independently derived from registered
+before/after behavior and public optical principles; the final Metal code is
+original Auralign-owned source with constant bounded work.
 
 ## Correctness, privacy, and accessibility repairs
 
