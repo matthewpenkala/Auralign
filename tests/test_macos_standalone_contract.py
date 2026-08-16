@@ -189,6 +189,22 @@ def test_runtime_requirement_projection_rejects_duplicate_source_build(
         )
 
 
+def test_reviewed_test_pruning_matches_remediated_runtime_topology() -> None:
+    assert BUILDER_MODULE.REVIEWED_TEST_PRUNE_ROOT_COUNT == 211
+    assert BUILDER_MODULE.REVIEWED_TEST_PRUNE_ROOTS_SHA256 == (
+        "8d05d81fcfaa963d5ea7e88668888f4ac0255e4af15392d7259ca608637eb6b3"
+    )
+    assert BUILDER_MODULE.REVIEWED_TEST_PRUNE_FILE_COUNT == 4837
+    assert BUILDER_MODULE.REVIEWED_TEST_PRUNE_BYTES == 67_291_439
+    assert BUILDER_MODULE.REVIEWED_TEST_PRUNE_TREE_SHA256 == (
+        "55bb8e8ddf6ef06e8d17d9992f29e2f83e3e41d3c64c36e6ed6d9cd004d7c551"
+    )
+    assert (
+        "lib/python3.11/site-packages/pytorch_lightning/demos"
+        not in BUILDER_MODULE.REVIEWED_DEVELOPMENT_CONTENT_DIRECTORIES
+    )
+
+
 def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     builder = BUILDER.read_text(encoding="utf-8")
 
@@ -1180,8 +1196,8 @@ def test_unreachable_third_party_test_content_is_pruned(
         enforce_reviewed_contract=False,
     )
 
-    assert result["directories_removed"] == 19
-    assert result["files_removed"] == 22
+    assert result["directories_removed"] == 18
+    assert result["files_removed"] == 21
     assert not transformers_candidate.exists()
     assert not joblib_candidate.exists()
     assert not networkx_atlas.exists()

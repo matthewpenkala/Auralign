@@ -1333,17 +1333,20 @@ def prune_unbundled_native_backends(root: Path, evidence: Path) -> dict[str, Any
     }
 
 
-# Auralign 0.3.x includes the pinned MLX dependency closure. Its llvmlite and
-# Numba wheels contribute four additional test-only roots (426 files and
-# 4,978,965 bytes); subtracting only those roots reproduces the complete
-# reviewed 0.2.1 inventory exactly.
-REVIEWED_TEST_PRUNE_ROOT_COUNT = 213
+# Auralign 0.3.x includes the pinned MLX dependency closure. The remediated
+# runtime also upgrades NLTK to 3.10.3 and builds Lightning without its
+# redundant ``pytorch-lightning`` metadata dependency. Compared with the
+# original 0.3.x inventory, that removes the ``lightning_fabric`` and
+# ``pytorch_lightning`` compatibility-test roots while adding the reviewed
+# NLTK 3.10.3 security-test files. These exact roots and bytes remain
+# unreachable from Auralign production entry points and are pruned below.
+REVIEWED_TEST_PRUNE_ROOT_COUNT = 211
 REVIEWED_TEST_PRUNE_ROOTS_SHA256 = (
-    "507c89d276e488db32af25bde2687ff72947eb29c7a9ea11e96f7810ebcadb67"
+    "8d05d81fcfaa963d5ea7e88668888f4ac0255e4af15392d7259ca608637eb6b3"
 )
-REVIEWED_TEST_PRUNE_FILE_COUNT = 4772
-REVIEWED_TEST_PRUNE_BYTES = 66_876_623
-REVIEWED_TEST_PRUNE_TREE_SHA256 = "b3502d3595072822923803da456af14cfc2ce717a304e7b25d4eadd6d601d21a"
+REVIEWED_TEST_PRUNE_FILE_COUNT = 4837
+REVIEWED_TEST_PRUNE_BYTES = 67_291_439
+REVIEWED_TEST_PRUNE_TREE_SHA256 = "55bb8e8ddf6ef06e8d17d9992f29e2f83e3e41d3c64c36e6ed6d9cd004d7c551"
 REVIEWED_SAMPLE_DATA_FILES = {
     "lib/python3.11/site-packages/networkx/generators/atlas.dat.gz": {
         "bytes": 8887,
@@ -1372,11 +1375,6 @@ REVIEWED_DEVELOPMENT_CONTENT_DIRECTORIES = {
         "files": 7,
         "bytes": 14_434,
         "tree_sha256": ("465a05403b9264579a764a487e2ab35a78d8771ccc61d5f58c134a1d8abc0086"),
-    },
-    "lib/python3.11/site-packages/pytorch_lightning/demos": {
-        "files": 5,
-        "bytes": 31_143,
-        "tree_sha256": ("394cf232a45484ef04008ed8e1793fb2290767151182c39aee2f28cb4dfc5697"),
     },
     "lib/python3.11/site-packages/recipes": {
         "files": 352,
