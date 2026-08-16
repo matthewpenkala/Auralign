@@ -64,9 +64,12 @@ is recorded separately from owner-approved vulnerability risk exceptions.
 Auralign also applies one narrowly reviewed build-only normalization to the
 pinned `setup.py`: the upstream random aggregate-MANIFEST temporary filename is
 replaced by a fixed root-level temporary filename so it cannot enter the wheel.
-The original and patched file hashes and exact patch identifier are recorded in
-the standalone build receipt; installed Lightning runtime code is otherwise
-unchanged by this deterministic-build normalization.
+The aggregate wheel's redundant dependency on the separately distributed
+`pytorch-lightning` package is also removed because the security-patched
+`lightning.pytorch` namespace is already included in this exact wheel. The
+original and patched hashes and exact patch identifiers for both normalizations
+are recorded in the standalone build receipt; installed Lightning runtime code
+is otherwise unchanged.
 
 `apple-fm-sdk==0.2.1` is pinned to upstream tag `v0.2.1`, commit
 `84841bb71b22996c00bb67e3b4c7ae1f985315ea`, under Apache-2.0. Upstream

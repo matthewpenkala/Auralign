@@ -32,10 +32,21 @@ archive hash. The governed vulnerability inputs, multi-profile audit, component
 registry, notices, requirements, lockfile, and SBOM checks bind that closure.
 The standalone builder additionally applies one hash-bound build-only
 normalization to that exact archive's `setup.py`: it relocates upstream's
-random aggregate-MANIFEST temporary file outside the wheel package tree. Both
-independent builds verify the original and patched file hashes and must produce
-an identical wheel. The change does not modify installed Lightning runtime
-code and remains recorded as an Auralign modification under Apache-2.0.
+random aggregate-MANIFEST temporary file outside the wheel package tree and
+removes the aggregate wheel's redundant dependency on separately distributed
+`pytorch-lightning` because this wheel already contains the exact patched
+`lightning.pytorch` namespace. Both independent builds verify every original
+and patched file hash and must produce an identical wheel. The changes do not
+modify installed Lightning runtime code and remain recorded as Auralign
+modifications under Apache-2.0.
+After both source wheels are built, the final offline runtime installation uses
+a hash-recorded projection of the locked requirements that excludes only those
+already installed source-built distributions. This prevents `pip` from
+silently rebuilding the original source URL while retaining hash enforcement
+for every remaining dependency. Because every runtime dependency is already an
+explicit locked entry, that pass disables transitive resolution; `pip check`,
+installed-package inventory, runtime smoke, and SBOM validation then verify the
+complete environment independently.
 
 The transcript lane preserves immutable canonical words, timings, alignment,
 speaker evidence, hashes, and provenance while using typed, source-span-bound

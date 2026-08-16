@@ -158,7 +158,16 @@ PURE_PYTHON_SDIST_DETERMINISTIC_PATCHES: dict[str, dict[str, str]] = {
         "patched_sha256": ("a68478757d3fd1bd96ff88a6a32c3c42c86efe7ca7587746454516660b7d9976"),
         "old": "return os.path.join(directory, os.urandom(24).hex())",
         "new": ('return os.path.join(_PATH_ROOT, "AURALIGN_AGGREGATE_MANIFEST.in")'),
-    }
+    },
+    "lightning-redundant-dependency-v1": {
+        "target": "src/lightning/__setup__.py",
+        "original_sha256": ("a5a8f70f220173a68daced5022063fcef09ca6fbd8d595597ac13e62cc2f5e3d"),
+        "patched_sha256": ("6ef3990bbbb7a14f7606f3475af740048cdf1f8f0aebacd67877d5b3b7d18b78"),
+        "old": 'install_requires += ["pytorch-lightning"]',
+        "new": (
+            'install_requires = [req for req in install_requires if req != "pytorch-lightning"]'
+        ),
+    },
 }
 
 
@@ -3948,7 +3957,7 @@ def install_hash_locked_pure_python_sdists(
     wheelhouse: Path,
     evidence: Path,
     sources: dict[str, Any],
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     contracts = sources.get("pure_python_sdist_builds", [])
     require(isinstance(contracts, list), "pure-Python sdist build contract is invalid")
     if not contracts:
@@ -3984,14 +3993,24 @@ def install_hash_locked_pure_python_sdists(
     build_environment = no_bytecode_environment()
     build_environment["PYTHONHASHSEED"] = "0"
     build_environment["SOURCE_DATE_EPOCH"] = "0"
-    records: list[dict[str, str]] = []
+    records: list[dict[str, Any]] = []
     for contract in contracts:
         require(isinstance(contract, dict), "pure-Python sdist entry is invalid")
         name = str(contract.get("name", ""))
         version = str(contract.get("version", ""))
         asset = str(contract.get("asset", ""))
         expected_sha256 = str(contract.get("sha256", ""))
-        deterministic_patch = str(contract.get("deterministic_patch", ""))
+        deterministic_patches_raw = contract.get("deterministic_patches", [])
+        require(
+            isinstance(deterministic_patches_raw, list)
+            and all(isinstance(item, str) and item for item in deterministic_patches_raw),
+            f"pure-Python deterministic patch list is invalid: {name}",
+        )
+        deterministic_patches = cast(list[str], deterministic_patches_raw)
+        require(
+            len(deterministic_patches) == len(set(deterministic_patches)),
+            f"pure-Python deterministic patch list contains duplicates: {name}",
+        )
         require(bool(name and version and asset), "pure-Python sdist identity is incomplete")
         source_archive = wheelhouse / asset
         require(source_archive.is_file(), f"pure-Python sdist missing: {asset}")
@@ -4001,24 +4020,7 @@ def install_hash_locked_pure_python_sdists(
         )
 
         build_sources: list[Path] = []
-        if deterministic_patch:
-            patch_contract_or_none = PURE_PYTHON_SDIST_DETERMINISTIC_PATCHES.get(
-                deterministic_patch
-            )
-            require(
-                patch_contract_or_none is not None,
-                f"unknown pure-Python deterministic patch: {deterministic_patch}",
-            )
-            patch_contract = cast(dict[str, str], patch_contract_or_none)
-            patch_target = PurePosixPath(patch_contract["target"])
-            require(
-                bool(
-                    not patch_target.is_absolute()
-                    and ".." not in patch_target.parts
-                    and patch_target.parts
-                ),
-                f"unsafe pure-Python deterministic patch target: {patch_target}",
-            )
+        if deterministic_patches:
             for label in ("first", "second"):
                 source_root = fresh_directory(work / f"{name}-source-{label}")
                 run(
@@ -4031,28 +4033,44 @@ def install_hash_locked_pure_python_sdists(
                         str(source_root),
                     ]
                 )
-                target = source_root.joinpath(*patch_target.parts)
-                require(
-                    target.is_file() and not target.is_symlink(),
-                    f"pure-Python deterministic patch target is invalid: {target}",
-                )
-                require(
-                    sha256(target) == patch_contract["original_sha256"],
-                    f"pure-Python deterministic patch input drift: {name}",
-                )
-                original = target.read_text(encoding="utf-8")
-                require(
-                    original.count(patch_contract["old"]) == 1,
-                    f"pure-Python deterministic patch match is not unique: {name}",
-                )
-                target.write_text(
-                    original.replace(patch_contract["old"], patch_contract["new"]),
-                    encoding="utf-8",
-                )
-                require(
-                    sha256(target) == patch_contract["patched_sha256"],
-                    f"pure-Python deterministic patch output drift: {name}",
-                )
+                for patch_id in deterministic_patches:
+                    patch_contract_or_none = PURE_PYTHON_SDIST_DETERMINISTIC_PATCHES.get(patch_id)
+                    require(
+                        patch_contract_or_none is not None,
+                        f"unknown pure-Python deterministic patch: {patch_id}",
+                    )
+                    patch_contract = cast(dict[str, str], patch_contract_or_none)
+                    patch_target = PurePosixPath(patch_contract["target"])
+                    require(
+                        bool(
+                            not patch_target.is_absolute()
+                            and ".." not in patch_target.parts
+                            and patch_target.parts
+                        ),
+                        f"unsafe pure-Python deterministic patch target: {patch_target}",
+                    )
+                    target = source_root.joinpath(*patch_target.parts)
+                    require(
+                        target.is_file() and not target.is_symlink(),
+                        f"pure-Python deterministic patch target is invalid: {target}",
+                    )
+                    require(
+                        sha256(target) == patch_contract["original_sha256"],
+                        f"pure-Python deterministic patch input drift: {name}/{patch_id}",
+                    )
+                    original = target.read_text(encoding="utf-8")
+                    require(
+                        original.count(patch_contract["old"]) == 1,
+                        f"pure-Python deterministic patch match is not unique: {name}/{patch_id}",
+                    )
+                    target.write_text(
+                        original.replace(patch_contract["old"], patch_contract["new"]),
+                        encoding="utf-8",
+                    )
+                    require(
+                        sha256(target) == patch_contract["patched_sha256"],
+                        f"pure-Python deterministic patch output drift: {name}/{patch_id}",
+                    )
                 build_sources.append(source_root)
         else:
             build_sources = [source_archive, source_archive]
@@ -4110,22 +4128,73 @@ def install_hash_locked_pure_python_sdists(
             "build_wheel": "0.46.3",
             "build_packaging": "26.2",
         }
-        if deterministic_patch:
-            patch_contract = PURE_PYTHON_SDIST_DETERMINISTIC_PATCHES[deterministic_patch]
-            record.update(
+        if deterministic_patches:
+            record["deterministic_patches"] = [
                 {
-                    "deterministic_patch": deterministic_patch,
-                    "deterministic_patch_target": patch_contract["target"],
-                    "deterministic_patch_original_sha256": patch_contract["original_sha256"],
-                    "deterministic_patch_patched_sha256": patch_contract["patched_sha256"],
+                    "id": patch_id,
+                    "target": PURE_PYTHON_SDIST_DETERMINISTIC_PATCHES[patch_id]["target"],
+                    "original_sha256": PURE_PYTHON_SDIST_DETERMINISTIC_PATCHES[patch_id][
+                        "original_sha256"
+                    ],
+                    "patched_sha256": PURE_PYTHON_SDIST_DETERMINISTIC_PATCHES[patch_id][
+                        "patched_sha256"
+                    ],
                 }
-            )
+                for patch_id in deterministic_patches
+            ]
         records.append(record)
     (evidence / "pure-python-sdist-builds.json").write_text(
         json.dumps(records, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
     )
     return records
+
+
+def project_runtime_requirements_without_source_builds(
+    source: Path,
+    destination: Path,
+    contracts: list[object],
+) -> dict[str, Any]:
+    """Remove already-built source distributions from the final offline install."""
+    require(source.is_file(), "runtime requirements source is missing")
+    require(not destination.exists(), "runtime requirements projection already exists")
+    excluded_names = {
+        re.sub(r"[-_.]+", "-", str(contract.get("name", "")).lower())
+        for contract in contracts
+        if isinstance(contract, dict)
+    }
+    require(
+        len(excluded_names) == len(contracts) and "" not in excluded_names,
+        "runtime requirements source-build exclusions are invalid",
+    )
+    observed: Counter[str] = Counter()
+    projected: list[str] = []
+    skip_continuation = False
+    for line in source.read_text(encoding="utf-8").splitlines(keepends=True):
+        if line and not line[0].isspace():
+            skip_continuation = False
+            stripped = line.strip()
+            if stripped and not stripped.startswith(("#", "--")):
+                match = re.match(r"^([A-Za-z0-9][A-Za-z0-9_.-]*)", stripped)
+                require(match is not None, "runtime requirement name is not parseable")
+                requirement_name = re.sub(r"[-_.]+", "-", match.group(1).lower())
+                if requirement_name in excluded_names:
+                    observed[requirement_name] += 1
+                    skip_continuation = True
+        if not skip_continuation:
+            projected.append(line)
+    require(
+        observed == Counter({name: 1 for name in excluded_names}),
+        "runtime requirements source-build projection is incomplete or ambiguous",
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("".join(projected), encoding="utf-8")
+    return {
+        "schema_version": "auralign-runtime-requirements-projection.v1",
+        "source_sha256": sha256(source),
+        "projected_sha256": sha256(destination),
+        "excluded_source_builds": sorted(excluded_names),
+    }
 
 
 def build_runtime(
@@ -4335,6 +4404,16 @@ def build_runtime(
         evidence,
         sources,
     )
+    effective_requirements = work / "effective-runtime-requirements.txt"
+    requirements_projection = project_runtime_requirements_without_source_builds(
+        REQUIREMENTS_PATH,
+        effective_requirements,
+        sources.get("pure_python_sdist_builds", []),
+    )
+    (evidence / "runtime-requirements-projection.json").write_text(
+        json.dumps(requirements_projection, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
     run(
         embedded_python_command(
             runtime / "bin/python3",
@@ -4342,10 +4421,12 @@ def build_runtime(
             "pip",
             "install",
             "--no-index",
+            "--no-deps",
+            "--require-hashes",
             "--find-links",
             str(wheelhouse),
             "-r",
-            str(REQUIREMENTS_PATH),
+            str(effective_requirements),
         ),
         env=python_environment,
     )

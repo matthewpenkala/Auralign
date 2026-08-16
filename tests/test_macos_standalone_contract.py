@@ -103,7 +103,10 @@ def test_runtime_sources_are_exact_for_model_inclusive_successor() -> None:
             "version": "2.6.2",
             "asset": "d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz",
             "sha256": ("059f9272bf684f391f52c4e175a6a8e0d5cfa3ba4b3a0fde9aa4ff13dd72e11e"),
-            "deterministic_patch": "lightning-aggregate-manifest-v1",
+            "deterministic_patches": [
+                "lightning-aggregate-manifest-v1",
+                "lightning-redundant-dependency-v1",
+            ],
         },
     ]
 
@@ -133,6 +136,57 @@ def test_standalone_requirements_are_hash_locked_and_scope_limited() -> None:
         assert prohibited not in requirements.lower()
     assert "/Users/" not in requirements
     assert ".venv" not in requirements
+
+
+def test_runtime_requirement_projection_excludes_exact_source_builds(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "locked.txt"
+    source.write_text(
+        "--index-url https://example.invalid/simple\n"
+        f"alpha==1.0 \\\n    --hash=sha256:{'a' * 64}\n"
+        f"source_pkg @ https://example.invalid/source.tar.gz \\\n"
+        f"    --hash=sha256:{'b' * 64}\n"
+        f"other-source==2.0 \\\n    --hash=sha256:{'c' * 64}\n"
+        "# SPDX-"
+        "License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0\n",
+        encoding="utf-8",
+    )
+    destination = tmp_path / "effective.txt"
+
+    record = BUILDER_MODULE.project_runtime_requirements_without_source_builds(
+        source,
+        destination,
+        [{"name": "source-pkg"}, {"name": "other_source"}],
+    )
+
+    projected = destination.read_text(encoding="utf-8")
+    assert "alpha==1.0" in projected
+    assert "source_pkg" not in projected
+    assert "other-source" not in projected
+    assert "b" * 64 not in projected
+    assert "c" * 64 not in projected
+    assert "SPDX-License-Identifier" in projected
+    assert record == {
+        "schema_version": "auralign-runtime-requirements-projection.v1",
+        "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "projected_sha256": hashlib.sha256(destination.read_bytes()).hexdigest(),
+        "excluded_source_builds": ["other-source", "source-pkg"],
+    }
+
+
+def test_runtime_requirement_projection_rejects_duplicate_source_build(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "locked.txt"
+    source.write_text("alpha==1.0\nalpha==1.0\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="projection is incomplete or ambiguous"):
+        BUILDER_MODULE.project_runtime_requirements_without_source_builds(
+            source,
+            tmp_path / "effective.txt",
+            [{"name": "alpha"}],
+        )
 
 
 def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
@@ -224,7 +278,12 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "install_hash_locked_pure_python_sdists(" in builder
     assert '"SOURCE_DATE_EPOCH"' in builder
     assert "pure-python-sdist-builds.json" in builder
+    assert '"effective-runtime-requirements.txt"' in builder
+    assert '"runtime-requirements-projection.json"' in builder
+    assert '"--no-deps"' in builder
+    assert '"--require-hashes"' in builder
     assert '"lightning-aggregate-manifest-v1"' in builder
+    assert '"lightning-redundant-dependency-v1"' in builder
     assert "pure-Python deterministic patch input drift" in builder
     assert "pure-Python deterministic patch output drift" in builder
     assert "pure-Python deterministic patch match is not unique" in builder
