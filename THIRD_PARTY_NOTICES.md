@@ -61,6 +61,12 @@ version `2.6.2`; the downloaded archive is pinned by SHA-256 in `uv.lock`.
 That commit contains the upstream `_instantiator` allowlist repair for
 CVE-2026-58659. This source-level remediation is revision- and hash-bound and
 is recorded separately from owner-approved vulnerability risk exceptions.
+Auralign also applies one narrowly reviewed build-only normalization to the
+pinned `setup.py`: the upstream random aggregate-MANIFEST temporary filename is
+replaced by a fixed root-level temporary filename so it cannot enter the wheel.
+The original and patched file hashes and exact patch identifier are recorded in
+the standalone build receipt; installed Lightning runtime code is otherwise
+unchanged by this deterministic-build normalization.
 
 `apple-fm-sdk==0.2.1` is pinned to upstream tag `v0.2.1`, commit
 `84841bb71b22996c00bb67e3b4c7ae1f985315ea`, under Apache-2.0. Upstream

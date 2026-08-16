@@ -73,6 +73,7 @@ name = "lightning"
 version = "2.6.2"
 asset = "d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz"
 sha256 = "059f9272bf684f391f52c4e175a6a8e0d5cfa3ba4b3a0fde9aa4ff13dd72e11e"
+deterministic_patch = "lightning-aggregate-manifest-v1"
 
 [[build_requirements]]
 name = "Cython"

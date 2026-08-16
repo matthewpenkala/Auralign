@@ -103,6 +103,7 @@ def test_runtime_sources_are_exact_for_model_inclusive_successor() -> None:
             "version": "2.6.2",
             "asset": "d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz",
             "sha256": ("059f9272bf684f391f52c4e175a6a8e0d5cfa3ba4b3a0fde9aa4ff13dd72e11e"),
+            "deterministic_patch": "lightning-aggregate-manifest-v1",
         },
     ]
 
@@ -223,6 +224,10 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "install_hash_locked_pure_python_sdists(" in builder
     assert '"SOURCE_DATE_EPOCH"' in builder
     assert "pure-python-sdist-builds.json" in builder
+    assert '"lightning-aggregate-manifest-v1"' in builder
+    assert "pure-Python deterministic patch input drift" in builder
+    assert "pure-Python deterministic patch output drift" in builder
+    assert "pure-Python deterministic patch match is not unique" in builder
     assert "verify_expanded_package(" in builder
     assert "verify_component_bom(" in builder
     assert '"lsbom", "-p", "fmug"' in builder

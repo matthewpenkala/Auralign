@@ -30,6 +30,12 @@ replaces the vulnerable Lightning 2.6.5 registry source with exact upstream
 security commit `d710d689510d50e800f53b3cd773cbca20b1f86f` under its verified
 archive hash. The governed vulnerability inputs, multi-profile audit, component
 registry, notices, requirements, lockfile, and SBOM checks bind that closure.
+The standalone builder additionally applies one hash-bound build-only
+normalization to that exact archive's `setup.py`: it relocates upstream's
+random aggregate-MANIFEST temporary file outside the wheel package tree. Both
+independent builds verify the original and patched file hashes and must produce
+an identical wheel. The change does not modify installed Lightning runtime
+code and remains recorded as an Auralign modification under Apache-2.0.
 
 The transcript lane preserves immutable canonical words, timings, alignment,
 speaker evidence, hashes, and provenance while using typed, source-span-bound

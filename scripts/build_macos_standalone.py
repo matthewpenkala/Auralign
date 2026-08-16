@@ -151,6 +151,16 @@ DEBUG_ONLY_MARKERS = (
     b"com.auralign.studio.synthetic-fixture.",
 )
 
+PURE_PYTHON_SDIST_DETERMINISTIC_PATCHES: dict[str, dict[str, str]] = {
+    "lightning-aggregate-manifest-v1": {
+        "target": "setup.py",
+        "original_sha256": ("c6b0de9403b41b0b6cccc7e42c393157a4dd9d97564cb68c80a9ee64cd37dc1c"),
+        "patched_sha256": ("a68478757d3fd1bd96ff88a6a32c3c42c86efe7ca7587746454516660b7d9976"),
+        "old": "return os.path.join(directory, os.urandom(24).hex())",
+        "new": ('return os.path.join(_PATH_ROOT, "AURALIGN_AGGREGATE_MANIFEST.in")'),
+    }
+}
+
 
 def run(
     command: list[str],
@@ -3981,7 +3991,8 @@ def install_hash_locked_pure_python_sdists(
         version = str(contract.get("version", ""))
         asset = str(contract.get("asset", ""))
         expected_sha256 = str(contract.get("sha256", ""))
-        require(name and version and asset, "pure-Python sdist identity is incomplete")
+        deterministic_patch = str(contract.get("deterministic_patch", ""))
+        require(bool(name and version and asset), "pure-Python sdist identity is incomplete")
         source_archive = wheelhouse / asset
         require(source_archive.is_file(), f"pure-Python sdist missing: {asset}")
         require(
@@ -3989,9 +4000,66 @@ def install_hash_locked_pure_python_sdists(
             f"pure-Python sdist hash drift: {asset}",
         )
 
+        build_sources: list[Path] = []
+        if deterministic_patch:
+            patch_contract_or_none = PURE_PYTHON_SDIST_DETERMINISTIC_PATCHES.get(
+                deterministic_patch
+            )
+            require(
+                patch_contract_or_none is not None,
+                f"unknown pure-Python deterministic patch: {deterministic_patch}",
+            )
+            patch_contract = cast(dict[str, str], patch_contract_or_none)
+            patch_target = PurePosixPath(patch_contract["target"])
+            require(
+                bool(
+                    not patch_target.is_absolute()
+                    and ".." not in patch_target.parts
+                    and patch_target.parts
+                ),
+                f"unsafe pure-Python deterministic patch target: {patch_target}",
+            )
+            for label in ("first", "second"):
+                source_root = fresh_directory(work / f"{name}-source-{label}")
+                run(
+                    [
+                        "tar",
+                        "-xzf",
+                        str(source_archive),
+                        "--strip-components=1",
+                        "-C",
+                        str(source_root),
+                    ]
+                )
+                target = source_root.joinpath(*patch_target.parts)
+                require(
+                    target.is_file() and not target.is_symlink(),
+                    f"pure-Python deterministic patch target is invalid: {target}",
+                )
+                require(
+                    sha256(target) == patch_contract["original_sha256"],
+                    f"pure-Python deterministic patch input drift: {name}",
+                )
+                original = target.read_text(encoding="utf-8")
+                require(
+                    original.count(patch_contract["old"]) == 1,
+                    f"pure-Python deterministic patch match is not unique: {name}",
+                )
+                target.write_text(
+                    original.replace(patch_contract["old"], patch_contract["new"]),
+                    encoding="utf-8",
+                )
+                require(
+                    sha256(target) == patch_contract["patched_sha256"],
+                    f"pure-Python deterministic patch output drift: {name}",
+                )
+                build_sources.append(source_root)
+        else:
+            build_sources = [source_archive, source_archive]
+
         first = fresh_directory(work / f"{name}-wheel-first")
         second = fresh_directory(work / f"{name}-wheel-second")
-        for destination in (first, second):
+        for source, destination in zip(build_sources, (first, second), strict=True):
             run(
                 embedded_python_command(
                     build_python,
@@ -4002,7 +4070,7 @@ def install_hash_locked_pure_python_sdists(
                     "--no-build-isolation",
                     "--wheel-dir",
                     str(destination),
-                    str(source_archive),
+                    str(source),
                 ),
                 env=build_environment,
             )
@@ -4031,19 +4099,28 @@ def install_hash_locked_pure_python_sdists(
             ),
             env=python_environment,
         )
-        records.append(
-            {
-                "name": name,
-                "version": version,
-                "source_asset": asset,
-                "source_sha256": expected_sha256,
-                "built_wheel": built_wheel.name,
-                "built_wheel_sha256": sha256(built_wheel),
-                "build_setuptools": "83.0.0",
-                "build_wheel": "0.46.3",
-                "build_packaging": "26.2",
-            }
-        )
+        record = {
+            "name": name,
+            "version": version,
+            "source_asset": asset,
+            "source_sha256": expected_sha256,
+            "built_wheel": built_wheel.name,
+            "built_wheel_sha256": sha256(built_wheel),
+            "build_setuptools": "83.0.0",
+            "build_wheel": "0.46.3",
+            "build_packaging": "26.2",
+        }
+        if deterministic_patch:
+            patch_contract = PURE_PYTHON_SDIST_DETERMINISTIC_PATCHES[deterministic_patch]
+            record.update(
+                {
+                    "deterministic_patch": deterministic_patch,
+                    "deterministic_patch_target": patch_contract["target"],
+                    "deterministic_patch_original_sha256": patch_contract["original_sha256"],
+                    "deterministic_patch_patched_sha256": patch_contract["patched_sha256"],
+                }
+            )
+        records.append(record)
     (evidence / "pure-python-sdist-builds.json").write_text(
         json.dumps(records, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
