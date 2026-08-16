@@ -68,6 +68,12 @@ version = "4.9.3"
 asset = "antlr4-python3-runtime-4.9.3.tar.gz"
 sha256 = "f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b"
 
+[[pure_python_sdist_builds]]
+name = "lightning"
+version = "2.6.2"
+asset = "d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz"
+sha256 = "059f9272bf684f391f52c4e175a6a8e0d5cfa3ba4b3a0fde9aa4ff13dd72e11e"
+
 [[build_requirements]]
 name = "Cython"
 version = "3.1.3"
