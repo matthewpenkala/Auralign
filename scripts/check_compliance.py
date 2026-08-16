@@ -16,6 +16,7 @@ from pathlib import Path
 
 from local_transcript_max.config import MODEL_MANIFEST
 from local_transcript_max.datasets import DATASET_MANIFEST
+from local_transcript_max.model_bundle import MODEL_BUNDLE_NLTK_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_LICENSE = "LicenseRef-PolyForm-Internal-Use-1.0.0"
@@ -46,9 +47,7 @@ def parse_model_file_contract(
         require(isinstance(raw_item, str) and "=" in raw_item, f"invalid {field} item")
         relative, raw_value = raw_item.split("=", 1)
         require(
-            bool(relative)
-            and not relative.startswith("/")
-            and ".." not in Path(relative).parts,
+            bool(relative) and not relative.startswith("/") and ".." not in Path(relative).parts,
             f"unsafe model contract path: {relative}",
         )
         require(relative not in parsed, f"duplicate model contract path: {relative}")
@@ -110,6 +109,72 @@ def verify_project_metadata() -> None:
         <= license_files,
         "package license files are incomplete",
     )
+    optional_dependencies = project.get("optional-dependencies")
+    require(
+        isinstance(optional_dependencies, dict),
+        "project optional dependencies are missing",
+    )
+    presentation_sat = optional_dependencies.get("presentation-sat")
+    require(
+        presentation_sat == ["wtpsplit==2.2.1"],
+        "presentation-sat must remain an exact source/headless-only dependency",
+    )
+    full_requirements = optional_dependencies.get("full")
+    require(isinstance(full_requirements, list), "full extra is missing")
+    full_names = {requirement_name(item) for item in full_requirements}
+    require(
+        not {"apple-fm-sdk", "wtpsplit"}.intersection(full_names),
+        "source/headless-only proposal dependencies entered the full extra",
+    )
+    policy = read_toml("compliance/policy.toml")
+    release_authorizations = policy.get("release_authorizations")
+    require(
+        isinstance(release_authorizations, dict),
+        "release authorizations are missing",
+    )
+    historical_release = release_authorizations.get("macos_0_3_0")
+    require(
+        isinstance(historical_release, dict)
+        and str(historical_release.get("runtime_asset_contract", "")).startswith("NLTK 3.9.4;"),
+        "accepted 0.3.0 Punkt contract drift",
+    )
+    successor_release = release_authorizations.get("macos_0_3_1")
+    require(
+        isinstance(successor_release, dict)
+        and successor_release.get("status") == "owner_cleared_project_release_decision"
+        and successor_release.get("approved_by") == "Matthew Penkala"
+        and successor_release.get("approved_at") == "2026-08-16"
+        and successor_release.get("visibility") == "private_only"
+        and successor_release.get("inherits_exact_model_contract_from") == "macos_0_3_0"
+        and str(successor_release.get("runtime_asset_contract", "")).startswith("NLTK 3.10.3;")
+        and successor_release.get("component_root")
+        == "/Library/Application Support/com.auralign.studio/Models/"
+        "com.auralign.studio.models.bootstrap.v2"
+        and successor_release.get("component_version") == "2.0.0"
+        and successor_release.get("component_receipt")
+        == "com.auralign.studio.pkg.models.bootstrap-v2",
+        "authorized 0.3.1 successor release contract drift",
+    )
+    development_contracts = policy.get("development_contracts")
+    require(
+        isinstance(development_contracts, dict),
+        "development contracts are missing",
+    )
+    punkt_contract = development_contracts.get("nltk_punkt_successor")
+    require(
+        isinstance(punkt_contract, dict)
+        and punkt_contract.get("status") == "release_successor_macos_0_3_1"
+        and punkt_contract.get("nltk_version") == MODEL_BUNDLE_NLTK_VERSION
+        and punkt_contract.get("runtime_asset_key") == "nltk-punkt-tab-english-corpus-free"
+        and punkt_contract.get("empty_file_sha256")
+        == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        and punkt_contract.get("marker_size") == 547
+        and punkt_contract.get("marker_sha256")
+        == "2cf9fc3a66d8fb081b5d99201c4382b7ece315747c7ad4593e9d5ca8656ac65e"
+        and punkt_contract.get("historical_release_effect")
+        == "none; accepted 0.3.0 facts and artifacts remain immutable",
+        "successor NLTK Punkt development contract drift",
+    )
 
 
 def verify_asset_registry() -> None:
@@ -126,6 +191,11 @@ def verify_asset_registry() -> None:
     required_model_release_fields = set(model_release_fields)
     rows = data.get("assets")
     require(isinstance(rows, list), "external asset registry has no assets")
+    presentation_rows = data.get("presentation_assets")
+    require(
+        isinstance(presentation_rows, list),
+        "external asset registry has no presentation assets",
+    )
     defaults = data.get("defaults")
     require(isinstance(defaults, dict), "external asset registry has no defaults")
     required_effective = {
@@ -145,6 +215,90 @@ def verify_asset_registry() -> None:
     indexed = {(row["kind"], row["key"]): row for row in rows}
     require(len(indexed) == len(rows), "duplicate external asset registry key")
     require(len(MODEL_MANIFEST) + len(DATASET_MANIFEST) == len(rows), "asset count drift")
+
+    presentation_indexed = {(row["kind"], row["key"]): row for row in presentation_rows}
+    require(
+        len(presentation_indexed) == len(presentation_rows),
+        "duplicate presentation asset registry key",
+    )
+    expected_presentation = {
+        ("presentation-model", "presentation-sat-3l-sm"): (
+            "segment-any-text/sat-3l-sm",
+            "137da054051ad9f1eac42025f758db4ac9f22535",
+            {
+                "config.json": "d61498bc239f773126ee794446cdcad88822967e0b02ae7bd070f725c98be791",
+                "model_optimized.onnx": (
+                    "8573277b4dbea9c5fb1b4cfd8c21e5aa628069ac8258d1342ba664e1b64ada6d"
+                ),
+            },
+            {"config.json": 965, "model_optimized.onnx": 427756189},
+        ),
+        ("presentation-tokenizer", "presentation-sat-xlm-roberta-base-tokenizer"): (
+            "facebookAI/xlm-roberta-base",
+            "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+            {
+                "config.json": "d66ed8cd4f2a93b358c245e50736fa389ed4f35c0bae7aad0b32abb20c62b579",
+                "sentencepiece.bpe.model": (
+                    "cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865"
+                ),
+                "tokenizer.json": (
+                    "a898ea75433890f6610f4e470b8ebeb0c21dce5c8dd61f892eb09eb5919d2e2c"
+                ),
+                "tokenizer_config.json": (
+                    "994f46754c5bf4014f1aa92d34b1374319c3a6b3f702105cd5b742beaecd18ce"
+                ),
+            },
+            {
+                "config.json": 615,
+                "sentencepiece.bpe.model": 5069051,
+                "tokenizer.json": 9096718,
+                "tokenizer_config.json": 25,
+            },
+        ),
+    }
+    require(
+        set(presentation_indexed) == set(expected_presentation),
+        "presentation asset registry drift",
+    )
+    for registry_key, (identifier, revision, digests, sizes) in expected_presentation.items():
+        row = presentation_indexed[registry_key]
+        require(
+            row.get("identifier") == identifier,
+            f"presentation asset identifier drift: {registry_key[1]}",
+        )
+        require(
+            row.get("revision") == revision,
+            f"presentation asset revision drift: {registry_key[1]}",
+        )
+        require(
+            row.get("license_expression") == "MIT",
+            f"presentation asset license drift: {registry_key[1]}",
+        )
+        require(
+            row.get("runtime_status")
+            == "approved_source_headless_local_proposal_signal_exact_files_required",
+            f"presentation asset runtime disposition drift: {registry_key[1]}",
+        )
+        require(
+            row.get("product_classification") == "source-headless-production-proposal-only",
+            f"presentation asset product classification drift: {registry_key[1]}",
+        )
+        require(
+            row.get("standalone_disposition") == "excluded_from_macos14_app_and_pkg",
+            f"presentation asset standalone disposition drift: {registry_key[1]}",
+        )
+        require(
+            row.get("runtime_locality") == "offline_local_only_no_runtime_acquisition",
+            f"presentation asset locality drift: {registry_key[1]}",
+        )
+        require(
+            parse_model_file_contract(row, "file_sha256", parse_value=str) == digests,
+            f"presentation asset digest contract drift: {registry_key[1]}",
+        )
+        require(
+            parse_model_file_contract(row, "file_size", parse_value=int) == sizes,
+            f"presentation asset size contract drift: {registry_key[1]}",
+        )
 
     for key, entry in MODEL_MANIFEST.items():
         row = indexed.get(("model", key))

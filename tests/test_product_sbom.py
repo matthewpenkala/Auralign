@@ -47,7 +47,7 @@ dependency_sbom = product_sbom.dependency_sbom
 standalone_builder = _load_script("build_macos_standalone")
 
 BUNDLED_KEYS = ("community-1", "en", "ecapa")
-PRODUCT_REF = "product:com.auralign.studio@0.3.0"
+PRODUCT_REF = "product:com.auralign.studio@0.3.1"
 
 
 def _model_digest(key: str) -> str:
@@ -159,7 +159,7 @@ def _complete_product_sbom() -> dict[str, Any]:
                 "bom-ref": PRODUCT_REF,
                 "type": "application",
                 "name": "Auralign",
-                "version": "0.3.0",
+                "version": "0.3.1",
             },
             "properties": [
                 {"name": "auralign:commit", "value": "a" * 40},
@@ -269,9 +269,7 @@ def test_standalone_builder_augmentation_emits_valid_complete_product_sbom(
     payload["dependencies"] = [
         {
             **row,
-            "dependsOn": [
-                target for target in row["dependsOn"] if target not in model_refs
-            ],
+            "dependsOn": [target for target in row["dependsOn"] if target not in model_refs],
         }
         for row in payload["dependencies"]
         if row["ref"] not in model_refs
@@ -280,9 +278,7 @@ def test_standalone_builder_augmentation_emits_valid_complete_product_sbom(
         {
             **row,
             "value": (
-                "standalone-app-runtime"
-                if row["name"] == "auralign:sbom-kind"
-                else row["value"]
+                "standalone-app-runtime" if row["name"] == "auralign:sbom-kind" else row["value"]
             ),
         }
         for row in payload["metadata"]["properties"]
@@ -322,10 +318,13 @@ def test_standalone_builder_augmentation_emits_valid_complete_product_sbom(
 
     completed = json.loads(sbom.read_text(encoding="utf-8"))
     assert product_sbom.validate_payload(completed) == len(completed["components"])
-    assert _property(
-        _metadata_properties(completed),
-        "auralign:sbom-kind",
-    )["value"] == "complete-product"
+    assert (
+        _property(
+            _metadata_properties(completed),
+            "auralign:sbom-kind",
+        )["value"]
+        == "complete-product"
+    )
     runtime_dependencies = _dependency(completed, _runtime(completed)["bom-ref"])
     assert model_refs == set(runtime_dependencies["dependsOn"]) & model_refs
 
@@ -548,7 +547,7 @@ def test_complete_product_sbom_rejects_product_root_not_linked_to_runtime() -> N
 def test_complete_product_sbom_rejects_private_path() -> None:
     payload = _complete_product_sbom()
     _model(payload, "community-1")["description"] = (
-        "/" "Users/example/private/model-cache/Systran--faster-whisper-large-v3"
+        "/" + "Users/example/private/model-cache/Systran--faster-whisper-large-v3"
     )
 
     with pytest.raises(product_sbom.ProductSBOMError, match="private local path"):

@@ -13,12 +13,14 @@ from local_transcript_max.schemas import AlignedWord, SpeakerTurn, Transcript
 from local_transcript_max.speaker_id.identity_exports import (
     build_identity_transcript,
     display_label_for_decision,
+    effective_display_labels,
     render_identity_markdown,
     render_identity_segments_csv,
     render_identity_srt,
     render_identity_text,
     render_identity_vtt,
     validate_srt_label_only,
+    validate_vtt_label_only,
 )
 from local_transcript_max.speaker_id.identity_models import (
     AssignmentScope,
@@ -191,6 +193,114 @@ def test_validated_turn_decision_precedes_cluster_mapping_and_review_does_not() 
     assert derived.speaker_turns[1].mapped_name == "Participant Beta"
 
 
+def test_safe_global_alias_renders_for_word_uncertainty_without_changing_turn_status() -> None:
+    transcript = synthetic_transcript()
+    uncertain = turn_decision(
+        0,
+        speaker="SPEAKER_00",
+        status=ResolutionStatus.REVIEW,
+        reason=ReasonCode.SAME_SPEAKER_BOUNDED_FRAGMENT,
+    )
+    decisions = [
+        cluster_decision("SPEAKER_00", "Roger"),
+        cluster_decision("SPEAKER_01", "Matthew"),
+        uncertain,
+        turn_decision(
+            1,
+            speaker="SPEAKER_01",
+            status=ResolutionStatus.UNRESOLVED,
+            reason=ReasonCode.INSUFFICIENT_EVIDENCE,
+        ),
+    ]
+
+    labels = effective_display_labels(transcript, decisions)
+    derived = build_identity_transcript(transcript, decisions)
+
+    assert uncertain.status is ResolutionStatus.REVIEW
+    assert labels == {0: "Roger", 1: "Matthew"}
+    assert [turn.mapped_name for turn in derived.speaker_turns] == ["Roger", "Matthew"]
+
+
+def test_explicit_unattributed_and_canonical_unknown_override_global_alias() -> None:
+    transcript = synthetic_transcript()
+    unknown_word = AlignedWord(
+        text="Unknown tail.",
+        start=3.0,
+        end=3.5,
+        speaker="UNKNOWN",
+        uncertain_speaker=True,
+    )
+    transcript = transcript.model_copy(
+        update={
+            "words": [*transcript.words, unknown_word],
+            "speaker_turns": [
+                *transcript.speaker_turns,
+                SpeakerTurn(
+                    speaker="UNKNOWN",
+                    start=3.0,
+                    end=3.5,
+                    text=unknown_word.text,
+                    words=[unknown_word],
+                ),
+            ],
+        }
+    )
+    decisions = [
+        cluster_decision("SPEAKER_00", "Roger"),
+        cluster_decision("SPEAKER_01", "Matthew"),
+        turn_decision(
+            0,
+            speaker="SPEAKER_00",
+            status=ResolutionStatus.UNATTRIBUTED,
+            display_label="Unattributed",
+            reason=ReasonCode.NO_DIARIZATION_COVERAGE,
+        ),
+        turn_decision(
+            1,
+            speaker="SPEAKER_01",
+            status=ResolutionStatus.REVIEW,
+            reason=ReasonCode.INSUFFICIENT_EVIDENCE,
+        ),
+        turn_decision(
+            2,
+            speaker="UNKNOWN",
+            status=ResolutionStatus.UNRESOLVED,
+            reason=ReasonCode.NO_DIARIZATION_COVERAGE,
+            scope=AssignmentScope.FRAGMENT,
+        ),
+    ]
+
+    assert effective_display_labels(transcript, decisions) == {
+        0: "Unattributed",
+        1: "Matthew",
+        2: "UNKNOWN",
+    }
+
+
+def test_mixed_or_unstable_turn_does_not_inherit_global_alias() -> None:
+    transcript = synthetic_transcript()
+    decisions = [
+        cluster_decision("SPEAKER_00", "Roger"),
+        cluster_decision("SPEAKER_01", "Matthew"),
+        turn_decision(
+            0,
+            speaker="SPEAKER_00",
+            status=ResolutionStatus.REVIEW,
+            reason=ReasonCode.MIXED_TURN_BOUNDARY,
+        ),
+        turn_decision(
+            1,
+            speaker="SPEAKER_01",
+            status=ResolutionStatus.REVIEW,
+            reason=ReasonCode.DIARIZATION_UNSTABLE_BOUNDARY,
+        ),
+    ]
+    assert effective_display_labels(transcript, decisions) == {
+        0: "SPEAKER_00",
+        1: "SPEAKER_01",
+    }
+
+
 def test_build_identity_transcript_preserves_canonical_model_and_word_metadata() -> None:
     transcript = synthetic_transcript()
     snapshot = transcript.model_dump(mode="json")
@@ -231,6 +341,69 @@ def test_srt_export_changes_only_the_label_prefix() -> None:
     assert rendered.count("-->") == canonical.count("-->")
 
 
+def test_srt_export_maps_every_known_label_line_in_a_cue() -> None:
+    transcript = synthetic_transcript()
+    decisions = [
+        cluster_decision("SPEAKER_00", "Roger"),
+        cluster_decision("SPEAKER_01", "Matthew"),
+        *complete_decisions(),
+    ]
+    canonical = (
+        "1\n"
+        "00:00:00,000 --> 00:00:01,000\n"
+        "SPEAKER_00: Synthetic line.\n"
+        "SPEAKER_00: continued payload\n\n"
+        "2\n"
+        "00:00:01,500 --> 00:00:02,500\n"
+        "SPEAKER_01: Generic response.\n"
+    )
+
+    rendered = render_identity_srt(canonical, transcript, decisions)
+
+    assert rendered.count("Participant Alpha:") == 2
+    assert rendered.count("Unattributed:") == 1
+    assert "SPEAKER_00:" not in rendered
+    assert "SPEAKER_01:" not in rendered
+    assert validate_srt_label_only(canonical, rendered) == (True, 2)
+
+
+def test_srt_export_maps_cross_speaker_line_only_with_safe_global_alias() -> None:
+    transcript = synthetic_transcript()
+    canonical = (
+        "1\n"
+        "00:00:00,000 --> 00:00:01,000\n"
+        "SPEAKER_00: Synthetic line.\n"
+        "SPEAKER_01: cross-speaker continuation\n"
+    )
+    decisions = [
+        cluster_decision("SPEAKER_00", "Roger"),
+        cluster_decision("SPEAKER_01", "Matthew"),
+        turn_decision(
+            0,
+            speaker="SPEAKER_00",
+            status=ResolutionStatus.REVIEW,
+            reason=ReasonCode.INSUFFICIENT_EVIDENCE,
+        ),
+        turn_decision(
+            1,
+            speaker="SPEAKER_01",
+            status=ResolutionStatus.REVIEW,
+            reason=ReasonCode.INSUFFICIENT_EVIDENCE,
+        ),
+    ]
+    assert render_identity_srt(canonical, transcript, decisions).endswith(
+        "Roger: Synthetic line.\nMatthew: cross-speaker continuation\n"
+    )
+
+    without_global_second = [
+        decisions[0],
+        decisions[2],
+        decisions[3],
+    ]
+    with pytest.raises(ValueError, match="cross-speaker"):
+        render_identity_srt(canonical, transcript, without_global_second)
+
+
 @pytest.mark.parametrize("terminal_newline", [False, True])
 def test_srt_export_preserves_crlf_without_treating_it_as_content(
     terminal_newline: bool,
@@ -269,6 +442,48 @@ def test_srt_validation_detects_text_or_timing_changes() -> None:
     ) == (False, 1)
 
 
+def test_subtitle_validation_uses_only_the_structural_first_colon() -> None:
+    canonical_srt = "1\n00:00:00,000 --> 00:00:01,000\nSPEAKER_00: Time: 12:30 remains payload.\n"
+    valid_srt = canonical_srt.replace("SPEAKER_00:", "Roger:", 1)
+    injected_srt = valid_srt.replace("Time:", "Changed: Time:")
+    assert validate_srt_label_only(canonical_srt, valid_srt) == (True, 1)
+    assert validate_srt_label_only(canonical_srt, injected_srt) == (False, 1)
+
+    canonical_vtt = (
+        "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nSPEAKER_00: Time: 12:30 remains payload.\n"
+    )
+    valid_vtt = canonical_vtt.replace("SPEAKER_00:", "Roger:", 1)
+    injected_vtt = valid_vtt.replace("Time:", "Changed: Time:")
+    assert validate_vtt_label_only(canonical_vtt, valid_vtt) == (True, 1)
+    assert validate_vtt_label_only(canonical_vtt, injected_vtt) == (False, 1)
+
+
+def test_subtitle_validation_rejects_colon_led_payload_rewrite_as_label_change() -> None:
+    canonical_srt = "1\n00:00:00,000 --> 00:00:01,000\nTime: 12:30 remains payload.\n"
+    rewritten_srt = canonical_srt.replace("Time:", "Date:", 1)
+    assert validate_srt_label_only(canonical_srt, rewritten_srt) == (False, 1)
+
+    canonical_vtt = "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nTime: 12:30 remains payload.\n"
+    rewritten_vtt = canonical_vtt.replace("Time:", "Date:", 1)
+    assert validate_vtt_label_only(canonical_vtt, rewritten_vtt) == (False, 1)
+
+
+def test_display_labels_reject_structural_colons() -> None:
+    with pytest.raises(ValueError, match="colon"):
+        turn_decision(0, speaker="SPEAKER_00", display_label="Roger: Changed")
+
+
+def test_srt_validation_checks_every_changed_label_line() -> None:
+    canonical = (
+        "1\n00:00:00,000 --> 00:00:01,000\n"
+        "SPEAKER_00: Synthetic line.\nSPEAKER_00: continued payload\n"
+    )
+    valid = canonical.replace("SPEAKER_00:", "Roger:")
+    drifted = valid.replace("continued payload", "changed payload")
+    assert validate_srt_label_only(canonical, valid) == (True, 1)
+    assert validate_srt_label_only(canonical, drifted) == (False, 1)
+
+
 def test_subtitle_cue_at_shared_boundary_maps_to_the_turn_that_starts_there() -> None:
     transcript = synthetic_transcript()
     transcript.speaker_turns[0].end = 1.5
@@ -302,10 +517,7 @@ def test_subtitle_cue_at_half_millisecond_boundary_uses_canonical_speaker_prefix
     transcript = synthetic_transcript()
     transcript.speaker_turns[0].end = boundary
     transcript.speaker_turns[1].start = boundary
-    canonical = (
-        f"1\n{rendered_timestamp} --> 00:00:02,500\n"
-        "SPEAKER_01: Generic response.\n"
-    )
+    canonical = f"1\n{rendered_timestamp} --> 00:00:02,500\nSPEAKER_01: Generic response.\n"
 
     rendered = render_identity_srt(canonical, transcript, complete_decisions())
 
@@ -325,6 +537,30 @@ def test_vtt_export_changes_only_the_label_prefix() -> None:
     assert rendered == canonical.replace("SPEAKER_00:", "Participant Alpha:").replace(
         "SPEAKER_01:", "Unattributed:"
     )
+    assert validate_vtt_label_only(canonical, rendered) == (True, 2)
+
+
+def test_vtt_export_maps_every_known_label_line_and_validates_all_payload() -> None:
+    transcript = synthetic_transcript()
+    decisions = [
+        cluster_decision("SPEAKER_00", "Roger"),
+        cluster_decision("SPEAKER_01", "Matthew"),
+        *complete_decisions(),
+    ]
+    canonical = (
+        "WEBVTT\n\n"
+        "00:00:00.000 --> 00:00:01.000\n"
+        "SPEAKER_00: Synthetic line.\n"
+        "SPEAKER_00: continued payload\n\n"
+        "00:00:01.500 --> 00:00:02.500\n"
+        "SPEAKER_01: Generic response.\n"
+    )
+    rendered = render_identity_vtt(canonical, transcript, decisions)
+    assert rendered.count("Participant Alpha:") == 2
+    assert validate_vtt_label_only(canonical, rendered) == (True, 2)
+    assert validate_vtt_label_only(
+        canonical, rendered.replace("continued payload", "changed payload")
+    ) == (False, 2)
 
 
 def test_markdown_export_changes_only_label_lines_and_escapes_markup() -> None:
@@ -386,6 +622,52 @@ def test_segments_csv_preserves_payload_and_defends_every_formula_capable_cell()
     assert rows[1]["display_label"] == "Unattributed"
 
 
+def test_global_alias_and_uncertain_turn_compose_across_every_identity_format() -> None:
+    transcript = synthetic_transcript()
+    decisions = [
+        cluster_decision("SPEAKER_00", "Roger"),
+        cluster_decision("SPEAKER_01", "Matthew"),
+        turn_decision(
+            0,
+            speaker="SPEAKER_00",
+            status=ResolutionStatus.REVIEW,
+            reason=ReasonCode.SAME_SPEAKER_BOUNDED_FRAGMENT,
+        ),
+        turn_decision(
+            1,
+            speaker="SPEAKER_01",
+            status=ResolutionStatus.UNRESOLVED,
+            reason=ReasonCode.INSUFFICIENT_EVIDENCE,
+        ),
+    ]
+    canonical_srt = (
+        "1\n00:00:00,000 --> 00:00:01,000\nSPEAKER_00: Synthetic line.\n\n"
+        "2\n00:00:01,500 --> 00:00:02,500\nSPEAKER_01: Generic response.\n"
+    )
+    canonical_vtt = (
+        "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nSPEAKER_00: Synthetic line.\n\n"
+        "00:00:01.500 --> 00:00:02.500\nSPEAKER_01: Generic response.\n"
+    )
+    canonical_md = (
+        "# Transcript\n\n**SPEAKER_00**  \nSynthetic line.\n\n**SPEAKER_01**  \nGeneric response.\n"
+    )
+    artifacts = [
+        render_identity_srt(canonical_srt, transcript, decisions),
+        render_identity_vtt(canonical_vtt, transcript, decisions),
+        render_identity_markdown(canonical_md, transcript, decisions),
+        render_identity_text(transcript, decisions),
+        render_identity_segments_csv(transcript, decisions),
+        build_identity_transcript(transcript, decisions).model_dump_json(),
+    ]
+    combined = "\n".join(artifacts)
+    assert "Roger" in combined
+    assert "Matthew" in combined
+    assert "SPEAKER_00:" not in combined
+    assert "SPEAKER_01:" not in combined
+    rows = list(csv.DictReader(io.StringIO(artifacts[4])))
+    assert [row["display_label"] for row in rows] == ["Roger", "Matthew"]
+
+
 @pytest.mark.parametrize(
     "renderer,canonical",
     [
@@ -403,6 +685,43 @@ def test_subtitle_exports_reject_label_text_join_or_prefix_drift(
     renderer: object, canonical: str
 ) -> None:
     with pytest.raises(ValueError, match="label prefix"):
+        renderer(canonical, synthetic_transcript(), complete_decisions())  # type: ignore[operator]
+
+
+@pytest.mark.parametrize(
+    "renderer,canonical,error",
+    [
+        (
+            render_identity_srt,
+            (
+                "1\n00:00:00,000 --> 00:00:01,000\n"
+                "SPEAKER_00: Synthetic line.\nSPEAKER_99: unmatched\n"
+            ),
+            "unmatched speaker label",
+        ),
+        (
+            render_identity_srt,
+            "1\nnot-a-timestamp\nSPEAKER_00: Synthetic line.\n",
+            "timing line",
+        ),
+        (
+            render_identity_vtt,
+            "WEBVTT\n\nnot-a-timestamp\nSPEAKER_00: Synthetic line.\n",
+            "malformed cue",
+        ),
+        (
+            render_identity_vtt,
+            "WEBVTT\n\n00:00:10.000 --> 00:00:11.000\nSPEAKER_00: Synthetic line.\n",
+            "canonical turn",
+        ),
+    ],
+)
+def test_subtitle_exports_fail_closed_for_malformed_or_unmatched_cues(
+    renderer: object,
+    canonical: str,
+    error: str,
+) -> None:
+    with pytest.raises(ValueError, match=error):
         renderer(canonical, synthetic_transcript(), complete_decisions())  # type: ignore[operator]
 
 

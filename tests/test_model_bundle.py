@@ -124,9 +124,10 @@ def test_bootstrap_license_allowlist_matches_model_authority() -> None:
         "Apache-2.0.txt",
         "CC-BY-4.0.txt",
     )
-    assert {
-        MODEL_MANIFEST[key].license_expression for key in STRICT_MODEL_KEYS
-    } == {"Apache-2.0", "CC-BY-4.0"}
+    assert {MODEL_MANIFEST[key].license_expression for key in STRICT_MODEL_KEYS} == {
+        "Apache-2.0",
+        "CC-BY-4.0",
+    }
 
 
 def _first_model_file(bundle: Path, manifest: dict[str, ModelEntry]) -> Path:
@@ -142,6 +143,7 @@ def test_assembly_is_deterministic_runtime_compatible_and_read_only(
     tmp_path: Path,
     bundle_inputs: tuple[Path, Path, Path, dict[str, ModelEntry]],
 ) -> None:
+    assert MODEL_BUNDLE_NLTK_VERSION == "3.10.3"
     first, first_result = _assemble(tmp_path, bundle_inputs, name="first.bundle")
     second, second_result = _assemble(tmp_path, bundle_inputs, name="second.bundle")
     _, _, _, manifest = bundle_inputs
@@ -441,7 +443,10 @@ def test_license_and_notice_inputs_are_exact_and_privacy_safe(
         )
 
     (licenses / "unexpected.txt").unlink()
-    notices.write_text("/" "Users/private/checkouts must not escape\n", encoding="utf-8")
+    notices.write_text(
+        "/" + "Users/private/checkouts must not escape\n",
+        encoding="utf-8",
+    )
     with pytest.raises(ModelBundleError, match="private acquisition metadata"):
         assemble_model_bundle(
             cache,

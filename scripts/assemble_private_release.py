@@ -312,72 +312,73 @@ def run_preassembly_gates() -> None:
         run(list(command))
     with tempfile.TemporaryDirectory() as temporary:
         staging = Path(temporary)
-        exported = staging / "cpu-requirements.txt"
-        audit_input = staging / "cpu-audit-requirements.txt"
-        audit = staging / "pip-audit.json"
-        subprocess.run(
-            [
-                "uv",
-                "export",
-                "--locked",
-                "--extra",
-                "full",
-                "--group",
-                "cpu",
-                "--no-dev",
-                "--no-emit-project",
-                "--output-file",
-                str(exported),
-            ],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        run(
-            [
-                "uv",
-                "run",
-                "--frozen",
-                "python",
-                "scripts/prepare_vulnerability_audit_input.py",
-                str(exported),
-                str(audit_input),
-            ]
-        )
-        completed = subprocess.run(
-            [
-                "uv",
-                "run",
-                "--frozen",
-                "pip-audit",
-                "-r",
-                str(audit_input),
-                "--disable-pip",
-                "--no-deps",
-                "--strict",
-                "--progress-spinner",
-                "off",
-                "-f",
-                "json",
-                "-o",
-                str(audit),
-            ],
-            cwd=ROOT,
-            check=False,
-        )
-        if completed.returncode not in {0, 1}:
-            raise RuntimeError("vulnerability audit execution failed")
-        run(
-            [
-                "uv",
-                "run",
-                "--frozen",
-                "python",
-                "scripts/check_vulnerability_audit.py",
-                str(audit),
-            ]
-        )
+        for profile in ("cpu", "cu126", "cu128"):
+            exported = staging / f"{profile}-requirements.txt"
+            audit_input = staging / f"{profile}-audit-requirements.txt"
+            audit = staging / f"{profile}-pip-audit.json"
+            subprocess.run(
+                [
+                    "uv",
+                    "export",
+                    "--locked",
+                    "--extra",
+                    "full",
+                    "--group",
+                    profile,
+                    "--no-dev",
+                    "--no-emit-project",
+                    "--output-file",
+                    str(exported),
+                ],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            run(
+                [
+                    "uv",
+                    "run",
+                    "--frozen",
+                    "python",
+                    "scripts/prepare_vulnerability_audit_input.py",
+                    str(exported),
+                    str(audit_input),
+                ]
+            )
+            completed = subprocess.run(
+                [
+                    "uv",
+                    "run",
+                    "--frozen",
+                    "pip-audit",
+                    "-r",
+                    str(audit_input),
+                    "--disable-pip",
+                    "--no-deps",
+                    "--strict",
+                    "--progress-spinner",
+                    "off",
+                    "-f",
+                    "json",
+                    "-o",
+                    str(audit),
+                ],
+                cwd=ROOT,
+                check=False,
+            )
+            if completed.returncode not in {0, 1}:
+                raise RuntimeError(f"vulnerability audit execution failed for profile {profile}")
+            run(
+                [
+                    "uv",
+                    "run",
+                    "--frozen",
+                    "python",
+                    "scripts/check_vulnerability_audit.py",
+                    str(audit),
+                ]
+            )
 
 
 def smoke_install(wheel: Path) -> None:

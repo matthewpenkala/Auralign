@@ -14,15 +14,15 @@
     "cdn-lfs-eu-1.hf.co"
   ],
   "bootstrap": {
-    "bundle_id": "com.auralign.studio.models.bootstrap.v1",
-    "bundle_version": "1.0.0",
+    "bundle_id": "com.auralign.studio.models.bootstrap.v2",
+    "bundle_version": "2.0.0",
     "model_keys": [
       "community-1",
       "en",
       "ecapa"
     ]
   },
-  "catalog_version": "1.0.0",
+  "catalog_version": "1.1.0",
   "models": [
     {
       "accessibility_label": "Whisper Large v3. Highest-quality multilingual transcription for the Max preset. Quality: Highest. Speed: Slowest. Memory: Very high.",
@@ -3130,9 +3130,9 @@
       "memory": "Moderate",
       "model_id": "pyannote/speaker-diarization-community-1",
       "modification_status": "unmodified exact pinned runtime files",
-      "pack_id": "com.auralign.studio.models.bootstrap.v1",
+      "pack_id": "com.auralign.studio.models.bootstrap.v2",
       "pack_relative_path": "models/pyannote--speaker-diarization-community-1",
-      "pack_version": "1.0.0",
+      "pack_version": "2.0.0",
       "product_classification": "production",
       "quality": "Production diarization",
       "redistribution_status": "permitted_with_attribution_and_gated_terms",
@@ -3193,9 +3193,9 @@
       "memory": "Moderate",
       "model_id": "facebook/wav2vec2-base-960h",
       "modification_status": "unmodified exact pinned runtime files",
-      "pack_id": "com.auralign.studio.models.bootstrap.v1",
+      "pack_id": "com.auralign.studio.models.bootstrap.v2",
       "pack_relative_path": "models/facebook--wav2vec2-base-960h",
-      "pack_version": "1.0.0",
+      "pack_version": "2.0.0",
       "product_classification": "production",
       "quality": "Production alignment",
       "redistribution_status": "permitted_with_license_terms",
@@ -3260,9 +3260,9 @@
       "memory": "Moderate",
       "model_id": "speechbrain/spkrec-ecapa-voxceleb",
       "modification_status": "unmodified exact pinned runtime files",
-      "pack_id": "com.auralign.studio.models.bootstrap.v1",
+      "pack_id": "com.auralign.studio.models.bootstrap.v2",
       "pack_relative_path": "models/speechbrain--spkrec-ecapa-voxceleb",
-      "pack_version": "1.0.0",
+      "pack_version": "2.0.0",
       "product_classification": "production",
       "quality": "Production embeddings",
       "redistribution_status": "permitted_with_license_terms",
@@ -3322,6 +3322,6 @@
     },
     "schema_version": "1.0"
   },
-  "product_version": "0.3.0",
+  "product_version": "0.3.1",
   "schema_version": "auralign-model-delivery-catalog.v1"
 }

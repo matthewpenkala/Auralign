@@ -25,10 +25,10 @@ from .config import MODEL_MANIFEST, ModelEntry
 from .model_pack import model_pack_contract, model_pack_sbom
 
 MODEL_DELIVERY_CATALOG_SCHEMA_VERSION: Final = "auralign-model-delivery-catalog.v1"
-MODEL_DELIVERY_CATALOG_VERSION: Final = "1.0.0"
-MODEL_DELIVERY_PRODUCT_VERSION: Final = "0.3.0"
-BOOTSTRAP_BUNDLE_ID: Final = "com.auralign.studio.models.bootstrap.v1"
-BOOTSTRAP_BUNDLE_VERSION: Final = "1.0.0"
+MODEL_DELIVERY_CATALOG_VERSION: Final = "1.1.0"
+MODEL_DELIVERY_PRODUCT_VERSION: Final = "0.3.1"
+BOOTSTRAP_BUNDLE_ID: Final = "com.auralign.studio.models.bootstrap.v2"
+BOOTSTRAP_BUNDLE_VERSION: Final = "2.0.0"
 BOOTSTRAP_MODEL_KEYS: Final = ("community-1", "en", "ecapa")
 ALLOWED_INITIAL_HOSTS: Final = ("huggingface.co",)
 # Hugging Face's official download/firewall documentation identifies these
@@ -230,12 +230,15 @@ def dump_model_delivery_catalog(
 ) -> str:
     """Serialize the reviewed catalog with stable human-reviewable formatting."""
 
-    return json.dumps(
-        model_delivery_catalog(manifest),
-        sort_keys=True,
-        indent=2,
-        ensure_ascii=False,
-    ) + "\n"
+    return (
+        json.dumps(
+            model_delivery_catalog(manifest),
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n"
+    )
 
 
 def model_delivery_catalog_sha256(

@@ -23,6 +23,8 @@ from local_transcript_max.runtime_policy import resolve_runtime_policy
 from local_transcript_max.schemas import AlignedWord, ASRResult, ASRSegment
 
 _LOCALIZED_FALLBACK_WARNING = "forced_alignment_localized_fallback"
+_SHORT_SEGMENT_REPAIR_WARNING = "forced_alignment_short_segment_repair"
+_SHORT_SEGMENT_MAX_SECONDS = 0.25
 
 
 class WhisperXForcedAlignment:
@@ -69,9 +71,7 @@ class WhisperXForcedAlignment:
         import whisperx
 
         decision = resolve_runtime_policy(config).alignment
-        device = decision.resolved_device or _alignment_device(
-            config.alignment.device or "auto"
-        )
+        device = decision.resolved_device or _alignment_device(config.alignment.device or "auto")
         self.last_device = device
         model_key = (language, device, model_name)
         load_started = time.perf_counter()
@@ -96,11 +96,7 @@ class WhisperXForcedAlignment:
                 "WhisperX alignment model unavailable for the configured language."
             ) from exc
         self.last_model_load_seconds = time.perf_counter() - load_started
-        source_segments = [
-            segment
-            for segment in asr_result.segments
-            if _segment_text(segment)
-        ]
+        source_segments = [segment for segment in asr_result.segments if _segment_text(segment)]
         segments = [
             {"start": segment.start, "end": segment.end, "text": _segment_text(segment)}
             for segment in source_segments
@@ -130,19 +126,13 @@ class WhisperXForcedAlignment:
                     aligned.get("segments", []) if isinstance(aligned, dict) else []
                 )
                 aligned_by_source.append(
-                    [
-                        item
-                        for item in raw_aligned_segments
-                        if isinstance(item, dict)
-                    ]
+                    [item for item in raw_aligned_segments if isinstance(item, dict)]
                     if isinstance(raw_aligned_segments, list)
                     else []
                 )
                 self.last_alignment_call_count += 1
         except Exception as exc:  # pragma: no cover - dependency/model specific
-            raise BackendUnavailableError(
-                "WhisperX alignment execution failed."
-            ) from exc
+            raise BackendUnavailableError("WhisperX alignment execution failed.") from exc
         self.last_inference_seconds = time.perf_counter() - inference_started
         words, coverage = _words_from_whisperx(
             aligned_by_source,
@@ -220,9 +210,7 @@ def _load_inference_alignment_model(
     vocabulary = processor.tokenizer.get_vocab()
     metadata = {
         "language": language,
-        "dictionary": {
-            character.lower(): code for character, code in vocabulary.items()
-        },
+        "dictionary": {character.lower(): code for character, code in vocabulary.items()},
         "type": "huggingface",
     }
     return model, metadata
@@ -238,9 +226,7 @@ def _configure_wav2vec2_for_inference(model_config: Any) -> None:
 
 def _assert_alignment_model_inference_ready(model: Any) -> None:
     if bool(getattr(model, "training", True)):
-        raise BackendUnavailableError(
-            "Forced-alignment model did not enter evaluation mode."
-        )
+        raise BackendUnavailableError("Forced-alignment model did not enter evaluation mode.")
     model_config = getattr(model, "config", None)
     if (
         model_config is None
@@ -256,10 +242,7 @@ def _assert_alignment_model_inference_ready(model: Any) -> None:
         raise BackendUnavailableError(
             "Forced-alignment model retained training-only SpecAugment parameters."
         )
-    if any(
-        name.endswith("masked_spec_embed")
-        for name, _parameter in model.named_parameters()
-    ):
+    if any(name.endswith("masked_spec_embed") for name, _parameter in model.named_parameters()):
         raise BackendUnavailableError(
             "Forced-alignment model retained training-only SpecAugment parameters."
         )
@@ -270,20 +253,13 @@ def _alignment_inference_hygiene(model: Any) -> dict[str, bool | float]:
     wav2vec2 = getattr(model, "wav2vec2", None)
     return {
         "evaluation_mode": not bool(model.training),
-        "apply_spec_augment": bool(
-            getattr(model_config, "apply_spec_augment", False)
-        ),
+        "apply_spec_augment": bool(getattr(model_config, "apply_spec_augment", False)),
         "mask_time_prob": float(getattr(model_config, "mask_time_prob", 0.0)),
-        "mask_feature_prob": float(
-            getattr(model_config, "mask_feature_prob", 0.0)
-        ),
+        "mask_feature_prob": float(getattr(model_config, "mask_feature_prob", 0.0)),
         "masked_spec_embed_present": (
             wav2vec2 is not None and hasattr(wav2vec2, "masked_spec_embed")
         )
-        or any(
-            name.endswith("masked_spec_embed")
-            for name, _parameter in model.named_parameters()
-        ),
+        or any(name.endswith("masked_spec_embed") for name, _parameter in model.named_parameters()),
     }
 
 
@@ -346,12 +322,10 @@ def _words_from_whisperx(
     previous_end = -math.inf
     for segment_index, expected_segment in enumerate(expected_segments):
         source_results = (
-            aligned_by_source[segment_index]
-            if segment_index < len(aligned_by_source)
-            else []
+            aligned_by_source[segment_index] if segment_index < len(aligned_by_source) else []
         )
-        segment_words, character_projection_reason = (
-            _source_segment_forced_words(source_results, expected_segment)
+        segment_words, character_projection_reason = _source_segment_forced_words(
+            source_results, expected_segment
         )
         reason = character_projection_reason or _forced_segment_defect(
             segment_words,
@@ -370,10 +344,30 @@ def _words_from_whisperx(
                 previous_end = last_word.end
             continue
 
+        short_segment_repair = _repair_short_single_word_segment(
+            expected_segment,
+            previous_end=previous_end,
+            reason=reason,
+        )
+        if short_segment_repair:
+            words.extend(short_segment_repair)
+            fallback_word_count += len(short_segment_repair)
+            fallback_segments.append(
+                {
+                    "segment_index": segment_index,
+                    "segment_id": expected_segment.id,
+                    "reason": reason,
+                    "fallback_word_count": len(short_segment_repair),
+                }
+            )
+            last_word = short_segment_repair[-1]
+            previous_start = last_word.start if last_word.start is not None else previous_start
+            previous_end = last_word.end if last_word.end is not None else previous_end
+            continue
+
         if not allow_localized_fallback:
             raise BackendUnavailableError(
-                "Forced alignment failed for source segment "
-                f"{segment_index}: {reason}."
+                f"Forced alignment failed for source segment {segment_index}: {reason}."
             )
         fallback_reason = f"forced_alignment_fallback_{reason}"
         fallback_words, _cursor = fallback_segment_words(
@@ -479,15 +473,9 @@ def _project_character_alignments_to_asr_words(
         for character in _aligned_characters(segment)
         if str(character.get("char") or "") and not str(character["char"]).isspace()
     ]
-    expected_words = [
-        word for word in expected_segment.words if _compact_text(word.text)
-    ]
-    expected_character_text = "".join(
-        _compact_text(word.text) for word in expected_words
-    )
-    aligned_character_text = "".join(
-        str(character["char"]) for character in aligned_characters
-    )
+    expected_words = [word for word in expected_segment.words if _compact_text(word.text)]
+    expected_character_text = "".join(_compact_text(word.text) for word in expected_words)
+    aligned_character_text = "".join(str(character["char"]) for character in aligned_characters)
     if aligned_character_text != expected_character_text:
         return [], "character_sequence_mismatch"
 
@@ -495,9 +483,7 @@ def _project_character_alignments_to_asr_words(
     character_cursor = 0
     for expected_word in expected_words:
         token = _compact_text(expected_word.text)
-        word_characters = aligned_characters[
-            character_cursor : character_cursor + len(token)
-        ]
+        word_characters = aligned_characters[character_cursor : character_cursor + len(token)]
         character_cursor += len(token)
         timed_pairs: list[tuple[float, float, float | None]] = []
         pair_start_cursor = -math.inf
@@ -540,11 +526,7 @@ def _aligned_characters(segment: dict[str, Any]) -> list[dict[str, Any]]:
     raw_characters = segment.get("chars", [])
     if not isinstance(raw_characters, list):
         return []
-    return [
-        character
-        for character in raw_characters
-        if isinstance(character, dict)
-    ]
+    return [character for character in raw_characters if isinstance(character, dict)]
 
 
 def _forced_segment_defect(
@@ -561,15 +543,9 @@ def _forced_segment_defect(
     ):
         return "text_mismatch"
     expected_word_tokens = [
-        _compact_text(word.text)
-        for word in expected_segment.words
-        if _compact_text(word.text)
+        _compact_text(word.text) for word in expected_segment.words if _compact_text(word.text)
     ]
-    aligned_word_tokens = [
-        _compact_text(word.text)
-        for word in words
-        if _compact_text(word.text)
-    ]
+    aligned_word_tokens = [_compact_text(word.text) for word in words if _compact_text(word.text)]
     if expected_word_tokens and aligned_word_tokens != expected_word_tokens:
         return "word_sequence_mismatch"
     start_cursor = previous_start
@@ -585,10 +561,7 @@ def _forced_segment_defect(
             return "negative_timestamp"
         if end <= start:
             return "non_positive_duration"
-        if (
-            start < expected_segment.start - 0.05
-            or end > expected_segment.end + 0.05
-        ):
+        if start < expected_segment.start - 0.05 or end > expected_segment.end + 0.05:
             return "out_of_segment_bounds"
         if start < start_cursor or end < end_cursor:
             return "non_monotonic_timestamp"
@@ -620,6 +593,64 @@ def _words_within_source_segment(
         and word.end <= segment.end + tolerance_seconds
         for word in words
     )
+
+
+def _repair_short_single_word_segment(
+    segment: ASRSegment,
+    *,
+    previous_end: float,
+    reason: str,
+) -> list[AlignedWord]:
+    """Repair one CTC-ineligible short word from overlapping ASR timing evidence.
+
+    WhisperX cannot backtrack some sub-frame or otherwise extremely short
+    segments and returns no character timing at all. This repair is narrower
+    than the normal localized fallback: it accepts only one text-identical ASR
+    word, requires finite positive source timing that overlaps the authoritative
+    source-segment interval, and clips that overlap against the prior published
+    word. Every other defect remains fail-closed.
+    """
+
+    if reason not in {"character_sequence_mismatch", "missing_segment"}:
+        return []
+    if segment.end - segment.start > _SHORT_SEGMENT_MAX_SECONDS:
+        return []
+    source_words = [word for word in segment.words if _compact_text(word.text)]
+    if len(source_words) != 1:
+        return []
+    source_word = source_words[0]
+    if _compact_text(source_word.text) != _compact_text(_segment_text(segment)):
+        return []
+    if source_word.start is None or source_word.end is None:
+        return []
+    if (
+        not math.isfinite(source_word.start)
+        or not math.isfinite(source_word.end)
+        or source_word.end <= source_word.start
+    ):
+        return []
+    start = max(0.0, previous_end, segment.start, source_word.start)
+    end = min(segment.end, source_word.end)
+    if end <= start:
+        return []
+    warnings = sorted(
+        {
+            *source_word.warnings,
+            _LOCALIZED_FALLBACK_WARNING,
+            _SHORT_SEGMENT_REPAIR_WARNING,
+            f"forced_alignment_fallback_{reason}",
+            "repaired_to_source_segment_bounds",
+        }
+    )
+    repaired = source_word.model_copy(
+        update={
+            "start": start,
+            "end": end,
+            "alignment_source": "whisper",
+            "warnings": warnings,
+        }
+    )
+    return [repaired] if _words_within_source_segment([repaired], segment) else []
 
 
 def _missing_segment_word(

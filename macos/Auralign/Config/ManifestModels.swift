@@ -15,6 +15,7 @@ struct ConfigField: Codable, Identifiable, Equatable {
         case string
         case enumeration = "enum"
         case path
+        case stringList = "string_list"
         case pathList = "path_list"
         case floatList = "float_list"
         case floatOrFloatList = "float_or_float_list"

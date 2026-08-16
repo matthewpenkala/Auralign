@@ -160,6 +160,15 @@ private extension NSLock {
 /// instead of silently leaving Python or native backend processes behind.
 @MainActor
 final class AuralignApplicationDelegate: NSObject, NSApplicationDelegate {
+    /// Xcode injects the unit-test bundle into the application executable.
+    /// That host must stay inert: XCTest can terminate it without normal
+    /// application-delegate shutdown, which would otherwise orphan an engine
+    /// handshake child. UI tests launch a separate application process without
+    /// XCTestCase loaded and therefore retain the complete production startup.
+    static var isInjectedUnitTestHost: Bool {
+        NSClassFromString("XCTestCase") != nil
+    }
+
     weak var model: AppModel?
     private(set) var ownsApplicationInstance = false
     private var terminationTask: Task<Void, Never>?
@@ -173,6 +182,7 @@ final class AuralignApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        guard !Self.isInjectedUnitTestHost else { return }
         guard instanceLock.acquire() else {
             if let ownerPID = instanceLock.ownerProcessIdentifier(),
                ownerPID != ProcessInfo.processInfo.processIdentifier {

@@ -24,12 +24,14 @@ from local_transcript_max.schemas import DiarizationResult, DiarizationTurn
 
 from .identity_exports import (
     build_identity_transcript,
+    effective_display_labels,
     render_identity_markdown,
     render_identity_segments_csv,
     render_identity_srt,
     render_identity_text,
     render_identity_vtt,
     validate_srt_label_only,
+    validate_vtt_label_only,
 )
 from .identity_io import (
     IdentityArtifactTransaction,
@@ -275,6 +277,9 @@ def resolve_identities(
             )
         validation = validation.model_copy(update={"canonical_hashes_unchanged": True})
         output_bytes = _refresh_validation_payloads(output_bytes, validation)
+        derived_artifact_hashes = {
+            name: hashlib.sha256(data).hexdigest() for name, data in sorted(output_bytes.items())
+        }
         report = IdentityReport(
             run_id=job.context.run_id,
             approval_source_run_id=(None if approved_map is None else approved_map.resolver_run_id),
@@ -300,6 +305,7 @@ def resolve_identities(
                 ),
             },
             artifacts_written=artifacts_written,
+            derived_artifact_hashes=derived_artifact_hashes,
             validation_summary=validation,
             qa_flags=sorted({IdentityQAFlag(value) for value in state.qa_flags}, key=str),
             warnings=sorted(set(state.warnings)),
@@ -331,9 +337,7 @@ def _acquire_resolver_inputs(
     try:
         from .enrollment import load_validated_rename_evidence
 
-        rename_records: tuple[Any, ...] | None = tuple(
-            load_validated_rename_evidence(job_dir)
-        )
+        rename_records: tuple[Any, ...] | None = tuple(load_validated_rename_evidence(job_dir))
     except Exception:
         rename_records = None
     for name, digest in (
@@ -346,9 +350,7 @@ def _acquire_resolver_inputs(
             hashes[name] = digest
     if rename_records:
         hashes["rename_records"] = hashlib.sha256(
-            deterministic_json_bytes(
-                sorted(str(record.record_hash) for record in rename_records)
-            )
+            deterministic_json_bytes(sorted(str(record.record_hash) for record in rename_records))
         ).hexdigest()
 
     manifest_jobs: list[Path] = []
@@ -593,11 +595,7 @@ def _collect_profile_evidence(
             not match.active_ambiguous
             and match.confidence >= max(policy.profile_threshold, policy.min_apply_confidence)
         )
-        reason = (
-            ReasonCode.LOCAL_PROFILE_MATCH
-            if safe
-            else ReasonCode.LOCAL_PROFILE_AMBIGUOUS
-        )
+        reason = ReasonCode.LOCAL_PROFILE_MATCH if safe else ReasonCode.LOCAL_PROFILE_AMBIGUOUS
         _add_candidate_source(
             job,
             state,
@@ -662,9 +660,7 @@ def _validate_profile_map(
     ):
         raise ValueError("speaker map cluster provenance is stale")
     map_threshold = _strict_unit_float(payload.get("threshold"), "speaker map threshold")
-    map_margin = _strict_unit_float(
-        payload.get("ambiguity_margin"), "speaker map ambiguity margin"
-    )
+    map_margin = _strict_unit_float(payload.get("ambiguity_margin"), "speaker map ambiguity margin")
     raw_embeddings = strict_json_bytes(cluster_artifact.data)
     if not isinstance(raw_embeddings, dict):
         raise ValueError("cluster embeddings must be an object")
@@ -686,10 +682,7 @@ def _validate_profile_map(
         if not isinstance(speaker, str):
             raise ValueError("speaker map cluster must be a string")
         if speaker.upper() in {"UNKNOWN", "UNATTRIBUTED"}:
-            if (
-                raw_row.get("label") != "UNKNOWN"
-                or raw_row.get("source_profile_id") is not None
-            ):
+            if raw_row.get("label") != "UNKNOWN" or raw_row.get("source_profile_id") is not None:
                 raise ValueError("speaker map reserved-cluster row is inconsistent")
             continue
         if speaker not in expected_clusters:
@@ -716,8 +709,7 @@ def _validate_profile_map(
             second is not None and best["score"] - second["score"] < map_margin
         )
         active_ambiguous = bool(
-            second is not None
-            and best["score"] - second["score"] < policy.profile_ambiguity_margin
+            second is not None and best["score"] - second["score"] < policy.profile_ambiguity_margin
         )
         row_ambiguous = row.get("ambiguous")
         if not isinstance(row_ambiguous, bool) or row_ambiguous is not produced_ambiguous:
@@ -728,11 +720,7 @@ def _validate_profile_map(
         confidence = _strict_optional_confidence(row.get("confidence"))
         expected_concrete = best["score"] >= map_threshold and not produced_ambiguous
         if not expected_concrete:
-            if (
-                label != "UNKNOWN"
-                or source_profile_id is not None
-                or confidence != best["score"]
-            ):
+            if label != "UNKNOWN" or source_profile_id is not None or confidence != best["score"]:
                 raise ValueError("speaker map rejected-row provenance is inconsistent")
             continue
         if (
@@ -1639,6 +1627,7 @@ def _build_audit(
     state: _ResolutionState,
 ) -> AttributionAudit:
     evidence_by_id = {item.evidence_id: item for item in state.evidence}
+    effective_labels = effective_display_labels(job.transcript, [*clusters, *turns])
     rows: list[AttributionAuditRow] = []
     for decision in [*clusters, *turns]:
         turn = (
@@ -1655,7 +1644,16 @@ def _build_audit(
             if evidence_id in evidence_by_id
         ]
         display = (
-            decision.display_label or decision.canonical_label or decision.speaker or "UNKNOWN"
+            effective_labels[decision.turn_index]
+            if decision.turn_index is not None
+            else (
+                decision.display_label or decision.canonical_label or decision.speaker or "UNKNOWN"
+            )
+        )
+        canonical_display = (
+            turn.speaker
+            if turn is not None
+            else decision.canonical_label or decision.speaker or "UNKNOWN"
         )
         row = AttributionAuditRow(
             decision_id=decision.decision_id,
@@ -1704,7 +1702,11 @@ def _build_audit(
             action=(
                 "apply_display_label"
                 if decision.status in {ResolutionStatus.MAPPED, ResolutionStatus.UNATTRIBUTED}
-                else "retain_anonymous"
+                else (
+                    "apply_global_display_label_retain_status"
+                    if display != canonical_display
+                    else "retain_anonymous"
+                )
             ),
             requires_media_review=decision.requires_media_review,
             requires_human_approval=decision.requires_approval,
@@ -1939,7 +1941,14 @@ def _build_output_family(
         options.write_identity_mapped_exports or options.policy.mode != ResolverMode.REVIEW
     )
     if write_exports:
-        validation = _add_identity_exports(job, options, turn_decisions, validation, outputs)
+        validation = _add_identity_exports(
+            job,
+            options,
+            cluster_decisions,
+            turn_decisions,
+            validation,
+            outputs,
+        )
     artifacts_written = {
         "report": "speaker_identity_report.json",
         "candidates": "speaker_identity_candidates.json",
@@ -1968,7 +1977,8 @@ def _build_output_family(
 def _add_identity_exports(
     job: LoadedIdentityJob,
     options: ResolveIdentityOptions,
-    decisions: Sequence[IdentityDecision],
+    cluster_decisions: Sequence[IdentityDecision],
+    turn_decisions: Sequence[IdentityDecision],
     validation: IdentityValidationSummary,
     outputs: dict[str, bytes],
 ) -> IdentityValidationSummary:
@@ -1977,9 +1987,16 @@ def _add_identity_exports(
         raise IdentityResolverError(
             "missing_canonical_srt", "transcript.srt is required for SRT-first identity delivery."
         )
-    identity_srt = render_identity_srt(
-        canonical_srt.data.decode("utf-8"), job.transcript, list(decisions)
-    )
+    decisions = [*cluster_decisions, *turn_decisions]
+    try:
+        identity_srt = render_identity_srt(
+            canonical_srt.data.decode("utf-8"), job.transcript, decisions
+        )
+    except ValueError as exc:
+        raise IdentityResolverError(
+            "identity_srt_render_failed",
+            "Canonical SRT labels could not be mapped without ambiguity.",
+        ) from exc
     srt_preserved, cue_count = validate_srt_label_only(
         canonical_srt.data.decode("utf-8"), identity_srt
     )
@@ -1988,7 +2005,7 @@ def _add_identity_exports(
             "identity_srt_validation_failed", "Identity SRT changed non-label cue content."
         )
     validation = validation.model_copy(update={"cue_count_preserved": True})
-    identity_transcript = build_identity_transcript(job.transcript, list(decisions)).model_copy(
+    identity_transcript = build_identity_transcript(job.transcript, decisions).model_copy(
         update={
             "input_path": (
                 f"input:{job.context.input_hash[:16]}" if job.context.input_hash else "input:local"
@@ -1999,9 +2016,13 @@ def _add_identity_exports(
         resolver_run_id=job.context.run_id,
         canonical_transcript_hash=job.transcript_artifact.sha256,
         display_labels=sorted(
-            {decision.display_label for decision in decisions if decision.display_label is not None}
+            {
+                label
+                for index, label in effective_display_labels(job.transcript, decisions).items()
+                if label != job.transcript.speaker_turns[index].speaker
+            }
         ),
-        turn_decision_ids=[decision.decision_id for decision in decisions],
+        turn_decision_ids=[decision.decision_id for decision in turn_decisions],
         validation_summary=validation,
         transcript=identity_transcript,
     )
@@ -2015,18 +2036,30 @@ def _add_identity_exports(
                 "missing_optional_export_source",
                 "Canonical Markdown and VTT are required for all identity sidecars.",
             )
-        outputs["transcript.identity_mapped.md"] = render_identity_markdown(
-            markdown.data.decode("utf-8"), job.transcript, list(decisions)
-        ).encode("utf-8")
-        outputs["transcript.identity_mapped.vtt"] = render_identity_vtt(
-            vtt.data.decode("utf-8"), job.transcript, list(decisions)
-        ).encode("utf-8")
-        outputs["transcript.identity_mapped.txt"] = render_identity_text(
-            job.transcript, list(decisions)
-        ).encode("utf-8")
-        outputs["transcript.identity_mapped.segments.csv"] = render_identity_segments_csv(
-            job.transcript, list(decisions)
-        ).encode("utf-8")
+        try:
+            identity_markdown = render_identity_markdown(
+                markdown.data.decode("utf-8"), job.transcript, decisions
+            )
+            identity_vtt = render_identity_vtt(vtt.data.decode("utf-8"), job.transcript, decisions)
+            identity_text = render_identity_text(job.transcript, decisions)
+            identity_csv = render_identity_segments_csv(job.transcript, decisions)
+        except ValueError as exc:
+            raise IdentityResolverError(
+                "identity_sidecar_render_failed",
+                "Canonical identity sidecars could not be mapped without ambiguity.",
+            ) from exc
+        vtt_preserved, vtt_cue_count = validate_vtt_label_only(
+            vtt.data.decode("utf-8"), identity_vtt
+        )
+        if not vtt_preserved or vtt_cue_count != cue_count:
+            raise IdentityResolverError(
+                "identity_vtt_validation_failed",
+                "Identity VTT changed non-label cue content or cue structure.",
+            )
+        outputs["transcript.identity_mapped.md"] = identity_markdown.encode("utf-8")
+        outputs["transcript.identity_mapped.vtt"] = identity_vtt.encode("utf-8")
+        outputs["transcript.identity_mapped.txt"] = identity_text.encode("utf-8")
+        outputs["transcript.identity_mapped.segments.csv"] = identity_csv.encode("utf-8")
     _ = cue_count
     return validation
 
@@ -2129,14 +2162,10 @@ def _build_stability_report(
     for index, turn in enumerate(job.transcript.speaker_turns):
         dominant = []
         for variant, label_mapping in per_variant_turns:
-            variant_speaker, coverage = _dominant_speaker_coverage(
-                turn.start, turn.end, variant
-            )
+            variant_speaker, coverage = _dominant_speaker_coverage(turn.start, turn.end, variant)
             dominant.append(
                 (
-                    label_mapping.get(variant_speaker)
-                    if variant_speaker is not None
-                    else None,
+                    label_mapping.get(variant_speaker) if variant_speaker is not None else None,
                     coverage,
                 )
             )
@@ -2229,9 +2258,7 @@ def _align_anonymous_speaker_labels(
     weights = [[0.0 for _ in range(size)] for _ in range(size)]
     for row, variant_speaker in enumerate(variant_speakers):
         for column, canonical_speaker in enumerate(canonical_speakers):
-            weights[row][column] = pair_overlap.get(
-                (variant_speaker, canonical_speaker), 0.0
-            )
+            weights[row][column] = pair_overlap.get((variant_speaker, canonical_speaker), 0.0)
     assignment = _maximum_weight_assignment(weights)
     return {
         variant_speakers[row]: canonical_speakers[column]

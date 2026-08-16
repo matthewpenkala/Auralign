@@ -7,12 +7,12 @@ import XCTest
 
 final class JobResultContractTests: XCTestCase {
     func testSharedPythonSwiftGoldenFixtureParses() throws {
-        let repositoryRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let fixtureURL = repositoryRoot
-            .appendingPathComponent("tests/fixtures/gui_job_result_v1.json")
+        let fixtureURL = try XCTUnwrap(
+            Bundle(for: Self.self).url(
+                forResource: "gui_job_result_v1",
+                withExtension: "json"
+            )
+        )
         let fixture = try JSONValue.decode(from: Data(contentsOf: fixtureURL))
         let expectedDirectory = URL(
             fileURLWithPath: "/private/tmp/Auralign Shared Fixture",

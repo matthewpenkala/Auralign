@@ -18,6 +18,7 @@ final class ManifestCatalogTests: XCTestCase {
         case modelPicker
         case pathPicker
         case pathListEditor
+        case stringListEditor
         case numericSequenceEditor
     }
 
@@ -64,6 +65,8 @@ final class ManifestCatalogTests: XCTestCase {
             return .pathPicker
         case .pathList:
             return .pathListEditor
+        case .stringList:
+            return .stringListEditor
         case .floatList, .floatOrFloatList:
             return .numericSequenceEditor
         }
@@ -88,32 +91,34 @@ final class ManifestCatalogTests: XCTestCase {
             by: { controlProjection(for: $0).rawValue }
         ).mapValues { $0.count }
 
-        XCTAssertEqual(keys.count, 113)
-        XCTAssertEqual(Set(keys).count, 113, "manifest field keys must be unique")
+        XCTAssertEqual(keys.count, 123)
+        XCTAssertEqual(Set(keys).count, 123, "manifest field keys must be unique")
         XCTAssertEqual(
             kindCounts,
             [
-                "bool": 30,
-                "enum": 19,
-                "float": 18,
+                "bool": 31,
+                "enum": 24,
+                "float": 19,
                 "float_or_float_list": 1,
                 "int": 18,
-                "path": 11,
+                "path": 13,
                 "path_list": 1,
                 "string": 15,
+                "string_list": 1,
             ]
         )
         XCTAssertEqual(
             controlCounts,
             [
-                "toggle": 30,
-                "enumPicker": 19,
+                "toggle": 31,
+                "enumPicker": 24,
                 "integerEditor": 18,
-                "floatEditor": 18,
+                "floatEditor": 19,
                 "textEditor": 10,
                 "modelPicker": 5,
-                "pathPicker": 11,
+                "pathPicker": 13,
                 "pathListEditor": 1,
+                "stringListEditor": 1,
                 "numericSequenceEditor": 1,
             ],
             "every shipped field kind must project to the expected native editor family"
@@ -130,6 +135,13 @@ final class ManifestCatalogTests: XCTestCase {
                 "speaker_id.model",
             ]
         )
+
+        let properNouns = try XCTUnwrap(
+            manifest.fields.first { $0.key == "cleanup.proper_nouns" }
+        )
+        XCTAssertEqual(properNouns.kind, .stringList)
+        XCTAssertEqual(properNouns.default, .array([]))
+        XCTAssertEqual(properNouns.maxLength, 128)
     }
 
     func testCatalogExactlyCoversManifest() throws {
@@ -137,8 +149,8 @@ final class ManifestCatalogTests: XCTestCase {
         let catalog = try loadCatalog()
         let manifestKeys = Set(manifest.fields.map(\.key))
         let catalogKeys = Set(catalog.fields.map(\.key))
-        XCTAssertEqual(manifest.fields.count, 113)
-        XCTAssertEqual(catalog.fields.count, 113)
+        XCTAssertEqual(manifest.fields.count, 123)
+        XCTAssertEqual(catalog.fields.count, 123)
         XCTAssertEqual(manifestKeys.count, manifest.fields.count, "duplicate manifest key")
         XCTAssertEqual(catalogKeys.count, catalog.fields.count, "duplicate catalog key")
         XCTAssertEqual(
@@ -163,12 +175,30 @@ final class ManifestCatalogTests: XCTestCase {
             [
                 "asr.vad_filter",
                 "asr.mlx_model_path",
+                "cleanup.presentation_scorers.sat.mode",
+                "cleanup.presentation_scorers.sat.model_dir",
+                "cleanup.presentation_scorers.sat.tokenizer_dir",
+                "cleanup.presentation_scorers.sat.signal_weight",
+                "cleanup.presentation_scorers.token_classifier.mode",
+                "cleanup.presentation_scorers.token_classifier.backend",
             ]
         )
-        XCTAssertEqual(catalog.fields.filter(\.isProductVisible).count, 111)
+        XCTAssertEqual(catalog.fields.filter(\.isProductVisible).count, 115)
         XCTAssertEqual(
             manifest.field("asr.backend")?.choices,
             ["faster-whisper", "mlx-whisper"]
+        )
+        XCTAssertEqual(
+            manifest.field("cleanup.presentation_scorers.sat.mode")?.choices,
+            ["off", "optional", "required"]
+        )
+        XCTAssertEqual(
+            manifest.field("cleanup.presentation_scorers.token_classifier.mode")?.choices,
+            ["off"]
+        )
+        XCTAssertEqual(
+            manifest.field("cleanup.presentation_scorers.token_classifier.backend")?.choices,
+            ["none"]
         )
 
         let asrModel = try XCTUnwrap(manifest.field("asr.model"))
@@ -284,8 +314,8 @@ final class ManifestCatalogTests: XCTestCase {
         XCTAssertEqual(
             dispositions,
             [
-                "primary": 36,
-                "advanced": 76,
+                "primary": 39,
+                "advanced": 83,
                 "readonly": 1,
             ]
         )

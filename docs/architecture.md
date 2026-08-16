@@ -43,14 +43,18 @@ validated across the CLI, pipeline, API, benchmarks, and tests.
 9. Assign words to speakers and build speaker turns.
 10. Run deterministic QA.
 11. Optionally write re-decode candidates and conservative speaker matches.
-12. Optionally run guarded cleanup into separate artifacts. Cleanup is
+12. Optionally run guarded cleanup into separate artifacts. Cleanup may use a
+    guarded HTTP endpoint or Apple's in-process on-device system model. HTTP is
     localhost-only by default; non-local use requires explicit opt-in and is
     forbidden in offline mode.
 13. Write exports, reports, diagnostics, core resource usage, and immutable run
     metadata.
 14. When explicitly enabled, run identity resolution as a locked post-process
     and write only its derived report/export family.
-15. Write a separate completion-timing artifact after optional debug-report
+15. When accepted complete cleanup and identity mapping are both enabled,
+    compose them into one hash-bound `polished/` derived family. The canonical
+    anonymous and aligned evidence remains unchanged.
+16. Write a separate completion-timing artifact after optional debug-report
     publication, preserving the immutable core metadata contract.
 
 ## Artifact Invariants
@@ -77,8 +81,11 @@ validated across the CLI, pipeline, API, benchmarks, and tests.
   aligned subsegments. Character-level CTC evidence is projected onto the
   authoritative ASR word sequence without upstream timestamp interpolation.
   `auto` may retain valid CTC segments alongside
-  privacy-audited localized ASR-timestamp fallback; strict forced mode rejects
-  every mixed-source result.
+  privacy-audited localized ASR-timestamp fallback. Strict forced mode rejects
+  generic mixed-source results, but permits a marked source-bounded repair for
+  a text-identical single-word segment no longer than 250 ms when WhisperX
+  returns no usable CTC characters and the preserved ASR word has a finite,
+  positive overlap with that exact source interval.
 - Subtitle exports are rendered only after alignment, diarization, and
   speaker-turn fusion.
 - Diagnostics and reports use counts, indexes, reason codes, and redacted paths
@@ -164,23 +171,87 @@ Stricter on-screen caption profiles can override the defaults in configuration;
 see the example configurations and config schema before changing delivery
 defaults.
 
-The optional punctuation cleanup lane writes a separate derived transcript
-rather than mutating aligned evidence. It may change capitalization and
-punctuation only when the normalized lexical word sequence remains exactly
-identical. Accepted changes are projected onto copies of the timed word objects,
-preserving word count, order, timestamps, alignment sources, speaker
-attribution, and identity mapping across top-level, segment, and speaker-turn
-containers. Long input is processed in 230-word windows with 30 words of
-overlap; each validated window owns only its center, and a malformed window
-falls back locally. The derived SRT and VTT freeze the original cue ownership
-and timing plan, then overlay validated word surfaces, so punctuation cannot
-silently retime cues. If punctuation would make an otherwise conforming frozen
-cue exceed its line-width or line-count limit, the overlay preserves
-capitalization and strong sentence marks while dropping only the minimum
-weakest newly added punctuation needed to fit; an irreducible cue retains its
-original presentation. Any inserted, deleted, substituted, split, merged, or
-reordered lexical word fails closed. The broader readability scope remains a
-separate untimed text aid and is never projected onto word timing.
+The optional cleanup lane writes a derived clean transcript and never mutates
+canonical aligned evidence. Its production contract has three explicit layers:
+
+1. `semantic_cleanup_plan.json` binds every proposed lexical change to an exact
+   canonical source span, speaker, timing, surface digest, allowlisted operation
+   class, provenance, confidence, and semantic-safety checks. The safe default
+   automatically accepts only isolated non-semantic filler removal and an
+   explicitly marked immediate stutter collapse at very high thresholds.
+   False-start removal, self-correction resolution, display normalization, and
+   narrow grammatical correction exist as typed classes but remain disabled
+   without a separately audited scorer and policy. Hedges, modality, negation,
+   attribution, quantities, names, dates, meaningful repetition, and ambiguity
+   are protected. `strict-verbatim-v1` selects no lexical edits.
+2. Local Apple or OpenAI-compatible backends propose punctuation and casing for
+   the already selected clean word stream. Every lexically valid overlapping
+   window is retained for provenance and disagreement reporting, then all
+   correlated windows from that one backend are reconciled into one normalized
+   per-word distribution. Overlap can expose uncertainty but cannot multiply a
+   backend's voting authority. Malformed, drifting, or unavailable required
+   windows fail closed.
+3. `presentation_plan.json` records one deterministic whole-sequence Viterbi
+   decision for every clean word. Source surface, pause geometry, speaker
+   continuity, boundary-scoped question evidence, proper-name casing, and the
+   reconciled backend distribution are scored signals. The bounded sentence
+   length prior may rank supported boundaries but cannot create a strong stop
+   without local typed support. Narrow timing-bound syntactic continuations and
+   sentence-initial casing are path constraints. A diarization turn and a
+   subtitle cue are never assumed to be sentence boundaries. Scorers may
+   abstain, and their provenance remains in the plan.
+
+Only the semantic plan may change lexical membership, and only through its
+enumerated operations; the presentation decoder has no add/delete/replace,
+merge/split, or reorder operation. Clean words map reversibly to canonical word
+indices, while canonical word slots, timestamps, alignment sources, and speaker
+ownership remain intact. Derived SRT and VTT freeze canonical cue ownership and
+timing, overlay the accepted plan without dropping punctuation or casing under
+width pressure, and may omit only a cue made empty by an accepted semantic
+removal. Every requested format is rendered from the same cleanup and identity
+display plans.
+
+An isolated SaT scorer adapter can provide optional or required source/headless
+sentence-boundary probabilities to the production presentation decoder. It
+lazily loads
+`wtpsplit` only after exact local model and tokenizer directories pass complete
+path, file-type, size, and SHA-256 allowlists. Character scores map to the
+final character of each exact space-joined source word; timing is irrelevant.
+The adapter has no acquisition or network path, preserves explicit abstention
+or failure provenance, and is excluded from `full`, default presets, product
+model manifests/components, and the macOS 14+ standalone closure. Accepted
+v2 receipts are canonically hash-bound, typed against the exact production
+pins, and retained with the generic proposal-source receipts in every polished
+manifest. A zero signal weight verifies the configured assets twice but does
+not load the backend or enter decoder inputs, so its plan score, decisions,
+abstentions, and contributing provenance are exactly SaT-off. Accepted
+static/API and fake-backend tests establish the proposal interface. A retained
+2026-08-16 bounded smoke additionally establishes exact pinned-model runtime
+viability: required mode, forced Hugging Face/Transformers offline operation,
+16 synthetic words, 128 punctuation-neutral proposals, succeeded status, and
+no runtime network access. Its 11.9414556250-second cold elapsed time and
+2,151,104,512-byte maximum RSS are environment-specific. This smoke is not
+evidence of boundary quality or superiority. A second scale smoke processed
+3,068 synthetic words into 24,544 punctuation-neutral proposals in
+6.3970266250 seconds with no runtime network access and 2,219,900,928 bytes
+maximum RSS. It establishes scale-path viability, not linguistic quality. The
+superseded 2026-08-15 NONE/PERIOD receipts remain rejected historical evidence.
+The decoder, canonical inputs, validation, and receipts remain authoritative.
+
+No token-level punctuation/case checkpoint is registered as a production
+proposal source. The bounded felflare, FullStop, and NeMo comparison did not
+clear the combined conversational-quality, question/case, provenance, and
+runtime thresholds. Apple and explicitly configured local-LLM windows remain
+proposal sources, not transcript authorities.
+
+Identity export derives one effective display-label plan from both cluster and
+turn decisions. Explicit mapped or `Unattributed` turn decisions win. A safely
+mapped global cluster name remains displayable when an otherwise ordinary turn
+contains a word-level timing uncertainty, while canonical `UNKNOWN`, no-coverage,
+mixed-speaker, conflict, rejected, and instability cases stay protected. SRT
+and VTT render every canonical speaker-label line, fail on unmatched or
+malformed cues, and validate all non-label payload bytes. Markdown, text, JSON
+display fields, and CSV use the same effective-label plan.
 
 ## Dependency and Deployment Edges
 
@@ -219,13 +290,13 @@ uv run mypy src/local_transcript_max
 
 ## Installed macOS Trust Topology
 
-The 0.3.0 product separates executable code, shared bootstrap resources, and
+The 0.3.1 product separates executable code, shared bootstrap resources, and
 per-user ASR packs:
 
 ```text
 /Applications/Auralign.app
 /Library/Application Support/com.auralign.studio/Models/
-  com.auralign.studio.models.bootstrap.v1/
+  com.auralign.studio.models.bootstrap.v2/
 ~/Library/Application Support/com.auralign.studio/Models/Packs/
   <pack-id>/<version>/
 ```

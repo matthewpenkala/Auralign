@@ -88,7 +88,7 @@ final class ParameterLibraryTests: XCTestCase {
                     hasErrors: false
                 )
             }.count,
-            76
+            83
         )
         XCTAssertEqual(
             catalog.fields.filter {

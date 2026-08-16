@@ -14,18 +14,19 @@ from typing import Any, Final, Literal
 
 from .config import PipelineConfig, resolve_model_entry
 
-SOURCE_CONFIGURATION_SCHEMA: Final[
-    Literal["privacy_safe_configuration.v1"]
-] = "privacy_safe_configuration.v1"
-SOURCE_CONFIG_SHA256_SCOPE: Final[
-    Literal["complete_runtime_configuration.v1"]
-] = "complete_runtime_configuration.v1"
+SOURCE_CONFIGURATION_SCHEMA: Final[Literal["privacy_safe_configuration.v1"]] = (
+    "privacy_safe_configuration.v1"
+)
+SOURCE_CONFIG_SHA256_SCOPE: Final[Literal["complete_runtime_configuration.v1"]] = (
+    "complete_runtime_configuration.v1"
+)
 
 _PRIVATE_TEXT_FIELDS = frozenset(
     {
         ("asr", "initial_prompt"),
         ("asr", "prefix"),
         ("cleanup", "endpoint"),
+        ("cleanup", "proper_nouns"),
         ("speaker_identity", "unattributed_label"),
     }
 )

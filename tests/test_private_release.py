@@ -11,6 +11,7 @@ import io
 import json
 import sys
 import tarfile
+import tomllib
 import zipfile
 from pathlib import Path
 
@@ -376,3 +377,80 @@ def test_platform_acceptance_binds_exact_native_environment_sboms(
 def test_release_requirements_match_lock() -> None:
     checker = importlib.import_module("check_release_requirements")
     checker.verify_or_write(write=False)
+
+
+def test_native_release_requirements_bind_patched_lightning_source() -> None:
+    for versions in dependency_sbom.NATIVE_PACKAGE_VERSIONS.values():
+        assert versions["lightning"] == "2.6.2"
+
+
+def test_native_release_requirements_reject_patched_lightning_hash_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text(
+        dependency_sbom.PATCHED_LIGHTNING_REQUIREMENT
+        + " \\\n"
+        + "    --hash=sha256:"
+        + "0" * 64
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dependency_sbom, "ROOT", tmp_path)
+    monkeypatch.setitem(
+        dependency_sbom.PLATFORM_REQUIREMENTS,
+        "darwin-arm64-cpu",
+        "requirements.txt",
+    )
+
+    with pytest.raises(RuntimeError, match="patched Lightning archive hash drift"):
+        dependency_sbom._locked_native_versions("darwin-arm64-cpu")
+
+
+def test_apple_cleanup_sdk_is_explicit_source_headless_only() -> None:
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    extras = project["project"]["optional-dependencies"]
+
+    assert extras["cleanup-apple"] == [
+        "apple-fm-sdk==0.2.1; sys_platform == 'darwin' and platform_machine == 'arm64'"
+    ]
+    assert not any("apple-fm-sdk" in requirement for requirement in extras["full"])
+
+    checker = importlib.import_module("check_release_requirements")
+    _, standalone_extras, _ = checker.TARGETS[checker.MACOS_APP_TARGET]
+    assert "cleanup-apple" not in standalone_extras
+
+
+def test_sat_scorer_is_explicit_source_headless_only() -> None:
+    project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    extras = project["project"]["optional-dependencies"]
+
+    assert extras["presentation-sat"] == ["wtpsplit==2.2.1"]
+    assert not any("wtpsplit" in requirement for requirement in extras["full"])
+
+    checker = importlib.import_module("check_release_requirements")
+    _, standalone_extras, _ = checker.TARGETS[checker.MACOS_APP_TARGET]
+    assert "presentation-sat" not in standalone_extras
+    checker.validate_full_requirements("numpy==2.3.5\n")
+    with pytest.raises(RuntimeError, match="source/headless-only proposal"):
+        checker.validate_full_requirements("wtpsplit==2.2.1\n")
+
+
+@pytest.mark.parametrize(
+    "requirement",
+    [
+        "apple-fm-sdk==0.2.1",
+        "build==1.5.0",
+        "pyproject-hooks==1.2.0",
+        "native-helper @ file:///tmp/foundation-models-c",
+        "native-helper @ file:///tmp/libFoundationModels.dylib",
+        "wtpsplit==2.2.1",
+    ],
+)
+def test_macos_app_requirements_reject_apple_cleanup_closure(
+    requirement: str,
+) -> None:
+    checker = importlib.import_module("check_release_requirements")
+
+    with pytest.raises(RuntimeError, match="source/headless-only Apple cleanup SDK"):
+        checker.validate_macos_app_requirements(requirement + "\n")

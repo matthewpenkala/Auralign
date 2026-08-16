@@ -144,18 +144,38 @@ artifact IDs/hashes and suppress transcript excerpts and absolute paths.
 
 ## Local Cleanup
 
-`--cleanup local-llm` is disabled by default and localhost-only unless
-`--allow-remote-cleanup` is explicitly passed. `LTM_OFFLINE=1` still forbids
-non-local cleanup endpoints. Cleanup is not ground truth and must not summarize,
-translate, invent names, or change meaning.
+Cleanup is disabled by default. `--cleanup local-llm` is localhost-only unless
+`--allow-remote-cleanup` is explicitly passed, and `LTM_OFFLINE=1` still forbids
+non-local cleanup endpoints. `--cleanup apple-foundation` uses Apple's
+in-process on-device system model and has no endpoint; it requires a supported
+Mac, Apple Intelligence availability, and the pinned optional SDK. Cleanup is
+not ground truth and must not summarize, translate, invent names, paraphrase
+for style, or change meaning, uncertainty, attribution, polarity, quantities,
+or commitments.
 
 A permitted remote cleanup endpoint receives the transcript text being cleaned
 and is therefore a separate trust boundary. Do not enable it for sensitive
 content without an approved endpoint and data-handling policy. Generated
 `cleanup_diff.json` records only counts and reason codes, not transcript
-previews. Treat all cleanup outputs as sensitive. Punctuation cleanup is
-projected onto copied timed words only after exact normalized lexical-word
-identity passes; the broader readability result remains untimed derived text.
+previews. Treat all cleanup outputs and plans as sensitive. The canonical word,
+timing, alignment, and speaker evidence remains immutable. The default derived
+clean profile permits only enumerated, exact-span-bound, reversible,
+high-confidence semantic edits; arbitrary model rewriting has no authoritative
+interface. Punctuation and casing must preserve the selected clean word stream
+exactly. The optional proper-noun glossary supplies casing only for matching
+existing words, is bounded and local, and is redacted from privacy-safe
+configuration metadata. `--entire-pipeline` additionally requires every
+bounded cleanup window and both plan validations to succeed; no fallback is
+accepted.
+
+The source/headless SaT scorer interface is a separate local proposal boundary. It
+receives only the exact selected lexical word stream, never audio, and has no
+network or acquisition path. Both configured directories must match the pinned
+file/type/size/hash allowlists before the backend import. Its probabilities are
+advisory and cannot add, delete, replace, split, merge, or reorder words.
+Optional failures abstain with reason-coded provenance; required failures stop
+the stage. Do not place model caches, tokenizer caches, private paths, scorer
+receipts, or transcript-bearing plans in logs or release payloads.
 
 Before permitting remote cleanup, document the endpoint operator, location,
 purpose, legal basis, authentication, encryption, access controls, retention,
@@ -163,6 +183,22 @@ deletion, subprocessors, training/secondary-use policy, incident process, and
 contractual terms. Local deletion cannot recall text already transmitted; verify
 remote deletion separately. Never treat `--allow-remote-cleanup` as legal or
 security approval by itself.
+
+## Dependency Vulnerability Gate
+
+The vulnerability audit covers the complete locked `cpu`, `cu126`, and
+`cu128` production profiles. Each exported graph is normalized only where a
+local-version suffix or exact source remediation prevents the advisory service
+from identifying the public baseline; the preparer fails closed on any package,
+profile, source URL, or archive-hash drift. The checker then requires every
+reported advisory to match either the exact owner-approved exception register
+or an exact upstream source remediation bound to `uv.lock`.
+
+A source remediation is not a vulnerability risk acceptance. It must identify
+the upstream fix commit, retain its exact downloaded digest and license
+evidence, and pass a focused runtime exploit regression when applicable.
+Release assembly repeats the audit for all three profiles; a green CPU-only
+result is insufficient.
 
 ## Security Reporting
 

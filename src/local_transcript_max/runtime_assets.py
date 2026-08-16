@@ -17,6 +17,7 @@ from .utils import read_json, sha256_file, write_json
 PUNKT_MARKER = ".ltm-generated-punkt.json"
 PUNKT_GENERATOR = "nltk.tokenize.punkt.save_punkt_params"
 PUNKT_TRAINING_DATA = "none"
+PUNKT_NLTK_VERSION = "3.10.3"
 EMPTY_FILE_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 PUNKT_FILES = (
     "abbrev_types.txt",
@@ -46,6 +47,8 @@ def punkt_language_dir(model_cache: Path) -> Path:
 
 def prepare_generated_punkt(model_cache: Path) -> dict[str, Any]:
     """Generate corpus-free Punkt parameters from the installed NLTK code."""
+
+    installed_nltk = _require_locked_nltk_version()
 
     try:
         from nltk.tokenize.punkt import PunktParameters, save_punkt_params
@@ -87,7 +90,7 @@ def prepare_generated_punkt(model_cache: Path) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "schema_version": "ltm-generated-punkt.v1",
         "generator": PUNKT_GENERATOR,
-        "nltk_version": importlib.metadata.version("nltk"),
+        "nltk_version": installed_nltk,
         "training_data": PUNKT_TRAINING_DATA,
         "files": generated_digests,
     }
@@ -110,7 +113,7 @@ def verify_generated_punkt(model_cache: Path) -> dict[str, Any]:
     payload = read_json(marker)
     if not isinstance(payload, dict) or payload.get("schema_version") != "ltm-generated-punkt.v1":
         raise BackendUnavailableError("Generated Punkt provenance marker is invalid.")
-    installed_nltk = importlib.metadata.version("nltk")
+    installed_nltk = _require_locked_nltk_version()
     expected_metadata = {
         "generator": PUNKT_GENERATOR,
         "nltk_version": installed_nltk,
@@ -137,6 +140,20 @@ def verify_generated_punkt(model_cache: Path) -> dict[str, Any]:
     configure_offline_environment(nltk_data=root)
     _add_nltk_search_path(root)
     return payload
+
+
+def _require_locked_nltk_version() -> str:
+    try:
+        installed_nltk = importlib.metadata.version("nltk")
+    except importlib.metadata.PackageNotFoundError as exc:
+        raise BackendUnavailableError(
+            "The locked NLTK dependency is unavailable for Punkt verification."
+        ) from exc
+    if installed_nltk != PUNKT_NLTK_VERSION:
+        raise BackendUnavailableError(
+            "Installed NLTK does not match the locked corpus-free Punkt contract."
+        )
+    return installed_nltk
 
 
 def _add_nltk_search_path(root: Path) -> None:

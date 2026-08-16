@@ -19,8 +19,8 @@ struct EngineLocation: Equatable {
     static let runtimeBundleName = "\(runtimeDirectoryName).bundle"
     static let modelCacheDefaultsKey = "AuralignModelCacheOverride"
     static let applicationSupportDirectoryName = "com.auralign.studio"
-    static let modelBundleIdentifier = "com.auralign.studio.models.bootstrap.v1"
-    static let modelBundleVersion = "1.0.0"
+    static let modelBundleIdentifier = "com.auralign.studio.models.bootstrap.v2"
+    static let modelBundleVersion = "2.0.0"
 
     private static let unconfiguredRepositoryRoot = URL(
         fileURLWithPath: "/dev/null/auralign-engine-unconfigured",

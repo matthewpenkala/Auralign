@@ -16,7 +16,7 @@ uv sync --extra asr --extra dev
 
 ## `ltm doctor` says mlx-whisper is missing
 
-The installed 0.3.0 runtime already contains mlx-whisper 0.4.3 and MLX 0.31.2.
+The installed 0.3.1 runtime already contains mlx-whisper 0.4.3 and MLX 0.31.2.
 If the installed app reports this error, repair/reinstall the exact signed
 application; do not run `pip`, point it at a development `.venv`, or change
 `$PATH`.
@@ -32,7 +32,7 @@ First identify the trust lane. For source development, prepare the private
 cache with the exact maintainer `ltm models pull ...` command printed by doctor,
 then retry with `LTM_OFFLINE=1`.
 
-For the installed 0.3.0 product, distinguish the cause:
+For the installed 0.3.1 product, distinguish the cause:
 
 - missing/altered Community-1, English alignment, ECAPA, or Punkt: repair or
   reinstall the signed PKG's bootstrap component;
@@ -55,7 +55,7 @@ controlled local environment, then retry.
 
 For a direct maintainer pull, complete the official Hugging Face
 acquisition/contact flow, then expose `HF_TOKEN` or `LTM_HF_TOKEN` only in the
-local shell. Do not place tokens in committed files. The installed 0.3.0
+local shell. Do not place tokens in committed files. The installed 0.3.1
 product redistributes the exact owner-cleared attributed Community-1 copy in
 the bootstrap component and requires no recipient token.
 
@@ -111,6 +111,34 @@ of hundreds of gigabytes.
 Cleanup is localhost-only by default. Use `http://127.0.0.1:11434/v1` or pass
 `--allow-remote-cleanup` only after accepting the privacy risk. Cleanup never
 overwrites raw ASR or raw diarization.
+
+On a supported Apple Silicon Mac, `--cleanup apple-foundation` bypasses HTTP
+entirely and uses the on-device system model. If it reports unavailable, verify
+macOS/Apple Intelligence availability and that the `cleanup-apple` optional
+dependency is installed. Do not weaken `--entire-pipeline`: an unavailable
+backend, malformed proposal, untraceable semantic edit, presentation lexical
+drift, or a fallback window is a failed full contract.
+
+## SaT scorer abstained or failed
+
+SaT is not installed by `full` or the standalone product. In the source/headless
+lane, install the exact `presentation-sat` extra and configure both the pinned
+local `sat-3l-sm` model directory and XLM-R tokenizer directory. Do not point it
+at a general Hugging Face cache or enable downloads. Missing directories,
+links, extra files, wrong types/sizes/hashes, backend/version mismatches, or
+malformed probabilities are reason-coded failures. Optional mode records an
+abstention and continues without SaT evidence; required mode intentionally
+fails closed. Do not weaken verification or substitute a token punctuation
+checkpoint—none has completed Auralign adoption.
+
+## MAX completed but no cleaned transcript exists
+
+`max` is a transcription-quality preset, not an assertion that opt-in derived
+stages ran. Inspect `run_metadata.json`, `cleanup_report.json`,
+`semantic_cleanup_plan.json`, and `presentation_plan.json`. For a new run, add
+`--entire-pipeline` plus an explicit local cleanup backend. For an already
+completed job, use `ltm polish-job` with a fresh output directory; it reuses
+canonical inference evidence and reruns only the dependent derived stages.
 
 ## Speaker match says `UNKNOWN`
 

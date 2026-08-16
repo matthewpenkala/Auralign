@@ -494,6 +494,240 @@ def test_transcribe_cleanup_endpoint_env_survives_cli_default_and_explicit_cli_w
     assert captured == ["http://127.0.0.1:9999/v1", "http://127.0.0.1:7777/v1"]
 
 
+def test_entire_pipeline_requires_explicit_cleanup_and_enforces_complete_contract(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    captured = {}
+
+    def fake_transcribe_file(input_file, out_dir, config, debug_report_path=None):
+        captured["config"] = config
+        return Transcript(input_path=str(input_file))
+
+    monkeypatch.setattr("local_transcript_max.cli.transcribe_file", fake_transcribe_file)
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    missing = CliRunner().invoke(
+        app,
+        ["transcribe", str(audio_path), "--entire-pipeline"],
+    )
+    accepted = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--entire-pipeline",
+            "--cleanup",
+            "apple-foundation",
+            "--cleanup-quality-profile",
+            "strict-verbatim-v1",
+            "--cleanup-proper-noun",
+            "Natalie",
+            "--cleanup-proper-noun",
+            "Michael",
+        ],
+    )
+
+    assert missing.exit_code != 0
+    assert "requires an explicit --cleanup backend" in missing.stderr
+    assert accepted.exit_code == 0
+    config = captured["config"]
+    assert config.preset == "max"
+    assert config.cleanup.mode == "apple-foundation"
+    assert config.cleanup.required_complete is True
+    assert config.cleanup.write_diff is True
+    # An explicit stricter profile remains authoritative inside the full contract.
+    assert config.cleanup.quality_profile == "strict-verbatim-v1"
+    assert config.cleanup.proper_nouns == ["Natalie", "Michael"]
+    assert config.cleanup.presentation_scorers.sat.mode == "optional"
+    assert config.cleanup.presentation_scorers.sat.model_dir is None
+
+
+def test_entire_pipeline_exposes_required_local_sat_source(tmp_path, monkeypatch) -> None:
+    captured = {}
+
+    def fake_transcribe_file(input_file, out_dir, config, debug_report_path=None):
+        captured["sat"] = config.cleanup.presentation_scorers.sat
+        return Transcript(input_path=str(input_file))
+
+    monkeypatch.setattr("local_transcript_max.cli.transcribe_file", fake_transcribe_file)
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+    model_dir = tmp_path / "sat-model"
+    tokenizer_dir = tmp_path / "sat-tokenizer"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--entire-pipeline",
+            "--cleanup",
+            "apple-foundation",
+            "--presentation-sat",
+            "required",
+            "--presentation-sat-model-dir",
+            str(model_dir),
+            "--presentation-sat-tokenizer-dir",
+            str(tokenizer_dir),
+            "--presentation-sat-weight",
+            "0.6",
+        ],
+    )
+
+    assert result.exit_code == 0
+    sat = captured["sat"]
+    assert sat.mode == "required"
+    assert sat.model_dir == model_dir
+    assert sat.tokenizer_dir == tokenizer_dir
+    assert sat.signal_weight == 0.6
+
+
+def test_required_sat_rejects_incomplete_asset_configuration(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "local_transcript_max.cli.transcribe_file",
+        lambda *_args, **_kwargs: Transcript(input_path="unused"),
+    )
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--cleanup",
+            "apple-foundation",
+            "--presentation-sat",
+            "required",
+            "--presentation-sat-model-dir",
+            str(tmp_path / "sat-model"),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "configured together" in result.stderr
+
+
+def test_entire_pipeline_rejects_remote_cleanup_opt_in(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "local_transcript_max.cli.transcribe_file",
+        lambda *_args, **_kwargs: Transcript(input_path="unused"),
+    )
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--entire-pipeline",
+            "--cleanup",
+            "local-llm",
+            "--cleanup-endpoint",
+            "https://example.invalid/v1",
+            "--allow-remote-cleanup",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "forbids --allow-remote-cleanup" in result.stderr
+
+
+def test_entire_pipeline_rejects_unidentified_local_cleanup_model(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "local_transcript_max.cli.transcribe_file",
+        lambda *_args, **_kwargs: Transcript(input_path="unused"),
+    )
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--entire-pipeline",
+            "--cleanup",
+            "local-llm",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "requires an explicit model" in result.stderr
+
+
+def test_entire_pipeline_rejects_non_max_preset(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "local_transcript_max.cli.transcribe_file",
+        lambda *_args, **_kwargs: Transcript(input_path="unused"),
+    )
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--preset",
+            "balanced",
+            "--entire-pipeline",
+            "--cleanup",
+            "apple-foundation",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "requires --preset max" in result.stderr
+
+
+def test_polish_job_exposes_closed_cleanup_quality_profile(tmp_path, monkeypatch) -> None:
+    captured = {}
+
+    def fake_polish(job_dir, out_dir, config, evidence_paths=()):
+        captured["quality_profile"] = config.cleanup.quality_profile
+        return {"outputs": {}}
+
+    monkeypatch.setattr(
+        "local_transcript_max.polish.polish_completed_job",
+        fake_polish,
+    )
+    job = tmp_path / "job"
+    job.mkdir()
+    accepted = CliRunner().invoke(
+        app,
+        [
+            "polish-job",
+            str(job),
+            "--out",
+            str(tmp_path / "out"),
+            "--cleanup-quality-profile",
+            "strict-verbatim-v1",
+        ],
+    )
+    rejected = CliRunner().invoke(
+        app,
+        [
+            "polish-job",
+            str(job),
+            "--out",
+            str(tmp_path / "other"),
+            "--cleanup-quality-profile",
+            "free-form-rewrite",
+        ],
+    )
+
+    assert accepted.exit_code == 0
+    assert captured["quality_profile"] == "strict-verbatim-v1"
+    assert rejected.exit_code != 0
+
+
 @pytest.mark.parametrize(
     "options",
     [

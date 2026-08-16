@@ -172,6 +172,87 @@ installer_scripts = "prohibited"
 build_tools = "maintainer_only"
 recipient_toolchain_required = false
 
+[release_authorizations.macos_0_3_1]
+status = "owner_cleared_project_release_decision"
+approved_by = "Matthew Penkala"
+approved_at = "2026-08-16"
+legal_character = "Project release decision and technical scope record; not legal advice, a legal opinion, or a change to upstream terms."
+scope = "Exact three-model bootstrap v2 component plus deterministic NLTK 3.10.3 corpus-free Punkt resources in the private PKG, and the same sixteen exact per-user native-download packs authorized for 0.3.0."
+visibility = "private_only"
+inherits_exact_model_contract_from = "macos_0_3_0"
+model_keys = [
+  "large-v3",
+  "turbo",
+  "distil-large-v3",
+  "distil-large-v3.5",
+  "mlx-tiny",
+  "mlx-tiny.en",
+  "mlx-base",
+  "mlx-base.en",
+  "mlx-small",
+  "mlx-small.en",
+  "mlx-medium",
+  "mlx-medium.en",
+  "mlx-large",
+  "mlx-large-v2",
+  "mlx-large-v3",
+  "mlx-large-v3-turbo",
+  "community-1",
+  "en",
+  "ecapa",
+]
+normal_preset_asr = [
+  "max=large-v3",
+  "balanced=turbo",
+  "fast=distil-large-v3.5",
+  "cpu=turbo",
+]
+blocked_normal_product_model_keys = []
+bootstrap_model_keys = ["community-1", "en", "ecapa"]
+native_download_model_keys = [
+  "large-v3",
+  "turbo",
+  "distil-large-v3",
+  "distil-large-v3.5",
+  "mlx-tiny",
+  "mlx-tiny.en",
+  "mlx-base",
+  "mlx-base.en",
+  "mlx-small",
+  "mlx-small.en",
+  "mlx-medium",
+  "mlx-medium.en",
+  "mlx-large",
+  "mlx-large-v2",
+  "mlx-large-v3",
+  "mlx-large-v3-turbo",
+]
+runtime_asset_keys = ["nltk-punkt-tab-english-corpus-free"]
+runtime_asset_contract = "NLTK 3.10.3; generated with no training data; four empty SHA-256-bound English punkt_tab files plus a deterministic marker; not a model or downloaded corpus."
+component_root = "/Library/Application Support/com.auralign.studio/Models/com.auralign.studio.models.bootstrap.v2"
+component_version = "2.0.0"
+component_receipt = "com.auralign.studio.pkg.models.bootstrap-v2"
+source_repository_weights = "prohibited"
+loose_release_model_assets = "prohibited"
+raw_cache_material = "prohibited"
+tokens = "prohibited"
+private_linkage_markers = "prohibited"
+installer_runtime_or_model_acquisition = "prohibited"
+native_verified_model_pack_acquisition = "permitted_for_exact_owner-cleared_catalog_entries"
+installer_scripts = "prohibited"
+build_tools = "maintainer_only"
+recipient_toolchain_required = false
+
+[development_contracts.nltk_punkt_successor]
+status = "release_successor_macos_0_3_1"
+nltk_version = "3.10.3"
+runtime_asset_key = "nltk-punkt-tab-english-corpus-free"
+runtime_asset_contract = "Generated with no training data; four empty SHA-256-bound English punkt_tab files plus a deterministic marker; not a model or downloaded corpus."
+empty_file_sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+marker_size = 547
+marker_sha256 = "2cf9fc3a66d8fb081b5d99201c4382b7ece315747c7ad4593e9d5ca8656ac65e"
+historical_release_effect = "none; accepted 0.3.0 facts and artifacts remain immutable"
+
 [overrides]
 registry = "compliance/overrides.toml"
 default_effect = "none"

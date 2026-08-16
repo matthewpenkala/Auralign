@@ -71,6 +71,10 @@ def validate_cleanup_policy(
 
     if mode == "off":
         return
+    if mode == "apple-foundation":
+        # Apple's system model is invoked in-process. There is no endpoint and
+        # therefore no cleanup-network egress surface to validate.
+        return
     if mode != "local-llm":
         raise CleanupRejectedError(f"Unsupported cleanup mode '{mode}'.")
     validate_cleanup_endpoint(

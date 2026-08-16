@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import os
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -244,8 +245,7 @@ MLX_MODEL_AUTHORITIES = {
 }
 
 MLX_REVISIONS = {
-    model_id: authority.revision
-    for model_id, authority in MLX_MODEL_AUTHORITIES.items()
+    model_id: authority.revision for model_id, authority in MLX_MODEL_AUTHORITIES.items()
 }
 
 
@@ -638,8 +638,8 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         blocker=None,
         backend_compatibility="pyannote.audio CPU diarization runtime",
         modification_status="unmodified exact pinned runtime files",
-        package_bundle_id="com.auralign.studio.models.bootstrap.v1",
-        package_bundle_version="1.0.0",
+        package_bundle_id="com.auralign.studio.models.bootstrap.v2",
+        package_bundle_version="2.0.0",
         package_relative_path=("models/pyannote--speaker-diarization-community-1"),
         delivery="system-component",
     ),
@@ -693,8 +693,8 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         blocker=None,
         backend_compatibility="WhisperX wav2vec2 forced-alignment CPU runtime",
         modification_status="unmodified exact pinned runtime files",
-        package_bundle_id="com.auralign.studio.models.bootstrap.v1",
-        package_bundle_version="1.0.0",
+        package_bundle_id="com.auralign.studio.models.bootstrap.v2",
+        package_bundle_version="2.0.0",
         package_relative_path="models/facebook--wav2vec2-base-960h",
         delivery="system-component",
     ),
@@ -757,8 +757,8 @@ MODEL_MANIFEST: dict[str, ModelEntry] = {
         blocker=None,
         backend_compatibility="SpeechBrain ECAPA-TDNN CPU runtime",
         modification_status="unmodified exact pinned runtime files",
-        package_bundle_id="com.auralign.studio.models.bootstrap.v1",
-        package_bundle_version="1.0.0",
+        package_bundle_id="com.auralign.studio.models.bootstrap.v2",
+        package_bundle_version="2.0.0",
         package_relative_path=("models/speechbrain--spkrec-ecapa-voxceleb"),
         delivery="system-component",
     ),
@@ -972,16 +972,58 @@ class IdentityResolverConfig(BaseModel):
 
 
 class CleanupConfig(BaseModel):
-    mode: Literal["off", "local-llm"] = "off"
+    mode: Literal["off", "local-llm", "apple-foundation"] = "off"
+    presentation_decoder: Literal["global-viterbi-v1"] = "global-viterbi-v1"
+    quality_profile: Literal[
+        "semantically-faithful-clean-v1",
+        "strict-verbatim-v1",
+    ] = "semantically-faithful-clean-v1"
     endpoint: str = "http://127.0.0.1:11434/v1"
     model: str | None = None
     scope: Literal["punctuation", "readability"] = "punctuation"
     allow_remote_cleanup: bool = False
     write_diff: bool = False
     max_word_delta_ratio: float = 0.15
+    required_complete: bool = False
+    proper_nouns: list[str] = Field(default_factory=list, max_length=128)
+    presentation_scorers: PresentationScorersConfig = Field(
+        default_factory=lambda: PresentationScorersConfig()
+    )
+
+    @field_validator("proper_nouns")
+    @classmethod
+    def validate_proper_nouns(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            candidate = value.strip()
+            if not candidate or len(candidate) > 80:
+                raise ValueError("cleanup proper nouns must contain 1 to 80 characters")
+            if any(unicodedata.category(character).startswith("C") for character in candidate):
+                raise ValueError("cleanup proper nouns must not contain control characters")
+            key = unicodedata.normalize("NFKC", candidate).casefold()
+            if key in seen:
+                raise ValueError("cleanup proper nouns must be unique ignoring case")
+            seen.add(key)
+            normalized.append(candidate)
+        return normalized
 
     @model_validator(mode="after")
     def validate_endpoint_policy(self) -> CleanupConfig:
+        if self.required_complete and self.mode == "off":
+            raise ValueError("cleanup.required_complete=true requires an enabled cleanup mode")
+        if self.mode == "apple-foundation" and self.model is not None:
+            raise ValueError(
+                "cleanup.model is not configurable for the Apple Foundation Models backend"
+            )
+        if (
+            self.required_complete
+            and self.mode == "local-llm"
+            and (self.model is None or not self.model.strip())
+        ):
+            raise ValueError(
+                "cleanup.required_complete=true with local-llm requires an explicit model"
+            )
         try:
             validate_cleanup_policy(
                 mode=self.mode,
@@ -991,6 +1033,52 @@ class CleanupConfig(BaseModel):
         except CleanupRejectedError as exc:
             raise ValueError(str(exc)) from exc
         return self
+
+
+class SaTPresentationScorerConfig(BaseModel):
+    """Local, exact-pinned SaT sentence-boundary proposal source."""
+
+    mode: Literal["off", "optional", "required"] = "optional"
+    model_dir: Path | None = None
+    tokenizer_dir: Path | None = None
+    signal_weight: float = Field(default=0.75, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def validate_local_assets(self) -> SaTPresentationScorerConfig:
+        configured = (self.model_dir is not None, self.tokenizer_dir is not None)
+        if self.mode == "off" and any(configured):
+            raise ValueError("SaT paths are not consumed while the scorer is off")
+        if configured[0] != configured[1]:
+            raise ValueError("SaT model_dir and tokenizer_dir must be configured together")
+        if self.mode == "required" and not all(configured):
+            raise ValueError("required SaT scoring needs exact local model and tokenizer paths")
+        return self
+
+
+class TokenPresentationScorerConfig(BaseModel):
+    """Production routing contract for an approved word-level classifier.
+
+    No checkpoint currently clears Auralign's conversational-quality and
+    provenance gates, so the only selectable built-in backend is ``none``.
+    The executable adapter is exercised with deterministic test providers;
+    adding a real backend requires an exact registered model contract.
+    """
+
+    mode: Literal["off", "optional", "required"] = "off"
+    backend: Literal["none"] = "none"
+
+    @model_validator(mode="after")
+    def validate_registered_backend(self) -> TokenPresentationScorerConfig:
+        if self.mode != "off":
+            raise ValueError("no word-level punctuation/casing checkpoint is production-approved")
+        return self
+
+
+class PresentationScorersConfig(BaseModel):
+    sat: SaTPresentationScorerConfig = Field(default_factory=SaTPresentationScorerConfig)
+    token_classifier: TokenPresentationScorerConfig = Field(
+        default_factory=TokenPresentationScorerConfig
+    )
 
 
 class SubtitleExportConfig(BaseModel):

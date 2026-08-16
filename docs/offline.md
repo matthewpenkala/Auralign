@@ -11,6 +11,30 @@ services. Localhost cleanup endpoints remain local-only; remote cleanup
 endpoints are rejected in offline mode even when remote cleanup is otherwise
 explicitly allowed.
 
+In the explicit source/headless lane on Apple Intelligence-compatible Apple
+Silicon Macs running macOS 26+ with Xcode 26+, Python 3.10+, and Apple
+Intelligence enabled,
+`cleanup.mode: apple-foundation` is also offline-compatible: it invokes
+Apple's `SystemLanguageModel` in-process through the pinned `apple-fm-sdk`
+bridge and has no cleanup endpoint. Auralign does not acquire or redistribute
+the system-model weights. Availability is checked at runtime and a required
+cleanup contract fails closed when the model or SDK is unavailable. The SDK is
+not installed by the generic `full` extra and is excluded from the macOS 14+
+standalone app/PKG; offline-compatible describes network behavior, not broader
+platform or product availability.
+
+The exact-pinned SaT boundary source is offline-only in its explicit
+source/headless lane. A bounded required-mode smoke verified the exact local
+model/tokenizer with Hugging Face and Transformers forced offline and recorded
+`network_access=false`; this establishes runtime viability, not model quality.
+`presentation-sat` is not included by `full` or the standalone product. The
+operator must pre-provision the exact allowlisted
+`sat-3l-sm` and XLM-R tokenizer directories and configure both paths; Auralign
+has no acquisition or auto-download path. Verification occurs before the lazy
+backend import. Optional mode records an abstention for missing, malformed, or
+mismatched inputs; required mode fails closed. Offline compatibility does not
+change the assets' unbundled, not-cleared-for-product-release disposition.
+
 ```bash
 LTM_OFFLINE=1 ltm doctor
 ```
@@ -21,9 +45,9 @@ model fails fast with the exact maintainer pull command, and a pullable cache is
 rejected when its private `.ltm-model.json` linkage marker does not match the
 manifest's immutable model ID and revision.
 
-The installed 0.3.0 product has two fail-closed resource contracts:
+The installed 0.3.1 product has two fail-closed resource contracts:
 
-- the root-owned `com.auralign.studio.models.bootstrap.v1` version `1.0.0`
+- the root-owned `com.auralign.studio.models.bootstrap.v2` version `2.0.0`
   component, containing Community-1, English alignment, ECAPA, and deterministic
   corpus-free Punkt; and
 - the selected exact per-user ASR pack below
@@ -51,6 +75,11 @@ speaker-profile/rename stores, and bounded sibling artifacts. It never downloads
 a model or calls a service. ECAPA evidence is usable only when an existing
 current-job `speaker_map.json` proves a healthy local production backend;
 backend absence/failure remains non-evidence.
+
+`ltm polish-job` is likewise local post-processing. It accepts only a completed
+hash-bound job, a fresh destination, punctuation cleanup with zero fallback
+windows, and a validated identity report. It rehashes its sources before
+atomic publication and never reruns ASR, alignment, or diarization.
 
 MLX ASR is supported on Apple Silicon only through one of the twelve exact
 verified MLX packs. Selecting `mlx-whisper` without the matching valid pack
@@ -111,7 +140,7 @@ preserving hidden
 `.ltm-model.json` linkage files. Do not copy `.hf-cache`, `.env`, shell history,
 token stores, media, or generated output. A different pyannote operator must
 complete the upstream gate for a direct maintainer pull. This cache-transfer
-workflow is not the installed 0.3.0 recipient path: the product PKG installs
+workflow is not the installed 0.3.1 recipient path: the product PKG installs
 the exact cleared, attributed bootstrap component, and the native app installs
 or imports the selected verified ASR pack. No recipient token is needed, but
 the first native pack setup needs a connection unless an exact pack is already

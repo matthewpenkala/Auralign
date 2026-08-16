@@ -118,9 +118,7 @@ def test_alignment_backend_exception_text_is_not_published(tmp_path: Path) -> No
 
     config = load_config(cwd=tmp_path)
     config.alignment.backend = "auto"
-    asr = ASRResult(
-        segments=[ASRSegment(id=0, start=0.0, end=1.0, text="private phrase")]
-    )
+    asr = ASRResult(segments=[ASRSegment(id=0, start=0.0, end=1.0, text="private phrase")])
 
     outcome = align_words(tmp_path / "audio.wav", asr, config, PrivateFailure())
 
@@ -214,8 +212,7 @@ def test_auto_alignment_accepts_truthful_localized_fallback(tmp_path: Path) -> N
     assert outcome.metadata["localized_fallback_word_count"] == 1
     assert outcome.metadata["interpolation_method"] == "ignore"
     assert outcome.warnings == [
-        "WhisperX forced alignment used localized ASR word-timestamp fallback "
-        "for 1 segment(s)."
+        "WhisperX forced alignment used localized ASR word-timestamp fallback for 1 segment(s)."
     ]
 
 
@@ -226,9 +223,7 @@ def test_strict_forced_alignment_rejects_localized_fallback(tmp_path: Path) -> N
         language="en",
         segments=[ASRSegment(id=0, start=0.0, end=1.0, text="hello")],
     )
-    hybrid = [
-        AlignedWord(text="hello", start=0.0, end=1.0, alignment_source="whisper")
-    ]
+    hybrid = [AlignedWord(text="hello", start=0.0, end=1.0, alignment_source="whisper")]
 
     with pytest.raises(BackendUnavailableError, match="backend unavailable"):
         align_words(
@@ -237,6 +232,51 @@ def test_strict_forced_alignment_rejects_localized_fallback(tmp_path: Path) -> N
             config,
             LocalizedFallbackAlignment(hybrid),
         )
+
+
+def test_strict_forced_alignment_accepts_marked_short_segment_repair(
+    tmp_path: Path,
+) -> None:
+    config = load_config(cwd=tmp_path)
+    config.alignment.backend = "forced"
+    asr = ASRResult(
+        language="en",
+        segments=[
+            ASRSegment(
+                id=216,
+                start=10.0,
+                end=10.08,
+                text="Yeah.",
+                words=[
+                    AlignedWord(
+                        text="Yeah.",
+                        start=9.75,
+                        end=10.08,
+                        alignment_source="whisper",
+                    )
+                ],
+            )
+        ],
+    )
+    repaired = [
+        AlignedWord(
+            text="Yeah.",
+            start=10.0,
+            end=10.08,
+            alignment_source="whisper",
+            warnings=["forced_alignment_short_segment_repair"],
+        )
+    ]
+
+    outcome = align_words(
+        tmp_path / "audio.wav",
+        asr,
+        config,
+        LocalizedFallbackAlignment(repaired),
+    )
+
+    assert [(word.start, word.end) for word in outcome.words] == [(10.0, 10.08)]
+    assert outcome.words[0].alignment_source == "whisper"
 
 
 def test_strict_forced_alignment_rejects_lexically_incomplete_output(
@@ -255,9 +295,7 @@ def test_strict_forced_alignment_rejects_lexically_incomplete_output(
             )
         ],
     )
-    incomplete = [
-        AlignedWord(text="hello", start=0.0, end=1.0, alignment_source="forced")
-    ]
+    incomplete = [AlignedWord(text="hello", start=0.0, end=1.0, alignment_source="forced")]
 
     with pytest.raises(BackendUnavailableError, match="backend unavailable"):
         align_words(
@@ -821,13 +859,91 @@ def test_whisperx_strict_mode_fails_at_source_segment_reason() -> None:
                 [
                     {
                         "text": "missing",
-                        "words": [
-                            {"word": "missing", "start": None, "end": None}
-                        ],
+                        "words": [{"word": "missing", "start": None, "end": None}],
                     }
                 ]
             ],
             expected_segments=expected,
+            allow_localized_fallback=False,
+        )
+
+
+def test_whisperx_strict_repairs_only_matching_short_single_word_overlap() -> None:
+    expected = [
+        ASRSegment(
+            id=216,
+            start=1238.71,
+            end=1238.79,
+            text="Yeah.",
+            words=[
+                AlignedWord(
+                    text="Yeah.",
+                    start=1238.46,
+                    end=1238.79,
+                    confidence=0.73,
+                    alignment_source="whisper",
+                )
+            ],
+        )
+    ]
+
+    words, coverage = _words_from_whisperx(
+        [[{"text": "Yeah.", "words": [], "chars": []}]],
+        expected_segments=expected,
+        allow_localized_fallback=False,
+    )
+
+    assert [(word.text, word.start, word.end) for word in words] == [("Yeah.", 1238.71, 1238.79)]
+    assert words[0].alignment_source == "whisper"
+    assert "forced_alignment_short_segment_repair" in words[0].warnings
+    assert coverage["aligned_segment_count"] == 0
+    assert coverage["fallback_word_count"] == 1
+    assert coverage["fallback_segments"] == [
+        {
+            "segment_index": 0,
+            "segment_id": 216,
+            "reason": "character_sequence_mismatch",
+            "fallback_word_count": 1,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "segment",
+    [
+        ASRSegment(
+            id=1,
+            start=0.0,
+            end=0.08,
+            text="two words",
+            words=[
+                AlignedWord(text="two", start=0.0, end=0.04, alignment_source="whisper"),
+                AlignedWord(text="words", start=0.04, end=0.08, alignment_source="whisper"),
+            ],
+        ),
+        ASRSegment(
+            id=2,
+            start=0.0,
+            end=0.30,
+            text="long",
+            words=[AlignedWord(text="long", start=0.0, end=0.30, alignment_source="whisper")],
+        ),
+        ASRSegment(
+            id=3,
+            start=1.0,
+            end=1.08,
+            text="apart",
+            words=[AlignedWord(text="apart", start=0.0, end=0.5, alignment_source="whisper")],
+        ),
+    ],
+)
+def test_whisperx_strict_short_segment_repair_remains_fail_closed(
+    segment: ASRSegment,
+) -> None:
+    with pytest.raises(BackendUnavailableError, match="character_sequence_mismatch"):
+        _words_from_whisperx(
+            [[{"text": segment.text, "words": [], "chars": []}]],
+            expected_segments=[segment],
             allow_localized_fallback=False,
         )
 
@@ -932,8 +1048,7 @@ def test_wav2vec2_inference_config_does_not_create_specaugment_parameter() -> No
     assert model.config.mask_time_prob == 0.0
     assert model.config.mask_feature_prob == 0.0
     assert not any(
-        name.endswith("masked_spec_embed")
-        for name, _parameter in model.named_parameters()
+        name.endswith("masked_spec_embed") for name, _parameter in model.named_parameters()
     )
     assert not hasattr(model.wav2vec2, "masked_spec_embed")
     assert not any(name.endswith("masked_spec_embed") for name in model.state_dict())

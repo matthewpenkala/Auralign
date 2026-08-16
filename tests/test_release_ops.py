@@ -266,7 +266,18 @@ def test_ci_lint_and_type_checks_reuse_the_matrix_python() -> None:
     assert "8\\.1\\.2-essentials_build-www\\.gyan\\.dev" in workflow
     assert "ffprobe -version" in workflow
     assert "scripts/prepare_vulnerability_audit_input.py" in workflow
-    assert "pip-audit -r build/cpu-audit-requirements.txt" in workflow
+    assert "for profile in cpu cu126 cu128" in workflow
+    assert 'pip-audit -r "build/${profile}-audit-requirements.txt"' in workflow
+    assert '"build/${profile}-pip-audit.json"' in workflow
+
+
+def test_private_release_audits_every_locked_acceleration_profile() -> None:
+    assembler = (REPO_ROOT / "scripts" / "assemble_private_release.py").read_text(encoding="utf-8")
+
+    assert 'for profile in ("cpu", "cu126", "cu128"):' in assembler
+    assert 'staging / f"{profile}-audit-requirements.txt"' in assembler
+    assert 'staging / f"{profile}-pip-audit.json"' in assembler
+    assert '"--group",\n                    profile,' in assembler
 
 
 def test_container_contract_is_pinned_non_root_and_uses_installed_cli() -> None:

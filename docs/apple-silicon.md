@@ -6,14 +6,21 @@ SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 # Apple Silicon Runbook
 
-## Supported 0.3.0 Product Topology
+## Supported 0.3.1 Product Topology
 
-Auralign 0.3.0 supports macOS 14 or later on Apple Silicon. The signed
+Auralign 0.3.1 supports macOS 14 or later on Apple Silicon. The signed
 standalone application embeds Python 3.11, the Auralign engine, its locked CPU
 dependency closure, MLX 0.31.2, mlx-whisper 0.4.3, and the reviewed
 FFmpeg/PyAV closure. Recipients do not need Python, Xcode, Command Line Tools,
 Homebrew, Git, `uv`, a checkout, `.venv`, token, compiler, package manager, or
 Terminal.
+
+Apple's separate `apple-fm-sdk` cleanup bridge is not in that standalone
+closure. Upstream v0.2.1 requires macOS 26+, Xcode 26+, Python 3.10+, and Apple
+Intelligence enabled on a compatible Mac; its native library cannot satisfy
+the app's macOS 14 deployment contract. Maintainers may opt into it only for a
+source/headless run with `uv sync --extra cleanup-apple`. The generic `full`
+extra and standalone requirement export reject it and its build helpers.
 
 The scriptless PKG installs:
 
@@ -21,10 +28,10 @@ The scriptless PKG installs:
 /Applications/Auralign.app
 
 /Library/Application Support/com.auralign.studio/Models/
-  com.auralign.studio.models.bootstrap.v1/
+  com.auralign.studio.models.bootstrap.v2/
 ```
 
-The bootstrap component is version `1.0.0`, root-owned, and read-only to
+The bootstrap component is version `2.0.0`, root-owned, and read-only to
 ordinary users. It contains only Community-1 diarization, English forced
 alignment, ECAPA speaker embedding, and deterministic corpus-free English
 Punkt resources. It contains no ASR weights or executable code.
@@ -112,7 +119,7 @@ records instead. Neither trust contract may be substituted for the other.
 
 ### MLX ASR
 
-MLX is a supported 0.3.0 ASR backend on Apple Silicon when the selected exact
+MLX is a supported 0.3.1 ASR backend on Apple Silicon when the selected exact
 pack is valid. It must not:
 
 - resolve or download a remote repository ID during readiness or transcription;
@@ -164,7 +171,7 @@ payload verification, or clean-recipient acceptance.
 
 ## Release Acceptance
 
-The exact 0.3.0 candidate must prove:
+The exact 0.3.1 candidate must prove:
 
 - arm64-only application and embedded native closure;
 - exact bootstrap component ID/version, file sizes, SHA-256 values, modes,

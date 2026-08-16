@@ -1037,6 +1037,18 @@ final class JobLifecycleRepairTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testInjectedUnitTestHostNeverStartsTheApplicationEngine() {
+        XCTAssertTrue(AuralignApplicationDelegate.isInjectedUnitTestHost)
+
+        let delegate = AuralignApplicationDelegate()
+        delegate.applicationWillFinishLaunching(
+            Notification(name: NSApplication.willFinishLaunchingNotification)
+        )
+
+        XCTAssertFalse(delegate.ownsApplicationInstance)
+    }
+
     func testApplicationInstanceLockUsesStableUserPrivateLocation() throws {
         let lockURL = ApplicationInstanceLock.standardLockURL()
         XCTAssertFalse(

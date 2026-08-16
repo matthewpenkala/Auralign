@@ -109,6 +109,7 @@ class SubtitleCue:
     text: str
     words: list[AlignedWord]
     speaker_on_own_line: bool = False
+    highlight_word_index: int | None = None
 
     def with_text(self, text: str) -> SubtitleCue:
         return SubtitleCue(
@@ -118,6 +119,7 @@ class SubtitleCue:
             text=text,
             words=self.words,
             speaker_on_own_line=self.speaker_on_own_line,
+            highlight_word_index=self.highlight_word_index,
         )
 
 
@@ -217,9 +219,7 @@ def iter_subtitle_cues(
     highlighted: list[SubtitleCue] = []
     for subtitle_cue in rendered:
         if options.highlight_words:
-            highlighted.extend(
-                highlight_cue_words(subtitle_cue, transcript.language, options)
-            )
+            highlighted.extend(highlight_cue_words(subtitle_cue, transcript.language, options))
         else:
             highlighted.append(subtitle_cue)
     return [subtitle_cue for subtitle_cue in highlighted if subtitle_cue.text.strip()]
@@ -236,10 +236,49 @@ def overlay_cue_word_surfaces(
     joiner = "" if _uses_compact_script(language) else " "
     cursor = 0
     overlaid: list[SubtitleCue] = []
-    for cue in cues:
+    cue_index = 0
+    while cue_index < len(cues):
+        cue = cues[cue_index]
         cue_words = [word for word in cue.words if word.text.strip()]
         if not cue_words:
             overlaid.append(cue)
+            cue_index += 1
+            continue
+        if cue.highlight_word_index is not None:
+            group_end = _highlight_group_end(cues, cue_index, cue)
+            group = cues[cue_index:group_end]
+            if [item.highlight_word_index for item in group] != list(range(len(cue_words))):
+                raise ValueError("subtitle highlight expansion is incomplete or ambiguous")
+            end = cursor + len(cue_words)
+            if end > len(word_surfaces):
+                raise ValueError("subtitle surface overlay ended before cue words")
+            surfaces = word_surfaces[cursor:end]
+            cursor = end
+            anchor = SubtitleCue(
+                speaker=cue.speaker,
+                start=min(item.start for item in group),
+                end=max(item.end for item in group),
+                text=cue.text,
+                words=cue.words,
+            )
+            repaired = _wrap_surface_cue(
+                anchor,
+                cue_words,
+                surfaces,
+                options,
+                language,
+                joiner,
+            )
+            highlighted = highlight_cue_words(repaired, language, options)
+            repaired_words = [word for word in repaired.words if word.text.strip()]
+            if len(highlighted) != len(repaired_words):
+                raise ValueError("subtitle highlight regeneration changed word coverage")
+            overlaid.extend(
+                _with_highlight_word_ownership(item, word)
+                for item, word in zip(highlighted, repaired_words, strict=True)
+                if item.text.strip()
+            )
+            cue_index = group_end
             continue
         end = cursor + len(cue_words)
         if end > len(word_surfaces):
@@ -254,45 +293,48 @@ def overlay_cue_word_surfaces(
             language,
             joiner,
         )
-        if (
-            not _formatted_cue_fits_limits(wrapped_repair, options)
-            and _formatted_cue_fits_limits(cue, options)
-        ):
-            # Added punctuation consumes visible width. Preserve strong marks
-            # and capitalization while removing only the minimum weakest added
-            # punctuation needed to keep the frozen cue spatially conforming.
-            relaxed_surfaces = list(surfaces)
-            for surface_index in _surface_relaxation_order(
-                cue_words,
-                relaxed_surfaces,
-            ):
-                relaxed_surfaces[surface_index] = (
-                    _remove_added_trailing_punctuation(
-                        cue_words[surface_index].text,
-                        relaxed_surfaces[surface_index],
-                    )
-                )
-                relaxed_cue = _wrap_surface_cue(
-                    cue,
-                    cue_words,
-                    relaxed_surfaces,
-                    options,
-                    language,
-                    joiner,
-                )
-                if _formatted_cue_fits_limits(relaxed_cue, options):
-                    wrapped_repair = relaxed_cue
-                    break
-            else:
-                # If even removing every model-added mark cannot fit, retain the
-                # original presentation rather than retiming or overflowing.
-                wrapped_repair = cue
+        # A frozen cue may become wider when accepted punctuation/casing is
+        # overlaid. Preserve the single presentation plan exactly; layout
+        # pressure is reportable evidence, never permission to mutate language.
+        if wrapped_repair.text.strip():
             overlaid.append(wrapped_repair)
-        else:
-            overlaid.append(wrapped_repair)
+        cue_index += 1
     if cursor != len(word_surfaces):
         raise ValueError("subtitle surface overlay has unused words")
     return overlaid
+
+
+def _highlight_group_end(
+    cues: list[SubtitleCue],
+    start: int,
+    first: SubtitleCue,
+) -> int:
+    end = start
+    while end < len(cues):
+        candidate = cues[end]
+        if (
+            candidate.highlight_word_index is None
+            or candidate.words is not first.words
+            or candidate.speaker != first.speaker
+        ):
+            break
+        end += 1
+    return end
+
+
+def _with_highlight_word_ownership(
+    cue: SubtitleCue,
+    word: AlignedWord,
+) -> SubtitleCue:
+    return SubtitleCue(
+        speaker=cue.speaker,
+        start=cue.start,
+        end=cue.end,
+        text=cue.text,
+        words=[word],
+        speaker_on_own_line=cue.speaker_on_own_line,
+        highlight_word_index=cue.highlight_word_index,
+    )
 
 
 def _wrap_surface_cue(
@@ -312,55 +354,12 @@ def _wrap_surface_cue(
             speaker=cue.speaker,
             start=cue.start,
             end=cue.end,
-            text=joiner.join(surfaces),
+            text=joiner.join(surface for surface in surfaces if surface.strip()),
             words=repaired_words,
         ),
         options,
         language,
     )
-
-
-def _surface_relaxation_order(
-    cue_words: list[AlignedWord],
-    surfaces: list[str],
-) -> list[int]:
-    candidates: list[tuple[int, float, int]] = []
-    for index, (word, surface) in enumerate(
-        zip(cue_words, surfaces, strict=True)
-    ):
-        original_mark = _surface_trailing_punctuation(word.text)
-        added_mark = _surface_trailing_punctuation(surface)
-        if original_mark or not added_mark:
-            continue
-        priority = 0 if added_mark in _MEDIUM_PUNCTUATION else 1
-        following_pause = (
-            word_pause(word, cue_words[index + 1])
-            if index + 1 < len(cue_words)
-            else math.inf
-        )
-        candidates.append((priority, following_pause, index))
-    return [index for _, _, index in sorted(candidates)]
-
-
-def _surface_trailing_punctuation(text: str) -> str:
-    body = text.rstrip(_TRAILING_CLOSERS)
-    if not body:
-        return ""
-    mark = body[-1]
-    return mark if mark in (*_STRONG_PUNCTUATION, *_MEDIUM_PUNCTUATION) else ""
-
-
-def _remove_added_trailing_punctuation(original: str, surface: str) -> str:
-    if _surface_trailing_punctuation(original):
-        return surface
-    closer_start = len(surface)
-    while closer_start > 0 and surface[closer_start - 1] in _TRAILING_CLOSERS:
-        closer_start -= 1
-    body = surface[:closer_start]
-    closers = surface[closer_start:]
-    if body and body[-1] in (*_STRONG_PUNCTUATION, *_MEDIUM_PUNCTUATION):
-        body = body[:-1]
-    return f"{body}{closers}"
 
 
 def normalize_cues(cues: list[SpeakerTurn]) -> list[SpeakerTurn]:
@@ -390,12 +389,8 @@ def split_cue_by_words(
         # visual limits best-effort.
         return [_wrap_cue(cue, options, language)]
 
-    contains_oversized_word = (
-        options.max_line_width is not None
-        and any(
-            len(_normalize_text(word.text, language)) > options.max_line_width
-            for word in words
-        )
+    contains_oversized_word = options.max_line_width is not None and any(
+        len(_normalize_text(word.text, language)) > options.max_line_width for word in words
     )
     if (
         _full_cue_fits(cue, options, language)
@@ -429,11 +424,11 @@ def split_cue_by_words(
         split.append(
             _wrap_cue(
                 SubtitleCue(
-                speaker=cue.speaker,
-                start=max(cue.start, start),
-                end=min(cue.end, max(start + 0.001, end)),
-                text=sanitize_subtitle_text(text),
-                words=list(chunk),
+                    speaker=cue.speaker,
+                    start=max(cue.start, start),
+                    end=min(cue.end, max(start + 0.001, end)),
+                    text=sanitize_subtitle_text(text),
+                    words=list(chunk),
                 ),
                 options,
                 language,
@@ -448,15 +443,12 @@ def _full_cue_fits(
     language: str | None,
 ) -> bool:
     layout = _speaker_layout(cue, options, language)
-    return (
-        cue.end - cue.start <= options.max_cue_duration
-        and _text_fits(
-            cue.text,
-            options.max_line_width,
-            layout.body_line_count,
-            language,
-            first_line_reserved_width=layout.first_line_reserved_width,
-        )
+    return cue.end - cue.start <= options.max_cue_duration and _text_fits(
+        cue.text,
+        options.max_line_width,
+        layout.body_line_count,
+        language,
+        first_line_reserved_width=layout.first_line_reserved_width,
     )
 
 
@@ -569,9 +561,7 @@ def _balanced_word_ranges(
                 # which cannot decrease as this range grows.
                 break
             text_length = (
-                prefix_lengths[end_index]
-                - prefix_lengths[start_index]
-                + len(joiner) * (count - 1)
+                prefix_lengths[end_index] - prefix_lengths[start_index] + len(joiner) * (count - 1)
             )
             remainder = best[end_index]
             if remainder is None:
@@ -596,19 +586,13 @@ def _balanced_word_ranges(
                     _orphan_severity_counts(orphan_penalty),
                     remainder.orphan_severity_counts,
                 ),
-                total_orphan_penalty=(
-                    orphan_penalty + remainder.total_orphan_penalty
-                ),
+                total_orphan_penalty=(orphan_penalty + remainder.total_orphan_penalty),
                 boundary_severity_counts=_add_boundary_counts(
                     _boundary_severity_counts(boundary_penalty),
                     remainder.boundary_severity_counts,
                 ),
-                total_boundary_penalty=(
-                    boundary_penalty + remainder.total_boundary_penalty
-                ),
-                total_balance_penalty=(
-                    balance_penalty + remainder.total_balance_penalty
-                ),
+                total_boundary_penalty=(boundary_penalty + remainder.total_boundary_penalty),
+                total_balance_penalty=(balance_penalty + remainder.total_balance_penalty),
                 next_index=end_index,
             )
             current = best[start_index]
@@ -702,10 +686,7 @@ def _orphan_penalty(
     duration_penalty = (
         0 if duration is None or duration >= 1.0 else int(round((1.0 - duration) * 100))
     )
-    if (
-        start_index > 0
-        and _boundary_word(words[start_index - 1].text) in _BAD_TRAILING_WORDS
-    ):
+    if start_index > 0 and _boundary_word(words[start_index - 1].text) in _BAD_TRAILING_WORDS:
         # This directly captures the reported ``... infantile or | childish``
         # failure class and analogous dangling syntactic connectors.
         word_penalty += 1000
@@ -719,9 +700,7 @@ def _boundary_penalty(words: list[AlignedWord], end_index: int) -> int:
     right = words[end_index]
     pause = word_pause(left, right)
     left_text = left.text.strip()
-    if pause > _HARD_PAUSE_SECONDS or _ends_with_punctuation(
-        left_text, _STRONG_PUNCTUATION
-    ):
+    if pause > _HARD_PAUSE_SECONDS or _ends_with_punctuation(left_text, _STRONG_PUNCTUATION):
         penalty = 0
     elif pause >= 0.5:
         penalty = 1
@@ -748,9 +727,7 @@ def _ends_with_punctuation(text: str, punctuation: tuple[str, ...]) -> bool:
 
 
 def _boundary_word(text: str) -> str:
-    return text.casefold().strip(
-        ".,;:!?。？！…，、；：()[]{}（）【】「」『』《》\"'“”‘’"
-    )
+    return text.casefold().strip(".,;:!?。？！…，、；：()[]{}（）【】「」『』《》\"'“”‘’")
 
 
 def _balance_penalty(
@@ -772,11 +749,7 @@ def _balance_penalty(
         0
         if duration is None
         else int(
-            round(
-                max(0.0, options.max_cue_duration - duration)
-                * 1000
-                / options.max_cue_duration
-            )
+            round(max(0.0, options.max_cue_duration - duration) * 1000 / options.max_cue_duration)
         )
     )
     return text_slack_ratio**2 + duration_slack_ratio**2
@@ -885,6 +858,7 @@ def highlight_cue_words(
                 text=text,
                 words=cue.words,
                 speaker_on_own_line=layout.speaker_on_own_line,
+                highlight_word_index=index,
             )
         )
     return highlighted or [cue]
@@ -994,19 +968,15 @@ def _balanced_text_ranges(
                 if remainder is None:
                     continue
                 line_word_count = end_index - start_index
-                orphan_penalty = (
-                    max(0, 3 - line_word_count) ** 2 * 100 if unit_count > 3 else 0
-                )
+                orphan_penalty = max(0, 3 - line_word_count) ** 2 * 100 if unit_count > 3 else 0
                 candidate = _TextPartition(
                     line_count=1 + remainder.line_count,
                     orphan_penalty=orphan_penalty + remainder.orphan_penalty,
                     boundary_penalty=(
-                        _text_boundary_penalty(units, end_index)
-                        + remainder.boundary_penalty
+                        _text_boundary_penalty(units, end_index) + remainder.boundary_penalty
                     ),
                     balance_penalty=(
-                        max(0, available_width - len(line_text)) ** 2
-                        + remainder.balance_penalty
+                        max(0, available_width - len(line_text)) ** 2 + remainder.balance_penalty
                     ),
                     ranges=((start_index, end_index), *remainder.ranges),
                 )
@@ -1101,13 +1071,10 @@ def _text_units(text: str, language: str | None) -> list[str]:
         return clean.split()
     units: list[str] = []
     for character in clean:
-        if (
-            units
-            and (
-                unicodedata.combining(character)
-                or character in {"\u200d", "\ufe0e", "\ufe0f"}
-                or units[-1].endswith("\u200d")
-            )
+        if units and (
+            unicodedata.combining(character)
+            or character in {"\u200d", "\ufe0e", "\ufe0f"}
+            or units[-1].endswith("\u200d")
         ):
             units[-1] += character
         else:
@@ -1129,11 +1096,7 @@ def speaker_display_name(turn: SpeakerTurn, options: SubtitleExportConfig) -> st
 
 
 def _speaker_prefix_width(cue: SubtitleCue, options: SubtitleExportConfig) -> int:
-    if (
-        not options.speaker_labels
-        or cue.speaker == "TRANSCRIPT"
-        or options.max_line_width is None
-    ):
+    if not options.speaker_labels or cue.speaker == "TRANSCRIPT" or options.max_line_width is None:
         return 0
     prefix_width = len(f"{cue.speaker}: ")
     # An indivisible label that is itself as wide as the configured line cannot
@@ -1218,21 +1181,6 @@ def format_cue_text(cue: SubtitleCue, options: SubtitleExportConfig | None = Non
     lines = text.splitlines() or [text]
     lines[0] = f"{cue.speaker}: {lines[0]}"
     return "\n".join(lines).strip()
-
-
-def _formatted_cue_fits_limits(
-    cue: SubtitleCue,
-    options: SubtitleExportConfig,
-) -> bool:
-    lines = format_cue_text(cue, options).splitlines()
-    if options.max_line_count is not None and len(lines) > options.max_line_count:
-        return False
-    if options.max_line_width is not None and any(
-        len(line.replace("<u>", "").replace("</u>", "")) > options.max_line_width
-        for line in lines
-    ):
-        return False
-    return True
 
 
 def sanitize_subtitle_text(text: str) -> str:

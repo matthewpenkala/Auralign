@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+# Source/headless Apple Silicon full-MAX contract. Invoke with --entire-pipeline.
+# Requires macOS 26+, Xcode 26+, Python 3.10+, Apple Intelligence enabled on a
+# compatible Mac, and an explicit `uv sync --extra cleanup-apple`. This backend
+# is not part of the generic full extra or the macOS 14+ standalone app/PKG.
+# Add task-specific casing hints with repeated --cleanup-proper-noun flags;
+# do not persist private transcript context in a shared configuration file.
+preset: max
+offline: true
+asr:
+  backend: faster-whisper
+  model: large-v3
+  device: cpu
+  compute_type: int8
+  word_timestamps: true
+diarization:
+  backend: pyannote
+  model: community-1
+  device: cpu
+  enabled: true
+  preserve_overlap: true
+  exclusive_diarization: true
+alignment:
+  backend: forced
+  language: en
+  model: en
+  device: cpu
+  enabled: true
+speaker_id:
+  mode: auto
+  model: ecapa
+  device: cpu
+cleanup:
+  mode: apple-foundation
+  presentation_decoder: global-viterbi-v1
+  quality_profile: semantically-faithful-clean-v1
+  scope: punctuation
+  required_complete: true
+  write_diff: true
+  presentation_scorers:
+    # Optional is explicit: without both exact local paths, SaT records a
+    # reason-coded abstention and never invents turn-end punctuation.
+    sat:
+      mode: optional
+      signal_weight: 0.75
+    # No checkpoint cleared the conversational quality/provenance gate.
+    token_classifier:
+      mode: off
+      backend: none

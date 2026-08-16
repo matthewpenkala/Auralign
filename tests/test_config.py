@@ -5,8 +5,16 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
-from local_transcript_max.config import load_config, model_local_path, resolve_model_entry
+from local_transcript_max.config import (
+    CleanupConfig,
+    SaTPresentationScorerConfig,
+    TokenPresentationScorerConfig,
+    load_config,
+    model_local_path,
+    resolve_model_entry,
+)
 from local_transcript_max.errors import LTMError
 
 
@@ -14,6 +22,60 @@ def test_asr_threading_defaults_are_unset(tmp_path: Path) -> None:
     config = load_config(cwd=tmp_path)
     assert config.asr.cpu_threads is None
     assert config.asr.num_workers is None
+
+
+def test_cleanup_quality_profile_defaults_to_semantically_faithful_and_is_closed() -> None:
+    assert CleanupConfig().quality_profile == "semantically-faithful-clean-v1"
+    assert (
+        CleanupConfig(quality_profile="strict-verbatim-v1").quality_profile == "strict-verbatim-v1"
+    )
+    with pytest.raises(ValidationError):
+        CleanupConfig(quality_profile="free-form-rewrite")  # type: ignore[arg-type]
+
+
+def test_required_complete_local_cleanup_requires_explicit_model_identity() -> None:
+    with pytest.raises(ValidationError, match="requires an explicit model"):
+        CleanupConfig(mode="local-llm", required_complete=True)
+    assert (
+        CleanupConfig(
+            mode="local-llm",
+            model="local-transcript-editor",
+            required_complete=True,
+        ).model
+        == "local-transcript-editor"
+    )
+
+
+def test_apple_cleanup_rejects_a_fictitious_configured_model_identity() -> None:
+    with pytest.raises(ValidationError, match="not configurable"):
+        CleanupConfig(mode="apple-foundation", model="endpoint-selected-model")
+
+
+def test_cleanup_sat_source_defaults_optional_with_visible_unconfigured_state() -> None:
+    sat = CleanupConfig().presentation_scorers.sat
+
+    assert sat.mode == "optional"
+    assert sat.model_dir is None
+    assert sat.tokenizer_dir is None
+    assert sat.signal_weight == 0.75
+
+
+def test_cleanup_sat_source_requires_exact_local_path_pair() -> None:
+    with pytest.raises(ValidationError, match="configured together"):
+        SaTPresentationScorerConfig(model_dir=Path("model"))
+    with pytest.raises(ValidationError, match="needs exact local"):
+        SaTPresentationScorerConfig(mode="required")
+    with pytest.raises(ValidationError, match="not consumed"):
+        SaTPresentationScorerConfig(
+            mode="off",
+            model_dir=Path("model"),
+            tokenizer_dir=Path("tokenizer"),
+        )
+
+
+def test_unapproved_word_classifier_cannot_be_enabled() -> None:
+    with pytest.raises(ValidationError, match="no word-level punctuation"):
+        TokenPresentationScorerConfig(mode="optional")
 
 
 def test_default_mlx_model_has_exact_operational_delivery_contract(
@@ -49,13 +111,14 @@ def test_all_nineteen_models_have_truthful_product_classification() -> None:
         assert set(entry.expected_digest_map) == set(entry.runtime_files)
         assert set(entry.expected_size_map) == set(entry.runtime_files)
         if entry.key in {"community-1", "en", "ecapa"}:
-            assert entry.package_bundle_id == "com.auralign.studio.models.bootstrap.v1"
+            assert entry.package_bundle_id == "com.auralign.studio.models.bootstrap.v2"
+            assert entry.package_bundle_version == "2.0.0"
             assert entry.delivery == "system-component"
         else:
             assert entry.package_bundle_id
             assert entry.package_bundle_id.startswith("com.auralign.studio.modelpack.")
+            assert entry.package_bundle_version == "1.0.0"
             assert entry.delivery == "native-download"
-        assert entry.package_bundle_version == "1.0.0"
         assert entry.package_relative_path == f"models/{entry.directory_name}"
         assert entry.blocker is None
 

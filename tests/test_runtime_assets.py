@@ -15,6 +15,7 @@ from local_transcript_max.runtime_assets import (
     EMPTY_FILE_SHA256,
     PUNKT_FILES,
     PUNKT_MARKER,
+    PUNKT_NLTK_VERSION,
     configure_offline_environment,
     prepare_generated_punkt,
     punkt_language_dir,
@@ -23,7 +24,9 @@ from local_transcript_max.runtime_assets import (
 from local_transcript_max.utils import read_json, write_json
 
 
-def install_fake_nltk(monkeypatch: pytest.MonkeyPatch) -> None:
+def install_fake_nltk(
+    monkeypatch: pytest.MonkeyPatch, *, version: str = PUNKT_NLTK_VERSION
+) -> None:
     nltk = ModuleType("nltk")
     nltk.__path__ = []  # type: ignore[attr-defined]
     nltk.data = SimpleNamespace(path=[])  # type: ignore[attr-defined]
@@ -46,7 +49,7 @@ def install_fake_nltk(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "nltk.tokenize", tokenize)
     monkeypatch.setitem(sys.modules, "nltk.tokenize.punkt", punkt)
     monkeypatch.setattr(
-        "importlib.metadata.version", lambda name: "test" if name == "nltk" else "0"
+        "importlib.metadata.version", lambda name: version if name == "nltk" else "0"
     )
 
 
@@ -104,6 +107,15 @@ def test_generated_punkt_rejects_nonempty_files_even_with_matching_marker(
 
     with pytest.raises(BackendUnavailableError, match="manifest"):
         verify_generated_punkt(tmp_path)
+
+
+def test_generated_punkt_rejects_unlocked_nltk_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_fake_nltk(monkeypatch, version="0.0.0")
+
+    with pytest.raises(BackendUnavailableError, match="locked corpus-free Punkt"):
+        prepare_generated_punkt(tmp_path)
 
 
 def test_offline_environment_disables_network_capable_libraries(

@@ -401,6 +401,8 @@ def _annotation_spec(annotation: Any) -> dict[str, Any]:
         return {"kind": "enum", "optional": optional, "choices": values}
     if origin is list:
         (item,) = typing.get_args(annotation)
+        if item is str:
+            return {"kind": "string_list", "optional": optional}
         if item is Path:
             return {"kind": "path_list", "optional": optional}
         if item is float:
@@ -455,10 +457,24 @@ def config_manifest() -> dict[str, Any]:
 
     defaults = PipelineConfig().model_dump(mode="json")
     models = [_model_contract(entry) for entry in MODEL_MANIFEST.values()]
+    fields = _walk_fields(PipelineConfig, defaults)
+    for field in fields:
+        if field["key"] == "cleanup.mode":
+            # The native macOS 14+ standalone intentionally excludes the
+            # macOS 26+/Xcode 26 Apple Foundation Models SDK. Keep that
+            # source/headless-only backend out of the product picker rather
+            # than exposing an option the bundled engine cannot execute.
+            field["choices"] = ["off", "local-llm"]
+        elif field["key"] == "cleanup.presentation_scorers.token_classifier.mode":
+            # The executable word-model adapter has no cleared production
+            # checkpoint. Keep the bundled schema aligned with the validator:
+            # source and product users may select only the truthful off state
+            # until a model passes provenance and measured-quality gates.
+            field["choices"] = ["off"]
     return {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "package_version": __version__,
-        "fields": _walk_fields(PipelineConfig, defaults),
+        "fields": fields,
         "model_manifest": models,
     }
 

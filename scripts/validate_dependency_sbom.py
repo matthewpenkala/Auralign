@@ -98,6 +98,14 @@ CORE_RUNTIME_PACKAGES = {
     "whisperx",
 }
 REQUIREMENT_PIN = re.compile(r"^([A-Za-z0-9][A-Za-z0-9_.-]*)==([^\s\\]+)(?:\s*;\s*(.+))?$")
+PATCHED_LIGHTNING_REQUIREMENT = (
+    "lightning @ https://github.com/Lightning-AI/pytorch-lightning/archive/"
+    "d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz"
+)
+PATCHED_LIGHTNING_SOURCE_VERSION = "2.6.2"
+PATCHED_LIGHTNING_ARCHIVE_HASH = (
+    "--hash=sha256:059f9272bf684f391f52c4e175a6a8e0d5cfa3ba4b3a0fde9aa4ff13dd72e11e"
+)
 PRIVATE_PATH = re.compile(
     r"(?:^|/)(?:users|home)/[^/\s\"',;:)}\]]+(?:/|$|(?=[\s\"',;:)}\]]))",
     re.IGNORECASE,
@@ -137,10 +145,23 @@ def _normalize_package_name(value: object) -> str:
 def _locked_native_versions(platform_name: str) -> dict[str, str]:
     requirements = ROOT / PLATFORM_REQUIREMENTS[platform_name]
     versions = {"local-transcript-max": "0.2.0"}
-    for line_number, line in enumerate(requirements.read_text(encoding="utf-8").splitlines(), 1):
+    lines = requirements.read_text(encoding="utf-8").splitlines()
+    for line_number, line in enumerate(lines, 1):
         if not line or line[0].isspace() or line.startswith(("#", "--")):
             continue
         candidate = line.removesuffix("\\").rstrip()
+        if candidate == PATCHED_LIGHTNING_REQUIREMENT:
+            require(
+                line_number < len(lines)
+                and lines[line_number].strip() == PATCHED_LIGHTNING_ARCHIVE_HASH,
+                f"{requirements}: patched Lightning archive hash drift",
+            )
+            require(
+                "lightning" not in versions,
+                f"{requirements}: duplicate package pin: lightning",
+            )
+            versions["lightning"] = PATCHED_LIGHTNING_SOURCE_VERSION
+            continue
         match = REQUIREMENT_PIN.fullmatch(candidate)
         require(match is not None, f"{requirements}: unpinned row at line {line_number}")
         assert match is not None

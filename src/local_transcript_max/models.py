@@ -51,15 +51,10 @@ from .utils import write_json
 MODEL_PROVENANCE_FILENAME = ".ltm-model.json"
 INSTALLED_MODEL_BUNDLE_ROOT = Path(
     "/Library/Application Support/com.auralign.studio/Models/"
-    "com.auralign.studio.models.bootstrap.v1"
+    "com.auralign.studio.models.bootstrap.v2"
 )
 INSTALLED_MODEL_PACKS_ROOT = (
-    Path.home()
-    / "Library"
-    / "Application Support"
-    / "com.auralign.studio"
-    / "Models"
-    / "Packs"
+    Path.home() / "Library" / "Application Support" / "com.auralign.studio" / "Models" / "Packs"
 )
 INSTALLED_PRODUCT_ENV = "LTM_INSTALLED_PRODUCT"
 SYSTEM_MODEL_BUNDLE_ROOT_ENV = "LTM_SYSTEM_MODEL_BUNDLE_ROOT"
@@ -123,8 +118,7 @@ class ModelStatus:
             details.append(f"empty files: {', '.join(self.zero_size_files)}")
         if self.mismatched_size_files:
             details.append(
-                "files with unexpected byte counts: "
-                + ", ".join(self.mismatched_size_files)
+                "files with unexpected byte counts: " + ", ".join(self.mismatched_size_files)
             )
         if self.inaccessible_files:
             details.append(f"inaccessible files: {', '.join(self.inaccessible_files)}")
@@ -204,9 +198,7 @@ class ModelStatus:
             "expected_sha256": self.entry.expected_digest_map,
             "expected_size": self.entry.expected_size_map,
             "missing_files": list(self.missing_files),
-            "suspicious_files": sorted(
-                {*self.zero_size_files, *self.mismatched_size_files}
-            ),
+            "suspicious_files": sorted({*self.zero_size_files, *self.mismatched_size_files}),
             "zero_size_files": list(self.zero_size_files),
             "mismatched_size_files": list(self.mismatched_size_files),
             "inaccessible_files": list(self.inaccessible_files),
@@ -312,9 +304,7 @@ def status_for_path(entry: ModelEntry, path: Path) -> ModelStatus:
         files_complete = files_complete and _any_required_file_present(entry, path)
     files_complete = files_complete and not unexpected
     revision_verified, provenance_problem = (
-        installed_status
-        if installed_status is not None
-        else _provenance_status(entry, path)
+        installed_status if installed_status is not None else _provenance_status(entry, path)
     )
     present = files_complete and (revision_verified if entry.pullable else True)
     return ModelStatus(
@@ -852,8 +842,7 @@ def candidate_model_paths(entry: ModelEntry, cache_dir: Path) -> list[Path]:
         trusted_path = _installed_product_model_path(entry)
         if trusted_path is None:
             raise ModelCacheError(
-                f"Installed-product model delivery is not configured for "
-                f"{entry.role}:{entry.key}."
+                f"Installed-product model delivery is not configured for {entry.role}:{entry.key}."
             )
         return [trusted_path]
 
@@ -944,10 +933,7 @@ def _model_path_complete(entry: ModelEntry, path: Path) -> bool:
             if (
                 not required_path.exists()
                 or required_path.stat().st_size == 0
-                or (
-                    expected_size is not None
-                    and required_path.stat().st_size != expected_size
-                )
+                or (expected_size is not None and required_path.stat().st_size != expected_size)
                 or not _can_read(required_path)
             ):
                 return False
@@ -970,10 +956,7 @@ def _any_required_file_present(entry: ModelEntry, path: Path) -> bool:
             if (
                 required_path.exists()
                 and required_path.stat().st_size > 0
-                and (
-                    expected_size is None
-                    or required_path.stat().st_size == expected_size
-                )
+                and (expected_size is None or required_path.stat().st_size == expected_size)
                 and _can_read(required_path)
             ):
                 return True
@@ -1245,16 +1228,9 @@ def _installed_model_pack_locations(entry: ModelEntry) -> tuple[Path, Path] | No
     ):
         return None
     relative_path = _safe_pack_relative_path(entry.package_relative_path)
-    if (
-        relative_path is None
-        or entry.package_relative_path != f"models/{entry.directory_name}"
-    ):
+    if relative_path is None or entry.package_relative_path != f"models/{entry.directory_name}":
         return None
-    pack_root = (
-        INSTALLED_MODEL_PACKS_ROOT
-        / entry.package_bundle_id
-        / entry.package_bundle_version
-    )
+    pack_root = INSTALLED_MODEL_PACKS_ROOT / entry.package_bundle_id / entry.package_bundle_version
     return pack_root, pack_root.joinpath(*relative_path.parts)
 
 
@@ -1270,10 +1246,7 @@ def _installed_model_bundle_location(entry: ModelEntry) -> Path | None:
     ):
         return None
     relative_path = _safe_pack_relative_path(entry.package_relative_path)
-    if (
-        relative_path is None
-        or entry.package_relative_path != f"models/{entry.directory_name}"
-    ):
+    if relative_path is None or entry.package_relative_path != f"models/{entry.directory_name}":
         return None
     return INSTALLED_MODEL_BUNDLE_ROOT.joinpath(*relative_path.parts)
 
@@ -1331,14 +1304,10 @@ def _validate_installed_model_pack_ancestry(pack_root: Path) -> None:
     """Reject symlinked ancestors and unsafe user-owned namespace directories."""
 
     candidate = Path(os.path.abspath(os.fspath(pack_root.expanduser())))
-    trusted_root = Path(
-        os.path.abspath(os.fspath(INSTALLED_MODEL_PACKS_ROOT.expanduser()))
-    )
+    trusted_root = Path(os.path.abspath(os.fspath(INSTALLED_MODEL_PACKS_ROOT.expanduser())))
     candidate_text = os.fspath(candidate)
     trusted_text = os.fspath(trusted_root)
-    if candidate_text != trusted_text and not candidate_text.startswith(
-        trusted_text + os.sep
-    ):
+    if candidate_text != trusted_text and not candidate_text.startswith(trusted_text + os.sep):
         raise RuntimeError("installed model pack escapes the fixed user namespace")
 
     current = Path(candidate.anchor)
@@ -1349,13 +1318,10 @@ def _validate_installed_model_pack_ancestry(pack_root: Path) -> None:
             raise RuntimeError("installed model pack has a linked or non-directory ancestor")
         current_text = os.path.abspath(os.fspath(current))
         if current_text == trusted_text or current_text.startswith(trusted_text + os.sep):
-            if (
-                metadata.st_uid != os.geteuid()
-                or stat.S_IMODE(metadata.st_mode) & (stat.S_IWGRP | stat.S_IWOTH)
+            if metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) & (
+                stat.S_IWGRP | stat.S_IWOTH
             ):
-                raise RuntimeError(
-                    "installed model pack namespace ownership or mode is unsafe"
-                )
+                raise RuntimeError("installed model pack namespace ownership or mode is unsafe")
 
 
 def _model_source_descriptor(

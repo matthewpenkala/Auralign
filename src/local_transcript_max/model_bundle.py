@@ -32,11 +32,12 @@ from .runtime_assets import (
     PUNKT_FILES,
     PUNKT_GENERATOR,
     PUNKT_MARKER,
+    PUNKT_NLTK_VERSION,
     PUNKT_TRAINING_DATA,
 )
 
-MODEL_BUNDLE_IDENTIFIER: Final = "com.auralign.studio.models.bootstrap.v1"
-MODEL_BUNDLE_VERSION: Final = "1.0.0"
+MODEL_BUNDLE_IDENTIFIER: Final = "com.auralign.studio.models.bootstrap.v2"
+MODEL_BUNDLE_VERSION: Final = "2.0.0"
 MODEL_BUNDLE_SCHEMA_VERSION: Final = "1.0"
 MODEL_BUNDLE_MANIFEST_FILENAME: Final = "model-bundle-manifest.json"
 MODEL_BUNDLE_VERIFICATION_FILENAME: Final = "model-bundle-verification.json"
@@ -47,7 +48,7 @@ BOOTSTRAP_MODEL_KEYS: Final = ("community-1", "en", "ecapa")
 # Compatibility export for the builder while the successor package vocabulary
 # is reconciled. It now identifies the exact compact bootstrap closure.
 STRICT_MODEL_KEYS: Final = BOOTSTRAP_MODEL_KEYS
-MODEL_BUNDLE_NLTK_VERSION: Final = "3.9.4"
+MODEL_BUNDLE_NLTK_VERSION: Final = PUNKT_NLTK_VERSION
 
 _BOOTSTRAP_MODEL_ROLES: Final = {
     "community-1": "diarization",
@@ -58,9 +59,7 @@ _LICENSE_INPUTS: Final = (
     ("Apache-2.0", "Apache-2.0.txt"),
     ("CC-BY-4.0", "CC-BY-4.0.txt"),
 )
-MODEL_BUNDLE_LICENSE_FILENAMES: Final = tuple(
-    filename for _, filename in _LICENSE_INPUTS
-)
+MODEL_BUNDLE_LICENSE_FILENAMES: Final = tuple(filename for _, filename in _LICENSE_INPUTS)
 _LICENSE_SHA256: Final = {
     "Apache-2.0": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
     "CC-BY-4.0": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
@@ -786,10 +785,7 @@ def _read_license_inputs(license_directory: Path) -> dict[str, bytes]:
 
 def _validate_license_text(expression: str, content: bytes) -> None:
     expected_sha256 = _LICENSE_SHA256.get(expression)
-    if (
-        expected_sha256 is None
-        or hashlib.sha256(content).hexdigest() != expected_sha256
-    ):
+    if expected_sha256 is None or hashlib.sha256(content).hexdigest() != expected_sha256:
         raise ModelBundleError(
             f"license input does not match the exact reviewed text: {expression}"
         )
@@ -833,9 +829,7 @@ def _validate_public_text(content: bytes, label: str) -> None:
 def _validate_notices(content: bytes, entries: Sequence[ModelEntry]) -> None:
     del entries
     if content != model_bundle_notices_bytes():
-        raise ModelBundleError(
-            "third-party notices do not match the exact model authority"
-        )
+        raise ModelBundleError("third-party notices do not match the exact model authority")
 
 
 def _copy_model_file(

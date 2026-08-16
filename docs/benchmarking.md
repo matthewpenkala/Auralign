@@ -163,7 +163,7 @@ ltm benchmark-corpus "/path/to/excerpt-folder" \
   --asr-batch-size 8
 ```
 
-MLX ASR is a supported 0.3.0 Apple-Silicon backend. Benchmark it only after the
+MLX ASR is a supported 0.3.1 Apple-Silicon backend. Benchmark it only after the
 selected exact pack has passed its immutable revision, file/size/SHA-256,
 license/notice/provenance/SBOM, and completion checks. Benchmark execution
 never downloads or repairs a pack:

@@ -125,6 +125,20 @@ def test_cleanup_config_validation_is_mode_aware_and_performs_no_network(
     )
     assert remote.cleanup.mode == "local-llm"
 
+    apple = PipelineConfig.model_validate(
+        {
+            "offline": True,
+            "cleanup": {
+                "mode": "apple-foundation",
+                "endpoint": "not-an-endpoint",
+                "required_complete": True,
+                "proper_nouns": ["Natalie", "Michael"],
+            },
+        }
+    )
+    assert apple.cleanup.mode == "apple-foundation"
+    assert apple.cleanup.required_complete is True
+
     with pytest.raises(ValidationError, match="Offline mode"):
         PipelineConfig.model_validate(
             {
@@ -134,6 +148,24 @@ def test_cleanup_config_validation_is_mode_aware_and_performs_no_network(
                     "endpoint": "https://cleanup.example.invalid/v1",
                     "allow_remote_cleanup": True,
                 },
+            }
+        )
+
+
+def test_cleanup_required_complete_and_glossary_validation() -> None:
+    with pytest.raises(ValidationError, match="requires an enabled cleanup mode"):
+        PipelineConfig.model_validate({"cleanup": {"mode": "off", "required_complete": True}})
+    with pytest.raises(ValidationError, match="control characters"):
+        PipelineConfig.model_validate(
+            {"cleanup": {"mode": "apple-foundation", "proper_nouns": ["bad\nname"]}}
+        )
+    with pytest.raises(ValidationError, match="unique ignoring case"):
+        PipelineConfig.model_validate(
+            {
+                "cleanup": {
+                    "mode": "apple-foundation",
+                    "proper_nouns": ["Natalie", "natalie"],
+                }
             }
         )
 

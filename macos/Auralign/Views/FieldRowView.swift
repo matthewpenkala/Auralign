@@ -320,6 +320,16 @@ struct FieldRowView: View {
                 stringControl
                     .focused($editorFocused)
             }
+        case .stringList:
+            StringListControl(
+                label: entry.title,
+                accessibilityHint: controlAccessibilityHint,
+                accessibilityIdentifier: AccessibilityIdentifier.fieldControl(field.key),
+                values: stringListBinding,
+                maxCount: field.maxLength,
+                focusRequestID: focusRequestID,
+                onFocusRequestCompleted: completeFocusRequest
+            )
         case .path:
             PathControl(
                 label: entry.title,
@@ -699,9 +709,21 @@ struct FieldRowView: View {
         )
     }
 
+    private var stringListBinding: Binding<[String]> {
+        Binding(
+            get: { effective.arrayValue?.compactMap(\.stringValue) ?? [] },
+            set: { values in
+                config.setOverride(
+                    field.key,
+                    to: .array(values.map { JSONValue.string($0) })
+                )
+            }
+        )
+    }
+
     private var childControlOwnsFocusCompletion: Bool {
         switch field.kind {
-        case .path, .pathList, .floatList, .floatOrFloatList:
+        case .path, .pathList, .stringList, .floatList, .floatOrFloatList:
             return true
         case .int, .float:
             return !field.optional || !effective.isNull
@@ -725,6 +747,133 @@ struct FieldRowView: View {
         // Completion is published only by the control that owns actual
         // keyboard and accessibility focus.
         model.consumeFieldNavigationRequest(requestID)
+    }
+}
+
+// MARK: - String-list control
+
+/// A native editor for string-array configuration values. Each entry remains
+/// structurally distinct, so names containing spaces or punctuation never
+/// depend on a lossy comma-delimited encoding.
+struct StringListControl: View {
+    @EnvironmentObject private var model: AppModel
+    var label: String
+    var accessibilityHint: String
+    var accessibilityIdentifier: String
+    @Binding var values: [String]
+    var maxCount: Int?
+    var focusRequestID: Int?
+    var onFocusRequestCompleted: (Int) -> Void
+    @State private var draft = ""
+    @State private var rowIDs: [UUID] = []
+    @FocusState private var draftFocused: Bool
+    @AccessibilityFocusState private var draftAccessibilityFocused: Bool
+
+    private var normalizedDraft: String {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canAdd: Bool {
+        !normalizedDraft.isEmpty
+            && (maxCount.map { values.count < $0 } ?? true)
+            && !model.isPresentationFixture
+    }
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            ForEach(Array(rowIDs.enumerated()), id: \.element) { index, rowID in
+                if values.indices.contains(index) {
+                    HStack(spacing: 6) {
+                        TextField(
+                            "\(label) item \(index + 1)",
+                            text: valueBinding(at: index)
+                        )
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(minWidth: 140, maxWidth: 260)
+                        .privacySensitive()
+                        .accessibilityLabel(Text("\(label) item \(index + 1)"))
+                        .accessibilityHint(Text(accessibilityHint))
+                        .accessibilityIdentifier(
+                            accessibilityIdentifier + ".item.\(index)"
+                        )
+
+                        Button {
+                            rowIDs.remove(at: index)
+                            values.remove(at: index)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel(Text("Remove \(label) item \(index + 1)"))
+                        .accessibilityHint(Text(accessibilityHint))
+                        .accessibilityIdentifier(
+                            accessibilityIdentifier + ".remove.\(index)"
+                        )
+                        .disabled(model.isPresentationFixture)
+                    }
+                    .id(rowID)
+                }
+            }
+
+            HStack(spacing: 6) {
+                TextField("Add item", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 140, maxWidth: 260)
+                    .privacySensitive()
+                    .focused($draftFocused)
+                    .accessibilityFocused($draftAccessibilityFocused)
+                    .accessibilityLabel(Text("New \(label) item"))
+                    .accessibilityHint(Text(accessibilityHint))
+                    .accessibilityIdentifier(accessibilityIdentifier + ".new")
+                    .onSubmit(addDraft)
+
+                Button("Add", action: addDraft)
+                    .controlSize(.small)
+                    .accessibilityLabel(Text("Add item to \(label)"))
+                    .accessibilityHint(Text(accessibilityHint))
+                    .accessibilityIdentifier(accessibilityIdentifier + ".add")
+                    .disabled(!canAdd)
+            }
+        }
+        .onAppear { synchronizeRowIDs() }
+        .onChange(of: values) { _, _ in synchronizeRowIDs() }
+        .task(id: focusRequestID) {
+            guard let focusRequestID else { return }
+            await Task.yield()
+            draftFocused = true
+            draftAccessibilityFocused = true
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            guard draftFocused else { return }
+            onFocusRequestCompleted(focusRequestID)
+        }
+    }
+
+    private func valueBinding(at index: Int) -> Binding<String> {
+        Binding(
+            get: { values.indices.contains(index) ? values[index] : "" },
+            set: { value in
+                guard values.indices.contains(index) else { return }
+                values[index] = value
+            }
+        )
+    }
+
+    private func addDraft() {
+        guard canAdd else { return }
+        rowIDs.append(UUID())
+        values.append(normalizedDraft)
+        draft = ""
+    }
+
+    private func synchronizeRowIDs() {
+        if rowIDs.count > values.count {
+            rowIDs.removeLast(rowIDs.count - values.count)
+        } else if rowIDs.count < values.count {
+            rowIDs.append(
+                contentsOf: (rowIDs.count..<values.count).map { _ in UUID() }
+            )
+        }
     }
 }
 

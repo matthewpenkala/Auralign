@@ -36,9 +36,14 @@ word sequence, so different WhisperX word tokenization cannot silently merge or
 split recognized words. A word remains forced only when every non-whitespace
 character carries a complete, valid acoustic start/end pair.
 
-`alignment.backend: forced` remains strict: any failed, missing, estimated, or
-Whisper-timed source segment is a hard failure. `auto` may publish a mixed result,
-but every word retains its real `alignment_source`.
+`alignment.backend: forced` remains strict. It permits only one bounded repair
+when WhisperX returns no usable CTC characters for a text-identical single-word
+segment no longer than 250 ms: the preserved ASR word must have finite positive
+timing that overlaps that exact source interval, its timing is clipped to the
+source and prior-word bounds, and it remains labeled `alignment_source: whisper`
+with `forced_alignment_short_segment_repair`. Any other failed, missing,
+estimated, or Whisper-timed source segment is a hard failure. `auto` may publish
+a broader mixed result, but every word retains its real `alignment_source`.
 
 The English alignment asset must be a CTC ASR model with tokenizer/vocabulary
 files and PyTorch or safetensors weights. Generic Wav2Vec2 pretraining
@@ -109,9 +114,10 @@ uv run ltm transcribe input.wav --forced-alignment on --alignment-device cpu
 uv run ltm transcribe input.wav --no-alignment
 ```
 
-Use `--forced-alignment on` only when anything short of complete, lexically
-conserved forced alignment should be a hard failure. Use `auto` only when a
-clearly reported localized or complete Whisper-timestamp fallback is acceptable.
+Use `--forced-alignment on` when anything short of complete, lexically conserved
+alignment—or the narrowly marked, source-bounded short-segment repair described
+above—should be a hard failure. Use `auto` only when a clearly reported broader
+localized or complete Whisper-timestamp fallback is acceptable.
 
 Alignment device resolution is independent from ASR and diarization. On Apple
 Silicon, an unset or `auto` alignment device resolves to CPU; MLX ASR never

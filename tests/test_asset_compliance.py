@@ -35,6 +35,13 @@ def registry() -> dict[tuple[str, str], dict[str, Any]]:
     return indexed
 
 
+def presentation_registry() -> dict[tuple[str, str], dict[str, Any]]:
+    records = load_toml("external_assets.toml")["presentation_assets"]
+    indexed = {(str(record["kind"]), str(record["key"])): record for record in records}
+    assert len(indexed) == len(records)
+    return indexed
+
+
 def test_external_asset_registry_is_complete_and_policy_fields_are_present() -> None:
     policy = load_toml("policy.toml")
     records = registry()
@@ -54,6 +61,33 @@ def test_external_asset_registry_is_complete_and_policy_fields_are_present() -> 
         assert str(record["source_url"]).startswith("https://")
         assert str(record["terms_url"]).startswith("https://")
         assert str(record["license_evidence_url"]).startswith("https://")
+
+
+def test_sat_presentation_assets_are_exact_local_and_outside_product_manifest() -> None:
+    records = presentation_registry()
+
+    assert set(records) == {
+        ("presentation-model", "presentation-sat-3l-sm"),
+        ("presentation-tokenizer", "presentation-sat-xlm-roberta-base-tokenizer"),
+    }
+    for record in records.values():
+        assert IMMUTABLE_REVISION.fullmatch(str(record["revision"]))
+        assert record["license_expression"] == "MIT"
+        assert record["acquisition_status"] == (
+            "manual_preprovision_only_no_auralign_download_path"
+        )
+        assert record["runtime_status"] == (
+            "approved_source_headless_local_proposal_signal_exact_files_required"
+        )
+        assert record["product_classification"] == ("source-headless-production-proposal-only")
+        assert record["runtime_locality"] == "offline_local_only_no_runtime_acquisition"
+        assert record["standalone_disposition"] == "excluded_from_macos14_app_and_pkg"
+        assert str(record["review_status"]).endswith("bounded_live_smoke")
+        digests = _contract(record, "file_sha256", integer=False)
+        sizes = _contract(record, "file_size", integer=True)
+        assert set(digests) == set(sizes)
+        assert all(re.fullmatch(r"[0-9a-f]{64}", str(value)) for value in digests.values())
+        assert all(isinstance(value, int) and value > 0 for value in sizes.values())
 
 
 def test_runtime_model_manifest_matches_external_asset_registry() -> None:
@@ -98,14 +132,10 @@ def test_model_registry_binds_complete_delivery_and_file_contracts() -> None:
         assert _contract(record, "macos_0_3_0_file_sha256", integer=False) == (
             entry.expected_digest_map
         )
-        assert _contract(record, "macos_0_3_0_file_size", integer=True) == (
-            entry.expected_size_map
-        )
+        assert _contract(record, "macos_0_3_0_file_size", integer=True) == (entry.expected_size_map)
         assert set(entry.runtime_files) == set(entry.expected_digest_map)
         assert set(entry.runtime_files) == set(entry.expected_size_map)
-        assert record["macos_0_3_0_owner_decision"].startswith(
-            "Matthew Penkala, 2026-07-25"
-        )
+        assert record["macos_0_3_0_owner_decision"].startswith("Matthew Penkala, 2026-07-25")
         expected_status = {
             "system-component": "bundled_bootstrap_component",
             "native-download": "native_download_pack",
@@ -173,9 +203,7 @@ def test_audit_payloads_expose_compliance_decisions(tmp_path: Path) -> None:
     assert model_records["large-v3"]["acquisition_status"] == "approved"
     assert model_records["large-v3"]["runtime_status"] == "approved_local"
     assert model_records["mlx-large-v3-turbo"]["license_expression"] == "MIT"
-    assert model_records["mlx-large-v3-turbo"]["redistribution_status"].startswith(
-        "permitted_"
-    )
+    assert model_records["mlx-large-v3-turbo"]["redistribution_status"].startswith("permitted_")
     assert model_records["mlx-large-v3-turbo"]["production_selectable"] is True
     assert dataset_records["librispeech-dummy"]["acquisition_approved"] is False
     assert dataset_records["voxceleb-full"]["mirror_approved"] is False

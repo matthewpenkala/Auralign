@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 import re
@@ -401,6 +402,69 @@ def test_apply_safe_consumes_only_hash_bound_healthy_profile_matches_and_exact_r
     assert _canonical_snapshot(job_dir) == before
 
 
+def test_safe_cluster_alias_composes_across_all_exports_for_uncertain_child_turn(
+    tmp_path: Path,
+) -> None:
+    job_dir = tmp_path / "job"
+    transcript = write_job(job_dir)
+    uncertain_word = transcript.words[0].model_copy(update={"uncertain_speaker": True})
+    words = [uncertain_word, *transcript.words[1:]]
+    turns = list(transcript.speaker_turns)
+    turns[0] = turns[0].model_copy(update={"words": [uncertain_word]})
+    transcript = transcript.model_copy(update={"words": words, "speaker_turns": turns})
+    (job_dir / "transcript.json").write_bytes(deterministic_json_bytes(transcript))
+    (job_dir / "transcript.md").write_text(render_markdown(transcript), encoding="utf-8")
+    (job_dir / "transcript.srt").write_text(render_srt(transcript), encoding="utf-8")
+    (job_dir / "transcript.vtt").write_text(render_vtt(transcript), encoding="utf-8")
+    roster = write_roster(tmp_path / "roster.json")
+    write_profile_map(job_dir)
+
+    result = resolve_identities(
+        job_dir,
+        safe_options(
+            roster,
+            policy=ResolverPolicy(
+                mode=ResolverMode.APPLY_SAFE,
+                deliverable_format=DeliverableFormat.ALL,
+            ),
+        ),
+    )
+    child = result.report.turn_decisions[0]
+    assert child.status in {ResolutionStatus.REVIEW, ResolutionStatus.UNRESOLVED}
+    assert child.display_label is None
+    assert child.mapped_global_candidate == ALPHA
+
+    wrapper = IdentityMappedTranscript.model_validate_json(
+        (job_dir / "transcript.identity_mapped.json").read_bytes()
+    )
+    assert wrapper.transcript.speaker_turns[0].mapped_name == ALPHA
+    for name in (
+        "transcript.identity_mapped.srt",
+        "transcript.identity_mapped.vtt",
+        "transcript.identity_mapped.md",
+        "transcript.identity_mapped.txt",
+    ):
+        payload = (job_dir / name).read_text(encoding="utf-8")
+        assert f"{ALPHA}:" in payload or f"**{ALPHA}**" in payload
+        assert "SPEAKER_00: I am" not in payload
+    with (job_dir / "transcript.identity_mapped.segments.csv").open(
+        newline="", encoding="utf-8"
+    ) as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows[0]["display_label"] == ALPHA
+
+    audit = AttributionAudit.model_validate_json(
+        (job_dir / "speaker_identity_attribution_audit.json").read_bytes()
+    )
+    child_row = next(row for row in audit.rows if row.decision_id == child.decision_id)
+    assert child_row.assigned_display_label == ALPHA
+    assert child_row.resolution_status is child.status
+    assert child_row.action == "apply_global_display_label_retain_status"
+    assert result.report.derived_artifact_hashes
+    for name, expected_hash in result.report.derived_artifact_hashes.items():
+        assert hashlib.sha256((job_dir / name).read_bytes()).hexdigest() == expected_hash
+
+
 def test_apply_safe_recomputes_active_profile_ambiguity_margin(tmp_path: Path) -> None:
     job_dir = tmp_path / "job"
     write_job(job_dir)
@@ -486,8 +550,7 @@ def test_profile_map_malformed_unbound_or_stale_provenance_is_non_evidence(
     result = resolve_identities(job_dir, safe_options(roster)).report
 
     assert all(
-        decision.status is not ResolutionStatus.MAPPED
-        for decision in result.cluster_decisions
+        decision.status is not ResolutionStatus.MAPPED for decision in result.cluster_decisions
     )
     assert all(
         ReasonCode.LOCAL_PROFILE_MATCH not in decision.reason_codes
@@ -962,9 +1025,7 @@ def test_identical_repeat_is_byte_idempotent_and_canonical_hashes_do_not_change(
     assert first_bytes == second_bytes
     assert _canonical_snapshot(job_dir) == canonical_before
     assert second.report.validation_summary.canonical_hashes_unchanged is True
-    assert list(job_dir.glob(".speaker_identity.*")) == [
-        job_dir / ".speaker_identity.lock"
-    ]
+    assert list(job_dir.glob(".speaker_identity.*")) == [job_dir / ".speaker_identity.lock"]
 
 
 def _write_variant(job_dir: Path, name: str, turns: list[DiarizationTurn]) -> None:
@@ -1041,8 +1102,7 @@ def test_stability_detects_partition_disagreement_after_optimal_label_alignment(
     job_dir = tmp_path / "job"
     transcript = write_job(job_dir)
     collapsed = [
-        turn.model_copy(update={"speaker": "SPEAKER_00"})
-        for turn in transcript.diarization_turns
+        turn.model_copy(update={"speaker": "SPEAKER_00"}) for turn in transcript.diarization_turns
     ]
     _write_variant(job_dir, "collapsed.json", collapsed)
     config = _write_stability_config(tmp_path / "stability.json", ["collapsed.json"])
@@ -1135,9 +1195,7 @@ def test_media_queue_is_bounded_and_review_report_can_confirm_unattributed_tail(
     )
     report_before = report_path.read_bytes()
 
-    second = resolve_identities(
-        job_dir, reviewed_media_options(report_path)
-    ).report
+    second = resolve_identities(job_dir, reviewed_media_options(report_path)).report
     tail = second.turn_decisions[5]
     assert tail.status is ResolutionStatus.UNATTRIBUTED
     assert tail.confidence == 1.0
@@ -1146,17 +1204,11 @@ def test_media_queue_is_bounded_and_review_report_can_confirm_unattributed_tail(
     assert report_path.read_bytes() == report_before
 
     second_bytes = {
-        path.name: path.read_bytes()
-        for path in job_dir.glob("speaker_identity*")
-        if path.is_file()
+        path.name: path.read_bytes() for path in job_dir.glob("speaker_identity*") if path.is_file()
     }
-    repeated = resolve_identities(
-        job_dir, reviewed_media_options(report_path)
-    ).report
+    repeated = resolve_identities(job_dir, reviewed_media_options(report_path)).report
     repeated_bytes = {
-        path.name: path.read_bytes()
-        for path in job_dir.glob("speaker_identity*")
-        if path.is_file()
+        path.name: path.read_bytes() for path in job_dir.glob("speaker_identity*") if path.is_file()
     }
     assert repeated.run_id == second.run_id
     assert repeated_bytes == second_bytes

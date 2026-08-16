@@ -214,8 +214,8 @@ final class ModelDownloadServiceTests: XCTestCase {
                 model(
                     key: key,
                     delivery: "system-component",
-                    packID: "com.auralign.studio.models.bootstrap.v1",
-                    packVersion: "1.0.0",
+                    packID: "com.auralign.studio.models.bootstrap.v2",
+                    packVersion: "2.0.0",
                     packRelativePath: "models/\(key)",
                     requiredForPresets: [],
                     revision: revision,
@@ -243,16 +243,16 @@ final class ModelDownloadServiceTests: XCTestCase {
 
         let catalog = ModelDeliveryCatalog(
             schema: ModelDeliveryCatalog.schemaVersion,
-            catalogVersion: "1.0.0",
-            productVersion: "0.3.0",
+            catalogVersion: "1.1.0",
+            productVersion: "0.3.1",
             allowedInitialHosts: ["huggingface.co"],
             redirectHostSuffixes: [
                 "huggingface.co",
                 "us.aws.cdn.hf.co",
             ],
             bootstrap: .init(
-                bundleID: "com.auralign.studio.models.bootstrap.v1",
-                bundleVersion: "1.0.0",
+                bundleID: "com.auralign.studio.models.bootstrap.v2",
+                bundleVersion: "2.0.0",
                 modelKeys: bootstrapKeys
             ),
             packContract: testPackContract(),

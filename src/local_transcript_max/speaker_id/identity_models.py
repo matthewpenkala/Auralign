@@ -217,6 +217,8 @@ def normalize_display_label(value: str, *, allow_reserved: bool = False) -> str:
         raise ValueError(f"display label must contain 1-{MAX_DISPLAY_LABEL_LENGTH} characters")
     if "-->" in normalized:
         raise ValueError("display label cannot contain a subtitle timing arrow")
+    if ":" in normalized:
+        raise ValueError("display label cannot contain a colon")
     for character in normalized:
         category = unicodedata.category(character)
         if category.startswith("C") or character in "\r\n":
@@ -663,9 +665,7 @@ class StabilityVariantResult(LTMBaseModel):
     artifact_hash: str | None = None
     safe_reason: str | None = None
 
-    _variant_metadata = field_validator(
-        "variant_id", "backend", "device", "artifact_id"
-    )(_safe_id)
+    _variant_metadata = field_validator("variant_id", "backend", "device", "artifact_id")(_safe_id)
     _artifact_hash = field_validator("artifact_hash")(
         lambda value: value if value is None else _sha256(value)
     )
@@ -796,6 +796,7 @@ class IdentityReport(LTMBaseModel):
     stability_summary: dict[str, int | bool] = Field(default_factory=dict)
     media_review_summary: dict[str, int] = Field(default_factory=dict)
     artifacts_written: dict[str, str | None] = Field(default_factory=dict)
+    derived_artifact_hashes: dict[str, str] = Field(default_factory=dict, max_length=64)
     validation_summary: IdentityValidationSummary
     qa_flags: list[IdentityQAFlag] = Field(default_factory=list, max_length=200_000)
     warnings: list[str] = Field(default_factory=list, max_length=1_000)
@@ -804,6 +805,11 @@ class IdentityReport(LTMBaseModel):
     _approval_source_id = field_validator("approval_source_run_id")(
         lambda value: value if value is None else _safe_id(value)
     )
+
+    @field_validator("derived_artifact_hashes")
+    @classmethod
+    def valid_derived_hashes(cls, values: dict[str, str]) -> dict[str, str]:
+        return {_artifact_name(key): _sha256(value) for key, value in values.items()}
 
 
 class IdentityMappedTranscript(LTMBaseModel):

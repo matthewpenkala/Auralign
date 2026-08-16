@@ -34,3 +34,9 @@ speaker_id:
   maximum_speech_seconds: 60.0
 cleanup:
   mode: off
+  presentation_scorers:
+    sat:
+      mode: off
+    token_classifier:
+      mode: off
+      backend: none

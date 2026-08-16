@@ -42,11 +42,16 @@ mlx = [
 ]
 diarization = [
   "pyannote.audio>=4.0.4,<5",
+  "aiohttp>=3.14.3,<4",
+  "lightning @ https://github.com/Lightning-AI/pytorch-lightning/archive/d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz",
   "av==15.1.0",
   "torchcodec==0.7.0",
 ]
 alignment = [
   "whisperx>=3.8.6,<4",
+  "aiohttp>=3.14.3,<4",
+  "lightning @ https://github.com/Lightning-AI/pytorch-lightning/archive/d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz",
+  "nltk>=3.10.3,<4",
   "av==15.1.0",
   "torchcodec==0.7.0",
 ]
@@ -58,6 +63,12 @@ speaker-id = [
   "speechbrain>=1.1.0,<2",
   "ruamel-yaml>=0.18.16,<0.19",
 ]
+cleanup-apple = [
+  "apple-fm-sdk==0.2.1; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+presentation-sat = [
+  "wtpsplit==2.2.1",
+]
 api = [
   "fastapi>=0.137,<1",
   "uvicorn[standard]>=0.30,<1",
@@ -66,6 +77,9 @@ full = [
   "faster-whisper>=1.2.1,<2",
   "pyannote.audio>=4.0.4,<5",
   "whisperx>=3.8.6,<4",
+  "aiohttp>=3.14.3,<4",
+  "lightning @ https://github.com/Lightning-AI/pytorch-lightning/archive/d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz",
+  "nltk>=3.10.3,<4",
   "speechbrain>=1.1.0,<2",
   "ruamel-yaml>=0.18.16,<0.19",
   "av==15.1.0",
@@ -119,6 +133,7 @@ conflicts = [
   ],
 ]
 exclude-dependencies = [
+  { package = { name = "lightning" }, dependencies = ["pytorch-lightning", "torch"] },
   { package = { name = "torch", version = "2.8.0+cpu" }, dependencies = ["triton"] },
   { package = { name = "whisperx", version = "3.8.6" }, dependencies = ["triton"] },
 ]
@@ -160,6 +175,9 @@ packages = ["src/local_transcript_max"]
 
 [tool.hatch.build.targets.sdist]
 exclude = ["/.env.example"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

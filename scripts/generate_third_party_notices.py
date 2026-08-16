@@ -36,6 +36,8 @@ def render() -> str:
     assert isinstance(asset_defaults, dict)
     asset_rows = assets["assets"]
     assert isinstance(asset_rows, list)
+    presentation_asset_rows = assets["presentation_assets"]
+    assert isinstance(presentation_asset_rows, list)
 
     lines = [
         "<!--",
@@ -86,11 +88,7 @@ def render() -> str:
         effective = asset_defaults | row
         pack_id = effective.get("package_bundle_id", "—")
         pack_version = effective.get("package_bundle_version", "")
-        pack_identity = (
-            f"{pack_id}@{pack_version}"
-            if pack_version
-            else pack_id
-        )
+        pack_identity = f"{pack_id}@{pack_version}" if pack_version else pack_id
         lines.append(
             "| "
             + " | ".join(
@@ -105,6 +103,40 @@ def render() -> str:
                     effective.get("product_classification", "—"),
                     effective.get("delivery", "—"),
                     pack_identity,
+                    effective["review_status"],
+                )
+            )
+            + " |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Source/Headless Presentation Assets",
+            "",
+            "| Kind/key | Immutable revision | License | Acquisition | Runtime | "
+            "Redistribution | Product class | Delivery | Standalone | Review |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        ]
+    )
+    for row in sorted(
+        presentation_asset_rows,
+        key=lambda item: (item["kind"], item["key"]),
+    ):
+        effective = asset_defaults | row
+        lines.append(
+            "| "
+            + " | ".join(
+                clean(value)
+                for value in (
+                    f"{effective['kind']}:{effective['key']}",
+                    effective["revision"],
+                    effective["license_expression"],
+                    effective["acquisition_status"],
+                    effective["runtime_status"],
+                    effective["redistribution_status"],
+                    effective["product_classification"],
+                    effective["delivery"],
+                    effective["standalone_disposition"],
                     effective["review_status"],
                 )
             )

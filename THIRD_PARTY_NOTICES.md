@@ -39,6 +39,10 @@ Auralign's PolyForm terms. Direct dependency families include:
 
 - Hugging Face Hub, jiwer, Pydantic, PyYAML, and Typer;
 - faster-whisper, mlx-whisper, pyannote.audio, WhisperX, and SpeechBrain;
+- security-pinned aiohttp and NLTK dependencies, plus Lightning built from an
+  exact upstream security-fix commit;
+- the explicit source/headless-only `apple-fm-sdk` cleanup bridge;
+- the explicit source/headless-only `wtpsplit` SaT boundary-scoring adapter;
 - FastAPI and Uvicorn;
 - Hatchling, mypy, pytest, Ruff, and types-PyYAML.
 
@@ -50,6 +54,47 @@ native libraries under additional terms. A package name, classifier, or lock
 entry alone is not enough to clear redistribution. Consult the scope-specific
 SBOM and compliance registry for exact versions and expressions.
 
+The supported locked environments use `aiohttp==3.14.3` and `nltk==3.10.3`.
+Lightning is built under Apache-2.0 from exact upstream commit
+`d710d689510d50e800f53b3cd773cbca20b1f86f`, whose source metadata reports
+version `2.6.2`; the downloaded archive is pinned by SHA-256 in `uv.lock`.
+That commit contains the upstream `_instantiator` allowlist repair for
+CVE-2026-58659. This source-level remediation is revision- and hash-bound and
+is recorded separately from owner-approved vulnerability risk exceptions.
+
+`apple-fm-sdk==0.2.1` is pinned to upstream tag `v0.2.1`, commit
+`84841bb71b22996c00bb67e3b4c7ae1f985315ea`, under Apache-2.0. Upstream
+requires macOS 26+, Xcode 26+, Python 3.10+, and Apple Intelligence on a
+compatible Mac. Auralign exposes it only through the explicit `cleanup-apple`
+source/headless extra. The SDK, its native Foundation Models bridge, and its
+build-helper closure are excluded from the generic `full` extra and the
+macOS 14+ standalone app/PKG. The Apple-managed system-model weights are not
+acquired, bundled, or redistributed by Auralign.
+
+`wtpsplit==2.2.1` is pinned to commit
+`e48922c0ad240c7d2cb1ef8afbc0cd413372bc83` under MIT. It is available only
+through the explicit `presentation-sat` source/headless extra and is excluded
+from `full`, the macOS 14+ standalone app/PKG, and every product model
+component. The adapter accepts only exact pre-provisioned local directories for
+`segment-any-text/sat-3l-sm` and the `facebookAI/xlm-roberta-base` tokenizer;
+it contains no download or auto-download path. Both assets are pinned and
+hash/size allowlisted in `compliance/external_assets.toml`, remain unbundled,
+and completed a bounded exact-model source/headless smoke on 2026-08-16. The
+required boundary-only adapter ran with Hugging Face and Transformers forced
+offline over 16 synthetic words, produced 128 punctuation-neutral proposals
+with `status=succeeded` and `network_access=false`, and retained a canonical
+receipt with SHA-256
+`a2718924ee45be86ba63b313904edada3e3a2fc2709618d692d868217903228f`.
+A second scale smoke processed 3,068 synthetic words into 24,544
+punctuation-neutral proposals in 6.3970266250 seconds with
+`network_access=false`; its canonical receipt SHA-256 is
+`9db53b1d16a9a25f97175b68f0f23621bbabc5b3c893b7a63ded835847e7dc69`.
+The superseded 2026-08-15 receipts remain rejected historical evidence of an
+invalid NONE/PERIOD projection.
+These prove exact runtime-path, scale-path, and receipt viability only—not
+sentence-boundary quality, superiority, product bundling, or redistribution
+clearance.
+
 ## Private Standalone macOS PKGs
 
 The owner-authorized private macOS products are distinct artifacts from the
@@ -59,6 +104,15 @@ python-build-standalone 20260510 asset, the exact hash-locked CPU Python
 dependency environment, native Torch-family libraries, source-built PyAV 15.1.0,
 and a custom FFmpeg 7.1.5 shared-library build. The immutable 0.2.0 and 0.2.1
 products contain no models or datasets.
+
+The standalone application does not include `apple-fm-sdk`, its native
+Foundation Models library, or its package build helpers. Consequently the
+Apple cleanup backend is not a capability of the macOS 14+ standalone product;
+it remains an explicit macOS 26+ source/headless option.
+
+The standalone application also excludes `wtpsplit`, its source/headless-only
+dependency closure, SaT ONNX weights, and the XLM-R tokenizer files. SaT
+scoring is not a capability or readiness requirement of the 0.3.0 product.
 
 The successor private 0.3.0 product PKG adds one separate, root-owned,
 read-only bootstrap component at

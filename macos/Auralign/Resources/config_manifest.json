@@ -736,6 +736,25 @@
       "optional": false
     },
     {
+      "choices": [
+        "global-viterbi-v1"
+      ],
+      "default": "global-viterbi-v1",
+      "key": "cleanup.presentation_decoder",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "choices": [
+        "semantically-faithful-clean-v1",
+        "strict-verbatim-v1"
+      ],
+      "default": "semantically-faithful-clean-v1",
+      "key": "cleanup.quality_profile",
+      "kind": "enum",
+      "optional": false
+    },
+    {
       "default": "http://127.0.0.1:11434/v1",
       "key": "cleanup.endpoint",
       "kind": "string",
@@ -773,6 +792,68 @@
       "default": 0.15,
       "key": "cleanup.max_word_delta_ratio",
       "kind": "float",
+      "optional": false
+    },
+    {
+      "default": false,
+      "key": "cleanup.required_complete",
+      "kind": "bool",
+      "optional": false
+    },
+    {
+      "default": [],
+      "key": "cleanup.proper_nouns",
+      "kind": "string_list",
+      "max_length": 128,
+      "optional": false
+    },
+    {
+      "choices": [
+        "off",
+        "optional",
+        "required"
+      ],
+      "default": "optional",
+      "key": "cleanup.presentation_scorers.sat.mode",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "default": null,
+      "key": "cleanup.presentation_scorers.sat.model_dir",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": null,
+      "key": "cleanup.presentation_scorers.sat.tokenizer_dir",
+      "kind": "path",
+      "optional": true
+    },
+    {
+      "default": 0.75,
+      "ge": 0.0,
+      "key": "cleanup.presentation_scorers.sat.signal_weight",
+      "kind": "float",
+      "le": 1.0,
+      "optional": false
+    },
+    {
+      "choices": [
+        "off"
+      ],
+      "default": "off",
+      "key": "cleanup.presentation_scorers.token_classifier.mode",
+      "kind": "enum",
+      "optional": false
+    },
+    {
+      "choices": [
+        "none"
+      ],
+      "default": "none",
+      "key": "cleanup.presentation_scorers.token_classifier.backend",
+      "kind": "enum",
       "optional": false
     },
     {
@@ -1707,8 +1788,8 @@
       "model_id": "pyannote/speaker-diarization-community-1",
       "modification_status": "unmodified exact pinned runtime files",
       "optional": false,
-      "package_bundle_id": "com.auralign.studio.models.bootstrap.v1",
-      "package_bundle_version": "1.0.0",
+      "package_bundle_id": "com.auralign.studio.models.bootstrap.v2",
+      "package_bundle_version": "2.0.0",
       "package_relative_path": "models/pyannote--speaker-diarization-community-1",
       "product_classification": "production",
       "product_selectable": true,
@@ -1768,8 +1849,8 @@
       "model_id": "facebook/wav2vec2-base-960h",
       "modification_status": "unmodified exact pinned runtime files",
       "optional": true,
-      "package_bundle_id": "com.auralign.studio.models.bootstrap.v1",
-      "package_bundle_version": "1.0.0",
+      "package_bundle_id": "com.auralign.studio.models.bootstrap.v2",
+      "package_bundle_version": "2.0.0",
       "package_relative_path": "models/facebook--wav2vec2-base-960h",
       "product_classification": "production",
       "product_selectable": true,
@@ -1830,8 +1911,8 @@
       "model_id": "speechbrain/spkrec-ecapa-voxceleb",
       "modification_status": "unmodified exact pinned runtime files",
       "optional": true,
-      "package_bundle_id": "com.auralign.studio.models.bootstrap.v1",
-      "package_bundle_version": "1.0.0",
+      "package_bundle_id": "com.auralign.studio.models.bootstrap.v2",
+      "package_bundle_version": "2.0.0",
       "package_relative_path": "models/speechbrain--spkrec-ecapa-voxceleb",
       "product_classification": "production",
       "product_selectable": true,

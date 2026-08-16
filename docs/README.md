@@ -29,7 +29,7 @@ canonical sources for implementation details and operational policy.
 ## Quality
 
 - [Accuracy](accuracy.md): source-development preset history, re-decode, and
-  evaluation boundaries; the authoritative 0.3.0 preset/model mapping is in
+  evaluation boundaries; the authoritative 0.3.1 preset/model mapping is in
   [Models](models.md).
 - [Benchmarking](benchmarking.md): private-corpus methodology and reports.
 
@@ -58,10 +58,14 @@ canonical sources for implementation details and operational policy.
   boundaries, runtime layout, provenance, privacy, and final-candidate
   acceptance.
 - [Auralign 0.3.0 private macOS PKG](release/macos-v0.3.0-private-pkg.md):
-  successor model-inclusive private release, root-owned model component,
-  signing/notarization, installation, and parity contract.
+  governed historical v1 model-inclusive design and acceptance contract.
 - [Auralign 0.3.0 macOS release dossier](release/macos-v0.3.0-dossier.md):
-  successor bootstrap-plus-native-pack topology, all 19 model dispositions,
+  governed historical bootstrap-v1 topology and evidence boundary.
+- [Auralign 0.3.1 private macOS PKG](release/macos-v0.3.1-private-pkg.md):
+  current security and product-quality successor, bootstrap v2,
+  signing/notarization, installation, and private-release parity contract.
+- [Auralign 0.3.1 macOS release dossier](release/macos-v0.3.1-dossier.md):
+  current bootstrap-v2 plus native-pack topology, all 19 model dispositions,
   recipient independence, privacy, provenance, and acceptance boundaries.
 
 ## Safety

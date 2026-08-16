@@ -28,18 +28,18 @@
   <choices-outline>
     <line choice="default">
       <line choice="com.auralign.studio.pkg.app"/>
-      <line choice="com.auralign.studio.pkg.models.bootstrap-v1"/>
+      <line choice="com.auralign.studio.pkg.models.bootstrap-v2"/>
     </line>
   </choices-outline>
   <choice id="default"/>
   <choice id="com.auralign.studio.pkg.app" visible="false">
     <pkg-ref id="com.auralign.studio.pkg.app"/>
   </choice>
-  <choice id="com.auralign.studio.pkg.models.bootstrap-v1" visible="false">
-    <pkg-ref id="com.auralign.studio.pkg.models.bootstrap-v1"/>
+  <choice id="com.auralign.studio.pkg.models.bootstrap-v2" visible="false">
+    <pkg-ref id="com.auralign.studio.pkg.models.bootstrap-v2"/>
   </choice>
-  <pkg-ref id="com.auralign.studio.pkg.app" version="0.3.0.1"
+  <pkg-ref id="com.auralign.studio.pkg.app" version="0.3.1.1"
     onConclusion="none">Auralign-application-component.pkg</pkg-ref>
-  <pkg-ref id="com.auralign.studio.pkg.models.bootstrap-v1" version="1.0.0"
+  <pkg-ref id="com.auralign.studio.pkg.models.bootstrap-v2" version="2.0.0"
     onConclusion="none">Auralign-offline-models-component.pkg</pkg-ref>
 </installer-gui-script>

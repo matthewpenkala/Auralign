@@ -646,7 +646,20 @@ def transcribe(
             help="srt for the primary deliverable, or all for optional sidecars.",
         ),
     ] = "srt",
-    cleanup: Annotated[str, typer.Option("--cleanup", help="off or local-llm")] = "off",
+    entire_pipeline: Annotated[
+        bool,
+        typer.Option(
+            "--entire-pipeline",
+            help=(
+                "Require max plus the complete semantically faithful clean-transcript "
+                "contract; unavailable, unsafe, malformed, or fallback processing fails."
+            ),
+        ),
+    ] = False,
+    cleanup: Annotated[
+        str,
+        typer.Option("--cleanup", help="off, local-llm, or apple-foundation"),
+    ] = "off",
     cleanup_endpoint: Annotated[
         str,
         typer.Option("--cleanup-endpoint"),
@@ -656,8 +669,59 @@ def transcribe(
         str,
         typer.Option("--cleanup-scope", help="punctuation or readability"),
     ] = "punctuation",
+    cleanup_quality_profile: Annotated[
+        str,
+        typer.Option(
+            "--cleanup-quality-profile",
+            help="semantically-faithful-clean-v1 or strict-verbatim-v1",
+        ),
+    ] = "semantically-faithful-clean-v1",
     allow_remote_cleanup: Annotated[bool, typer.Option("--allow-remote-cleanup")] = False,
     write_cleanup_diff: Annotated[bool, typer.Option("--write-cleanup-diff")] = False,
+    require_complete_cleanup: Annotated[
+        bool,
+        typer.Option(
+            "--require-complete-cleanup",
+            help="Fail instead of publishing if any cleanup window is unavailable or rejected.",
+        ),
+    ] = False,
+    cleanup_proper_noun: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--cleanup-proper-noun",
+            help="Exact contextual proper-noun casing; repeat for multiple names.",
+        ),
+    ] = None,
+    presentation_sat: Annotated[
+        str,
+        typer.Option(
+            "--presentation-sat",
+            help="off, optional, or required exact-pinned local SaT boundary evidence.",
+        ),
+    ] = "optional",
+    presentation_sat_model_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--presentation-sat-model-dir",
+            help="Exact local sat-3l-sm model directory; never auto-downloaded.",
+        ),
+    ] = None,
+    presentation_sat_tokenizer_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--presentation-sat-tokenizer-dir",
+            help="Exact local XLM-R tokenizer directory; never auto-downloaded.",
+        ),
+    ] = None,
+    presentation_sat_weight: Annotated[
+        float,
+        typer.Option(
+            "--presentation-sat-weight",
+            min=0.0,
+            max=1.0,
+            help="Calibrated SaT contribution to the global presentation decoder.",
+        ),
+    ] = 0.75,
     debug_report: Annotated[bool, typer.Option("--debug-report")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Print stage progress.")] = False,
     infer_speakers: Annotated[
@@ -715,9 +779,7 @@ def transcribe(
         if use_cli_value("language"):
             config.asr.language = language
         if asr_backend not in {"faster-whisper", "mlx-whisper"}:
-            raise typer.BadParameter(
-                "asr-backend must be one of: faster-whisper, mlx-whisper"
-            )
+            raise typer.BadParameter("asr-backend must be one of: faster-whisper, mlx-whisper")
         if use_cli_default_or_explicit("asr_backend", ("LTM_ASR_BACKEND",)):
             config.asr.backend = cast(Literal["faster-whisper", "mlx-whisper"], asr_backend)
         if use_cli_value("asr_mlx_model") and asr_mlx_model:
@@ -935,22 +997,64 @@ def transcribe(
             raise typer.BadParameter(
                 "speaker-roster is required for identity apply with --known-speakers"
             )
-        if cleanup not in {"off", "local-llm"}:
-            raise typer.BadParameter("cleanup must be off or local-llm")
+        if cleanup not in {"off", "local-llm", "apple-foundation"}:
+            raise typer.BadParameter("cleanup must be one of: off, local-llm, apple-foundation")
         if cleanup_scope not in {"punctuation", "readability"}:
             raise typer.BadParameter("cleanup-scope must be punctuation or readability")
+        if presentation_sat not in {"off", "optional", "required"}:
+            raise typer.BadParameter("presentation-sat must be off, optional, or required")
         if use_cli_value("cleanup"):
-            config.cleanup.mode = cast(Literal["off", "local-llm"], cleanup)
+            config.cleanup.mode = cast(Literal["off", "local-llm", "apple-foundation"], cleanup)
         if use_cli_default_or_explicit("cleanup_endpoint", ("LTM_CLEANUP_ENDPOINT",)):
             config.cleanup.endpoint = cleanup_endpoint
         if use_cli_value("cleanup_model"):
             config.cleanup.model = cleanup_model
         if use_cli_value("cleanup_scope"):
             config.cleanup.scope = cast(Literal["punctuation", "readability"], cleanup_scope)
+        if use_cli_value("cleanup_quality_profile"):
+            config.cleanup.quality_profile = cast(
+                Literal[
+                    "semantically-faithful-clean-v1",
+                    "strict-verbatim-v1",
+                ],
+                cleanup_quality_profile,
+            )
         if use_cli_value("allow_remote_cleanup"):
             config.cleanup.allow_remote_cleanup = allow_remote_cleanup
         if use_cli_value("write_cleanup_diff"):
             config.cleanup.write_diff = write_cleanup_diff
+        if use_cli_value("require_complete_cleanup"):
+            config.cleanup.required_complete = require_complete_cleanup
+        if use_cli_value("cleanup_proper_noun") and cleanup_proper_noun is not None:
+            config.cleanup.proper_nouns = cleanup_proper_noun
+        if use_cli_value("presentation_sat"):
+            config.cleanup.presentation_scorers.sat.mode = cast(
+                Literal["off", "optional", "required"], presentation_sat
+            )
+        if use_cli_value("presentation_sat_model_dir"):
+            config.cleanup.presentation_scorers.sat.model_dir = presentation_sat_model_dir
+        if use_cli_value("presentation_sat_tokenizer_dir"):
+            config.cleanup.presentation_scorers.sat.tokenizer_dir = presentation_sat_tokenizer_dir
+        if use_cli_value("presentation_sat_weight"):
+            config.cleanup.presentation_scorers.sat.signal_weight = presentation_sat_weight
+        if entire_pipeline:
+            if config.preset != "max":
+                raise typer.BadParameter("--entire-pipeline requires --preset max")
+            if config.cleanup.mode == "off":
+                raise typer.BadParameter("--entire-pipeline requires an explicit --cleanup backend")
+            if config.cleanup.scope != "punctuation":
+                raise typer.BadParameter("--entire-pipeline requires --cleanup-scope punctuation")
+            if config.cleanup.allow_remote_cleanup:
+                raise typer.BadParameter(
+                    "--entire-pipeline requires a local cleanup backend and forbids "
+                    "--allow-remote-cleanup"
+                )
+            config.cleanup.required_complete = True
+            config.cleanup.write_diff = True
+        try:
+            config = PipelineConfig.model_validate(config.model_dump(mode="python"))
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
         _require_production_model_selection(config)
         debug_path = out / "debug_report.json" if debug_report else None
         if verbose:
@@ -979,6 +1083,118 @@ def transcribe(
             "Re-run with --debug-report for a redacted trace.",
             err=True,
         )
+        raise typer.Exit(1) from exc
+
+
+@app.command("polish-job")
+def polish_job(
+    job_dir: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    out: Annotated[
+        Path,
+        typer.Option("--out", "-o", help="Fresh output directory; must not exist."),
+    ],
+    cleanup: Annotated[
+        str,
+        typer.Option("--cleanup", help="local-llm or apple-foundation"),
+    ] = "apple-foundation",
+    cleanup_endpoint: Annotated[
+        str,
+        typer.Option("--cleanup-endpoint", help="Loopback endpoint for local-llm."),
+    ] = "http://127.0.0.1:11434/v1",
+    cleanup_model: Annotated[str | None, typer.Option("--cleanup-model")] = None,
+    cleanup_quality_profile: Annotated[
+        str,
+        typer.Option(
+            "--cleanup-quality-profile",
+            help="semantically-faithful-clean-v1 or strict-verbatim-v1",
+        ),
+    ] = "semantically-faithful-clean-v1",
+    cleanup_proper_noun: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--cleanup-proper-noun",
+            help="Exact contextual proper-noun casing; repeat for multiple names.",
+        ),
+    ] = None,
+    presentation_sat: Annotated[
+        str,
+        typer.Option(
+            "--presentation-sat",
+            help="off, optional, or required exact-pinned local SaT boundary evidence.",
+        ),
+    ] = "optional",
+    presentation_sat_model_dir: Annotated[
+        Path | None,
+        typer.Option("--presentation-sat-model-dir"),
+    ] = None,
+    presentation_sat_tokenizer_dir: Annotated[
+        Path | None,
+        typer.Option("--presentation-sat-tokenizer-dir"),
+    ] = None,
+    presentation_sat_weight: Annotated[
+        float,
+        typer.Option("--presentation-sat-weight", min=0.0, max=1.0),
+    ] = 0.75,
+    bind_evidence: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--bind-evidence",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Additional preserved artifact to hash-bind; repeat as needed.",
+        ),
+    ] = None,
+) -> None:
+    """Polish a completed job locally without rerunning ASR, alignment, or diarization."""
+
+    try:
+        if cleanup not in {"local-llm", "apple-foundation"}:
+            raise typer.BadParameter("cleanup must be local-llm or apple-foundation")
+        if presentation_sat not in {"off", "optional", "required"}:
+            raise typer.BadParameter("presentation-sat must be off, optional, or required")
+        config = _config("max")
+        config.offline = True
+        config.cleanup.mode = cast(Literal["local-llm", "apple-foundation"], cleanup)
+        config.cleanup.endpoint = cleanup_endpoint
+        config.cleanup.model = cleanup_model
+        config.cleanup.scope = "punctuation"
+        config.cleanup.quality_profile = cast(
+            Literal[
+                "semantically-faithful-clean-v1",
+                "strict-verbatim-v1",
+            ],
+            cleanup_quality_profile,
+        )
+        config.cleanup.required_complete = True
+        config.cleanup.write_diff = True
+        config.cleanup.proper_nouns = cleanup_proper_noun or []
+        config.cleanup.presentation_scorers.sat.mode = cast(
+            Literal["off", "optional", "required"], presentation_sat
+        )
+        config.cleanup.presentation_scorers.sat.model_dir = presentation_sat_model_dir
+        config.cleanup.presentation_scorers.sat.tokenizer_dir = presentation_sat_tokenizer_dir
+        config.cleanup.presentation_scorers.sat.signal_weight = presentation_sat_weight
+        config = PipelineConfig.model_validate(config.model_dump(mode="python"))
+        from .polish import polish_completed_job
+
+        manifest = polish_completed_job(
+            job_dir,
+            out,
+            config,
+            evidence_paths=tuple(bind_evidence or []),
+        )
+        outputs = manifest.get("outputs", {})
+        typer.echo(f"Wrote {len(outputs)} validated polished artifacts to {out}")
+    except LTMError as exc:
+        typer.echo(privacy_safe_text(str(exc)), err=True)
+        raise typer.Exit(1) from exc
+    except ValueError as exc:
+        typer.echo(privacy_safe_text(str(exc)), err=True)
         raise typer.Exit(1) from exc
 
 

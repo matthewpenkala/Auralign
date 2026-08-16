@@ -16,6 +16,75 @@ reviewer = "automated pre-publication evidence inventory; human approval require
 macos_0_3_0_product_status = "row_specific"
 macos_0_3_0_product_reason = "Each 0.3.0 model row records its exact digest, size, license, runtime, delivery, and owner-clearance disposition."
 
+# Source/headless presentation assets remain outside the product ``assets``
+# table consumed by MODEL_MANIFEST and the macOS 14 packaging contract. They
+# are production proposal sources only when exact local paths are configured.
+[[presentation_assets]]
+kind = "presentation-model"
+key = "presentation-sat-3l-sm"
+role = "presentation-sentence-boundary"
+identifier = "segment-any-text/sat-3l-sm"
+revision = "137da054051ad9f1eac42025f758db4ac9f22535"
+license_expression = "MIT"
+source_url = "https://huggingface.co/segment-any-text/sat-3l-sm"
+terms_url = "https://huggingface.co/segment-any-text/sat-3l-sm"
+license_evidence_url = "https://huggingface.co/segment-any-text/sat-3l-sm/blob/137da054051ad9f1eac42025f758db4ac9f22535/README.md"
+attribution = "Segment any Text sat-3l-sm sentence-boundary model."
+acquisition_status = "manual_preprovision_only_no_auralign_download_path"
+runtime_status = "approved_source_headless_local_proposal_signal_exact_files_required"
+redistribution_status = "not_bundled_not_cleared_for_product_release"
+review_status = "verified_revision_license_exact_optimized_onnx_and_bounded_live_smoke"
+reviewed_at = "2026-08-15"
+product_classification = "source-headless-production-proposal-only"
+backend_compatibility = "wtpsplit 2.2.1 ONNX CPU adapter; bounded exact-model smoke accepted only as proposal-path evidence, not quality superiority"
+modification_status = "unmodified exact pinned files"
+delivery = "local-path-only"
+runtime_locality = "offline_local_only_no_runtime_acquisition"
+standalone_disposition = "excluded_from_macos14_app_and_pkg"
+file_sha256 = [
+  "config.json=d61498bc239f773126ee794446cdcad88822967e0b02ae7bd070f725c98be791",
+  "model_optimized.onnx=8573277b4dbea9c5fb1b4cfd8c21e5aa628069ac8258d1342ba664e1b64ada6d",
+]
+file_size = [
+  "config.json=965",
+  "model_optimized.onnx=427756189",
+]
+
+[[presentation_assets]]
+kind = "presentation-tokenizer"
+key = "presentation-sat-xlm-roberta-base-tokenizer"
+role = "presentation-sentence-boundary-tokenizer"
+identifier = "facebookAI/xlm-roberta-base"
+revision = "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089"
+license_expression = "MIT"
+source_url = "https://huggingface.co/facebookAI/xlm-roberta-base"
+terms_url = "https://huggingface.co/facebookAI/xlm-roberta-base"
+license_evidence_url = "https://huggingface.co/facebookAI/xlm-roberta-base/blob/e73636d4f797dec63c3081bb6ed5c7b0bb3f2089/README.md"
+attribution = "Meta XLM-RoBERTa base tokenizer used by the pinned SaT scorer."
+acquisition_status = "manual_preprovision_only_no_auralign_download_path"
+runtime_status = "approved_source_headless_local_proposal_signal_exact_files_required"
+redistribution_status = "not_bundled_not_cleared_for_product_release"
+review_status = "verified_revision_license_exact_tokenizer_contract_and_bounded_live_smoke"
+reviewed_at = "2026-08-15"
+product_classification = "source-headless-production-proposal-only"
+backend_compatibility = "wtpsplit 2.2.1 local AutoTokenizer path; bounded exact-model smoke accepted only as proposal-path evidence, not quality superiority"
+modification_status = "unmodified exact pinned files"
+delivery = "local-path-only"
+runtime_locality = "offline_local_only_no_runtime_acquisition"
+standalone_disposition = "excluded_from_macos14_app_and_pkg"
+file_sha256 = [
+  "config.json=d66ed8cd4f2a93b358c245e50736fa389ed4f35c0bae7aad0b32abb20c62b579",
+  "sentencepiece.bpe.model=cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865",
+  "tokenizer.json=a898ea75433890f6610f4e470b8ebeb0c21dce5c8dd61f892eb09eb5919d2e2c",
+  "tokenizer_config.json=994f46754c5bf4014f1aa92d34b1374319c3a6b3f702105cd5b742beaecd18ce",
+]
+file_size = [
+  "config.json=615",
+  "sentencepiece.bpe.model=5069051",
+  "tokenizer.json=9096718",
+  "tokenizer_config.json=25",
+]
+
 [[assets]]
 kind = "model"
 key = "large-v3"
@@ -731,8 +800,8 @@ reviewed_at = "2026-07-20"
 product_classification = "production"
 backend_compatibility = "pyannote.audio CPU diarization runtime"
 modification_status = "unmodified exact pinned runtime files"
-package_bundle_id = "com.auralign.studio.models.bootstrap.v1"
-package_bundle_version = "1.0.0"
+package_bundle_id = "com.auralign.studio.models.bootstrap.v2"
+package_bundle_version = "2.0.0"
 package_relative_path = "models/pyannote--speaker-diarization-community-1"
 delivery = "system-component"
 macos_0_3_0_bundle_status = "owner_cleared_exact_bootstrap_component"
@@ -803,8 +872,8 @@ reviewed_at = "2026-07-10"
 product_classification = "production"
 backend_compatibility = "WhisperX wav2vec2 forced-alignment CPU runtime"
 modification_status = "unmodified exact pinned runtime files"
-package_bundle_id = "com.auralign.studio.models.bootstrap.v1"
-package_bundle_version = "1.0.0"
+package_bundle_id = "com.auralign.studio.models.bootstrap.v2"
+package_bundle_version = "2.0.0"
 package_relative_path = "models/facebook--wav2vec2-base-960h"
 delivery = "system-component"
 macos_0_3_0_bundle_status = "owner_cleared_exact_bootstrap_component"
@@ -848,8 +917,8 @@ reviewed_at = "2026-07-10"
 product_classification = "production"
 backend_compatibility = "SpeechBrain ECAPA-TDNN CPU runtime"
 modification_status = "unmodified exact pinned runtime files"
-package_bundle_id = "com.auralign.studio.models.bootstrap.v1"
-package_bundle_version = "1.0.0"
+package_bundle_id = "com.auralign.studio.models.bootstrap.v2"
+package_bundle_version = "2.0.0"
 package_relative_path = "models/speechbrain--spkrec-ecapa-voxceleb"
 delivery = "system-component"
 macos_0_3_0_bundle_status = "owner_cleared_exact_bootstrap_component"

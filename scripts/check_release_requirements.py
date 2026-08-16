@@ -30,6 +30,56 @@ TARGETS = {
         True,
     ),
 }
+MACOS_APP_TARGET = "requirements/macos-app-arm64-cpu-py311.txt"
+MACOS_APP_FORBIDDEN_REQUIREMENT_NAMES = frozenset(
+    {
+        "apple-fm-sdk",
+        "build",
+        "pyproject-hooks",
+        "skops",
+        "wtpsplit",
+    }
+)
+SOURCE_HEADLESS_ONLY_REQUIREMENT_NAMES = frozenset({"apple-fm-sdk", "wtpsplit"})
+MACOS_APP_FORBIDDEN_NATIVE_MARKERS = (
+    "foundation-models-c",
+    "libfoundationmodels",
+)
+
+
+def validate_macos_app_requirements(requirements: str) -> None:
+    """Reject source/headless-only closures from the standalone app."""
+    normalized = requirements.casefold()
+    names = {
+        line.partition("==")[0].strip().casefold()
+        for line in requirements.splitlines()
+        if "==" in line and not line.lstrip().startswith("#")
+    }
+    prohibited_names = sorted(names & MACOS_APP_FORBIDDEN_REQUIREMENT_NAMES)
+    prohibited_markers = sorted(
+        marker for marker in MACOS_APP_FORBIDDEN_NATIVE_MARKERS if marker in normalized
+    )
+    prohibited = prohibited_names + prohibited_markers
+    if prohibited:
+        raise RuntimeError(
+            "macOS 14 standalone requirements contain the source/headless-only "
+            "Apple cleanup SDK or SaT scorer closure: " + ", ".join(prohibited)
+        )
+
+
+def validate_full_requirements(requirements: str) -> None:
+    """Reject explicitly selected source/headless proposal extras from ``full``."""
+    names = {
+        line.partition("==")[0].strip().casefold()
+        for line in requirements.splitlines()
+        if "==" in line and not line.lstrip().startswith("#")
+    }
+    prohibited = sorted(names & SOURCE_HEADLESS_ONLY_REQUIREMENT_NAMES)
+    if prohibited:
+        raise RuntimeError(
+            "generic full requirements contain source/headless-only proposal "
+            "dependencies: " + ", ".join(prohibited)
+        )
 
 
 def exported_requirements(
@@ -79,6 +129,10 @@ def verify_or_write(*, write: bool) -> None:
     for relative, contract in TARGETS.items():
         path = ROOT / relative
         rendered = rendered_by_contract[contract]
+        if relative == MACOS_APP_TARGET:
+            validate_macos_app_requirements(rendered)
+        if contract[1] == ("full",):
+            validate_full_requirements(rendered)
         if write:
             path.write_text(rendered, encoding="utf-8")
         elif not path.is_file() or path.read_text(encoding="utf-8") != rendered:

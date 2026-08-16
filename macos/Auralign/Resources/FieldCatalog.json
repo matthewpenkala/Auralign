@@ -53,7 +53,7 @@
       "id": "cleanup",
       "title": "Cleanup",
       "symbol": "sparkles",
-      "summary": "Optional local-LLM transcript cleanup. Remote endpoints require an explicit opt-in and send transcript text off this machine."
+      "summary": "Optional derived grammatical cleanup. The standalone exposes local endpoints only; source/headless Apple Foundation cleanup stays on device. Remote endpoints require explicit opt-in and send transcript text off this machine."
     },
     {
       "id": "subtitles",
@@ -866,9 +866,25 @@
     {
       "key": "cleanup.mode",
       "title": "Cleanup",
-      "help": "local-llm sends transcript text to an OpenAI-compatible endpoint for cleanup. Canonical transcripts are preserved; cleanup output is a separate artifact.",
+      "help": "The native standalone offers local-llm through an OpenAI-compatible endpoint. Apple Foundation cleanup is source/headless-only because its macOS 26 SDK is not bundled. Canonical transcripts are preserved and cleanup output is a separate artifact.",
       "section": "cleanup",
       "disposition": "primary"
+    },
+    {
+      "key": "cleanup.presentation_decoder",
+      "title": "Presentation decoder",
+      "help": "Selects the versioned global word-index presentation planner. The strict decoder combines independent local evidence while preserving the canonical lexical, timing, and speaker record.",
+      "section": "cleanup",
+      "disposition": "primary",
+      "requires": [{ "key": "cleanup.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.quality_profile",
+      "title": "Cleanup quality profile",
+      "help": "semantically-faithful-clean-v1 keeps canonical evidence immutable while allowing only traceable, enumerated, high-confidence speech-artifact edits before globally decoded casing and punctuation. strict-verbatim-v1 disables lexical edits.",
+      "section": "cleanup",
+      "disposition": "primary",
+      "requires": [{ "key": "cleanup.mode", "not_equals": "off" }]
     },
     {
       "key": "cleanup.endpoint",
@@ -920,6 +936,75 @@
       "requires": [{ "key": "cleanup.mode", "not_equals": "off" }]
     },
     {
+      "key": "cleanup.required_complete",
+      "title": "Require complete cleanup",
+      "help": "Fail closed unless every cleanup window completes and passes validation. The entire-pipeline contract enables this so a partial or skipped grammatical pass cannot be reported as complete.",
+      "section": "cleanup",
+      "disposition": "primary",
+      "requires": [{ "key": "cleanup.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.proper_nouns",
+      "title": "Proper-noun casing hints",
+      "help": "Add context-supported names whose capitalization must be preserved without changing transcript words. These sensitive hints are sent only to the cleanup engine selected above, under the same local or explicitly opted-in remote policy as transcript text.",
+      "section": "cleanup",
+      "disposition": "advanced",
+      "requires": [{ "key": "cleanup.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.presentation_scorers.sat.mode",
+      "title": "SaT boundary scorer",
+      "help": "Source and headless runs may turn the exact-pinned local SaT sentence-boundary scorer off, make it optional with visible abstention, or require it fail closed. The macOS 14 standalone excludes the SaT model and Python runtime, so this setting is not exposed in the installed product.",
+      "section": "cleanup",
+      "disposition": "advanced",
+      "product_visible": false
+    },
+    {
+      "key": "cleanup.presentation_scorers.sat.model_dir",
+      "title": "SaT model directory",
+      "help": "Source/headless-only path to the exact verified local SaT model snapshot. Runtime download is prohibited, and the macOS 14 standalone does not package this model.",
+      "section": "cleanup",
+      "disposition": "advanced",
+      "product_visible": false,
+      "path_style": "directory",
+      "requires": [{ "key": "cleanup.presentation_scorers.sat.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.presentation_scorers.sat.tokenizer_dir",
+      "title": "SaT tokenizer directory",
+      "help": "Source/headless-only path to the exact verified local tokenizer snapshot paired with the SaT model. Model and tokenizer paths must be configured together.",
+      "section": "cleanup",
+      "disposition": "advanced",
+      "product_visible": false,
+      "path_style": "directory",
+      "requires": [{ "key": "cleanup.presentation_scorers.sat.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.presentation_scorers.sat.signal_weight",
+      "title": "SaT signal weight",
+      "help": "Source/headless-only weight for calibrated SaT boundary evidence in the global presentation decoder. Zero contributes no SaT boundary score; one applies the full configured signal.",
+      "section": "cleanup",
+      "disposition": "advanced",
+      "product_visible": false,
+      "requires": [{ "key": "cleanup.presentation_scorers.sat.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "cleanup.presentation_scorers.token_classifier.mode",
+      "title": "Word punctuation and casing scorer",
+      "help": "No word-level punctuation/casing checkpoint currently clears Auralign's provenance and measured-quality gates, so the only selectable production state is off.",
+      "section": "cleanup",
+      "disposition": "advanced",
+      "product_visible": false
+    },
+    {
+      "key": "cleanup.presentation_scorers.token_classifier.backend",
+      "title": "Word scorer backend",
+      "help": "No production backend is registered. The executable local-provider adapter remains available for deterministic tests and future exact-reviewed checkpoints, but none is selectable now.",
+      "section": "cleanup",
+      "disposition": "advanced",
+      "product_visible": false
+    },
+    {
       "key": "subtitle_export.split_long_cues",
       "title": "Split long cues",
       "help": "Break long subtitle cues to respect the line width and count limits below.",
@@ -929,7 +1014,7 @@
     {
       "key": "subtitle_export.max_line_width",
       "title": "Max line width",
-      "help": "Dialogue-body character budget per line; the semantic speaker prefix is not counted. Automatic removes the limit.",
+      "help": "Complete rendered-line character budget, including the semantic speaker prefix. Automatic removes the limit.",
       "section": "subtitles",
       "disposition": "primary"
     },

@@ -52,6 +52,18 @@ Normal preset mappings are `max=large-v3`, `balanced=turbo`,
 MLX models are optional advanced choices. All are exact and operational; none
 is a pointer-only production selector.
 
+## 0.3.1 Successor Disposition
+
+On 2026-08-16, Matthew Penkala authorized the private 0.3.1 successor to reuse
+the exact nineteen immutable model/file/license contracts above. No model
+identity, revision, runtime file, ASR pack identity, redistribution evidence,
+or native-download destination changes. The changed system payload receives a
+new bootstrap identity, `com.auralign.studio.models.bootstrap.v2` version
+`2.0.0`, and a new component receipt. It contains a freshly generated
+corpus-free Punkt tree for NLTK `3.10.3` with its own marker, manifest,
+verification, notices, SBOM, provenance, and completion hashes. The historical
+0.3.0/v1 record remains unchanged and is not release evidence for v2.
+
 ## Model License Evidence
 
 The four CTranslate2 conversions are recorded as MIT. The twelve MLX

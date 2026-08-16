@@ -63,6 +63,37 @@ contains only:
 It contains no ASR weights or executable code. The app bundle contains the
 standalone executable/runtime closure but no model weights.
 
+The accepted 0.3.0 contract above remains immutable. The 0.3.1 successor
+source dependency contract uses NLTK `3.10.3` to resolve the current NLTK
+security advisories. Its model component must be assembled from a
+fresh corpus-free Punkt tree whose canonical marker records `3.10.3`; it must
+receive a new version, manifest, hashes, notices, SBOM, verification evidence,
+and release acceptance. The reviewed current generator produces the same four
+zero-byte files and a 547-byte canonical marker with SHA-256
+`2cf9fc3a66d8fb081b5d99201c4382b7ece315747c7ad4593e9d5ca8656ac65e`.
+It does not reuse or relabel the accepted 0.3.0 bundle.
+
+## 0.3.1 Delivery Architecture
+
+The owner-authorized 0.3.1 successor keeps the same nineteen exact external
+model contracts and sixteen native-download pack identities. Its scriptless
+PKG installs a newly versioned bootstrap component:
+
+```text
+/Library/Application Support/com.auralign.studio/Models/
+  com.auralign.studio.models.bootstrap.v2/
+```
+
+Bootstrap v2 is version `2.0.0` and contains the same exact Community-1,
+English alignment, and ECAPA model files plus a freshly generated corpus-free
+Punkt tree for locked NLTK `3.10.3`. Its 547-byte canonical marker has SHA-256
+`2cf9fc3a66d8fb081b5d99201c4382b7ece315747c7ad4593e9d5ca8656ac65e`;
+the four learned-table files remain empty and are each bound to SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+The component, receipt, manifests, notices, SBOM, provenance, completion
+record, product catalog, and release evidence are all new. The historical
+0.3.0/v1 records remain immutable and do not establish v2 acceptance.
+
 All sixteen ASR choices are independently versioned, owner-cleared public
 native-download packs:
 
@@ -111,9 +142,9 @@ evaluation-only, or externally blocked production-visible choices.
 | `mlx-large-v2` | [`mlx-community/whisper-large-v2-mlx`](https://huggingface.co/mlx-community/whisper-large-v2-mlx) | `cce86229e2765266197fef869ce9f7e2550067ab` | optional | native `com.auralign.studio.modelpack.mlx-large-v2.v1` |
 | `mlx-large-v3` | [`mlx-community/whisper-large-v3-mlx`](https://huggingface.co/mlx-community/whisper-large-v3-mlx) | `49e6aa286ad60c14352c404340ded53710378a11` | optional | native `com.auralign.studio.modelpack.mlx-large-v3.v1` |
 | `mlx-large-v3-turbo` | [`mlx-community/whisper-large-v3-turbo`](https://huggingface.co/mlx-community/whisper-large-v3-turbo) | `a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb` | optional | native `com.auralign.studio.modelpack.mlx-large-v3-turbo.v1` |
-| `community-1` | [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1) | `3533c8cf8e369892e6b79ff1bf80f7b0286a54ee` | production | system `com.auralign.studio.models.bootstrap.v1` |
-| `en` | [`facebook/wav2vec2-base-960h`](https://huggingface.co/facebook/wav2vec2-base-960h) | `22aad52d435eb6dbaf354bdad9b0da84ce7d6156` | production | system `com.auralign.studio.models.bootstrap.v1` |
-| `ecapa` | [`speechbrain/spkrec-ecapa-voxceleb`](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb) | `0f99f2d0ebe89ac095bcc5903c4dd8f72b367286` | production | system `com.auralign.studio.models.bootstrap.v1` |
+| `community-1` | [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1) | `3533c8cf8e369892e6b79ff1bf80f7b0286a54ee` | production | system `com.auralign.studio.models.bootstrap.v2` |
+| `en` | [`facebook/wav2vec2-base-960h`](https://huggingface.co/facebook/wav2vec2-base-960h) | `22aad52d435eb6dbaf354bdad9b0da84ce7d6156` | production | system `com.auralign.studio.models.bootstrap.v2` |
+| `ecapa` | [`speechbrain/spkrec-ecapa-voxceleb`](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb) | `0f99f2d0ebe89ac095bcc5903c4dd8f72b367286` | production | system `com.auralign.studio.models.bootstrap.v2` |
 
 Every pack/component version above is `1.0.0`.
 
@@ -290,11 +321,11 @@ models/runtime-assets/nltk_data/
     sent_starters.txt
 ```
 
-Locked NLTK 3.9.4 generates the four English files from an empty
+Locked NLTK 3.10.3 generates the four English files from an empty
 `PunktParameters` object. Each is zero bytes with SHA-256
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
-The canonical `ltm-generated-punkt.v1` marker is 498 bytes with SHA-256
-`568f8560fce5e8a16e5400f7574de6abe5e7b95ac25bdb135ad1207756d06cb9`.
+The canonical `ltm-generated-punkt.v1` marker is 547 bytes with SHA-256
+`2cf9fc3a66d8fb081b5d99201c4382b7ece315747c7ad4593e9d5ca8656ac65e`.
 No NLTK corpus is downloaded or packaged.
 
 ## Presets And User Experience
@@ -311,6 +342,128 @@ these same mappings. All sixteen ASR models remain visible only as truthful
 installed/not-installed choices. Selecting a different backend/model
 invalidates stale readiness and verifies the exact effective pack before Start
 can succeed.
+
+## Apple On-Device Cleanup Boundary
+
+The optional `apple-foundation` cleanup backend is deliberately not a twentieth
+entry in `MODEL_MANIFEST`. Auralign does not acquire, select, verify, package,
+or redistribute those model weights. It calls Apple's operating-system
+`SystemLanguageModel` through `apple-fm-sdk==0.2.1`; Apple exposes availability
+but not an immutable weight revision or file contract. Treating it as an exact
+Auralign model pack would fabricate provenance.
+
+The pinned SDK is recorded at tag `v0.2.1`, commit
+`84841bb71b22996c00bb67e3b4c7ae1f985315ea`, in
+`compliance/components.toml` under Apache-2.0. The Apple-managed system runtime
+is recorded separately with
+`NOASSERTION`, blocked from Auralign redistribution. Every cleanup report must
+record the canonical system-model identifier, SDK version, OS/build evidence,
+on-device locality, availability result, bounded-window successes/fallbacks,
+presentation-plan lexical conservation, semantic-plan traceability, and derived
+hashes. The opaque model may propose presentation changes but is never the
+authority for lexical cleanup. `required_complete` fails closed on SDK/model
+unavailability, malformed output, untraceable drift, projection failure, or any
+fallback window.
+
+This is an explicit source/headless-only lane. It requires macOS 26+, Xcode
+26+ with the Xcode and Apple SDKs agreement accepted, Python 3.10+, a compatible
+Apple Silicon Mac, and Apple Intelligence enabled. The SDK and its native/build
+closure are excluded from the generic `full` extra and the macOS 14+
+standalone app/PKG. On a supported source-development Mac:
+
+```bash
+uv sync --extra cleanup-apple --extra dev --no-python-downloads
+uv run ltm polish-job outputs/completed-job \
+  --cleanup apple-foundation \
+  --out outputs/completed-job-polished
+```
+
+This is a local presentation stage, not ASR evidence. It never changes the
+nineteen pinned inference-model contracts above, and a passing system-model
+availability probe is not evidence for a redistributable model artifact.
+It is also not evidence for compatibility with Auralign's macOS 14 standalone
+product.
+
+## Source/Headless SaT Presentation Scorer
+
+`local_transcript_max.presentation_sat` is an isolated advisory sentence-
+boundary scorer for optional or required source/headless use. It is not part of
+`MODEL_MANIFEST`, any default preset, `full`, the macOS 14+ standalone
+application, or the 0.3.1 model components. Install its runtime only with the
+explicit
+`presentation-sat` extra.
+
+The adapter pins `wtpsplit==2.2.1` at commit
+`e48922c0ad240c7d2cb1ef8afbc0cd413372bc83`,
+`segment-any-text/sat-3l-sm` at revision
+`137da054051ad9f1eac42025f758db4ac9f22535`, and
+`facebookAI/xlm-roberta-base` at revision
+`e73636d4f797dec63c3081bb6ed5c7b0bb3f2089`. All three declare MIT. The
+model directory must contain only `config.json` and the 427,756,189-byte
+`model_optimized.onnx`; the tokenizer directory must contain only its pinned
+`config.json`, `sentencepiece.bpe.model`, `tokenizer.json`, and
+`tokenizer_config.json`. Exact SHA-256 and size contracts are recorded in
+`compliance/external_assets.toml` and enforced before the optional backend is
+imported.
+
+There is intentionally no acquisition command. The caller supplies both local
+directories, and the adapter passes only those verified paths to SaT with the
+CPU ONNX provider and `local_files_only=true`. Missing, linked, extra,
+mismatched, malformed, or unavailable inputs produce an explicit scorer
+abstention by default; a required caller policy raises a reason-coded error.
+Boundary probabilities map deterministically from the final character of each
+space-joined exact source word to advisory `PresentationProposal` values.
+Timing is neither required nor consulted. Current evidence covers the typed v2
+receipt deserializer, exact receipt hash/model/tokenizer/proposal binding,
+and retention of both the SaT and generic proposal-source receipts in polished
+manifests. Signal weight zero is a verified no-op: assets are checked twice,
+the backend is not loaded, and SaT contributes no decoder score or provenance.
+It also covers the typed adapter, static exact-file contracts, API-shape
+checks, fake-backend tests, and
+retained exact-model source/headless smokes. The required adapter ran on macOS
+26.5 arm64/Python 3.11.13 with Hugging Face and Transformers forced offline
+over 16 synthetic words. It emitted 128 punctuation-neutral proposals with
+succeeded status, `network_access=false`, 11.9414556250 seconds cold elapsed
+time, and 2,151,104,512 bytes maximum RSS. The canonical receipt SHA-256 is
+`a2718924ee45be86ba63b313904edada3e3a2fc2709618d692d868217903228f`;
+the current scorer receipts and runtime reports are under
+`outputs/evaluations/2026-08-16-sat-boundary-neutral-smoke/`. This proves exact
+runtime viability and receipt integrity. A second scale smoke in the same
+evidence root processed 3,068 synthetic words into 24,544 punctuation-neutral
+proposals in 6.3970266250 seconds (479.597816 words/second), recorded
+`network_access=false`, and reached 2,219,900,928 bytes maximum RSS. Its
+canonical receipt SHA-256 is
+`9db53b1d16a9a25f97175b68f0f23621bbabc5b3c893b7a63ded835847e7dc69`.
+The older 2026-08-15 receipts are retained only as superseded evidence of the
+rejected NONE/PERIOD projection.
+These smokes do not establish boundary quality or superiority, make SaT a
+lexical/punctuation/casing authority, or clear either asset for product
+bundling or redistribution.
+
+The retained bounded quality proxy in the same evidence root has SHA-256
+`e17c40c091a9ae10ffe6cf6eb30178f64f5357beb06b6b2ad2ef34622131673a`.
+At a 0.5 threshold, SaT scored boundary precision/recall/F1 of
+1.000/0.700/0.824 on a 59-word punctuation-free synthetic fixture and
+0.875/1.000/0.933 on a 360-word preserved conversational slice when the
+existing source punctuation was used only as a proxy label. The private proxy
+is not reviewed ground truth, and its decoded boundary sequence still had one
+short fragment, three runs longer than forty words, and five short
+same-speaker cross-turn stops. Production therefore consumes SaT only as a
+weighted proposal under timing, speaker, source, backend, and global-length
+evidence; it cannot publish a boundary by itself.
+
+No token-level punctuation/case checkpoint was adopted in the bounded
+2026-08-15 comparison. The felflare baseline fragmented conversational text;
+FullStop improved the synthetic boundary score but regressed on the bounded
+canonical conversational proxy, had no casing output, and required a roughly
+2.26 GB inference payload with roughly 4.33 GB peak RSS; the exact NeMo
+DistilBERT checkpoint missed the question, continuation, proper-name, and
+acronym gates and its canonical runtime resolved an unsuitable dependency
+closure. Speechbox was not promoted because its upstream project is
+unmaintained, audio-dependent, and not an exact word-index proposal source.
+These are bounded selection results, not universal model rankings. Preserve
+the private benchmark receipts and use canonical source artifacts and current
+acceptance evidence for any future selection decision.
 
 ## Exact Connected Preparation And Offline Runbook
 
@@ -344,7 +497,7 @@ access fails before offline readiness.
 
 ### Installed-recipient lane
 
-1. Install the signed, notarized, stapled 0.3.0 PKG.
+1. Install the signed, notarized, stapled 0.3.1 PKG.
 2. Open Auralign from Finder.
 3. In **Complete Offline Setup**, choose the desired ASR pack.
 4. Keep the app open while the native setup downloads and verifies it.

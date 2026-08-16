@@ -55,16 +55,17 @@ REGENERATE_HINT = (
     "--write macos/Auralign/Resources/config_manifest.json"
 )
 
-EXPECTED_FIELD_COUNT = 113
+EXPECTED_FIELD_COUNT = 123
 EXPECTED_KIND_COUNTS = {
-    "bool": 30,
-    "enum": 19,
-    "float": 18,
+    "bool": 31,
+    "enum": 24,
+    "float": 19,
     "float_or_float_list": 1,
     "int": 18,
-    "path": 11,
+    "path": 13,
     "path_list": 1,
     "string": 15,
+    "string_list": 1,
 }
 EXPECTED_SECTION_IDS = [
     "general",
@@ -79,19 +80,20 @@ EXPECTED_SECTION_IDS = [
     "subtitles",
 ]
 EXPECTED_DISPOSITION_COUNTS = {
-    "primary": 36,
-    "advanced": 76,
+    "primary": 39,
+    "advanced": 83,
     "readonly": 1,
 }
 EXPECTED_CONTROL_COUNTS = {
-    "toggle": 30,
-    "enum_picker": 19,
+    "toggle": 31,
+    "enum_picker": 24,
     "integer_editor": 18,
-    "float_editor": 18,
+    "float_editor": 19,
     "text_editor": 10,
     "model_picker": 5,
-    "path_picker": 11,
+    "path_picker": 13,
     "path_list_editor": 1,
+    "string_list_editor": 1,
     "numeric_sequence_editor": 1,
 }
 
@@ -127,6 +129,8 @@ def _control_projection(field: dict[str, Any]) -> str:
         return "path_picker"
     if kind == "path_list":
         return "path_list_editor"
+    if kind == "string_list":
+        return "string_list_editor"
     if kind in {"float_list", "float_or_float_list"}:
         return "numeric_sequence_editor"
     raise AssertionError(f"unmapped GUI field kind: {kind!r}")
@@ -145,6 +149,38 @@ def test_manifest_defaults_match_engine_defaults() -> None:
         for part in field["key"].split("."):
             node = node[part]
         assert field["default"] == node, field["key"]
+
+
+def test_manifest_exposes_cleanup_proper_nouns_as_bounded_string_list() -> None:
+    fields = {field["key"]: field for field in config_manifest()["fields"]}
+
+    assert fields["cleanup.proper_nouns"] == {
+        "key": "cleanup.proper_nouns",
+        "kind": "string_list",
+        "optional": False,
+        "default": [],
+        "max_length": 128,
+    }
+    assert fields["cleanup.required_complete"] == {
+        "key": "cleanup.required_complete",
+        "kind": "bool",
+        "optional": False,
+        "default": False,
+    }
+    assert fields["cleanup.quality_profile"] == {
+        "key": "cleanup.quality_profile",
+        "kind": "enum",
+        "optional": False,
+        "default": "semantically-faithful-clean-v1",
+        "choices": ["semantically-faithful-clean-v1", "strict-verbatim-v1"],
+    }
+    assert fields["cleanup.mode"] == {
+        "key": "cleanup.mode",
+        "kind": "enum",
+        "optional": False,
+        "default": "off",
+        "choices": ["off", "local-llm"],
+    }
 
 
 def test_bundled_manifest_matches_generated_manifest() -> None:
@@ -206,6 +242,45 @@ def test_field_catalog_has_exact_sections_dispositions_and_readonly_field() -> N
     assert all(
         any(field["section"] == section_id for field in fields) for section_id in section_ids
     )
+
+
+def test_presentation_scorers_are_truthful_and_hidden_from_standalone_product() -> None:
+    manifest = {field["key"]: field for field in config_manifest()["fields"]}
+    catalog = json.loads(FIELD_CATALOG.read_text(encoding="utf-8"))
+    catalog_by_key = {field["key"]: field for field in catalog["fields"]}
+    scorer_keys = {
+        "cleanup.presentation_scorers.sat.mode",
+        "cleanup.presentation_scorers.sat.model_dir",
+        "cleanup.presentation_scorers.sat.tokenizer_dir",
+        "cleanup.presentation_scorers.sat.signal_weight",
+        "cleanup.presentation_scorers.token_classifier.mode",
+        "cleanup.presentation_scorers.token_classifier.backend",
+    }
+
+    assert manifest["cleanup.presentation_scorers.sat.mode"]["choices"] == [
+        "off",
+        "optional",
+        "required",
+    ]
+    assert manifest["cleanup.presentation_scorers.sat.model_dir"]["kind"] == "path"
+    assert manifest["cleanup.presentation_scorers.sat.tokenizer_dir"]["kind"] == "path"
+    assert manifest["cleanup.presentation_scorers.sat.signal_weight"] == {
+        "key": "cleanup.presentation_scorers.sat.signal_weight",
+        "kind": "float",
+        "optional": False,
+        "default": 0.75,
+        "ge": 0.0,
+        "le": 1.0,
+    }
+    assert manifest["cleanup.presentation_scorers.token_classifier.mode"]["choices"] == ["off"]
+    assert manifest["cleanup.presentation_scorers.token_classifier.backend"]["choices"] == ["none"]
+    assert scorer_keys <= set(catalog_by_key)
+    assert all(not catalog_by_key[key].get("product_visible", True) for key in scorer_keys)
+    hidden = {
+        key for key, field in catalog_by_key.items() if not field.get("product_visible", True)
+    }
+    assert hidden == {"asr.vad_filter", "asr.mlx_model_path", *scorer_keys}
+    assert sum(field.get("product_visible", True) for field in catalog["fields"]) == 115
 
 
 def test_field_catalog_entries_are_well_formed() -> None:
@@ -312,9 +387,7 @@ def test_product_manifest_exposes_both_backends_and_all_nineteen_operational_mod
         for entry in manifest["model_manifest"]
         if entry["product_selectable"]
     }
-    assert selectable == {
-        (entry.role, entry.key) for entry in MODEL_MANIFEST.values()
-    }
+    assert selectable == {(entry.role, entry.key) for entry in MODEL_MANIFEST.values()}
 
 
 @pytest.mark.parametrize(

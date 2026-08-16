@@ -153,6 +153,37 @@ install/reinstall, model integrity, strict-offline startup, real inference, and
 local/published hash-parity gates remain mandatory. Unknown, mismatched,
 linked, partial, extra, or unreviewed content fails closed.
 
+## Owner-Authorized Private macOS 0.3.1 Security And Quality Successor
+
+On 2026-08-16, repository owner Matthew Penkala explicitly authorized the
+private macOS `0.3.1` successor, reviewed synchronization to the existing
+private `main`, creation and normal push of a new `macos-v0.3.1` tag, and
+publication of the exact accepted private release allowlist. This is a project
+authorization and technical-scope decision, not legal advice, a legal opinion,
+a waiver, or a change to upstream terms. All earlier tags, release artifacts,
+hashes, and historical release records remain immutable and must not be moved,
+overwritten, or relabeled.
+
+The 0.3.1 scope reuses the exact nineteen model identities, revisions, file
+contracts, licenses, and owner-clearance boundary recorded for 0.3.0. It gives
+the changed bootstrap payload a new identity:
+`com.auralign.studio.models.bootstrap.v2` version `2.0.0`, installed by receipt
+`com.auralign.studio.pkg.models.bootstrap-v2`. The v2 component contains the
+same three exact bootstrap models plus a freshly generated, hash-bound,
+corpus-free English Punkt tree for locked NLTK `3.10.3`; it must never reuse or
+relabel v1 bytes or receipts.
+
+The authorization also covers the reviewed dependency-security remediation,
+typed semantic cleanup and presentation-plan architecture, forced-alignment,
+identity/export, privacy, offline, and native-app repairs in the 0.3.1 source.
+Publication still requires the exact clean pushed commit, a fresh no-cache
+build, real Developer ID signatures, Apple notarization and stapling,
+Gatekeeper and install/reinstall acceptance, model/runtime closure, complete
+notices/SBOM/provenance, and private download/hash parity. It does not authorize
+public visibility, force-push, loose model assets, raw caches, credentials,
+media, transcripts, private validation logs, or any artifact outside the
+0.3.1 runbook allowlist.
+
 ## Escalation
 
 Stop and request owner review when evidence conflicts, an upstream license is

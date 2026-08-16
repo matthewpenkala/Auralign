@@ -65,10 +65,10 @@ implementation, and closure record is the
 
 Both lanes require macOS 14 or later on Apple Silicon. Source development uses
 an explicitly prepared local cache and additionally requires Xcode, the
-repository's Python 3.11 `.venv`, and reviewed FFmpeg/FFprobe. The 0.3.0
+repository's Python 3.11 `.venv`, and reviewed FFmpeg/FFprobe. The 0.3.1
 standalone product embeds Python, the Auralign engine, CPU/MLX dependency
 closure, FFmpeg, and FFprobe, and installs
-`com.auralign.studio.models.bootstrap.v1` version `1.0.0` below system
+`com.auralign.studio.models.bootstrap.v2` version `2.0.0` below system
 Application Support. That component contains Community-1, English alignment,
 ECAPA, and deterministic corpus-free Punkt, but no ASR weights.
 
@@ -160,7 +160,7 @@ requires the checked-in standalone builder, clean exact-commit source, complete
 license/SBOM/native closure, inside-out Developer ID signing, a scriptless
 Developer ID Installer PKG, Apple notarization, stapling, final package/runtime
 smoke tests, and private-release hash parity. See
-[the private PKG runbook](release/macos-v0.3.0-private-pkg.md).
+[the private PKG runbook](release/macos-v0.3.1-private-pkg.md).
 
 ## Job Ownership And Privacy
 

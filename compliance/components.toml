@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 schema_version = "1.0"
-reviewed_at = "2026-07-18"
+reviewed_at = "2026-08-16"
 
 # Fields here are inherited by every row unless overridden. The checker merges
 # these defaults before evaluating a component record.
@@ -157,6 +157,44 @@ license_expression = "BSD-2-Clause"
 usage = "optional forced-alignment dependency; direct Triton edge excluded"
 
 [[components]]
+id = "pypi:aiohttp"
+category = "python-runtime-optional"
+identifier = "aiohttp"
+versions = ["3.14.3"]
+source_url = "https://pypi.org/project/aiohttp/3.14.3/"
+terms_url = "https://github.com/aio-libs/aiohttp/blob/v3.14.3/LICENSE.txt"
+license_expression = "Apache-2.0 AND MIT"
+usage = "security-pinned HTTP transport dependency reached through Lightning fsspec integration"
+review_date = "2026-08-16"
+
+[[components]]
+id = "pypi:nltk"
+category = "python-runtime-optional"
+identifier = "nltk"
+versions = ["3.10.3"]
+source_url = "https://pypi.org/project/nltk/3.10.3/"
+terms_url = "https://github.com/nltk/nltk/blob/v3.10.3/LICENSE.txt"
+license_expression = "Apache-2.0"
+usage = "security-pinned WhisperX sentence-tokenization dependency"
+review_date = "2026-08-16"
+
+[[components]]
+id = "pypi:lightning-patched"
+category = "python-runtime-optional-patched-source"
+identifier = "lightning"
+versions = ["2.6.2"]
+source_revision = "commit d710d689510d50e800f53b3cd773cbca20b1f86f"
+source_url = "https://github.com/Lightning-AI/pytorch-lightning/tree/d710d689510d50e800f53b3cd773cbca20b1f86f"
+terms_url = "https://github.com/Lightning-AI/pytorch-lightning/blob/d710d689510d50e800f53b3cd773cbca20b1f86f/LICENSE"
+license_expression = "Apache-2.0"
+usage = "exact upstream source remediation for CVE-2026-58659 in pyannote checkpoint loading; redundant unpatched pytorch-lightning distribution excluded"
+notice_obligations = "Preserve the Apache-2.0 license and exact upstream patch/source provenance in every artifact that bundles this source-built dependency."
+source_offer_obligations = "retain the immutable upstream commit URL, archive SHA-256, and patch evidence"
+redistribution_status = "conditional; source-built installed or bundled copy remains under Apache-2.0 and exact artifact clearance"
+review_status = "upstream_security_patch_hash_bound_pending_full_release_artifact_gates"
+review_date = "2026-08-16"
+
+[[components]]
 id = "pypi:av"
 category = "python-runtime-optional"
 identifier = "av"
@@ -205,6 +243,56 @@ source_url = "https://pypi.org/project/ruamel.yaml/0.18.17/"
 terms_url = "https://sourceforge.net/p/ruamel-yaml/code/ci/0.18.17/tree/LICENSE"
 license_expression = "MIT"
 usage = "SpeechBrain HyperPyYAML compatibility pin"
+
+[[components]]
+id = "pypi:apple-fm-sdk"
+category = "python-runtime-optional"
+identifier = "apple-fm-sdk"
+versions = ["0.2.1"]
+source_revision = "tag v0.2.1 commit 84841bb71b22996c00bb67e3b4c7ae1f985315ea"
+source_url = "https://github.com/apple/python-apple-fm-sdk/tree/v0.2.1"
+terms_url = "https://github.com/apple/python-apple-fm-sdk/blob/v0.2.1/LICENSE.md"
+license_expression = "Apache-2.0"
+usage = "explicit source/headless-only Python bridge to the on-device Apple Foundation Models framework; requires macOS 26+, Xcode 26+, Python 3.10+, and enabled Apple Intelligence on compatible hardware"
+bundling_status = "not bundled in Auralign's macOS 14 standalone app/PKG or generic full extra; install only through the explicit cleanup-apple source/headless extra"
+notice_obligations = "Preserve the apple-fm-sdk Apache-2.0 license and attribution in any separately distributed source/headless environment."
+source_offer_obligations = "none recorded for Apache-2.0; retain the exact v0.2.1 tag and commit evidence"
+redistribution_status = "excluded from Auralign standalone products; conditional source/headless installation only under upstream terms; no Apple model weights redistributed"
+review_status = "verified_official_v0_2_1_tag_requirements_and_local_runtime_probe"
+review_date = "2026-08-15"
+
+[[components]]
+id = "platform:apple-foundation-models"
+category = "macos-system-runtime"
+identifier = "Apple Foundation Models SystemLanguageModel"
+versions = ["system-managed; observed on macOS 26.5 build 25F71"]
+source_url = "https://developer.apple.com/documentation/foundationmodels/"
+terms_url = "https://www.apple.com/legal/sla/"
+license_expression = "NOASSERTION"
+usage = "optional on-device punctuation and capitalization inference; exact internal model revision is not exposed by Apple"
+bundling_status = "not bundled or redistributed by Auralign; supplied and managed by macOS"
+notice_obligations = "Document the Apple-managed system boundary, OS/build evidence, locality, and opaque model revision honestly."
+source_offer_obligations = "not applicable to Auralign; no system-model bytes are acquired or redistributed"
+redistribution_status = "blocked from Auralign redistribution; runtime use only through the installed Apple framework"
+review_status = "runtime_available_and_local_behavior_observed_exact_model_revision_opaque"
+review_date = "2026-08-12"
+
+[[components]]
+id = "pypi:wtpsplit"
+category = "python-runtime-source-headless-optional"
+identifier = "wtpsplit"
+versions = ["2.2.1"]
+source_revision = "commit e48922c0ad240c7d2cb1ef8afbc0cd413372bc83"
+source_url = "https://github.com/segment-any-text/wtpsplit/tree/e48922c0ad240c7d2cb1ef8afbc0cd413372bc83"
+terms_url = "https://github.com/segment-any-text/wtpsplit/blob/e48922c0ad240c7d2cb1ef8afbc0cd413372bc83/LICENSE"
+license_expression = "MIT"
+usage = "optional or required exact-local SaT sentence-boundary proposal source for the production global presentation decoder"
+bundling_status = "not in the generic full extra, macOS 14 standalone app/PKG, or product model components; install only through the explicit presentation-sat source/headless extra"
+notice_obligations = "Preserve the wtpsplit MIT license and attribution in any separately distributed source/headless environment."
+source_offer_obligations = "none recorded for MIT; retain the exact 2.2.1 source revision evidence"
+redistribution_status = "dependency may be installed under MIT for source/headless use; excluded from current standalone products and no model bytes are bundled"
+review_status = "verified_upstream_2_2_1_revision_license_local_path_api_and_bounded_live_smoke"
+review_date = "2026-08-15"
 
 [[components]]
 id = "pypi:fastapi"

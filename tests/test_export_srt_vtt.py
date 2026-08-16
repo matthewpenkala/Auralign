@@ -9,6 +9,7 @@ from local_transcript_max.export.srt_export import render_srt, srt_timestamp
 from local_transcript_max.export.subtitle import (
     SubtitleCue,
     format_cue_text,
+    iter_subtitle_cues,
     overlay_cue_word_surfaces,
 )
 from local_transcript_max.export.vtt_export import render_vtt, vtt_timestamp
@@ -106,8 +107,7 @@ def test_long_srt_cue_balances_instead_of_stranding_an_orphan_tail() -> None:
         ),
     )
     cue_texts = [
-        " ".join(block.splitlines()[2:]).split(": ", 1)[1]
-        for block in srt.strip().split("\n\n")
+        " ".join(block.splitlines()[2:]).split(": ", 1)[1] for block in srt.strip().split("\n\n")
     ]
 
     assert len(cue_texts) == 2
@@ -142,9 +142,7 @@ def test_subtitle_split_enforces_maximum_duration_without_character_pressure() -
             max_cue_duration=4.0,
         ),
     )
-    timing_lines = [
-        line for line in srt.splitlines() if " --> " in line
-    ]
+    timing_lines = [line for line in srt.splitlines() if " --> " in line]
 
     assert len(timing_lines) == 3
     assert timing_lines == [
@@ -181,10 +179,7 @@ def test_subtitle_split_prefers_sentence_boundary_when_balance_is_comparable() -
             speaker_labels=False,
         ),
     )
-    cue_texts = [
-        " ".join(block.splitlines()[2:])
-        for block in srt.strip().split("\n\n")
-    ]
+    cue_texts = [" ".join(block.splitlines()[2:]) for block in srt.strip().split("\n\n")]
 
     assert cue_texts[0].endswith("six.")
     assert cue_texts[1].startswith("seven")
@@ -414,8 +409,7 @@ def test_oversized_indivisible_word_is_isolated_from_neighboring_words() -> None
         SubtitleExportConfig(max_line_width=10, max_line_count=2),
     )
     cue_texts = [
-        " ".join(block.splitlines()[2:]).split(": ", 1)[1]
-        for block in srt.strip().split("\n\n")
+        " ".join(block.splitlines()[2:]).split(": ", 1)[1] for block in srt.strip().split("\n\n")
     ]
 
     assert cue_texts == [long_word, "neighbor"]
@@ -445,8 +439,7 @@ def test_complete_short_sentence_is_not_penalized_as_an_orphan() -> None:
         SubtitleExportConfig(max_line_width=12, max_line_count=2),
     )
     cue_texts = [
-        " ".join(block.splitlines()[2:]).split(": ", 1)[1]
-        for block in srt.strip().split("\n\n")
+        " ".join(block.splitlines()[2:]).split(": ", 1)[1] for block in srt.strip().split("\n\n")
     ]
 
     assert cue_texts == ["one two three four.", "I don't know."]
@@ -486,8 +479,7 @@ def test_additive_severity_dp_matches_exhaustive_counterexample_optimum() -> Non
         ),
     )
     cue_texts = [
-        " ".join(block.splitlines()[2:]).split(": ", 1)[1]
-        for block in srt.strip().split("\n\n")
+        " ".join(block.splitlines()[2:]).split(": ", 1)[1] for block in srt.strip().split("\n\n")
     ]
 
     assert cue_texts == ["the no?", "ccc well,", "dddd yes.", "bb"]
@@ -523,10 +515,7 @@ def test_semantic_partition_keeps_going_to_dependency_together() -> None:
             speaker_labels=False,
         ),
     )
-    cue_texts = [
-        " ".join(block.splitlines()[2:])
-        for block in srt.strip().split("\n\n")
-    ]
+    cue_texts = [" ".join(block.splitlines()[2:]) for block in srt.strip().split("\n\n")]
 
     assert "going to make this work" in cue_texts
     assert not any(cue.endswith("going") for cue in cue_texts)
@@ -595,10 +584,7 @@ def test_unicode_sentence_punctuation_before_closing_quote_is_preferred() -> Non
             speaker_labels=False,
         ),
     )
-    cue_texts = [
-        " ".join(block.splitlines()[2:])
-        for block in srt.strip().split("\n\n")
-    ]
+    cue_texts = [" ".join(block.splitlines()[2:]) for block in srt.strip().split("\n\n")]
 
     assert cue_texts[0].endswith("six!”")
     assert cue_texts[1].startswith("seven")
@@ -685,7 +671,7 @@ def test_speaker_label_uses_own_line_when_first_word_cannot_share_width() -> Non
     assert all(len(line) <= 10 for line in text_lines)
 
 
-def test_punctuation_overlay_falls_back_locally_when_frozen_cue_cannot_fit() -> None:
+def test_punctuation_overlay_preserves_plan_when_frozen_cue_cannot_fit() -> None:
     words = [
         AlignedWord(text=text, start=index * 0.5, end=(index + 1) * 0.5)
         for index, text in enumerate(["abcd", "ef", "ghij", "klmno"])
@@ -709,12 +695,13 @@ def test_punctuation_overlay_falls_back_locally_when_frozen_cue_cannot_fit() -> 
     )
     rendered_lines = format_cue_text(overlaid, options).splitlines()
 
-    assert overlaid == base
+    assert [word.text for word in overlaid.words] == ["abcd", "ef,", "ghij", "klmno"]
+    assert "ef," in overlaid.text
     assert max(len(line) for line in rendered_lines) <= 10
-    assert len(rendered_lines) == 2
+    assert len(rendered_lines) == 3
 
 
-def test_punctuation_overlay_drops_weak_mark_before_strong_mark_to_fit() -> None:
+def test_punctuation_overlay_never_drops_accepted_marks_to_fit() -> None:
     words = [
         AlignedWord(text=text, start=index * 0.5, end=(index + 1) * 0.5)
         for index, text in enumerate(["abcd", "ef", "ghij", "klmn"])
@@ -736,9 +723,156 @@ def test_punctuation_overlay_drops_weak_mark_before_strong_mark_to_fit() -> None
     )
     rendered_lines = format_cue_text(overlaid, options).splitlines()
 
-    assert rendered_lines == ["A: Abcd ef", "ghij klmn."]
-    assert len(rendered_lines) == 2
+    assert [word.text for word in overlaid.words] == ["Abcd", "ef,", "ghij", "klmn."]
+    assert "ef," in "\n".join(rendered_lines)
+    assert "klmn." in "\n".join(rendered_lines)
+    assert len(rendered_lines) == 3
     assert all(len(line) <= 10 for line in rendered_lines)
+
+
+def test_overlay_omits_semantic_cleanup_word_without_shifting_cue_ownership() -> None:
+    words = [
+        AlignedWord(text=text, start=index * 0.3, end=(index + 1) * 0.3)
+        for index, text in enumerate(["Well", "um", "okay"])
+    ]
+    transcript = Transcript(
+        input_path="sample.wav",
+        speaker_turns=[
+            SpeakerTurn(
+                speaker="SPEAKER_00",
+                start=0.0,
+                end=0.9,
+                text="Well um okay",
+                words=words,
+            )
+        ],
+    )
+    options = SubtitleExportConfig(split_long_cues=False)
+
+    srt = render_srt(
+        transcript,
+        options,
+        word_surfaces=["Well,", "", "okay."],
+    )
+    vtt = render_vtt(
+        transcript,
+        options,
+        word_surfaces=["Well,", "", "okay."],
+    )
+
+    assert "Well, okay." in srt
+    assert "Well, okay." in vtt
+    assert " um " not in srt.casefold()
+    assert " um " not in vtt.casefold()
+
+
+def test_cleaned_surface_overlay_precedes_highlight_expansion_in_srt_and_vtt() -> None:
+    words = [
+        AlignedWord(text="hello", start=0.0, end=0.4),
+        AlignedWord(text="world", start=0.4, end=0.8),
+    ]
+    transcript = Transcript(
+        input_path="sample.wav",
+        language="en",
+        speaker_turns=[
+            SpeakerTurn(
+                speaker="SPEAKER_00",
+                start=0.0,
+                end=0.8,
+                text="hello world",
+                words=words,
+            )
+        ],
+    )
+    options = SubtitleExportConfig(
+        split_long_cues=False,
+        highlight_words=True,
+        max_line_width=80,
+    )
+
+    srt = render_srt(transcript, options, word_surfaces=["Hello", "world."])
+    vtt = render_vtt(transcript, options, word_surfaces=["Hello", "world."])
+
+    assert srt.count("-->") == 2
+    assert vtt.count("-->") == 2
+    assert "SPEAKER_00: <u>Hello</u> world." in srt
+    assert "SPEAKER_00: Hello <u>world.</u>" in srt
+    assert "SPEAKER_00: <u>Hello</u> world." in vtt
+    assert "SPEAKER_00: Hello <u>world.</u>" in vtt
+
+
+def test_highlight_overlay_omits_a_semantically_deleted_word() -> None:
+    words = [
+        AlignedWord(text="hello", start=0.0, end=0.3),
+        AlignedWord(text="um", start=0.3, end=0.5),
+        AlignedWord(text="world", start=0.5, end=0.8),
+    ]
+    transcript = Transcript(
+        input_path="sample.wav",
+        language="en",
+        speaker_turns=[
+            SpeakerTurn(
+                speaker="SPEAKER_00",
+                start=0.0,
+                end=0.8,
+                text="hello um world",
+                words=words,
+            )
+        ],
+    )
+    options = SubtitleExportConfig(
+        split_long_cues=False,
+        highlight_words=True,
+        max_line_width=80,
+    )
+
+    rendered = (
+        render_srt(transcript, options, word_surfaces=["Hello", "", "world."]),
+        render_vtt(transcript, options, word_surfaces=["Hello", "", "world."]),
+    )
+
+    for subtitle in rendered:
+        assert subtitle.count("-->") == 2
+        assert "<u>Hello</u> world." in subtitle
+        assert "Hello <u>world.</u>" in subtitle
+        assert " um " not in f" {subtitle.casefold()} "
+
+
+def test_highlight_overlay_reports_each_cleaned_word_once() -> None:
+    words = [
+        AlignedWord(text="hello", start=0.0, end=0.4),
+        AlignedWord(text="world", start=0.4, end=0.8),
+    ]
+    transcript = Transcript(
+        input_path="sample.wav",
+        language="en",
+        speaker_turns=[
+            SpeakerTurn(
+                speaker="SPEAKER_00",
+                start=0.0,
+                end=0.8,
+                text="hello world",
+                words=words,
+            )
+        ],
+    )
+    options = SubtitleExportConfig(
+        split_long_cues=False,
+        highlight_words=True,
+        max_line_width=80,
+    )
+
+    overlaid = overlay_cue_word_surfaces(
+        iter_subtitle_cues(transcript, options),
+        ["Hello", "world."],
+        options,
+        transcript.language,
+    )
+
+    assert [word.text for cue in overlaid for word in cue.words] == [
+        "Hello",
+        "world.",
+    ]
 
 
 def test_srt_and_vtt_segmentation_is_deterministic_and_equivalent() -> None:
@@ -769,9 +903,7 @@ def test_srt_and_vtt_segmentation_is_deterministic_and_equivalent() -> None:
         if " --> " in line or line.startswith("SPEAKER_00:")
     ]
     vtt_payload = [
-        line
-        for line in vtt.splitlines()
-        if " --> " in line or line.startswith("SPEAKER_00:")
+        line for line in vtt.splitlines() if " --> " in line or line.startswith("SPEAKER_00:")
     ]
 
     assert first_srt == second_srt
@@ -938,9 +1070,7 @@ def test_highlight_mode_preserves_whole_truthful_cue_for_invalid_timing(
 def test_subtitle_text_sanitizes_arrow_token() -> None:
     transcript = Transcript(
         input_path="sample.wav",
-        speaker_turns=[
-            SpeakerTurn(speaker="SPEAKER_00", start=0.0, end=1.0, text="not --> a cue")
-        ],
+        speaker_turns=[SpeakerTurn(speaker="SPEAKER_00", start=0.0, end=1.0, text="not --> a cue")],
     )
 
     srt = render_srt(transcript)

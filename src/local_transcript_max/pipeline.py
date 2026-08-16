@@ -37,6 +37,7 @@ from .asr.mlx_whisper_backend import MlxWhisperBackend, mlx_compute_type, resolv
 from .audio.inspect import inspect_media
 from .audio.preprocess import canonical_audio_decision, prepare_canonical_audio
 from .cleanup import run_cleanup
+from .cleanup_policy import CleanupRejectedError
 from .code_provenance import current_code_revision
 from .config import PipelineConfig, resolve_model_entry
 from .configuration_evidence import (
@@ -115,6 +116,7 @@ PIPELINE_ARTIFACT_NAMES = frozenset(
         "diarization_candidates",
         "diarization_decision_report.json",
         "exclusive_diarization.json",
+        "presentation_plan.json",
         "qa_report.json",
         "redecode_report.json",
         "run_metadata.json",
@@ -122,6 +124,7 @@ PIPELINE_ARTIFACT_NAMES = frozenset(
         "speaker_embedding_report.json",
         "speaker_map.json",
         "speaker_report.json",
+        "semantic_cleanup_plan.json",
         "transcript.redecode_candidates.json",
         "vad.json",
         "words.csv",
@@ -203,8 +206,7 @@ def transcribe_file(
         )
     if any(out_dir.iterdir()):
         raise LTMError(
-            "Output directory must be empty before transcription; choose a fresh output "
-            "directory."
+            "Output directory must be empty before transcription; choose a fresh output directory."
         )
     ensure_private_directory(out_dir)
     debug_path = debug_report_path or out_dir / "debug_report.json"
@@ -213,6 +215,7 @@ def transcribe_file(
     resource_monitor = ResourceMonitor()
     identity_lock = JobIdentityLock(out_dir)
     models_released = False
+    cleanup_report: dict[str, object] | None = None
     model_release_evidence: dict[str, Any] = {
         "policy": config.runtime.model_lifecycle,
         "cleanup_performed": False,
@@ -538,9 +541,7 @@ def transcribe_file(
             write_json_artifact(
                 out_dir / "speaker_cluster_embeddings.json", cluster_result.embeddings
             )
-            write_json_artifact(
-                out_dir / "speaker_embedding_report.json", cluster_result.report
-            )
+            write_json_artifact(out_dir / "speaker_embedding_report.json", cluster_result.report)
             match_job_speakers(
                 out_dir,
                 threshold=config.speaker_id.threshold,
@@ -567,8 +568,14 @@ def transcribe_file(
                 "cleanup_start",
                 {"mode": config.cleanup.mode},
             )
-            cleanup_report = run_cleanup(transcript, out_dir, config)
+            try:
+                cleanup_report = run_cleanup(transcript, out_dir, config)
+            except CleanupRejectedError as exc:
+                raise LTMError(str(exc)) from exc
+            if config.cleanup.required_complete and cleanup_report.get("accepted") is not True:
+                raise LTMError("The complete cleanup contract did not produce an accepted result.")
             write_json_artifact(out_dir / "cleanup_report.json", cleanup_report)
+            debug_report["cleanup"] = cleanup_report
             cleanup_duration = time.perf_counter() - cleanup_started
             optional_timings.append(
                 StageTiming(
@@ -733,6 +740,34 @@ def transcribe_file(
                 debug_report["speaker_identity"],
             )
             identity_duration = time.perf_counter() - identity_started
+        if (
+            cleanup_report is not None
+            and cleanup_report.get("accepted") is True
+            and config.speaker_identity.mode != "off"
+        ):
+            request_report = cleanup_report.get("request")
+            fallback_windows = (
+                request_report.get("fallback_window_count")
+                if isinstance(request_report, dict)
+                else None
+            )
+            if fallback_windows == 0:
+                composition_started = time.perf_counter()
+                from .polish import compose_completed_job_derivatives
+
+                polished_manifest = compose_completed_job_derivatives(
+                    out_dir,
+                    out_dir / "polished",
+                    config,
+                )
+                composition_duration = time.perf_counter() - composition_started
+                identity_duration += composition_duration
+                debug_report["polished_composition"] = {
+                    "valid": True,
+                    "duration_seconds": composition_duration,
+                    "output_count": len(polished_manifest.get("outputs", {})),
+                    "directory": "polished",
+                }
         debug_report["status"] = "complete"
         debug_report["run_metadata"] = run_metadata.model_dump(mode="json")
         debug_report["alignment_warnings"] = alignment.warnings
@@ -773,9 +808,7 @@ def transcribe_file(
             {
                 "duration_seconds": observed_end_to_end_duration,
                 "real_time_factor": completion_timing.real_time_factor,
-                "rss_peak_sampled_bytes": completion_resource_usage.get(
-                    "rss_peak_sampled_bytes"
-                ),
+                "rss_peak_sampled_bytes": completion_resource_usage.get("rss_peak_sampled_bytes"),
                 "rss_end_bytes": completion_resource_usage.get("rss_end_bytes"),
                 "out": str(out_dir),
             },
@@ -1043,15 +1076,9 @@ def align_words(
                 "model_load_seconds": getattr(backend, "last_model_load_seconds", None),
                 "inference_seconds": getattr(backend, "last_inference_seconds", None),
                 "cold_start": getattr(backend, "last_cold_start", None),
-                "expected_segment_count": getattr(
-                    backend, "last_expected_segment_count", None
-                ),
-                "aligned_segment_count": getattr(
-                    backend, "last_aligned_segment_count", None
-                ),
-                "missing_segment_count": getattr(
-                    backend, "last_missing_segment_count", None
-                ),
+                "expected_segment_count": getattr(backend, "last_expected_segment_count", None),
+                "aligned_segment_count": getattr(backend, "last_aligned_segment_count", None),
+                "missing_segment_count": getattr(backend, "last_missing_segment_count", None),
                 "forced_word_count": getattr(backend, "last_forced_word_count", None),
                 "localized_fallback_word_count": getattr(
                     backend, "last_localized_fallback_word_count", None
@@ -1061,31 +1088,19 @@ def align_words(
                 ),
                 "localized_fallback_segment_count": localized_fallback_segment_count,
                 "fallback_reason": (
-                    "localized_segment_fallback"
-                    if localized_fallback_segment_count
-                    else None
+                    "localized_segment_fallback" if localized_fallback_segment_count else None
                 ),
-                "interpolation_method": getattr(
-                    backend, "last_interpolation_method", None
-                ),
-                "alignment_call_count": getattr(
-                    backend, "last_alignment_call_count", None
-                ),
-                "inference_hygiene": getattr(
-                    backend, "last_inference_hygiene", {}
-                ),
+                "interpolation_method": getattr(backend, "last_interpolation_method", None),
+                "alignment_call_count": getattr(backend, "last_alignment_call_count", None),
+                "inference_hygiene": getattr(backend, "last_inference_hygiene", {}),
                 "requested_device": alignment_decision.requested_device,
                 "resolved_device": alignment_decision.resolved_device,
-                "actual_device": _optional_metadata_str(
-                    getattr(backend, "last_device", None)
-                ),
+                "actual_device": _optional_metadata_str(getattr(backend, "last_device", None)),
             },
         )
     except BackendUnavailableError as exc:
         if config.alignment.backend == "forced":
-            raise BackendUnavailableError(
-                "Forced alignment backend unavailable."
-            ) from exc
+            raise BackendUnavailableError("Forced alignment backend unavailable.") from exc
         fallback_reason = "forced_alignment_backend_unavailable"
         fallback_words = fallback.align(audio_path, asr_result, config)
         validate_publishable_alignment_words(fallback_words)
@@ -1108,7 +1123,12 @@ def align_words(
 
 
 def validate_forced_alignment_words(words: list[AlignedWord]) -> None:
-    """Reject incomplete or invalid forced-alignment output before publication."""
+    """Reject incomplete or invalid strict-alignment output before publication.
+
+    Strict mode accepts a non-CTC word only when the forced-alignment backend
+    explicitly marks the narrowly bounded short-segment repair. Generic or
+    unmarked mixed-source output remains prohibited.
+    """
     if not words:
         raise BackendUnavailableError("Forced alignment returned no word timestamps.")
     previous_start = -math.inf
@@ -1116,8 +1136,12 @@ def validate_forced_alignment_words(words: list[AlignedWord]) -> None:
     for index, word in enumerate(words):
         start = word.start
         end = word.end
+        short_segment_repair = (
+            word.alignment_source == "whisper"
+            and "forced_alignment_short_segment_repair" in word.warnings
+        )
         if (
-            word.alignment_source != "forced"
+            (word.alignment_source != "forced" and not short_segment_repair)
             or start is None
             or end is None
             or not math.isfinite(start)
@@ -1172,22 +1196,13 @@ def validate_alignment_text_conservation(
     for segment in asr_result.segments:
         segment_text = segment.text
         if not segment_text.strip():
-            segment_text = " ".join(
-                word.text for word in segment.words if word.text.strip()
-            )
+            segment_text = " ".join(word.text for word in segment.words if word.text.strip())
         expected_parts.append(
-            "".join(
-                character
-                for character in segment_text
-                if not character.isspace()
-            )
+            "".join(character for character in segment_text if not character.isspace())
         )
     expected = "".join(expected_parts)
     actual = "".join(
-        character
-        for word in words
-        for character in word.text
-        if not character.isspace()
+        character for word in words for character in word.text if not character.isspace()
     )
     if expected != actual:
         raise BackendUnavailableError(
@@ -1281,9 +1296,7 @@ def asr_runtime_metadata(
     if backend_name == "mlx-whisper" or asr_result.config.get("backend") == "mlx-whisper":
         return {
             "device": "mlx",
-            "actual_device": str(
-                asr_result.config.get("runtime_device") or "mlx:unknown"
-            ),
+            "actual_device": str(asr_result.config.get("runtime_device") or "mlx:unknown"),
             "compute_type": str(asr_result.config.get("compute_type") or mlx_compute_type(config)),
             "asr_cpu_threads": None,
             "asr_num_workers": None,
@@ -1294,9 +1307,7 @@ def asr_runtime_metadata(
     return {
         "device": asr_device,
         "actual_device": str(
-            asr_result.config.get("actual_device")
-            or asr_result.config.get("device")
-            or asr_device
+            asr_result.config.get("actual_device") or asr_result.config.get("device") or asr_device
         ),
         "compute_type": resolve_compute_type(config.asr.compute_type, asr_device),
         "asr_cpu_threads": resolve_cpu_threads(config.asr.cpu_threads, asr_device),
@@ -1333,9 +1344,7 @@ def diarization_runtime_metadata(
         "diarization_resolved_device": resolved,
         "diarization_actual_device": actual,
         "diarization_device_fallback": fallback,
-        "diarization_fallback_reason": _optional_metadata_str(
-            metadata.get("fallback_reason")
-        ),
+        "diarization_fallback_reason": _optional_metadata_str(metadata.get("fallback_reason")),
         "diarization_warnings": warnings,
     }
 
@@ -1440,8 +1449,7 @@ def runtime_policy_evidence(
     )
     diarization_metadata = diarization_result.metadata
     payload["diarization"]["actual_device"] = _optional_metadata_str(
-        diarization_metadata.get("actual_device")
-        or diarization_metadata.get("device")
+        diarization_metadata.get("actual_device") or diarization_metadata.get("device")
     )
     payload["diarization"]["fallback_reason"] = _optional_metadata_str(
         diarization_metadata.get("fallback_reason")
@@ -1473,9 +1481,7 @@ def alignment_model_metadata(
     return ModelMetadata(
         role="alignment",
         model_id=entry.model_id,
-        local_path=_optional_metadata_str(
-            metadata.get("model_path") or metadata.get("model")
-        ),
+        local_path=_optional_metadata_str(metadata.get("model_path") or metadata.get("model")),
         revision=entry.revision,
         revision_verified=True,
         gated=entry.gated,

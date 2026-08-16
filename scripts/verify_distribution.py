@@ -145,6 +145,10 @@ TOKEN_PATTERNS = (
     re.compile(b"Bearer" + rb"\s+[A-Za-z0-9._~+/-]{32,}={0,2}"),
 )
 SYNTHETIC_PATH_ALLOWLIST = {
+    (
+        "macos/AuralignTests/NewJobRunPlanTests.swift",
+        b"/" + b"Users/" + b"operator/",
+    ),
     ("tests/test_redaction.py", b"/" + b"Users/" + b"example/"),
     ("tests/test_redaction.py", b"/" + b"Users/" + b"example"),
 }

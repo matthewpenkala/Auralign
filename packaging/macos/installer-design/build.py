@@ -115,15 +115,11 @@ def validate_svg(path: Path) -> None:
     images = root.findall(".//{http://www.w3.org/2000/svg}image")
     require(len(images) == 1, f"unexpected Installer SVG image count: {path}")
     require(
-        images[0].get("href")
-        == "../BrandAssets/auralign-styled-symbol-tight.png",
+        images[0].get("href") == "../BrandAssets/auralign-styled-symbol-tight.png",
         f"unexpected Installer SVG image source: {path}",
     )
     require(
-        {
-            name: images[0].get(name)
-            for name in ("x", "y", "width", "height")
-        }
+        {name: images[0].get(name) for name in ("x", "y", "width", "height")}
         == {"x": "-30", "y": "211", "width": "270", "height": "222.14"},
         f"unexpected Installer symbol placement: {path}",
     )
@@ -197,11 +193,9 @@ def validate_distribution_round_trip() -> None:
         rendered = template
         for token, value in {
             "@@PRODUCT_NAME@@": "Auralign",
-            "@@APP_PACKAGE_ID@@":
-                "com.auralign.studio.pkg.design-validation.app",
+            "@@APP_PACKAGE_ID@@": "com.auralign.studio.pkg.design-validation.app",
             "@@APP_COMPONENT_PACKAGE@@": app_component.name,
-            "@@MODEL_PACKAGE_ID@@":
-                "com.auralign.studio.pkg.design-validation.models",
+            "@@MODEL_PACKAGE_ID@@": "com.auralign.studio.pkg.design-validation.models",
             "@@MODEL_COMPONENT_PACKAGE@@": model_component.name,
         }.items():
             rendered = rendered.replace(token, value)
@@ -214,7 +208,7 @@ def validate_distribution_round_trip() -> None:
                 "--identifier",
                 "com.auralign.studio.pkg.design-validation.app",
                 "--version",
-                "0.3.0.1",
+                "0.3.1.1",
                 str(app_component),
             ],
             check=True,

@@ -37,6 +37,12 @@ after caches are prepared.
 - local speaker enrollment and conservative profile matching
 - deterministic offline identity review, approved/safe apply, and SRT-first
   derived named-speaker exports
+- opt-in, fail-closed punctuation and capitalization through either an explicit
+  OpenAI-compatible endpoint or Apple's on-device system model in the supported
+  macOS 26+ source/headless lane
+- an optional/required exact-local SaT sentence-boundary proposal source in
+  the source/headless lane, with no acquisition path and explicit abstention or
+  fail-closed behavior; bounded exact-model runtime smoke accepted
 - SRT, VTT, JSON, JSONL, Markdown, text, CSV, and RTTM exports
 - native SwiftUI macOS workbench with source-development and standalone private-release lanes
 - batch execution, private-corpus benchmarking, and a localhost FastAPI service
@@ -80,8 +86,8 @@ native media closure inside `Auralign.app`, so an installed user does not need
 Python, Homebrew, Git, `uv`, Xcode, Command Line Tools, a source checkout, a
 virtual environment, or shell configuration.
 
-The successor 0.3.0 release contract adds a separate root-owned bootstrap
-component, `com.auralign.studio.models.bootstrap.v1` version `1.0.0`, below
+The successor 0.3.1 release contract adds a separate root-owned bootstrap
+component, `com.auralign.studio.models.bootstrap.v2` version `2.0.0`, below
 `/Library/Application Support/com.auralign.studio/Models/`. It contains only
 the exact Community-1 diarization, English alignment, and ECAPA speaker models
 plus deterministic corpus-free English Punkt resources. The app bundle remains
@@ -103,7 +109,7 @@ Mutable user state remains separately under the user's Library. No compiled
 app, PKG, model weight, model cache, or token is included in the source
 wheel/sdist or Git repository. See the
 [native macOS GUI runbook](docs/macos-gui.md) and
-[private 0.3.0 PKG release runbook](docs/release/macos-v0.3.0-private-pkg.md).
+[private 0.3.1 PKG release runbook](docs/release/macos-v0.3.1-private-pkg.md).
 
 ## Source-Development Local Cache Setup
 
@@ -112,7 +118,7 @@ compliance metadata, and setup commands—not model weights or gated-model
 rights. This section is for source development and maintainer-controlled model
 preparation. Each operator acquires models under upstream terms; weights,
 Hugging Face caches, tokens, and audit output remain local and ignored. It is
-not the recipient path for the 0.3.0 product PKG.
+not the recipient path for the 0.3.1 product PKG.
 
 Keep model and Hugging Face caches inside ignored project directories:
 
@@ -134,7 +140,7 @@ uv run ltm models audit
 > Hugging Face gate is an acquisition/contact mechanism. A direct upstream pull
 > still requires completing that flow and using a read token. Matthew Penkala's
 > 2026-07-25 project decision narrowly clears the exact attributed bytes for the
-> private 0.3.0 model component; it is not a legal opinion or a change to
+> private 0.3.1 model component; it is not a legal opinion or a change to
 > upstream terms.
 
 Only after the committed digest contract is complete, acquire and verify the
@@ -163,7 +169,7 @@ so it does not leave a half-prepared cache. Each pinned pull writes a local
 every allowlisted runtime file and fails when bytes, revision, or repository
 manifest identity differ.
 
-The 0.3.0 product PKG never contains that private marker, raw cache metadata,
+The 0.3.1 product PKG never contains that private marker, raw cache metadata,
 or a token. Its root-owned bootstrap component and each per-user ASR pack use
 deterministic privacy-safe manifest/verification/provenance/completion records,
 complete license texts and notices, CycloneDX SBOMs, and the same exact file
@@ -202,7 +208,7 @@ uv run ltm inspect outputs/job_001
 uv run ltm validate-speakers outputs/job_001 --expected-speakers <N>
 ```
 
-Normal 0.3.0 presets deliberately select tested local packs:
+Normal 0.3.1 presets deliberately select tested local packs:
 
 | Preset | ASR model | Intended tradeoff |
 | --- | --- | --- |
@@ -232,6 +238,8 @@ include:
   `alignment_report.json`
 - `diarization.json`, `exclusive_diarization.json`, and speaker reports
 - `transcript.json`, `transcript.srt`, `transcript.vtt`, and review sidecars
+- optional `semantic_cleanup_plan.json`, `presentation_plan.json`, and
+  `transcript.cleaned.*` derived clean-transcript artifacts
 - `qa_report.json`, `run_metadata.json`, `completion_timing.json`, and optional
   `debug_report.json`
 
@@ -239,9 +247,120 @@ Agentic diarization, re-decode, speaker matching, and local cleanup write
 separate artifacts; they do not overwrite raw ASR or diarization. See
 [architecture](docs/architecture.md), [alignment](docs/alignment.md), and
 [diarization](docs/diarization.md) for the stage contracts.
-Punctuation cleanup additionally requires exact lexical-word preservation
-before it can project casing and punctuation onto copied word timings and emit
-derived `transcript.cleaned.srt` and `transcript.cleaned.vtt` files.
+The canonical transcript remains immutable. The default clean-transcript
+profile may remove only explicitly allowlisted, high-confidence speech
+artifacts through a source-span-bound semantic plan; punctuation and casing are
+then selected by a separate global presentation plan. Every retained or removed
+word remains traceable to canonical timing, alignment, speaker, and hash
+evidence. The optional `strict-verbatim-v1` profile disables lexical cleanup.
+Neither profile permits opaque free-form rewriting.
+
+`--preset max` selects the highest-accuracy transcription configuration; it
+does not, by itself, promise that every opt-in derived stage ran. Use the
+explicit full contract when that is the intent:
+
+```bash
+LTM_OFFLINE=1 uv run ltm transcribe INPUT \
+  --preset max \
+  --entire-pipeline \
+  --cleanup apple-foundation \
+  --cleanup-scope punctuation \
+  --cleanup-proper-noun Natalie \
+  --cleanup-proper-noun Michael \
+  --out outputs/fresh-job
+```
+
+`--entire-pipeline` requires `max`, an enabled local cleanup backend, and a
+complete cleanup pass. It defaults to `semantically-faithful-clean-v1` while
+honoring an explicit stricter `strict-verbatim-v1` request. Backend
+unavailability, malformed or unsafe output, untraceable lexical drift,
+projection failure, or even one fallback window fails the job rather than
+allowing a broadly worded completion claim. The Apple backend uses the
+operating system's on-device `SystemLanguageModel`; its internal model revision
+is Apple-managed and opaque, so the cleanup report records the SDK version,
+OS/build, canonical system-model identifier, locality, and availability rather
+than inventing a weight revision.
+
+When `local-llm` is the required backend, `--cleanup-model` must name the exact
+locally served model. Auralign rejects an omitted or blank model instead of
+accepting an endpoint-selected default that cannot be identified in the
+cleanup receipt.
+
+The Apple backend is an explicit source/headless option, not part of the
+generic `full` extra or the macOS 14+ standalone application. It requires an
+Apple Intelligence-compatible Apple Silicon Mac running macOS 26+, Xcode 26+
+with its agreement accepted, and Apple Intelligence enabled. The upstream SDK
+accepts Python 3.10+, while Auralign's supported source environment remains
+Python 3.11 or 3.12:
+
+```bash
+uv sync --extra cleanup-apple --extra dev --no-python-downloads
+```
+
+The pinned SDK's native library targets macOS 26 and is therefore deliberately
+excluded from the standalone runtime. On unsupported hosts, select another
+explicit local cleanup backend; required cleanup still fails closed rather
+than silently downgrading.
+
+The independently configured SaT proposal interface is also source/headless-only.
+Install it with `--extra presentation-sat`, then supply the exact pinned local
+`sat-3l-sm` model and XLM-R tokenizer directories. Auralign never downloads
+either asset, verifies every allowed file by size and SHA-256 before importing
+the backend, and uses its probabilities only as weighted sentence-boundary
+evidence under the deterministic global presentation decoder. Optional mode
+records a reason-coded abstention; required mode fails closed. SaT, its model,
+and its tokenizer are excluded from `full`, all product model packs, and the
+macOS 14+ standalone app/PKG.
+
+Polished manifests retain the canonical v2 SaT receipt and its matching
+generic proposal-source receipt. Receipt validation rebinds the exact pins,
+configuration, clean-word count, eight-class proposal coverage, and canonical
+hash. A zero signal weight still verifies configured assets twice, but skips
+backend inference and decoder participation so it is observably identical to
+SaT-off.
+
+The adapter and exact file contracts have static/API and fake-backend test
+coverage plus retained bounded live smokes. On macOS 26.5 arm64 with Python
+3.11.13, the required boundary-only adapter ran with Hugging Face and
+Transformers forced offline over 16 synthetic words, emitted 128
+punctuation-neutral proposals, and recorded no runtime network access. Cold
+elapsed time was 11.9414556250 seconds and maximum RSS was 2,151,104,512 bytes.
+The canonical receipt SHA-256 is
+`a2718924ee45be86ba63b313904edada3e3a2fc2709618d692d868217903228f`;
+the ignored evidence is under
+`outputs/evaluations/2026-08-16-sat-boundary-neutral-smoke/`. This proves exact
+runtime-path and receipt integrity only. A second scale smoke processed 3,068
+synthetic words into 24,544 punctuation-neutral proposals in 6.3970266250
+seconds (479.597816 words/second) with 2,219,900,928 bytes maximum RSS and no
+runtime network access; receipt SHA-256
+`9db53b1d16a9a25f97175b68f0f23621bbabc5b3c893b7a63ded835847e7dc69`.
+The earlier 2026-08-15 receipts are preserved as superseded evidence of a
+rejected NONE/PERIOD projection and are not current production evidence.
+Neither current smoke establishes boundary quality or superiority.
+
+No token-level punctuation/case checkpoint was adopted after the bounded
+2026-08-15 bakeoff. Source punctuation, deterministic grammar/timing evidence,
+SaT boundaries when explicitly configured, and the single overlap-reconciled
+distribution from local Apple or OpenAI-compatible proposal windows remain
+separate signals. The bounded global length prior cannot independently create
+a strong stop, and required cleanup also fails closed on structural fragments,
+locally adverse added stops, sentence-start casing defects, missing questions,
+or materially under-punctuated long turns. Canonical
+artifacts, hash-bound plans, validation reports, and acceptance receipts—not
+any single model output—govern derived transcript publication.
+
+For a completed canonical job, `ltm polish-job` reuses the hash-bound ASR,
+alignment, diarization, and identity evidence and reruns only semantic cleanup,
+presentation decoding, and export composition. It requires a fresh output
+directory, publishes a manifest last, and never overwrites the source job:
+
+```bash
+uv run ltm polish-job outputs/completed-job \
+  --cleanup apple-foundation \
+  --cleanup-proper-noun Natalie \
+  --cleanup-proper-noun Michael \
+  --out outputs/completed-job-polished
+```
 
 `run_metadata.json` is the immutable core-run record and declares
 `timing_scope: pipeline_core.v1`. Its real-time factor and `pipeline_core`

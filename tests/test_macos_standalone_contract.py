@@ -42,7 +42,7 @@ def test_runtime_sources_are_exact_for_model_inclusive_successor() -> None:
     sources = tomllib.loads((PACKAGING / "runtime-sources.toml").read_text(encoding="utf-8"))
 
     assert sources["schema_version"] == "auralign-macos-runtime-sources.v1"
-    assert sources["product_version"] == "0.3.0"
+    assert sources["product_version"] == "0.3.1"
     assert sources["build_number"] == "1"
     assert sources["architecture"] == "arm64"
     assert sources["minimum_macos"] == "14.0"
@@ -113,7 +113,16 @@ def test_standalone_requirements_are_hash_locked_and_scope_limited() -> None:
     assert "mlx==0.31.2" in requirements
     assert "mlx-metal==0.31.2" in requirements
     assert "mlx-whisper==0.4.3" in requirements
-    for prohibited in ("fastapi==", "uvicorn==", "pyinstaller=="):
+    for prohibited in (
+        "apple-fm-sdk==",
+        "build==",
+        "fastapi==",
+        "foundation-models-c",
+        "libfoundationmodels",
+        "pyinstaller==",
+        "pyproject-hooks==",
+        "uvicorn==",
+    ):
         assert prohibited not in requirements.lower()
     assert "/Users/" not in requirements
     assert ".venv" not in requirements
@@ -125,7 +134,7 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert "python-build-standalone" in builder
     assert "PyInstaller" not in builder
     assert "require_clean_main()" in builder
-    assert 'refs/remotes/origin/main^{commit}' in builder
+    assert "refs/remotes/origin/main^{commit}" in builder
     assert "local main and fetched origin/main to match exactly" in builder
     assert '"--platform"' in builder
     assert '"macosx_14_0_arm64"' in builder
@@ -195,12 +204,15 @@ def test_builder_is_transparent_scriptless_offline_and_release_gated() -> None:
     assert '"PYTHONDONTWRITEBYTECODE": "1"' in builder
     assert "write_embedded_python_launcher(" in builder
     assert "export PYTHONDONTWRITEBYTECODE=1" in builder
-    assert ' -B -I \\"$@\\"' in builder
+    assert ' -B -I "$@"' in builder
     assert '"Auralign-0.2.0-1-macos-arm64.cdx.json"' not in builder
     assert (
-        builder.count("f\"Auralign-{sources['product_version']}-{sources['build_number']}\"") == 4
+        builder.count(
+            "f\"Auralign-{sources['product_version']}-{sources['build_number']}-macos-arm64"
+        )
+        == 4
     )
-    assert builder.count('"-macos-arm64.cdx.json"') == 3
+    assert builder.count('-macos-arm64.cdx.json"') == 3
     assert builder.count("prune_runtime(runtime)") == 4
     assert "install_hash_locked_pure_python_sdists(" in builder
     assert '"SOURCE_DATE_EPOCH"' in builder
@@ -524,8 +536,8 @@ def test_release_cli_no_cache_bypasses_diagnostic_cache(
         lambda _sources: None,
     )
     model_identity = {
-        "bundle_id": "com.auralign.studio.models.bootstrap.v1",
-        "bundle_version": "1.0.0",
+        "bundle_id": "com.auralign.studio.models.bootstrap.v2",
+        "bundle_version": "2.0.0",
     }
     monkeypatch.setattr(
         BUILDER_MODULE,
@@ -628,7 +640,7 @@ def test_component_bom_requires_root_wheel_and_read_only_model_payload(
     (component / "Bom").write_bytes(b"fixture")
     prefix = (
         "Library/Application Support/com.auralign.studio/Models/"
-        "com.auralign.studio.models.bootstrap.v1"
+        "com.auralign.studio.models.bootstrap.v2"
     )
     payload_file = component / "Payload" / prefix / "models/model.bin"
     payload_file.parent.mkdir(parents=True)
@@ -639,10 +651,7 @@ def test_component_bom_requires_root_wheel_and_read_only_model_payload(
             "./Library\t40755\t0\t0",
             "./Library/Application Support\t40755\t0\t0",
             "./Library/Application Support/com.auralign.studio\t40755\t0\t0",
-            (
-                "./Library/Application Support/com.auralign.studio/Models"
-                "\t40755\t0\t0"
-            ),
+            ("./Library/Application Support/com.auralign.studio/Models\t40755\t0\t0"),
             f"./{prefix}\t40555\t0\t0",
             f"./{prefix}/models\t40555\t0\t0",
             f"./{prefix}/models/model.bin\t100444\t0\t0",
@@ -717,12 +726,12 @@ def test_component_bom_rejects_payload_path_set_drift(
     [
         (
             "Library/Application Support/com.auralign.studio/Models/"
-            "com.auralign.studio.models.bootstrap.v1\t40755\t0\t0",
+            "com.auralign.studio.models.bootstrap.v2\t40755\t0\t0",
             "mutable or irregular",
         ),
         (
             "Library/Application Support/com.auralign.studio/Models/"
-            "com.auralign.studio.models.bootstrap.v1\t40555\t501\t20",
+            "com.auralign.studio.models.bootstrap.v2\t40555\t501\t20",
             "not root:wheel",
         ),
     ],
@@ -738,7 +747,7 @@ def test_component_bom_rejects_mutable_or_non_root_model_payload(
     (component / "Bom").write_bytes(b"fixture")
     prefix = (
         "Library/Application Support/com.auralign.studio/Models/"
-        "com.auralign.studio.models.bootstrap.v1"
+        "com.auralign.studio.models.bootstrap.v2"
     )
     monkeypatch.setattr(
         BUILDER_MODULE,
@@ -769,7 +778,7 @@ def test_component_bom_rejects_entries_outside_exact_component_tree(
     (component / "Bom").write_bytes(b"fixture")
     prefix = (
         "Library/Application Support/com.auralign.studio/Models/"
-        "com.auralign.studio.models.bootstrap.v1"
+        "com.auralign.studio.models.bootstrap.v2"
     )
     listing = "\n".join(
         [
@@ -1347,17 +1356,14 @@ def test_app_signing_seals_nested_code_before_the_outer_app(
 
     assert result == {"Identifier": "com.auralign.studio"}
     assert len(subprocess_commands) == 2
-    nested_command = next(
-        command for command in subprocess_commands if command[-1] == str(nested)
-    )
+    nested_command = next(command for command in subprocess_commands if command[-1] == str(nested))
     python_command = next(
         command for command in subprocess_commands if command[-1] == str(runtime_python)
     )
     assert "--entitlements" not in nested_command
     assert "--entitlements" in python_command
-    assert (
-        python_command[python_command.index("--entitlements") + 1]
-        == str(PACKAGING / "AuralignEnginePython.entitlements")
+    assert python_command[python_command.index("--entitlements") + 1] == str(
+        PACKAGING / "AuralignEnginePython.entitlements"
     )
     assert all(str(main) not in command for command in subprocess_commands)
     assert run_commands[0][-1] == str(runtime_bundle)
@@ -1520,15 +1526,15 @@ def test_package_definition_is_scriptless_system_only_arm64_macos14() -> None:
     assert allowed is not None and allowed.attrib["min"] == "14.0"
     assert set(packages) == {
         "com.auralign.studio.pkg.app",
-        "com.auralign.studio.pkg.models.bootstrap-v1",
+        "com.auralign.studio.pkg.models.bootstrap-v2",
     }
-    assert packages["com.auralign.studio.pkg.app"].attrib["version"] == "0.3.0.1"
+    assert packages["com.auralign.studio.pkg.app"].attrib["version"] == "0.3.1.1"
     assert (packages["com.auralign.studio.pkg.app"].text or "").strip() == (
         "Auralign-application-component.pkg"
     )
-    assert packages["com.auralign.studio.pkg.models.bootstrap-v1"].attrib["version"] == "1.0.0"
+    assert packages["com.auralign.studio.pkg.models.bootstrap-v2"].attrib["version"] == "2.0.0"
     assert (
-        packages["com.auralign.studio.pkg.models.bootstrap-v1"].text or ""
+        packages["com.auralign.studio.pkg.models.bootstrap-v2"].text or ""
     ).strip() == "Auralign-offline-models-component.pkg"
     background = root.find("background")
     dark_background = root.find("background-darkAqua")
@@ -1566,17 +1572,14 @@ def test_package_definition_is_scriptless_system_only_arm64_macos14() -> None:
     assert 'component / "Scripts"' in builder
     assert 'rglob("Scripts")' not in builder
     assert "Library/Application Support/Auralign/Models" not in builder
-    assert (
-        '"Library/Application Support/com.auralign.studio/Models"'
-        in builder
-    )
+    assert '"Library/Application Support/com.auralign.studio/Models"' in builder
 
 
 def test_final_product_package_uses_exact_component_expansion(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    package = tmp_path / "Auralign-0.3.0-1-macos-arm64.pkg"
+    package = tmp_path / "Auralign-0.3.1-1-macos-arm64.pkg"
     package.write_bytes(b"product package fixture")
     signed_app = tmp_path / "signed/Auralign.app"
     model_bundle = tmp_path / "model-bundle"
@@ -1647,7 +1650,7 @@ def test_final_product_package_uses_exact_component_expansion(
         package,
         app=signed_app,
         model_bundle=model_bundle,
-        sources={"product_version": "0.3.0", "build_number": "1"},
+        sources={"product_version": "0.3.1", "build_number": "1"},
         expected_team="TEAM123",
         structure_only=False,
     )
@@ -1844,5 +1847,5 @@ def test_release_swift_uses_embedded_runtime_and_verified_system_models() -> Non
     assert "#if DEBUG" in settings
     assert "normal use is offline" in settings
     assert "requires no Hugging Face account" in settings
-    assert project.count("MARKETING_VERSION = 0.3.0;") == 6
+    assert project.count("MARKETING_VERSION = 0.3.1;") == 6
     assert "MARKETING_VERSION = 0.2.1;" not in project

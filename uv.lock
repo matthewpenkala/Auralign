@@ -44,6 +44,7 @@ conflicts = [[
 
 [manifest]
 excludes = [
+    { package = { name = "lightning" }, dependencies = ["pytorch-lightning", "torch"] },
     { package = { name = "torch", version = "2.8.0+cpu" }, dependencies = ["triton"] },
     { package = { name = "whisperx", version = "3.8.6" }, dependencies = ["triton"] },
 ]
@@ -59,7 +60,7 @@ wheels = [
 
 [[package]]
 name = "aiohttp"
-version = "3.14.1"
+version = "3.14.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohappyeyeballs" },
@@ -71,44 +72,44 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "yarl" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/82/78/8ea7308cac6934de8c74a14f3d5f65d1c89287426688be79538d0e5c013d/aiohttp-3.14.1.tar.gz", hash = "sha256:307f2cff90a764d329e77040603fa032db89c5c24fdad50c4c15334cba744035", size = 7955794, upload-time = "2026-06-07T21:09:35.529Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/d9/22ce5786ac0c1653ae8b6c23bded02c1686d11f0dbb45b31ce128e0df985/aiohttp-3.14.3.tar.gz", hash = "sha256:9491196535a88924a60afd5b5f434b5b203b6cc616250878dbdb223a8f7844bc", size = 7971213, upload-time = "2026-07-23T01:57:27.037Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/26/dd/bf526e6f0a1120dd6f2df2e97bacfe4d358f13d17a0ff5847301a1375a51/aiohttp-3.14.1-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:aa00140699487bd435fde4342d85c94cb256b7cd3a5b9c3396c67f19922afda2", size = 765225, upload-time = "2026-06-07T21:06:07.957Z" },
-    { url = "https://files.pythonhosted.org/packages/8f/e1/a2872aa55495a70f61310d411541c6ee23812d9a884e000c716e1bc3edbf/aiohttp-3.14.1-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:1c1af67559445498b502030c35c59db59966f47041ca9de5b4e707f86bd10b5f", size = 518743, upload-time = "2026-06-07T21:06:09.749Z" },
-    { url = "https://files.pythonhosted.org/packages/5b/e7/c60c7b209e509cc787de3cea0550a518538cfc08003e1c1e14c1c63fff71/aiohttp-3.14.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:d44ec478e713ee7f29b439f7eb8dc2b9d4079e11ae114d2c2ac3d5daf30516c8", size = 514139, upload-time = "2026-06-07T21:06:11.26Z" },
-    { url = "https://files.pythonhosted.org/packages/5b/8d/614ace2f579702c9840ab1e1447fd8509e35b0b904f7196418fa2f57b25d/aiohttp-3.14.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:d3b1a184a9a8f548a6b73f1e26b96b052193e4b3175ed7342aaf1151a1f00a04", size = 1784088, upload-time = "2026-06-07T21:06:12.887Z" },
-    { url = "https://files.pythonhosted.org/packages/49/e0/726e90f99542bf292f81a96a12cc4847deb86f3ccf62c6f4014a201f4d33/aiohttp-3.14.1-cp311-cp311-manylinux2014_armv7l.manylinux_2_17_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:5f2504bc0322437c9a1ff6d3333ca56c7477b727c995f036b976ae17b98372c8", size = 1737835, upload-time = "2026-06-07T21:06:14.564Z" },
-    { url = "https://files.pythonhosted.org/packages/0b/4b/d176d5c4db9d33dacf0543102ea59503bc1d528af4cfd0b719949ca49389/aiohttp-3.14.1-cp311-cp311-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:73f05ea02013e02512c3bf42714f1208c57168c779cc6fe23516e4543089d0a6", size = 1842801, upload-time = "2026-06-07T21:06:16.228Z" },
-    { url = "https://files.pythonhosted.org/packages/dc/d6/5a99b563690ea0cbed912ae94a2ce33993a5709a651a3a4fe761e7dd973a/aiohttp-3.14.1-cp311-cp311-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:797457503c2d426bee06eef808d07b31ede30b65e054444e7de64cad0061b7af", size = 1929992, upload-time = "2026-06-07T21:06:17.947Z" },
-    { url = "https://files.pythonhosted.org/packages/76/7f/a987b14a3859094b3cea3f4825219c3e5536242564af6e3f9c2f6c994eb2/aiohttp-3.14.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b821a1f7dedf7e37450654e620038ac3b2e81e8fa6ea269337e97101978ec730", size = 1786989, upload-time = "2026-06-07T21:06:19.677Z" },
-    { url = "https://files.pythonhosted.org/packages/f1/1a/420e5c85a3e73349372ed22ce0b6af86bfa6ce16a4b20a64a2e94608c781/aiohttp-3.14.1-cp311-cp311-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:4cd96b5ba05d67ed0cf00b5b405c8cd99586d8e3481e8ee0a831057591af7621", size = 1640129, upload-time = "2026-06-07T21:06:22.558Z" },
-    { url = "https://files.pythonhosted.org/packages/a7/80/18a592ed3be0a402cc03670bd72ee1f8563ddbe1d8d5542dbf868f274136/aiohttp-3.14.1-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:1d459b98a932296c6f0e94f87511a0b1b90a8a02c30a50e60a297619cd5a58ee", size = 1756576, upload-time = "2026-06-07T21:06:24.8Z" },
-    { url = "https://files.pythonhosted.org/packages/ec/0b/8b3d5713373858ff71a617daf6e3b0e81ad63e79d09a3cf2f6b6b983939c/aiohttp-3.14.1-cp311-cp311-musllinux_1_2_armv7l.whl", hash = "sha256:764457a7be60825fb770a644852ff717bcbb5042f189f2bd16df61a81b3f6573", size = 1754668, upload-time = "2026-06-07T21:06:26.528Z" },
-    { url = "https://files.pythonhosted.org/packages/9f/49/fd564575cf225821d7ba5a117cb8bc27213d8a7e1811162afb43ae077039/aiohttp-3.14.1-cp311-cp311-musllinux_1_2_ppc64le.whl", hash = "sha256:f7a16ef45b081454ef844502d87a848876c490c4cb5c650c230f6ec79ed2c1e7", size = 1817019, upload-time = "2026-06-07T21:06:28.297Z" },
-    { url = "https://files.pythonhosted.org/packages/ed/1b/e850c9ae6fc91356552ae668bb6c51e93fa29c8aef13398a10b56678557f/aiohttp-3.14.1-cp311-cp311-musllinux_1_2_riscv64.whl", hash = "sha256:2fbc3ed048b3475b9f0cbcb9978e9d2d3511acd91ead203af26ed9f0056004cf", size = 1631638, upload-time = "2026-06-07T21:06:30.242Z" },
-    { url = "https://files.pythonhosted.org/packages/eb/94/3c337ba72451a89806ace6f75bddc92bafc5b8d53d90115a512858024b63/aiohttp-3.14.1-cp311-cp311-musllinux_1_2_s390x.whl", hash = "sha256:bedb0cd073cc2dc035e30aeb99444389d3cd2113afe4ef9fcd23d439f5bade85", size = 1835660, upload-time = "2026-06-07T21:06:31.943Z" },
-    { url = "https://files.pythonhosted.org/packages/2b/9c/9c18cf367a0498212d9ba7daf990b504a5e8ae064cda4b504e2647c89c03/aiohttp-3.14.1-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:b6feea921016eb3d4e04d65fc4e9ca402d1a3801f562aef94989f54694917af3", size = 1775698, upload-time = "2026-06-07T21:06:33.72Z" },
-    { url = "https://files.pythonhosted.org/packages/b5/63/a251a9d2a6cb45065b2ddc0bde2b3dd10108740a9a42f632c66405a761a2/aiohttp-3.14.1-cp311-cp311-win32.whl", hash = "sha256:313701e488100074ce99850404ee36e741abf6330179fec908a1944ecf570126", size = 458386, upload-time = "2026-06-07T21:06:35.279Z" },
-    { url = "https://files.pythonhosted.org/packages/17/ca/69274c51dcd6e8947d77b2806cf47a4a15f2c846e2cbeb1882547d3da283/aiohttp-3.14.1-cp311-cp311-win_amd64.whl", hash = "sha256:03ab4530fdcb3a543a122ba4b65ac9919da9fe9f78a03d328a6e38ff962f7aa5", size = 483406, upload-time = "2026-06-07T21:06:36.824Z" },
-    { url = "https://files.pythonhosted.org/packages/2c/8a/c25904f77690c3688ec140f87591ef11a0cfe36bf3d5c0f1f38056fb62b3/aiohttp-3.14.1-cp311-cp311-win_arm64.whl", hash = "sha256:486f7d16ed54c39c2cbd7ca71fd8ba2b8bb7860df65bd7b6ed640bab96a38a8b", size = 452987, upload-time = "2026-06-07T21:06:38.371Z" },
-    { url = "https://files.pythonhosted.org/packages/1d/21/151624b51cd92553d95424daf4bf19f19ce9be9002d19253e7e7ce67197b/aiohttp-3.14.1-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:d35143e27778b4bb0fb189562d7f275bff79c62ab8e98459717c0ea617ff2480", size = 757402, upload-time = "2026-06-07T21:06:40.311Z" },
-    { url = "https://files.pythonhosted.org/packages/c2/82/280619e0bd7bf2454987e19282616e84762255dd9c8468f62382e8c191f1/aiohttp-3.14.1-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:bcfb80a2cc36fba2534e5e5b5264dc7ae6fcd9bf15256da3e53d2f499e6fa29d", size = 512310, upload-time = "2026-06-07T21:06:42.207Z" },
-    { url = "https://files.pythonhosted.org/packages/55/b2/2aac325583aaa1353045f96dffa586d8a34e8322e14a7ba49cffeb103ab4/aiohttp-3.14.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:27fd7c91e51729b4f7e1577865fa6d34c9adccbc39aabe9000285b48af9f0ec2", size = 512448, upload-time = "2026-06-07T21:06:43.813Z" },
-    { url = "https://files.pythonhosted.org/packages/8a/72/a60607cb849faa8af8a356c9329ea2eb6f395d49e82cc82ccba1fd8deb8f/aiohttp-3.14.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:64c567bf9eaf664280116a8688f63016e6b32db2505908e2bdaca1b6438142f2", size = 1766854, upload-time = "2026-06-07T21:06:45.391Z" },
-    { url = "https://files.pythonhosted.org/packages/b5/d3/d9fe1c9ec7557ab4d0d82bebaa728c6418f0b93295ec2f4ab015f7710cc7/aiohttp-3.14.1-cp312-cp312-manylinux2014_armv7l.manylinux_2_17_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:f5e6ff2bdbb8f4cd3fbe41f99e25bbcd58e3bf9f13d3dd31a11e7917251cc77a", size = 1740884, upload-time = "2026-06-07T21:06:47.413Z" },
-    { url = "https://files.pythonhosted.org/packages/c1/dc/f2cecfaf9337ba3e63f181500814ff502aa3d00d9c7ec93a9d23d10a27b2/aiohttp-3.14.1-cp312-cp312-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:2f73e01dc37122325caf079982621262f96d74823c179038a82fddfc50359264", size = 1810034, upload-time = "2026-06-07T21:06:50.165Z" },
-    { url = "https://files.pythonhosted.org/packages/66/d7/2ff65c5e65c0d7476daf7e15c032e0805e36811185b9623e3238ad6c763e/aiohttp-3.14.1-cp312-cp312-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:bb2c0c80d431c0d03f2c7dbf125150fedd4f0de17366a7ca33f7ccb822391842", size = 1904054, upload-time = "2026-06-07T21:06:52.035Z" },
-    { url = "https://files.pythonhosted.org/packages/20/9c/d445818389df371f56d141d881153ba23183c4735a03f7356ffb43f7757d/aiohttp-3.14.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3e6fc1a85fa7194a1a7d19f44e8609180f4a8eb5fa4c7ed8b4355f080fad235c", size = 1790278, upload-time = "2026-06-07T21:06:54.049Z" },
-    { url = "https://files.pythonhosted.org/packages/4d/aa/bf04cb4d865fc6101c2229a294ad744973b72e513fdc5a6b791e6983d72a/aiohttp-3.14.1-cp312-cp312-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:686b6c0d3911ec387b444ddf5dc62fb7f7c0a7d5186a7861626496a5ab4aff95", size = 1591795, upload-time = "2026-06-07T21:06:55.911Z" },
-    { url = "https://files.pythonhosted.org/packages/dc/b4/4dac0038960427ba832f6609dfb4ea5437d7fd80c72001b9e48f834f428b/aiohttp-3.14.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:c6fa4dc7ad6f8109c70bb1499e589f76b0b792baf39f9b017eb92c8a81d0a199", size = 1728397, upload-time = "2026-06-07T21:06:57.777Z" },
-    { url = "https://files.pythonhosted.org/packages/2b/f9/7cd4e8ad7aa3b75f17d56bb5498dd604a93d4e6eece822ba0568c413fff0/aiohttp-3.14.1-cp312-cp312-musllinux_1_2_armv7l.whl", hash = "sha256:87a5eea1b2a5e21e1ebdbb33ad4165359189327e63fc4e4894693e7f821ac817", size = 1766504, upload-time = "2026-06-07T21:07:00.009Z" },
-    { url = "https://files.pythonhosted.org/packages/f9/df/fc01d9fcad0f73fed3f3d361f1f94f975947b50dff82919f6dc2bf4316cc/aiohttp-3.14.1-cp312-cp312-musllinux_1_2_ppc64le.whl", hash = "sha256:1c1421eb01d4fd608d88cc8290211d177a58532b55ad94076fb349c5bf467f0a", size = 1777806, upload-time = "2026-06-07T21:07:02.064Z" },
-    { url = "https://files.pythonhosted.org/packages/41/09/47e2d090bddcc8fb4ccb4c314aadc32d7c5d9bb55f50f6ad1c92fc15d501/aiohttp-3.14.1-cp312-cp312-musllinux_1_2_riscv64.whl", hash = "sha256:34b257ec41345c1e8f2df68fa908a7952f5de932723871eb633ecbbff396c9a4", size = 1580707, upload-time = "2026-06-07T21:07:03.942Z" },
-    { url = "https://files.pythonhosted.org/packages/3d/36/f1a4ce904ae0b6930cfe9afc96d0896f7ec1a620c400405d63783bb95a9c/aiohttp-3.14.1-cp312-cp312-musllinux_1_2_s390x.whl", hash = "sha256:de538791a80e5d862addbc183f70f0158ac9b9bb872bb147f1fd2a683691e087", size = 1798121, upload-time = "2026-06-07T21:07:05.987Z" },
-    { url = "https://files.pythonhosted.org/packages/70/0a/e0075ce9ca0279ee1d4f0c0b85f54fea02ebc83c3007651a72bece658fec/aiohttp-3.14.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:6f71173be42d3241d428f760122febb748de0623f44308a6f120d0dd9ec572e3", size = 1767580, upload-time = "2026-06-07T21:07:07.873Z" },
-    { url = "https://files.pythonhosted.org/packages/3e/61/a0c0a8f327a9c52095cdd8e312391b00d3ed64ab6c72bb5c33d8ec251cf7/aiohttp-3.14.1-cp312-cp312-win32.whl", hash = "sha256:ec8dc383ee57ea3e883477dcca3f11b65d58199f1080acaf4cd6ad9a99698be4", size = 452771, upload-time = "2026-06-07T21:07:09.669Z" },
-    { url = "https://files.pythonhosted.org/packages/df/d9/ea367c75f16ac9c6cdc8febb25e8318fa21a2b1bc8d6514d4b2d890bface/aiohttp-3.14.1-cp312-cp312-win_amd64.whl", hash = "sha256:2aa92c87868cd13674989f9ee83e5f9f7ea4237589b728048e1f0c8f6caa3271", size = 479873, upload-time = "2026-06-07T21:07:11.538Z" },
-    { url = "https://files.pythonhosted.org/packages/03/64/8d96784a7851156db8a4c6c3f6f91042fdf39fb15a4cc38c8b3c14833c45/aiohttp-3.14.1-cp312-cp312-win_arm64.whl", hash = "sha256:2c840c90759922cb5e6dda94596e079a30fb5a5ba548e7e0dc00574703940847", size = 448073, upload-time = "2026-06-07T21:07:13.637Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/5c/b3e4ff8ad43a8afef9602c5e90285936da1beaea8b029016b793891f03c3/aiohttp-3.14.3-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:e568e14940c09955aa51f4e645b6daa18a581c5dcfcd73744dcc86a856e3ced3", size = 764250, upload-time = "2026-07-23T01:52:48.525Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/da/f1b384465e51449d844056b75070461da03a9a23e6c1747003695bf4172a/aiohttp-3.14.3-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:54cfcdee2770dac994417cbb0ee1f3eb0e7cb6b30c79bf44f2c02ff79ec5124a", size = 516281, upload-time = "2026-07-23T01:52:51.047Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/3f/01264f820ee2e3712a827892b1cd6ff80f3300c1fcbffbb45714a915d47a/aiohttp-3.14.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:21c016079415ed3fd676963e9793700a566d85dbbd6bfc564b9b2d209147dcc8", size = 514742, upload-time = "2026-07-23T01:52:53.779Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/8d/a71c6f2db52ac1ed142b133f7feddaa6b70539c3f4de24d7e226c95b794c/aiohttp-3.14.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:d6088ec9894113802bddb3c09e974929aed2c7b3a8c456219b8aab4481f1a239", size = 1780613, upload-time = "2026-07-23T01:52:56.948Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/11/3dd9b3fb3a170f6ec9011b5291d876a6fab4086714c9e158600edf01b4fd/aiohttp-3.14.3-cp311-cp311-manylinux2014_armv7l.manylinux_2_17_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:16ea7e24c309fb7c0bbd505d149abe4fe4dccfb8db911db7dbec0921bc889a6f", size = 1737688, upload-time = "2026-07-23T01:52:59.294Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/3e/834c26918be7d88068822b40e0db30fca50b5f4fe79104aa16a93f1d74e6/aiohttp-3.14.3-cp311-cp311-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:56f355e79f71aef2a85c80305cc915f894b170dba76de5fe84f6351939b83c06", size = 1845742, upload-time = "2026-07-23T01:53:01.641Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/c9/49ab8572df7d66bc13d11e31f781292badb04180dd87ba98733066c6aed7/aiohttp-3.14.3-cp311-cp311-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:18c441d0a8fca6de8d1f546849b9f0ab20d435993e2c5b59562b2fae6be2f929", size = 1928412, upload-time = "2026-07-23T01:53:04.018Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/b9/2b8f0c0ce09c87a1daf80fd483431b56b1435d3f62789bc86f572e1245de/aiohttp-3.14.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:53e7b4ce82b54a8bcc71b3b67a5cbd177ca1d7f592cbc92cd38b7349f73482db", size = 1786220, upload-time = "2026-07-23T01:53:06.481Z" },
+    { url = "https://files.pythonhosted.org/packages/85/00/9c45f81de11710460edfa1dc81317b6e882703b160926c879a9d20da9fcc/aiohttp-3.14.3-cp311-cp311-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:f55119f7bf25f49ed210f6096090715da24f2943c62102448915fde3c62877ce", size = 1637231, upload-time = "2026-07-23T01:53:10.258Z" },
+    { url = "https://files.pythonhosted.org/packages/19/ce/967d628e910756f3539c6107cb7844a1b69440dcb3029a5ee7871b09ab63/aiohttp-3.14.3-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:9aa6e61fdf20105c4144e755bd586008ff450791d67b1c8146fdc15959c4d51c", size = 1753161, upload-time = "2026-07-23T01:53:13.817Z" },
+    { url = "https://files.pythonhosted.org/packages/11/b2/0c3d4114f0aee4f580f5b3b4eb71b24d7a23b834ea506a4dfebe76513f35/aiohttp-3.14.3-cp311-cp311-musllinux_1_2_armv7l.whl", hash = "sha256:ccd4893707b3e2a13e39c90d43cf80edf2e4d0457935bcc103bf2346214c3f15", size = 1756356, upload-time = "2026-07-23T01:53:16.211Z" },
+    { url = "https://files.pythonhosted.org/packages/63/5d/99e7d91c82f1399d1ae2a854e080bd1493fbc31e5e959dbc4ec33dac3bec/aiohttp-3.14.3-cp311-cp311-musllinux_1_2_ppc64le.whl", hash = "sha256:b2466434105a4e03113c36ec775cc2ebe6676b62eae326fa670bb607ef788c1c", size = 1819846, upload-time = "2026-07-23T01:53:18.289Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/05/d5e1cb6480eeffd3f901d40a2c5e2d1e7effdc797837da3b490272699f13/aiohttp-3.14.3-cp311-cp311-musllinux_1_2_riscv64.whl", hash = "sha256:ba59d59aba08ac02fc03b0c8983ccd5ee39a199d0552ce9e6d2b4845b34d59ae", size = 1628531, upload-time = "2026-07-23T01:53:23.86Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/90/b934682bcaefae18a9e04f3dff5b68522ba810906358ae5029b68110ea3b/aiohttp-3.14.3-cp311-cp311-musllinux_1_2_s390x.whl", hash = "sha256:ed099d105449c4f9e84f24af203cd131349d4761d8813fa7e02c32e7128cd910", size = 1832712, upload-time = "2026-07-23T01:53:27.551Z" },
+    { url = "https://files.pythonhosted.org/packages/21/df/6061679faaf81fac746e7307c7adb71e858071a5d34c27583afefc64f543/aiohttp-3.14.3-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:152516815ef926786a0b6ae2b8f1fd2e0c71582dee0b435636865316fd4891b7", size = 1775014, upload-time = "2026-07-23T01:53:30.223Z" },
+    { url = "https://files.pythonhosted.org/packages/8a/1d/f854878bbc69b88faefe924b619a34a6f59ec05fd387c77690667eaa75eb/aiohttp-3.14.3-cp311-cp311-win32.whl", hash = "sha256:a4af35c443e0b1a1bd6a8af3f3485d7fda15c142751a00f3ff8090f0b93346fa", size = 456006, upload-time = "2026-07-23T01:53:34.97Z" },
+    { url = "https://files.pythonhosted.org/packages/73/0c/2af9d1674baccd1dbd47282a93d660a22e57ef6167c856deb24b4214fbab/aiohttp-3.14.3-cp311-cp311-win_amd64.whl", hash = "sha256:e1e74298bab6ee0d6e749ed4fd1901c7e604bdda32c03d787a2cc71c46d0433d", size = 481069, upload-time = "2026-07-23T01:53:39.673Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/76/88401ff3fc95e85c5fc38d588f36f55e61ecb64343b2bc8d69326f453cc0/aiohttp-3.14.3-cp311-cp311-win_arm64.whl", hash = "sha256:03cd2bde3d7f085b64e549c985f4bb928cad7e8ecf5323bfca320db548d81b39", size = 453021, upload-time = "2026-07-23T01:53:43.749Z" },
+    { url = "https://files.pythonhosted.org/packages/18/d4/eb96299230e20acf2efae207cb8d69051f1f68e357e5ea5e479bf6fb097a/aiohttp-3.14.3-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:39aded8c7f3b935b54aab1d8d73c70ec0ee2d3ec3b943e0e86611bc150ba47f5", size = 754690, upload-time = "2026-07-23T01:53:47.332Z" },
+    { url = "https://files.pythonhosted.org/packages/88/11/e7a70a209eb9a067c0d3212b518a0134e3484f5178c7533878b6b514d469/aiohttp-3.14.3-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:5bcb6ff3fdab1258a192679ff1a05d44f59626430aa05cd1a9d2447423599228", size = 509484, upload-time = "2026-07-23T01:53:51.159Z" },
+    { url = "https://files.pythonhosted.org/packages/30/07/4bbc222cc8dbe31d4c3e8a5baad2286e4d42026ac0c570027b89afce6344/aiohttp-3.14.3-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:617105e2c3018ee38d0c8ce5ee3c84f621a6d8b9f723202aacaff28449ca91ee", size = 511949, upload-time = "2026-07-23T01:53:55.083Z" },
+    { url = "https://files.pythonhosted.org/packages/54/b9/42e74c46b7b7c794b995bbc1f573fb48950c38b19d8600c62a6804ee2d67/aiohttp-3.14.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f631fe87a6f30df5fbe6d79640b25e4cffb38c31c7fb6f10871517b84b0f8c1a", size = 1765282, upload-time = "2026-07-23T01:53:59.662Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/ed/62bc4d74363ad346d518e0720363a949f63e2e23439a79eb5813d4d29bb3/aiohttp-3.14.3-cp312-cp312-manylinux2014_armv7l.manylinux_2_17_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:a94dbaae5ae27bd849c93570669bff91e0510f33a80805738e3de72a7be0447b", size = 1741511, upload-time = "2026-07-23T01:54:04.063Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/9f/181e8a8bc79e47d13c7fc4540bd7a3b729d9505609c61f392a8dd2fbfe55/aiohttp-3.14.3-cp312-cp312-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:8f2f1c4c032c7cedd7d8da6f54c97b70266c6570c3108d3fdffee7188bb70529", size = 1810680, upload-time = "2026-07-23T01:54:09.882Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/9a/dec94d6ad694552fe3424e3f1928d7a606a5d9d9433a04e7ecdd9d38ae7f/aiohttp-3.14.3-cp312-cp312-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:ea05e1f97ceea523942d9b2a7d7c0359d781d683d6b043f5943a602b14da4787", size = 1905646, upload-time = "2026-07-23T01:54:13.475Z" },
+    { url = "https://files.pythonhosted.org/packages/52/b7/7cd31f29d6055bd711ae6e669367fba6f5ae9de463910a793e30556a8db7/aiohttp-3.14.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:543906c127fb1d929b95076db19b83fa2d46751006ff1e23b093aa5ac4d8db42", size = 1792122, upload-time = "2026-07-23T01:54:15.752Z" },
+    { url = "https://files.pythonhosted.org/packages/66/73/10b1ef93afa61f4963c746257b70ced619cf31a4798671de5fdb2608501d/aiohttp-3.14.3-cp312-cp312-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:0a5ff2dfbb9ce645fa5b8ef3e02c6c0b9cc3f6030ff863d0c51fffc50cb5541b", size = 1591127, upload-time = "2026-07-23T01:54:19.489Z" },
+    { url = "https://files.pythonhosted.org/packages/49/ed/3b203fa6de1b338c14acdc06bf6ca9b043b7944f005966958c2ced932cde/aiohttp-3.14.3-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:041badb8f84396357c4d3ad26de6afd7a32b112f43d3c63045c0c8278cfd2043", size = 1725210, upload-time = "2026-07-23T01:54:24.129Z" },
+    { url = "https://files.pythonhosted.org/packages/28/b7/1c2aab8c706436dcc28598452488ac9cd7c409da815237c28c27d58993e6/aiohttp-3.14.3-cp312-cp312-musllinux_1_2_armv7l.whl", hash = "sha256:530125ee1163c4219af35dc3aa1206e541e7b31b6efc1a3f93b70a136f65d427", size = 1764848, upload-time = "2026-07-23T01:54:27.973Z" },
+    { url = "https://files.pythonhosted.org/packages/54/50/94c28f08b131c4bf10984ea2c7a536c9920608bb2d6e7f95642c30cc87b7/aiohttp-3.14.3-cp312-cp312-musllinux_1_2_ppc64le.whl", hash = "sha256:c8653fd547c93a61aadc612007790f5555cdd18946fa48cf45e26d8ea4ea473d", size = 1777102, upload-time = "2026-07-23T01:54:31.775Z" },
+    { url = "https://files.pythonhosted.org/packages/13/d4/e7d09ba7d345fb2d74440fd2fa033c5e079fac05552927705986f41a364f/aiohttp-3.14.3-cp312-cp312-musllinux_1_2_riscv64.whl", hash = "sha256:89176250f686cb9853c0fb7ead90e639e915b84a6f43eedc2a4e7ec21f1037f0", size = 1580205, upload-time = "2026-07-23T01:54:34.518Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/84/072a91d68e1e1eb587985b54baab94221277f877e8ef274fc213a0ceae28/aiohttp-3.14.3-cp312-cp312-musllinux_1_2_s390x.whl", hash = "sha256:3a26434dafe408229ff3403458ca58de24fb51936504decac49ce6755f77e59d", size = 1797219, upload-time = "2026-07-23T01:54:36.995Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/eb/aad34e897e668424d6e995da5dff8a4a09af93363d3392488772957a63aa/aiohttp-3.14.3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:d1558173930a5a8d3069cee5c92fc91c87c4dbcb099debbb3622053717145a19", size = 1768629, upload-time = "2026-07-23T01:54:40.103Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/2b/6bb88ddba0fecd9122aa3ebcad25996cf6c083a4a7040dbb3a4f97972af6/aiohttp-3.14.3-cp312-cp312-win32.whl", hash = "sha256:16100ad3ab8d649fdfbee87602d9d2dcdca9df0b9eda8a1b5fdc0d41f96da559", size = 451481, upload-time = "2026-07-23T01:54:42.547Z" },
+    { url = "https://files.pythonhosted.org/packages/76/9b/f2f8f108da17ecef2cc3efc424e8b7ad3782b1a8360f7b8eae8ced84f6ea/aiohttp-3.14.3-cp312-cp312-win_amd64.whl", hash = "sha256:33a2d7c28d33797a2e99923dffa63f83d908a19b6bf26cfe80fa790aa5e1a75a", size = 476845, upload-time = "2026-07-23T01:54:44.853Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/44/28dac80a8941b604f4da10ce21097614ca1bf905ce93dca28d8d7de9c1e7/aiohttp-3.14.3-cp312-cp312-win_arm64.whl", hash = "sha256:362a3fd481769cac1a824514bcd86fda51c65e8fe6e051099e008fddde6db17c", size = 448050, upload-time = "2026-07-23T01:54:47.087Z" },
 ]
 
 [[package]]
@@ -174,6 +175,16 @@ sdist = { url = "https://files.pythonhosted.org/packages/1c/b5/001890774a9552aff
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ba/16/9826f089383c593cdfc4a6e5aca94d9e91ae1692c57af82c3b2aa5e810f7/anyio-4.14.0-py3-none-any.whl", hash = "sha256:dd9b7a2a9799ed6552fde617b2c5df02b7fdd7d88392fc48101e51bae46164d9", size = 123506, upload-time = "2026-06-15T22:00:47.595Z" },
 ]
+
+[[package]]
+name = "apple-fm-sdk"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "build", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'group-20-local-transcript-max-cpu') or (sys_platform == 'darwin' and extra != 'group-20-local-transcript-max-cpu') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128')" },
+    { name = "setuptools", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'group-20-local-transcript-max-cpu') or (sys_platform == 'darwin' and extra != 'group-20-local-transcript-max-cpu') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/02/5cfad13c6ab9acd22e81bc083789db02f3551069c10a1551ec60dd04a273/apple_fm_sdk-0.2.1.tar.gz", hash = "sha256:e1801d68ae0517f8524c31723b1dc1a662bf9d06b7a9cc765c9dddb77e647980", size = 107506, upload-time = "2026-06-29T23:30:06.383Z" }
 
 [[package]]
 name = "arrow"
@@ -268,6 +279,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c4/cf/85379f13b76f3a69bca86b60237978af17d6aa0bc5998978c3b8cf05abb2/boolean_py-5.0.tar.gz", hash = "sha256:60cbc4bad079753721d32649545505362c754e121570ada4658b852a3a318d95", size = 37047, upload-time = "2025-04-03T10:39:49.734Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e5/ca/78d423b324b8d77900030fa59c4aa9054261ef0925631cd2501dd015b7b7/boolean_py-5.0-py3-none-any.whl", hash = "sha256:ef28a70bd43115208441b53a045d1549e2f0ec6e3d08a9d142cbc41c1938e8d9", size = 26577, upload-time = "2025-04-03T10:39:48.449Z" },
+]
+
+[[package]]
+name = "build"
+version = "1.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "(os_name == 'nt' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'group-20-local-transcript-max-cpu') or (os_name != 'nt' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (os_name != 'nt' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (os_name != 'nt' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128')" },
+    { name = "packaging", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'group-20-local-transcript-max-cpu') or (sys_platform == 'darwin' and extra != 'group-20-local-transcript-max-cpu') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128')" },
+    { name = "pyproject-hooks", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'group-20-local-transcript-max-cpu') or (sys_platform == 'darwin' and extra != 'group-20-local-transcript-max-cpu') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/78/e0/df5e171f685f82f37b12e1f208064e24244911079d7b767447d1af7e0d70/build-1.5.0.tar.gz", hash = "sha256:302c22c3ba2a0fd5f3911918651341ebb3896176cbdec15bd421f80b1afc7647", size = 89796, upload-time = "2026-04-30T03:18:25.17Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0d/fe/6bea5c9162869c5beba5d9c8abbed835ec85bf1ec1fba05a3822325c45f3/build-1.5.0-py3-none-any.whl", hash = "sha256:13f3eecb844759ab66efec90ca17639bbf14dc06cb2fdf37a9010322d9c50a6f", size = 26018, upload-time = "2026-04-30T03:18:23.644Z" },
 ]
 
 [[package]]
@@ -532,6 +557,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/0f/d5/c66da9b79e5bdb124
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61", size = 25604, upload-time = "2021-03-08T10:59:24.45Z" },
 ]
+
+[[package]]
+name = "docopt"
+version = "0.6.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a2/55/8f8cab2afd404cf578136ef2cc5dfb50baa1761b68c9da1fb1e4eed343c9/docopt-0.6.2.tar.gz", hash = "sha256:49b3a825280bd66b3aa83585ef59c4a8c82f2c8a522dbe754a8bc8d08c85c491", size = 25901, upload-time = "2014-06-16T11:18:57.406Z" }
 
 [[package]]
 name = "einops"
@@ -1063,27 +1094,245 @@ wheels = [
 
 [[package]]
 name = "lightning"
-version = "2.6.5"
-source = { registry = "https://pypi.org/simple" }
+version = "2.6.2"
+source = { url = "https://github.com/Lightning-AI/pytorch-lightning/archive/d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz" }
 dependencies = [
     { name = "fsspec", extra = ["http"] },
     { name = "lightning-utilities" },
     { name = "packaging" },
-    { name = "pytorch-lightning" },
     { name = "pyyaml" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'group-20-local-transcript-max-cpu') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (extra != 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128')" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'emscripten' and extra != 'group-20-local-transcript-max-cpu') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform != 'win32' and extra != 'group-20-local-transcript-max-cpu' and extra != 'group-20-local-transcript-max-cu126') or (extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (extra != 'group-20-local-transcript-max-cpu' and extra != 'group-20-local-transcript-max-cu126' and extra != 'group-20-local-transcript-max-cu128')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128')" },
-    { name = "torch", version = "2.8.0+cu126", source = { registry = "https://download.pytorch.org/whl/cu126" }, marker = "(sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cu128') or (extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128')" },
     { name = "torchmetrics" },
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/1d/83be8536bec71a0173e762a9a1fd92a24a5ad0d0f74c59550c3c4e6c103b/lightning-2.6.5.tar.gz", hash = "sha256:16a30310ed69afde3748491feb5d13508908effd70390d2bfc203dc0812a4b4a", size = 659201, upload-time = "2026-05-27T14:33:41.806Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/c5/fca7144236b6fa3279d0fb3172b32576c5ad8b84a63b9432ad6592d24847/lightning-2.6.5-py3-none-any.whl", hash = "sha256:3702fb7ef4ab51a8c3d4a140f4674514fe72973a9673dfa05e07a078e2767389", size = 848611, upload-time = "2026-05-27T14:33:39.714Z" },
+sdist = { hash = "sha256:059f9272bf684f391f52c4e175a6a8e0d5cfa3ba4b3a0fde9aa4ff13dd72e11e" }
+
+[package.metadata]
+requires-dist = [
+    { name = "bitsandbytes", marker = "sys_platform != 'darwin' and extra == 'all'", specifier = ">=0.45.2,<1.0" },
+    { name = "bitsandbytes", marker = "sys_platform != 'darwin' and extra == 'dev'", specifier = ">=0.45.2,<1.0" },
+    { name = "bitsandbytes", marker = "sys_platform != 'darwin' and extra == 'extra'", specifier = ">=0.45.2,<1.0" },
+    { name = "bitsandbytes", marker = "sys_platform != 'darwin' and extra == 'fabric-all'", specifier = ">=0.45.2,<1.0" },
+    { name = "bitsandbytes", marker = "sys_platform != 'darwin' and extra == 'fabric-dev'", specifier = ">=0.45.2,<1.0" },
+    { name = "bitsandbytes", marker = "sys_platform != 'darwin' and extra == 'fabric-strategies'", specifier = ">=0.45.2,<1.0" },
+    { name = "bitsandbytes", marker = "sys_platform != 'darwin' and extra == 'pytorch-all'", specifier = ">=0.45.2,<1.0" },
+    { name = "bitsandbytes", marker = "sys_platform != 'darwin' and extra == 'pytorch-dev'", specifier = ">=0.45.2,<1.0" },
+    { name = "bitsandbytes", marker = "sys_platform != 'darwin' and extra == 'pytorch-extra'", specifier = ">=0.45.2,<1.0" },
+    { name = "bitsandbytes", marker = "sys_platform != 'darwin' and extra == 'strategies'", specifier = ">=0.45.2,<1.0" },
+    { name = "click", marker = "python_full_version >= '3.11' and extra == 'dev'", specifier = "==8.3.1" },
+    { name = "click", marker = "python_full_version >= '3.11' and extra == 'fabric-dev'", specifier = "==8.3.1" },
+    { name = "click", marker = "python_full_version >= '3.11' and extra == 'fabric-test'", specifier = "==8.3.1" },
+    { name = "click", marker = "python_full_version >= '3.11' and extra == 'test'", specifier = "==8.3.1" },
+    { name = "click", marker = "python_full_version < '3.11' and extra == 'dev'", specifier = "==8.1.8" },
+    { name = "click", marker = "python_full_version < '3.11' and extra == 'fabric-dev'", specifier = "==8.1.8" },
+    { name = "click", marker = "python_full_version < '3.11' and extra == 'fabric-test'", specifier = "==8.1.8" },
+    { name = "click", marker = "python_full_version < '3.11' and extra == 'test'", specifier = "==8.1.8" },
+    { name = "cloudpickle", marker = "extra == 'dev'", specifier = ">=1.3,<4.0" },
+    { name = "cloudpickle", marker = "extra == 'pytorch-dev'", specifier = ">=1.3,<4.0" },
+    { name = "cloudpickle", marker = "extra == 'pytorch-test'", specifier = ">=1.3,<4.0" },
+    { name = "cloudpickle", marker = "extra == 'test'", specifier = ">=1.3,<4.0" },
+    { name = "coverage", marker = "python_full_version >= '3.10' and extra == 'dev'", specifier = "==7.13.5" },
+    { name = "coverage", marker = "python_full_version >= '3.10' and extra == 'fabric-dev'", specifier = "==7.13.5" },
+    { name = "coverage", marker = "python_full_version >= '3.10' and extra == 'fabric-test'", specifier = "==7.13.5" },
+    { name = "coverage", marker = "python_full_version >= '3.10' and extra == 'pytorch-dev'", specifier = "==7.13.5" },
+    { name = "coverage", marker = "python_full_version >= '3.10' and extra == 'pytorch-test'", specifier = "==7.13.5" },
+    { name = "coverage", marker = "python_full_version >= '3.10' and extra == 'test'", specifier = "==7.13.5" },
+    { name = "coverage", marker = "python_full_version < '3.10' and extra == 'dev'", specifier = "==7.10.7" },
+    { name = "coverage", marker = "python_full_version < '3.10' and extra == 'fabric-dev'", specifier = "==7.10.7" },
+    { name = "coverage", marker = "python_full_version < '3.10' and extra == 'fabric-test'", specifier = "==7.10.7" },
+    { name = "coverage", marker = "python_full_version < '3.10' and extra == 'pytorch-dev'", specifier = "==7.10.7" },
+    { name = "coverage", marker = "python_full_version < '3.10' and extra == 'pytorch-test'", specifier = "==7.10.7" },
+    { name = "coverage", marker = "python_full_version < '3.10' and extra == 'test'", specifier = "==7.10.7" },
+    { name = "deepspeed", marker = "sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'all'", specifier = ">=0.15.0,<0.17.0" },
+    { name = "deepspeed", marker = "sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'dev'", specifier = ">=0.15.0,<0.17.0" },
+    { name = "deepspeed", marker = "sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'fabric-all'", specifier = ">=0.15.0,<0.17.0" },
+    { name = "deepspeed", marker = "sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'fabric-dev'", specifier = ">=0.15.0,<0.17.0" },
+    { name = "deepspeed", marker = "sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'fabric-strategies'", specifier = ">=0.15.0,<0.17.0" },
+    { name = "deepspeed", marker = "sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'pytorch-all'", specifier = ">=0.15.0,<0.17.0" },
+    { name = "deepspeed", marker = "sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'pytorch-dev'", specifier = ">=0.15.0,<0.17.0" },
+    { name = "deepspeed", marker = "sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'pytorch-strategies'", specifier = ">=0.15.0,<0.17.0" },
+    { name = "deepspeed", marker = "sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'strategies'", specifier = ">=0.15.0,<0.17.0" },
+    { name = "fastapi", marker = "extra == 'dev'" },
+    { name = "fastapi", marker = "extra == 'pytorch-dev'" },
+    { name = "fastapi", marker = "extra == 'pytorch-test'" },
+    { name = "fastapi", marker = "extra == 'test'" },
+    { name = "fsspec", extras = ["http"], specifier = ">=2022.5.0,<2028.0" },
+    { name = "huggingface-hub", marker = "extra == 'dev'" },
+    { name = "huggingface-hub", marker = "extra == 'fabric-dev'" },
+    { name = "huggingface-hub", marker = "extra == 'fabric-test'" },
+    { name = "huggingface-hub", marker = "extra == 'pytorch-dev'" },
+    { name = "huggingface-hub", marker = "extra == 'pytorch-test'" },
+    { name = "huggingface-hub", marker = "extra == 'test'" },
+    { name = "hydra-core", marker = "extra == 'all'", specifier = ">=1.2.0,<2.0" },
+    { name = "hydra-core", marker = "extra == 'dev'", specifier = ">=1.2.0,<2.0" },
+    { name = "hydra-core", marker = "extra == 'extra'", specifier = ">=1.2.0,<2.0" },
+    { name = "hydra-core", marker = "extra == 'fabric-all'", specifier = ">=1.2.0,<2.0" },
+    { name = "hydra-core", marker = "extra == 'fabric-dev'", specifier = ">=1.2.0,<2.0" },
+    { name = "hydra-core", marker = "extra == 'fabric-extra'", specifier = ">=1.2.0,<2.0" },
+    { name = "hydra-core", marker = "extra == 'pytorch-all'", specifier = ">=1.2.0,<2.0" },
+    { name = "hydra-core", marker = "extra == 'pytorch-dev'", specifier = ">=1.2.0,<2.0" },
+    { name = "hydra-core", marker = "extra == 'pytorch-extra'", specifier = ">=1.2.0,<2.0" },
+    { name = "ipython", extras = ["all"], marker = "extra == 'all'", specifier = ">=8.0.0,<11.0" },
+    { name = "ipython", extras = ["all"], marker = "extra == 'dev'", specifier = ">=8.0.0,<11.0" },
+    { name = "ipython", extras = ["all"], marker = "extra == 'examples'", specifier = ">=8.0.0,<11.0" },
+    { name = "ipython", extras = ["all"], marker = "extra == 'pytorch-all'", specifier = ">=8.0.0,<11.0" },
+    { name = "ipython", extras = ["all"], marker = "extra == 'pytorch-dev'", specifier = ">=8.0.0,<11.0" },
+    { name = "ipython", extras = ["all"], marker = "extra == 'pytorch-examples'", specifier = ">=8.0.0,<11.0" },
+    { name = "jsonargparse", extras = ["jsonnet", "signatures"], marker = "extra == 'all'", specifier = ">=4.39.0,<5.0" },
+    { name = "jsonargparse", extras = ["jsonnet", "signatures"], marker = "extra == 'dev'", specifier = ">=4.39.0,<5.0" },
+    { name = "jsonargparse", extras = ["jsonnet", "signatures"], marker = "extra == 'extra'", specifier = ">=4.39.0,<5.0" },
+    { name = "jsonargparse", extras = ["jsonnet", "signatures"], marker = "extra == 'pytorch-all'", specifier = ">=4.39.0,<5.0" },
+    { name = "jsonargparse", extras = ["jsonnet", "signatures"], marker = "extra == 'pytorch-dev'", specifier = ">=4.39.0,<5.0" },
+    { name = "jsonargparse", extras = ["jsonnet", "signatures"], marker = "extra == 'pytorch-extra'", specifier = ">=4.39.0,<5.0" },
+    { name = "lightning-utilities", specifier = ">=0.10.0,<2.0" },
+    { name = "litdata", marker = "extra == 'data'", specifier = ">=0.2.0rc0,<1.0" },
+    { name = "matplotlib", marker = "extra == 'all'", specifier = ">3.1,<4.0" },
+    { name = "matplotlib", marker = "extra == 'dev'", specifier = ">3.1,<4.0" },
+    { name = "matplotlib", marker = "extra == 'extra'", specifier = ">3.1,<4.0" },
+    { name = "matplotlib", marker = "extra == 'pytorch-all'", specifier = ">3.1,<4.0" },
+    { name = "matplotlib", marker = "extra == 'pytorch-dev'", specifier = ">3.1,<4.0" },
+    { name = "matplotlib", marker = "extra == 'pytorch-extra'", specifier = ">3.1,<4.0" },
+    { name = "numpy", marker = "python_full_version >= '3.12' and extra == 'dev'", specifier = ">2.1.0,<3.0" },
+    { name = "numpy", marker = "python_full_version >= '3.12' and extra == 'fabric-dev'", specifier = ">2.1.0,<3.0" },
+    { name = "numpy", marker = "python_full_version >= '3.12' and extra == 'fabric-test'", specifier = ">2.1.0,<3.0" },
+    { name = "numpy", marker = "python_full_version >= '3.12' and extra == 'pytorch-dev'", specifier = ">2.1.0,<3.0" },
+    { name = "numpy", marker = "python_full_version >= '3.12' and extra == 'pytorch-test'", specifier = ">2.1.0,<3.0" },
+    { name = "numpy", marker = "python_full_version >= '3.12' and extra == 'test'", specifier = ">2.1.0,<3.0" },
+    { name = "numpy", marker = "python_full_version < '3.12' and extra == 'dev'", specifier = ">1.21.0,<2.0" },
+    { name = "numpy", marker = "python_full_version < '3.12' and extra == 'fabric-dev'", specifier = ">1.21.0,<2.0" },
+    { name = "numpy", marker = "python_full_version < '3.12' and extra == 'fabric-test'", specifier = ">1.21.0,<2.0" },
+    { name = "numpy", marker = "python_full_version < '3.12' and extra == 'pytorch-dev'", specifier = ">1.21.0,<2.0" },
+    { name = "numpy", marker = "python_full_version < '3.12' and extra == 'pytorch-test'", specifier = ">1.21.0,<2.0" },
+    { name = "numpy", marker = "python_full_version < '3.12' and extra == 'test'", specifier = ">1.21.0,<2.0" },
+    { name = "omegaconf", marker = "extra == 'all'", specifier = ">=2.2.3,<3.0" },
+    { name = "omegaconf", marker = "extra == 'dev'", specifier = ">=2.2.3,<3.0" },
+    { name = "omegaconf", marker = "extra == 'extra'", specifier = ">=2.2.3,<3.0" },
+    { name = "omegaconf", marker = "extra == 'pytorch-all'", specifier = ">=2.2.3,<3.0" },
+    { name = "omegaconf", marker = "extra == 'pytorch-dev'", specifier = ">=2.2.3,<3.0" },
+    { name = "omegaconf", marker = "extra == 'pytorch-extra'", specifier = ">=2.2.3,<3.0" },
+    { name = "onnx", marker = "extra == 'dev'", specifier = ">1.12.0,<2.0" },
+    { name = "onnx", marker = "extra == 'pytorch-dev'", specifier = ">1.12.0,<2.0" },
+    { name = "onnx", marker = "extra == 'pytorch-test'", specifier = ">1.12.0,<2.0" },
+    { name = "onnx", marker = "extra == 'test'", specifier = ">1.12.0,<2.0" },
+    { name = "onnx-ir", marker = "extra == 'dev'", specifier = ">=0.1.16" },
+    { name = "onnx-ir", marker = "extra == 'pytorch-dev'", specifier = ">=0.1.16" },
+    { name = "onnx-ir", marker = "extra == 'pytorch-test'", specifier = ">=0.1.16" },
+    { name = "onnx-ir", marker = "extra == 'test'", specifier = ">=0.1.16" },
+    { name = "onnxruntime", marker = "extra == 'dev'", specifier = ">=1.12.0,<2.0" },
+    { name = "onnxruntime", marker = "extra == 'pytorch-dev'", specifier = ">=1.12.0,<2.0" },
+    { name = "onnxruntime", marker = "extra == 'pytorch-test'", specifier = ">=1.12.0,<2.0" },
+    { name = "onnxruntime", marker = "extra == 'test'", specifier = ">=1.12.0,<2.0" },
+    { name = "onnxscript", marker = "extra == 'dev'", specifier = ">=0.1.0,<1.0" },
+    { name = "onnxscript", marker = "extra == 'pytorch-dev'", specifier = ">=0.1.0,<1.0" },
+    { name = "onnxscript", marker = "extra == 'pytorch-test'", specifier = ">=0.1.0,<1.0" },
+    { name = "onnxscript", marker = "extra == 'test'", specifier = ">=0.1.0,<1.0" },
+    { name = "packaging", specifier = ">=23.0,<28.0" },
+    { name = "pandas", marker = "extra == 'dev'", specifier = ">2.0,<4.0" },
+    { name = "pandas", marker = "extra == 'pytorch-dev'", specifier = ">2.0,<4.0" },
+    { name = "pandas", marker = "extra == 'pytorch-test'", specifier = ">2.0,<4.0" },
+    { name = "pandas", marker = "extra == 'test'", specifier = ">2.0,<4.0" },
+    { name = "psutil", marker = "extra == 'dev'", specifier = "<8.0" },
+    { name = "psutil", marker = "extra == 'pytorch-dev'", specifier = "<8.0" },
+    { name = "psutil", marker = "extra == 'pytorch-test'", specifier = "<8.0" },
+    { name = "psutil", marker = "extra == 'test'", specifier = "<8.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = "==9.0.2" },
+    { name = "pytest", marker = "extra == 'fabric-dev'", specifier = "==9.0.2" },
+    { name = "pytest", marker = "extra == 'fabric-test'", specifier = "==9.0.2" },
+    { name = "pytest", marker = "extra == 'pytorch-dev'", specifier = "==9.0.2" },
+    { name = "pytest", marker = "extra == 'pytorch-test'", specifier = "==9.0.2" },
+    { name = "pytest", marker = "extra == 'test'", specifier = "==9.0.2" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==7.0.0" },
+    { name = "pytest-cov", marker = "extra == 'fabric-dev'", specifier = "==7.0.0" },
+    { name = "pytest-cov", marker = "extra == 'fabric-test'", specifier = "==7.0.0" },
+    { name = "pytest-cov", marker = "extra == 'pytorch-dev'", specifier = "==7.0.0" },
+    { name = "pytest-cov", marker = "extra == 'pytorch-test'", specifier = "==7.0.0" },
+    { name = "pytest-cov", marker = "extra == 'test'", specifier = "==7.0.0" },
+    { name = "pytest-random-order", marker = "extra == 'dev'", specifier = "==1.2.0" },
+    { name = "pytest-random-order", marker = "extra == 'fabric-dev'", specifier = "==1.2.0" },
+    { name = "pytest-random-order", marker = "extra == 'fabric-test'", specifier = "==1.2.0" },
+    { name = "pytest-random-order", marker = "extra == 'pytorch-dev'", specifier = "==1.2.0" },
+    { name = "pytest-random-order", marker = "extra == 'pytorch-test'", specifier = "==1.2.0" },
+    { name = "pytest-random-order", marker = "extra == 'test'", specifier = "==1.2.0" },
+    { name = "pytest-rerunfailures", marker = "python_full_version >= '3.10' and extra == 'dev'", specifier = "==16.1" },
+    { name = "pytest-rerunfailures", marker = "python_full_version >= '3.10' and extra == 'fabric-dev'", specifier = "==16.1" },
+    { name = "pytest-rerunfailures", marker = "python_full_version >= '3.10' and extra == 'fabric-test'", specifier = "==16.1" },
+    { name = "pytest-rerunfailures", marker = "python_full_version >= '3.10' and extra == 'pytorch-dev'", specifier = "==16.1" },
+    { name = "pytest-rerunfailures", marker = "python_full_version >= '3.10' and extra == 'pytorch-test'", specifier = "==16.1" },
+    { name = "pytest-rerunfailures", marker = "python_full_version >= '3.10' and extra == 'test'", specifier = "==16.1" },
+    { name = "pytest-rerunfailures", marker = "python_full_version < '3.10' and extra == 'dev'", specifier = "==16.0.1" },
+    { name = "pytest-rerunfailures", marker = "python_full_version < '3.10' and extra == 'fabric-dev'", specifier = "==16.0.1" },
+    { name = "pytest-rerunfailures", marker = "python_full_version < '3.10' and extra == 'fabric-test'", specifier = "==16.0.1" },
+    { name = "pytest-rerunfailures", marker = "python_full_version < '3.10' and extra == 'pytorch-dev'", specifier = "==16.0.1" },
+    { name = "pytest-rerunfailures", marker = "python_full_version < '3.10' and extra == 'pytorch-test'", specifier = "==16.0.1" },
+    { name = "pytest-rerunfailures", marker = "python_full_version < '3.10' and extra == 'test'", specifier = "==16.0.1" },
+    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = "==2.4.0" },
+    { name = "pytest-timeout", marker = "extra == 'fabric-dev'", specifier = "==2.4.0" },
+    { name = "pytest-timeout", marker = "extra == 'fabric-test'", specifier = "==2.4.0" },
+    { name = "pytest-timeout", marker = "extra == 'pytorch-dev'", specifier = "==2.4.0" },
+    { name = "pytest-timeout", marker = "extra == 'pytorch-test'", specifier = "==2.4.0" },
+    { name = "pytest-timeout", marker = "extra == 'test'", specifier = "==2.4.0" },
+    { name = "pytorch-lightning" },
+    { name = "pyyaml", specifier = ">5.4,<8.0" },
+    { name = "requests", marker = "extra == 'all'", specifier = "<3.0" },
+    { name = "requests", marker = "extra == 'dev'", specifier = "<3.0" },
+    { name = "requests", marker = "extra == 'examples'", specifier = "<3.0" },
+    { name = "requests", marker = "extra == 'pytorch-all'", specifier = "<3.0" },
+    { name = "requests", marker = "extra == 'pytorch-dev'", specifier = "<3.0" },
+    { name = "requests", marker = "extra == 'pytorch-examples'", specifier = "<3.0" },
+    { name = "rich", marker = "extra == 'all'", specifier = ">=12.3.0,<15.0" },
+    { name = "rich", marker = "extra == 'dev'", specifier = ">=12.3.0,<15.0" },
+    { name = "rich", marker = "extra == 'extra'", specifier = ">=12.3.0,<15.0" },
+    { name = "rich", marker = "extra == 'pytorch-all'", specifier = ">=12.3.0,<15.0" },
+    { name = "rich", marker = "extra == 'pytorch-dev'", specifier = ">=12.3.0,<15.0" },
+    { name = "rich", marker = "extra == 'pytorch-extra'", specifier = ">=12.3.0,<15.0" },
+    { name = "scikit-learn", marker = "extra == 'dev'", specifier = ">0.22.1,<2.0" },
+    { name = "scikit-learn", marker = "extra == 'pytorch-dev'", specifier = ">0.22.1,<2.0" },
+    { name = "scikit-learn", marker = "extra == 'pytorch-test'", specifier = ">0.22.1,<2.0" },
+    { name = "scikit-learn", marker = "extra == 'test'", specifier = ">0.22.1,<2.0" },
+    { name = "tensorboard", marker = "extra == 'dev'", specifier = ">=2.11,<3.0" },
+    { name = "tensorboard", marker = "extra == 'pytorch-dev'", specifier = ">=2.11,<3.0" },
+    { name = "tensorboard", marker = "extra == 'pytorch-test'", specifier = ">=2.11,<3.0" },
+    { name = "tensorboard", marker = "extra == 'test'", specifier = ">=2.11,<3.0" },
+    { name = "tensorboardx", marker = "extra == 'all'", specifier = ">=2.2,<3.0" },
+    { name = "tensorboardx", marker = "extra == 'dev'", specifier = ">=2.2,<3.0" },
+    { name = "tensorboardx", marker = "extra == 'dev'", specifier = ">=2.6,<3.0" },
+    { name = "tensorboardx", marker = "extra == 'extra'", specifier = ">=2.2,<3.0" },
+    { name = "tensorboardx", marker = "extra == 'fabric-dev'", specifier = ">=2.6,<3.0" },
+    { name = "tensorboardx", marker = "extra == 'fabric-test'", specifier = ">=2.6,<3.0" },
+    { name = "tensorboardx", marker = "extra == 'pytorch-all'", specifier = ">=2.2,<3.0" },
+    { name = "tensorboardx", marker = "extra == 'pytorch-dev'", specifier = ">=2.2,<3.0" },
+    { name = "tensorboardx", marker = "extra == 'pytorch-extra'", specifier = ">=2.2,<3.0" },
+    { name = "tensorboardx", marker = "extra == 'test'", specifier = ">=2.6,<3.0" },
+    { name = "torch", specifier = ">=2.1.0,<4.0" },
+    { name = "torch-tensorrt", marker = "python_full_version >= '3.12' and sys_platform != 'darwin' and extra == 'pytorch-test-gpu'" },
+    { name = "torch-tensorrt", marker = "python_full_version >= '3.12' and sys_platform != 'darwin' and extra == 'test-gpu'" },
+    { name = "torchmetrics", specifier = ">0.7.0,<3.0" },
+    { name = "torchmetrics", marker = "extra == 'all'", specifier = ">=0.10.0,<2.0" },
+    { name = "torchmetrics", marker = "extra == 'dev'", specifier = ">=0.10.0,<2.0" },
+    { name = "torchmetrics", marker = "extra == 'examples'", specifier = ">=0.10.0,<2.0" },
+    { name = "torchmetrics", marker = "extra == 'fabric-all'", specifier = ">=0.10.0,<2.0" },
+    { name = "torchmetrics", marker = "extra == 'fabric-dev'", specifier = ">=0.10.0,<2.0" },
+    { name = "torchmetrics", marker = "extra == 'fabric-examples'", specifier = ">=0.10.0,<2.0" },
+    { name = "torchmetrics", marker = "extra == 'pytorch-all'", specifier = ">=0.10.0,<2.0" },
+    { name = "torchmetrics", marker = "extra == 'pytorch-dev'", specifier = ">=0.10.0,<2.0" },
+    { name = "torchmetrics", marker = "extra == 'pytorch-examples'", specifier = ">=0.10.0,<2.0" },
+    { name = "torchvision", marker = "extra == 'all'", specifier = ">=0.16.0,<1.0" },
+    { name = "torchvision", marker = "extra == 'dev'", specifier = ">=0.16.0,<1.0" },
+    { name = "torchvision", marker = "extra == 'examples'", specifier = ">=0.16.0,<1.0" },
+    { name = "torchvision", marker = "extra == 'fabric-all'", specifier = ">=0.16.0,<1.0" },
+    { name = "torchvision", marker = "extra == 'fabric-dev'", specifier = ">=0.16.0,<1.0" },
+    { name = "torchvision", marker = "extra == 'fabric-examples'", specifier = ">=0.16.0,<1.0" },
+    { name = "torchvision", marker = "extra == 'pytorch-all'", specifier = ">=0.16.0,<1.0" },
+    { name = "torchvision", marker = "extra == 'pytorch-dev'", specifier = ">=0.16.0,<1.0" },
+    { name = "torchvision", marker = "extra == 'pytorch-examples'", specifier = ">=0.16.0,<1.0" },
+    { name = "tqdm", specifier = ">=4.57.0,<6.0" },
+    { name = "typing-extensions", specifier = ">4.5.0,<6.0" },
+    { name = "uvicorn", marker = "extra == 'dev'" },
+    { name = "uvicorn", marker = "extra == 'pytorch-dev'" },
+    { name = "uvicorn", marker = "extra == 'pytorch-test'" },
+    { name = "uvicorn", marker = "extra == 'test'" },
 ]
+provides-extras = ["fabric-extra", "fabric-examples", "fabric-strategies", "fabric-test", "pytorch-extra", "pytorch-examples", "pytorch-test-gpu", "pytorch-strategies", "pytorch-test", "fabric-all", "fabric-dev", "pytorch-all", "pytorch-dev", "extra", "examples", "strategies", "test", "test-gpu", "data", "all", "dev"]
 
 [[package]]
 name = "lightning-utilities"
@@ -1128,7 +1377,10 @@ dependencies = [
 
 [package.optional-dependencies]
 alignment = [
+    { name = "aiohttp" },
     { name = "av" },
+    { name = "lightning" },
+    { name = "nltk" },
     { name = "torchcodec" },
     { name = "whisperx" },
 ]
@@ -1138,6 +1390,9 @@ api = [
 ]
 asr = [
     { name = "faster-whisper" },
+]
+cleanup-apple = [
+    { name = "apple-fm-sdk", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128')" },
 ]
 dev = [
     { name = "cyclonedx-bom" },
@@ -1149,14 +1404,19 @@ dev = [
     { name = "types-pyyaml" },
 ]
 diarization = [
+    { name = "aiohttp" },
     { name = "av" },
+    { name = "lightning" },
     { name = "pyannote-audio" },
     { name = "torchcodec" },
 ]
 full = [
+    { name = "aiohttp" },
     { name = "av" },
     { name = "fastapi" },
     { name = "faster-whisper" },
+    { name = "lightning" },
+    { name = "nltk" },
     { name = "pillow" },
     { name = "pyannote-audio" },
     { name = "ruamel-yaml" },
@@ -1167,6 +1427,9 @@ full = [
 ]
 mlx = [
     { name = "mlx-whisper", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128')" },
+]
+presentation-sat = [
+    { name = "wtpsplit" },
 ]
 speaker-embeddings = [
     { name = "ruamel-yaml" },
@@ -1199,6 +1462,10 @@ cu128 = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", marker = "extra == 'alignment'", specifier = ">=3.14.3,<4" },
+    { name = "aiohttp", marker = "extra == 'diarization'", specifier = ">=3.14.3,<4" },
+    { name = "aiohttp", marker = "extra == 'full'", specifier = ">=3.14.3,<4" },
+    { name = "apple-fm-sdk", marker = "platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'cleanup-apple'", specifier = "==0.2.1" },
     { name = "av", marker = "extra == 'alignment'", specifier = "==15.1.0" },
     { name = "av", marker = "extra == 'diarization'", specifier = "==15.1.0" },
     { name = "av", marker = "extra == 'full'", specifier = "==15.1.0" },
@@ -1209,8 +1476,13 @@ requires-dist = [
     { name = "faster-whisper", marker = "extra == 'full'", specifier = ">=1.2.1,<2" },
     { name = "huggingface-hub", specifier = ">=0.36,<1" },
     { name = "jiwer", specifier = ">=4,<5" },
+    { name = "lightning", marker = "extra == 'alignment'", url = "https://github.com/Lightning-AI/pytorch-lightning/archive/d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz" },
+    { name = "lightning", marker = "extra == 'diarization'", url = "https://github.com/Lightning-AI/pytorch-lightning/archive/d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz" },
+    { name = "lightning", marker = "extra == 'full'", url = "https://github.com/Lightning-AI/pytorch-lightning/archive/d710d689510d50e800f53b3cd773cbca20b1f86f.tar.gz" },
     { name = "mlx-whisper", marker = "platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'mlx'", specifier = ">=0.4.3,<0.5" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2,<3" },
+    { name = "nltk", marker = "extra == 'alignment'", specifier = ">=3.10.3,<4" },
+    { name = "nltk", marker = "extra == 'full'", specifier = ">=3.10.3,<4" },
     { name = "pillow", marker = "extra == 'full'", specifier = "==12.3.0" },
     { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.9,<3" },
     { name = "pyannote-audio", marker = "extra == 'diarization'", specifier = ">=4.0.4,<5" },
@@ -1235,8 +1507,9 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'full'", specifier = ">=0.30,<1" },
     { name = "whisperx", marker = "extra == 'alignment'", specifier = ">=3.8.6,<4" },
     { name = "whisperx", marker = "extra == 'full'", specifier = ">=3.8.6,<4" },
+    { name = "wtpsplit", marker = "extra == 'presentation-sat'", specifier = "==2.2.1" },
 ]
-provides-extras = ["asr", "mlx", "diarization", "alignment", "speaker-embeddings", "speaker-id", "api", "full", "dev"]
+provides-extras = ["asr", "mlx", "diarization", "alignment", "speaker-embeddings", "speaker-id", "cleanup-apple", "presentation-sat", "api", "full", "dev"]
 
 [package.metadata.requires-dev]
 cpu = [
@@ -1463,6 +1736,18 @@ wheels = [
 ]
 
 [[package]]
+name = "mosestokenizer"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docopt" },
+    { name = "openfile" },
+    { name = "toolwrapper" },
+    { name = "uctools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8d/84/4f3c1b5b8d796a07e3816cd41f7b1491e2291db4ade5f17b850116fd80e5/mosestokenizer-1.2.1.tar.gz", hash = "sha256:438b3e35a221f7930c408e97e3f38af6d0cec74b991eb9edb00a44e3510e836d", size = 37120, upload-time = "2021-10-22T14:15:07.205Z" }
+
+[[package]]
 name = "mpmath"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1605,17 +1890,18 @@ wheels = [
 
 [[package]]
 name = "nltk"
-version = "3.9.4"
+version = "3.10.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
+    { name = "defusedxml" },
     { name = "joblib" },
     { name = "regex" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/74/a1/b3b4adf15585a5bc4c357adde150c01ebeeb642173ded4d871e89468767c/nltk-3.9.4.tar.gz", hash = "sha256:ed03bc098a40481310320808b2db712d95d13ca65b27372f8a403949c8b523d0", size = 2946864, upload-time = "2026-03-24T06:13:40.641Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e0/e6/fe51d2bb1a3b446f59c5c8165999a9fee208bc346af90a7cbf7657bc0d75/nltk-3.10.3.tar.gz", hash = "sha256:bb9327a461c3811c2fa4900e03840401f2126adfb30c0072827c433bd2444ea4", size = 5137152, upload-time = "2026-08-12T23:46:37.258Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9d/91/04e965f8e717ba0ab4bdca5c112deeab11c9e750d94c4d4602f050295d39/nltk-3.9.4-py3-none-any.whl", hash = "sha256:f2fa301c3a12718ce4a0e9305c5675299da5ad9e26068218b69d692fda84828f", size = 1552087, upload-time = "2026-03-24T06:13:38.47Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/6d/ebd2af4640b12168fdf0cb74b6118df2f32a2f62ec7e0c06fbfd80706639/nltk-3.10.3-py3-none-any.whl", hash = "sha256:ff9598a8e20518ee0d557745890cc4435b9578489e2dcbc69c4f81fa060caf7c", size = 1798643, upload-time = "2026-08-12T23:44:13.478Z" },
 ]
 
 [[package]]
@@ -2087,6 +2373,15 @@ wheels = [
 ]
 
 [[package]]
+name = "openfile"
+version = "0.0.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/16/46/6c8b936e55ace50a6d9ea722dd4b11a4996d58cff41690636a0d6f6f6718/openfile-0.0.7.tar.gz", hash = "sha256:ea4e8f19112049f578ec161b12f70c1113144988c0a488ab173a138b50f37479", size = 2199, upload-time = "2018-09-26T13:16:48.207Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/93/e6/805db6867faacb488b44ba8e0829ef4de151dd0499f3c5da5f4ad11698a7/openfile-0.0.7-py3-none-any.whl", hash = "sha256:d21b69dba1306c9dd397a44fd8f4fa8a83812f1d935c409085e8a25c411d16ec", size = 2355, upload-time = "2018-09-26T13:17:13.226Z" },
+]
+
+[[package]]
 name = "opentelemetry-api"
 version = "1.42.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2374,6 +2669,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "prettytable"
+version = "3.18.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "wcwidth" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/81/74/ba08d81e668ccfe8658d7520a307e63c19862c08eb4ccb26f356c5239a7a/prettytable-3.18.0.tar.gz", hash = "sha256:439217116152244369caf3d9f1caf2f9fe29b03bd79e88d2928c8e718c95d680", size = 76373, upload-time = "2026-06-22T16:07:50.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fe/be/2e6798ace5cc036f5d05d36b7b2fd85346f1a708c87060890b070d0ec607/prettytable-3.18.0-py3-none-any.whl", hash = "sha256:b3346e0e6f79180833aebaac088ae926340586cf6d7d991b9eb125b65f72313a", size = 37357, upload-time = "2026-06-22T16:07:48.595Z" },
 ]
 
 [[package]]
@@ -2668,6 +2975,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyproject-hooks"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/82/28175b2414effca1cdac8dc99f76d660e7a4fb0ceefa4b4ab8f5f6742925/pyproject_hooks-1.2.0.tar.gz", hash = "sha256:1e859bd5c40fae9448642dd871adf459e5e2084186e8d2c2a79a824c970da1f8", size = 19228, upload-time = "2024-09-29T09:24:13.293Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/24/12818598c362d7f300f18e74db45963dbcb85150324092410c8b49405e42/pyproject_hooks-1.2.0-py3-none-any.whl", hash = "sha256:9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913", size = 10216, upload-time = "2024-09-29T09:24:11.978Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2720,29 +3036,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/da/db/0b3e28ac047452d079d375ec6798bf76a036a08182dbb39ed38116a49130/python-magic-0.4.27.tar.gz", hash = "sha256:c1ba14b08e4a5f5c31a302b7721239695b2f0f058d125bd5ce1ee36b9d9d3c3b", size = 14677, upload-time = "2022-06-07T20:16:59.508Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6c/73/9f872cb81fc5c3bb48f7227872c28975f998f3e7c2b1c16e95e6432bbb90/python_magic-0.4.27-py2.py3-none-any.whl", hash = "sha256:c212960ad306f700aa0d01e5d7a325d20548ff97eb9920dcd29513174f0294d3", size = 13840, upload-time = "2022-06-07T20:16:57.763Z" },
-]
-
-[[package]]
-name = "pytorch-lightning"
-version = "2.6.5"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "fsspec", extra = ["http"] },
-    { name = "lightning-utilities" },
-    { name = "packaging" },
-    { name = "pyyaml" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'group-20-local-transcript-max-cpu') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (extra != 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128')" },
-    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'emscripten' and extra != 'group-20-local-transcript-max-cpu') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform != 'win32' and extra != 'group-20-local-transcript-max-cpu' and extra != 'group-20-local-transcript-max-cu126') or (extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (extra != 'group-20-local-transcript-max-cpu' and extra != 'group-20-local-transcript-max-cu126' and extra != 'group-20-local-transcript-max-cu128')" },
-    { name = "torch", version = "2.8.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(platform_machine != 'arm64' and extra == 'group-20-local-transcript-max-cpu') or (sys_platform != 'darwin' and extra == 'group-20-local-transcript-max-cpu') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128') or (extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128')" },
-    { name = "torch", version = "2.8.0+cu126", source = { registry = "https://download.pytorch.org/whl/cu126" }, marker = "(sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'group-20-local-transcript-max-cu126') or (sys_platform == 'emscripten' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128')" },
-    { name = "torch", version = "2.8.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'win32' and extra == 'group-20-local-transcript-max-cu128') or (extra == 'group-20-local-transcript-max-cu126' and extra == 'group-20-local-transcript-max-cu128') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu126') or (extra == 'group-20-local-transcript-max-cpu' and extra == 'group-20-local-transcript-max-cu128')" },
-    { name = "torchmetrics" },
-    { name = "tqdm" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/52/2c/8e73a3929b4c4bd600cafd38a97aaf7242a8cf518fb9f33d27c274ec898f/pytorch_lightning-2.6.5.tar.gz", hash = "sha256:1c32cefa76a1a9c4c5250338272d961d1e48b180e68396849efe128538ddb28e", size = 661673, upload-time = "2026-05-27T14:33:41.961Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8b/4d/5740c27110b83634d8491c3b5facf0111b3e554c3164f4fb953be9bddaf6/pytorch_lightning-2.6.5-py3-none-any.whl", hash = "sha256:62d9c8549b2278fedc3364f0a5607a56c6063d18635008f8cf3fae8d802b0d76", size = 852407, upload-time = "2026-05-27T14:33:39.856Z" },
 ]
 
 [[package]]
@@ -3205,6 +3498,22 @@ wheels = [
 ]
 
 [[package]]
+name = "skops"
+version = "0.14.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "prettytable" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c8/9f/46448c4e41a4c5ee4bdb74b3758af48e5ff0faeffe40f4e301bfc7594894/skops-0.14.0.tar.gz", hash = "sha256:6c8c0e047f691a3a582c3258943eecafcbfd79c8c7eef66260f3703e363254f0", size = 608084, upload-time = "2026-04-20T18:23:55.336Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/0e/3ae19fa941522cd98e119762e7181d371c8dba0b2d72bfaf9522692e329c/skops-0.14.0-py3-none-any.whl", hash = "sha256:60a5db78a9db46ccee2139a0ba13ab5afb1c96f4749b382e75a371291bbe3e36", size = 132198, upload-time = "2026-04-20T18:23:54.018Z" },
+]
+
+[[package]]
 name = "sortedcontainers"
 version = "2.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3422,6 +3731,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/51/db/03eaf4331631ef6b2
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6a/43/8bd850ee71a191bf072e31302c73a66be413fecdd98fdcd111ecbcce13ca/tomlkit-0.15.0-py3-none-any.whl", hash = "sha256:4dbc8f0fc024412b57ced8757ac7461305126a648ff8c2c807fcb8e133a78738", size = 41328, upload-time = "2026-05-10T07:38:23.517Z" },
 ]
+
+[[package]]
+name = "toolwrapper"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/7b/34bf8fb69426d8a18bcc61081e9d126f4fcd41c3c832072bef39af1602cd/toolwrapper-2.1.0.tar.gz", hash = "sha256:128088c93cb02fcaa6701c488e62e027f45ca5597b5c9bcf28816ad70e830bf7", size = 3202, upload-time = "2020-05-13T04:18:05.65Z" }
 
 [[package]]
 name = "torch"
@@ -3989,6 +4304,12 @@ wheels = [
 ]
 
 [[package]]
+name = "uctools"
+version = "1.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/04/cb/70ed842d9a43460eedaa11f7503b4ab6537b43b63f0d854d59d8e150fac1/uctools-1.3.0.tar.gz", hash = "sha256:6bc0d947215af420534c0f62dcc0272f0b6066ed5545eec88e9a3c2313f6b826", size = 4638, upload-time = "2020-07-14T11:26:59.758Z" }
+
+[[package]]
 name = "uri-template"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4094,6 +4415,15 @@ wheels = [
 ]
 
 [[package]]
+name = "wcwidth"
+version = "0.8.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/34/74/c6428f875774288bec1396f5bfcbc2d925700a4dad61727fd5f2b12f249d/wcwidth-0.8.2.tar.gz", hash = "sha256:91fbef97204b96a3d4d421609b80340b760cf33e26da123ff243d76b1fda8dda", size = 1466253, upload-time = "2026-06-29T18:11:11.601Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/96/42/3e5985a0a7e57de470b320c6d6a1a67c844f6737a587f3d44dd13d1819e7/wcwidth-0.8.2-py3-none-any.whl", hash = "sha256:d63947694a0539a1d51e01eda7caf800c291020e6cdd7e28ad7b14dd33ad4f85", size = 323166, upload-time = "2026-06-29T18:11:09.888Z" },
+]
+
+[[package]]
 name = "webcolors"
 version = "25.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4168,6 +4498,25 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a0/51/4ffeb1dce4f9fa95e1688d6ee6c6f412f67f786a5f4856e906503b8502c9/whisperx-3.8.6.tar.gz", hash = "sha256:d647aecaa6c2f413bb924d722d925878ef300c99093ca49cd6cb7840bdbffe0e", size = 16490881, upload-time = "2026-05-25T12:36:06.72Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/00/53/d533db85704e64b1709db695fba2dd3b747cb7e979a18bd18dfbf1e44b91/whisperx-3.8.6-py3-none-any.whl", hash = "sha256:cb6d4fcd3fb6c42305cb8b222a33a0b78f6b657e9db3b714345fe43dc0a69c1f", size = 16486941, upload-time = "2026-05-25T12:36:03.885Z" },
+]
+
+[[package]]
+name = "wtpsplit"
+version = "2.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "mosestokenizer" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "scikit-learn" },
+    { name = "skops" },
+    { name = "tqdm" },
+    { name = "transformers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5a/1b/eb2f7ef0be37f9e8909005ca90366e7cb6a72ec8893467bd83fe69763dc7/wtpsplit-2.2.1.tar.gz", hash = "sha256:e72faf6df558fa45fdaa24ab2de28b7b61ad9c69900bc08041b7d479e6b9f5b7", size = 137817, upload-time = "2026-04-11T10:48:31.536Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/66/a1/bab8ee1f1cba084f7d2b30df613e5f70cfd4f8669013faacd8f13ae8fb37/wtpsplit-2.2.1-py3-none-any.whl", hash = "sha256:abf2d1cc6b3b95ece0f9a85a7d995de07ad3f940655cd43dfa905997556f1c72", size = 152930, upload-time = "2026-04-11T10:48:29.448Z" },
 ]
 
 [[package]]
