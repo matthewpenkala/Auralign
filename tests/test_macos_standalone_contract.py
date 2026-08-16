@@ -1880,6 +1880,8 @@ def test_installer_design_is_internalized_adapted_and_verification_only() -> Non
     assert "/Users/" not in verifier
     assert 'sys.executable,\n        "-B",' in verifier
     assert 'environment["PYTHONDONTWRITEBYTECODE"] = "1"' in verifier
+    assert '"2.0.0",' in verifier
+    assert '"1.0.0",' not in verifier
     for appearance in ("light", "dark"):
         source = (INSTALLER_DESIGN / f"Sources/installer-background-{appearance}.svg").read_text(
             encoding="utf-8"
@@ -1900,6 +1902,7 @@ def test_installer_design_is_internalized_adapted_and_verification_only() -> Non
         "bottom",
     ]
     welcome = (INSTALLER_DESIGN / "Resources/en.lproj/welcome.html").read_text(encoding="utf-8")
+    readme = (INSTALLER_DESIGN / "Resources/en.lproj/readme.html").read_text(encoding="utf-8")
     conclusion = (INSTALLER_DESIGN / "Resources/en.lproj/conclusion.html").read_text(
         encoding="utf-8"
     )
@@ -1908,6 +1911,8 @@ def test_installer_design_is_internalized_adapted_and_verification_only() -> Non
     assert "PolyForm Internal Use License 1.0.0" in welcome
     assert "redistribution-cleared model files" in welcome
     assert "no telemetry or media" in welcome
+    assert "Offline bootstrap resources 2.0.0" in readme
+    assert "Offline bootstrap resources 1.0.0" not in readme
 
 
 def test_release_swift_uses_embedded_runtime_and_verified_system_models() -> None:

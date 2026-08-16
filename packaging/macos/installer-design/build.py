@@ -222,7 +222,7 @@ def validate_distribution_round_trip() -> None:
                 "--identifier",
                 "com.auralign.studio.pkg.design-validation.models",
                 "--version",
-                "1.0.0",
+                "2.0.0",
                 str(model_component),
             ],
             check=True,
