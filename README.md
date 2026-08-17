@@ -244,7 +244,10 @@ include:
   `debug_report.json`
 
 Agentic diarization, re-decode, speaker matching, and local cleanup write
-separate artifacts; they do not overwrite raw ASR or diarization. See
+separate artifacts; they do not overwrite raw ASR or diarization. The opt-in
+`adaptive-safe` re-decode policy spends a wider beam only on QA-flagged spans
+and publishes any accepted result as a separate derived `adaptive/` lane; see
+[accuracy](docs/accuracy.md#adaptive-safe-re-decode-opt-in). See
 [architecture](docs/architecture.md), [alignment](docs/alignment.md), and
 [diarization](docs/diarization.md) for the stage contracts.
 The canonical transcript remains immutable. The default clean-transcript

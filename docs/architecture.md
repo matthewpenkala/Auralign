@@ -43,6 +43,9 @@ validated across the CLI, pipeline, API, benchmarks, and tests.
 9. Assign words to speakers and build speaker turns.
 10. Run deterministic QA.
 11. Optionally write re-decode candidates and conservative speaker matches.
+    With the opt-in `adaptive-safe` selection policy, decode each suspect
+    window at beam 5 and beam 10 and publish a separate derived `adaptive/`
+    lane when independent evidence supports the wider beam.
 12. Optionally run guarded cleanup into separate artifacts. Cleanup may use a
     guarded HTTP endpoint or Apple's in-process on-device system model. HTTP is
     localhost-only by default; non-local use requires explicit opt-in and is
@@ -72,8 +75,9 @@ validated across the CLI, pipeline, API, benchmarks, and tests.
   Optional transcript cleanup may use an explicitly approved non-local endpoint
   outside offline mode and then sends transcript text across that trust boundary.
 - Raw ASR, aligned transcript, raw/exclusive diarization, fused transcript,
-  speaker maps, re-decode candidates, cleanup results, and exports remain
-  separate artifacts.
+  speaker maps, re-decode candidates, the derived adaptive lane, cleanup
+  results, and exports remain separate artifacts. Adaptive selection never
+  edits the first-pass transcript; it publishes `adaptive/` alongside it.
 - Estimated timestamps are labeled as estimated and are never presented as
   successful forced alignment.
 - WhisperX operates with interpolation disabled and preserves original ASR
@@ -126,7 +130,8 @@ completion_timing.json
 ```
 
 Optional modes add separate sidecars such as diarization candidate/decision
-reports, re-decode candidates, `speaker_map.json`,
+reports, re-decode candidates, the derived `adaptive/` lane,
+`speaker_map.json`,
 `transcript.speaker_matched.json`, cleanup outputs, validation reports, and
 `debug_report.json`. The opt-in resolver adds `speaker_identity_*` reports and
 `transcript.identity_mapped.*` exports without changing canonical transcripts

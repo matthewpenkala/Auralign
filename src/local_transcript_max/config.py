@@ -881,11 +881,29 @@ class QAConfig(BaseModel):
     targeted_redecode: bool = False
 
 
+MAXIMUM_ADAPTIVE_BEAM_SIZE = 10
+"""Widest reviewed re-decode beam.
+
+A wider global beam is not reliably better for Whisper: it costs runtime and can
+introduce hallucinations, omissions, and repetition. Beam values above this
+ceiling stay unavailable until a separately reviewed held-out evaluation shows a
+material benefit.
+"""
+
+
 class RedecodeConfig(BaseModel):
     mode: Literal["off", "low-confidence", "hallucination", "all-suspect"] = "off"
+    selection_policy: Literal["candidate-only", "adaptive-safe"] = "candidate-only"
     max_spans: int = Field(default=5, ge=1, le=100)
     pad_seconds: float = Field(default=1.0, ge=0.0, le=30.0)
     beam_size: int = Field(default=5, ge=1, le=20)
+    adaptive_wide_beam_size: int = Field(default=10, ge=2, le=MAXIMUM_ADAPTIVE_BEAM_SIZE)
+    adaptive_max_span_seconds: float = Field(default=30.0, gt=0.0, le=120.0)
+    adaptive_max_total_window_seconds: float = Field(default=300.0, gt=0.0, le=3600.0)
+    adaptive_min_alignment_coverage: float = Field(default=0.9, ge=0.0, le=1.0)
+    adaptive_min_logprob_margin: float = Field(default=0.05, ge=0.0, le=2.0)
+    adaptive_protected_margin_multiplier: float = Field(default=3.0, ge=1.0, le=10.0)
+    adaptive_max_plan_bytes: int = Field(default=4_194_304, ge=4_096, le=67_108_864)
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     write_report: bool = False
     write_repaired_transcript: bool = False
@@ -900,6 +918,38 @@ class RedecodeConfig(BaseModel):
                 "transcript.redecode_candidates.json instead."
             )
         return value
+
+    @model_validator(mode="after")
+    def validate_selection_policy(self) -> RedecodeConfig:
+        if self.selection_policy == "adaptive-safe":
+            # The ladder only exists for adaptive selection. Enforcing it in
+            # candidate-only mode would reject existing configurations whose
+            # single re-decode beam is already 10 or wider.
+            if self.adaptive_wide_beam_size <= self.beam_size:
+                raise ValueError(
+                    "redecode beam ladder must strictly increase: "
+                    "adaptive_wide_beam_size must exceed beam_size "
+                    f"(got {self.beam_size} then {self.adaptive_wide_beam_size})."
+                )
+            if self.mode == "off":
+                raise ValueError(
+                    "redecode.selection_policy=adaptive-safe requires a re-decode mode "
+                    "that can select suspicious spans; set redecode.mode."
+                )
+            if self.temperature != 0.0:
+                raise ValueError(
+                    "redecode.selection_policy=adaptive-safe requires "
+                    "redecode.temperature=0.0 so both beam candidates stay deterministic."
+                )
+        return self
+
+    @property
+    def beam_ladder(self) -> tuple[int, ...]:
+        """Return the deterministic control-then-wide beam ladder."""
+
+        if self.selection_policy != "adaptive-safe":
+            return (self.beam_size,)
+        return (self.beam_size, self.adaptive_wide_beam_size)
 
 
 class SpeakerIDConfig(BaseModel):
@@ -1129,6 +1179,51 @@ class PipelineConfig(BaseModel):
         except CleanupRejectedError as exc:
             raise ValueError(str(exc)) from exc
         return cleanup
+
+    @model_validator(mode="after")
+    def validate_adaptive_redecode_requirements(self) -> PipelineConfig:
+        validate_adaptive_selection(self)
+        return self
+
+
+def validate_adaptive_selection(config: PipelineConfig) -> None:
+    """Fail closed when adaptive selection lacks its required local evidence.
+
+    Raises ``ValueError`` so the message reads identically from Pydantic
+    validation and from a direct CLI override.
+    """
+
+    if config.redecode.selection_policy != "adaptive-safe":
+        return
+    if not config.qa.enabled:
+        raise ValueError(
+            "redecode.selection_policy=adaptive-safe requires qa.enabled=true: "
+            "suspicious spans and regression gates come from typed QA evidence."
+        )
+    if not config.alignment.enabled or config.alignment.backend not in {"auto", "forced"}:
+        raise ValueError(
+            "redecode.selection_policy=adaptive-safe requires forced alignment "
+            "(alignment.backend=auto or forced). Whisper word timestamps come from the "
+            "same decode being judged and are not independent evidence."
+        )
+    if config.asr.backend != "faster-whisper":
+        raise ValueError(
+            "redecode.selection_policy=adaptive-safe requires the faster-whisper ASR "
+            f"backend; '{config.asr.backend}' does not support beam search."
+        )
+    if config.cleanup.mode != "off":
+        raise ValueError(
+            "redecode.selection_policy=adaptive-safe cannot publish a derived lane while "
+            "cleanup is enabled: cleanup depends on the selected ASR text and is not "
+            "regenerated inside the derived lane. Disable one of them."
+        )
+    if config.speaker_identity.mode != "off":
+        raise ValueError(
+            "redecode.selection_policy=adaptive-safe cannot publish a derived lane while "
+            "the speaker-identity resolver is enabled: identity composition depends on "
+            "the selected ASR text and is not regenerated inside the derived lane. "
+            "Disable one of them."
+        )
 
 
 def required_model_requests(config: PipelineConfig) -> tuple[tuple[str, str], ...]:

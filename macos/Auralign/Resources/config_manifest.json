@@ -444,6 +444,16 @@
       "optional": false
     },
     {
+      "choices": [
+        "candidate-only",
+        "adaptive-safe"
+      ],
+      "default": "candidate-only",
+      "key": "redecode.selection_policy",
+      "kind": "enum",
+      "optional": false
+    },
+    {
       "default": 5,
       "ge": 1,
       "key": "redecode.max_spans",
@@ -465,6 +475,62 @@
       "key": "redecode.beam_size",
       "kind": "int",
       "le": 20,
+      "optional": false
+    },
+    {
+      "default": 10,
+      "ge": 2,
+      "key": "redecode.adaptive_wide_beam_size",
+      "kind": "int",
+      "le": 10,
+      "optional": false
+    },
+    {
+      "default": 30.0,
+      "gt": 0.0,
+      "key": "redecode.adaptive_max_span_seconds",
+      "kind": "float",
+      "le": 120.0,
+      "optional": false
+    },
+    {
+      "default": 300.0,
+      "gt": 0.0,
+      "key": "redecode.adaptive_max_total_window_seconds",
+      "kind": "float",
+      "le": 3600.0,
+      "optional": false
+    },
+    {
+      "default": 0.9,
+      "ge": 0.0,
+      "key": "redecode.adaptive_min_alignment_coverage",
+      "kind": "float",
+      "le": 1.0,
+      "optional": false
+    },
+    {
+      "default": 0.05,
+      "ge": 0.0,
+      "key": "redecode.adaptive_min_logprob_margin",
+      "kind": "float",
+      "le": 2.0,
+      "optional": false
+    },
+    {
+      "default": 3.0,
+      "ge": 1.0,
+      "key": "redecode.adaptive_protected_margin_multiplier",
+      "kind": "float",
+      "le": 10.0,
+      "optional": false
+    },
+    {
+      "default": 4194304,
+      "ge": 4096,
+      "key": "redecode.adaptive_max_plan_bytes",
+      "kind": "int",
+      "le": 67108864,
       "optional": false
     },
     {

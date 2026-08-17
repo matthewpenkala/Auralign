@@ -55,13 +55,13 @@ REGENERATE_HINT = (
     "--write macos/Auralign/Resources/config_manifest.json"
 )
 
-EXPECTED_FIELD_COUNT = 123
+EXPECTED_FIELD_COUNT = 131
 EXPECTED_KIND_COUNTS = {
     "bool": 31,
-    "enum": 24,
-    "float": 19,
+    "enum": 25,
+    "float": 24,
     "float_or_float_list": 1,
-    "int": 18,
+    "int": 20,
     "path": 13,
     "path_list": 1,
     "string": 15,
@@ -80,15 +80,15 @@ EXPECTED_SECTION_IDS = [
     "subtitles",
 ]
 EXPECTED_DISPOSITION_COUNTS = {
-    "primary": 39,
-    "advanced": 83,
+    "primary": 40,
+    "advanced": 90,
     "readonly": 1,
 }
 EXPECTED_CONTROL_COUNTS = {
     "toggle": 31,
-    "enum_picker": 24,
-    "integer_editor": 18,
-    "float_editor": 19,
+    "enum_picker": 25,
+    "integer_editor": 20,
+    "float_editor": 24,
     "text_editor": 10,
     "model_picker": 5,
     "path_picker": 13,
@@ -280,7 +280,7 @@ def test_presentation_scorers_are_truthful_and_hidden_from_standalone_product() 
         key for key, field in catalog_by_key.items() if not field.get("product_visible", True)
     }
     assert hidden == {"asr.vad_filter", "asr.mlx_model_path", *scorer_keys}
-    assert sum(field.get("product_visible", True) for field in catalog["fields"]) == 115
+    assert sum(field.get("product_visible", True) for field in catalog["fields"]) == 123
 
 
 def test_field_catalog_entries_are_well_formed() -> None:

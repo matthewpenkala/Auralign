@@ -564,6 +564,14 @@
       "disposition": "primary"
     },
     {
+      "key": "redecode.selection_policy",
+      "title": "Re-decode selection policy",
+      "help": "candidate-only records review candidates and never changes the transcript. adaptive-safe additionally decodes each suspect window at beam 5 and beam 10 and publishes a separate derived transcript only when the wider beam wins on independent alignment and QA evidence.",
+      "section": "qa_redecode",
+      "disposition": "primary",
+      "requires": [{ "key": "redecode.mode", "not_equals": "off" }]
+    },
+    {
       "key": "redecode.max_spans",
       "title": "Max spans",
       "help": "Upper bound on re-decoded spans per job.",
@@ -587,6 +595,65 @@
       "section": "qa_redecode",
       "disposition": "advanced",
       "requires": [{ "key": "redecode.mode", "not_equals": "off" }]
+    },
+    {
+      "key": "redecode.adaptive_wide_beam_size",
+      "title": "Adaptive wide beam size",
+      "help": "Wider beam tried on suspect spans only. It must exceed the control beam and never exceeds 10: a wider beam everywhere is not reliably better and can add runtime, hallucinations, and omissions.",
+      "section": "qa_redecode",
+      "disposition": "advanced",
+      "requires": [{ "key": "redecode.selection_policy", "equals": "adaptive-safe" }]
+    },
+    {
+      "key": "redecode.adaptive_max_span_seconds",
+      "title": "Adaptive max span duration",
+      "help": "Longest padded window the adaptive lane will decode. Longer spans are recorded and skipped.",
+      "section": "qa_redecode",
+      "disposition": "advanced",
+      "unit": "s",
+      "requires": [{ "key": "redecode.selection_policy", "equals": "adaptive-safe" }]
+    },
+    {
+      "key": "redecode.adaptive_max_total_window_seconds",
+      "title": "Adaptive total window budget",
+      "help": "Total re-decoded audio budget per job. Once exhausted, remaining spans are recorded and skipped.",
+      "section": "qa_redecode",
+      "disposition": "advanced",
+      "unit": "s",
+      "requires": [{ "key": "redecode.selection_policy", "equals": "adaptive-safe" }]
+    },
+    {
+      "key": "redecode.adaptive_min_alignment_coverage",
+      "title": "Adaptive minimum alignment coverage",
+      "help": "Share of candidate words that must receive a usable forced-alignment timestamp before the candidate is eligible at all.",
+      "section": "qa_redecode",
+      "disposition": "advanced",
+      "requires": [{ "key": "redecode.selection_policy", "equals": "adaptive-safe" }]
+    },
+    {
+      "key": "redecode.adaptive_min_logprob_margin",
+      "title": "Adaptive score margin",
+      "help": "Minimum uncalibrated log-probability margin the wide beam must win by. This ranks candidates; it is not semantic confidence and never decides a promotion on its own.",
+      "section": "qa_redecode",
+      "disposition": "advanced",
+      "requires": [{ "key": "redecode.selection_policy", "equals": "adaptive-safe" }]
+    },
+    {
+      "key": "redecode.adaptive_protected_margin_multiplier",
+      "title": "Protected-material margin multiplier",
+      "help": "Extra margin demanded when a candidate would change negation, quantities, dates, names, modality, attribution, contractions, or emphatic repetition. When the evidence stays ambiguous the first pass is preserved.",
+      "section": "qa_redecode",
+      "disposition": "advanced",
+      "requires": [{ "key": "redecode.selection_policy", "equals": "adaptive-safe" }]
+    },
+    {
+      "key": "redecode.adaptive_max_plan_bytes",
+      "title": "Adaptive plan size limit",
+      "help": "Maximum serialized size of the adaptive reconciliation plan. An oversized plan fails closed instead of publishing.",
+      "section": "qa_redecode",
+      "disposition": "advanced",
+      "unit": "bytes",
+      "requires": [{ "key": "redecode.selection_policy", "equals": "adaptive-safe" }]
     },
     {
       "key": "redecode.temperature",

@@ -187,3 +187,32 @@ def test_distribution_token_scan_requires_a_real_credential_boundary() -> None:
             {"payload.txt": b"token=hf_" + b"a" * 26},
             "synthetic",
         )
+
+
+def test_engine_source_is_never_git_ignored() -> None:
+    """A job-artifact ignore pattern must never swallow shipped engine source.
+
+    ``adaptive/`` is both a published job-artifact directory and the name of an
+    engine subpackage. An unanchored pattern silently drops the package from
+    Git, the wheel, and the source distribution.
+    """
+
+    source_files = sorted((REPO_ROOT / "src").rglob("*.py"))
+    assert source_files, "expected engine source files"
+    ignored = [
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in source_files
+        if subprocess.run(
+            ["git", "check-ignore", "-q", "--", str(path)],
+            cwd=REPO_ROOT,
+            check=False,
+        ).returncode
+        == 0
+    ]
+    assert ignored == [], f"engine source is git-ignored: {ignored}"
+
+
+def test_adaptive_lane_subpackage_is_present_and_visible() -> None:
+    package = REPO_ROOT / "src" / "local_transcript_max" / "qa" / "adaptive"
+    assert package.is_dir()
+    assert (package / "__init__.py").exists()

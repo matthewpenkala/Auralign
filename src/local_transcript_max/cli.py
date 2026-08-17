@@ -18,15 +18,18 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 
 import typer
+from pydantic import ValidationError
 
 from .config import (
     MODEL_MANIFEST,
     PipelineConfig,
     PresetName,
+    RedecodeConfig,
     default_model_cache,
     load_config,
     required_model_requests,
     resolve_model_entry,
+    validate_adaptive_selection,
 )
 from .datasets import (
     DEFAULT_DATASET_PROFILE,
@@ -113,6 +116,7 @@ _STRICT_VALIDATION_ARTIFACTS: tuple[tuple[str, Literal["file", "directory"]], ..
     ("diarization_candidates", "directory"),
     ("transcript.redecode_candidates.json", "file"),
     ("redecode_report.json", "file"),
+    ("adaptive", "directory"),
     ("speaker_validation_report.json", "file"),
 )
 
@@ -199,6 +203,16 @@ def _read_bounded_regular(path: Path, *, max_bytes: int) -> bytes:
         return payload
     finally:
         os.close(descriptor)
+
+
+def _first_validation_message(exc: Exception) -> str:
+    """Return one readable message from a Pydantic or plain validation failure."""
+
+    if isinstance(exc, ValidationError):
+        errors = exc.errors(include_url=False, include_input=False)
+        if errors:
+            return str(errors[0]["msg"]).removeprefix("Value error, ")
+    return str(exc)
 
 
 def _config(preset: str, config_file: Path | None = None) -> PipelineConfig:
@@ -599,8 +613,32 @@ def transcribe(
     ] = 1.0,
     redecode_beam_size: Annotated[
         int,
-        typer.Option("--redecode-beam-size", min=1, max=20),
+        typer.Option(
+            "--redecode-beam-size",
+            min=1,
+            max=20,
+            help="Control beam for re-decoded spans; also the lower rung of the adaptive ladder.",
+        ),
     ] = 5,
+    redecode_selection_policy: Annotated[
+        str,
+        typer.Option(
+            "--redecode-selection-policy",
+            help=(
+                "candidate-only (record candidates, never replace) or adaptive-safe "
+                "(publish a derived selected transcript only when independent evidence wins)."
+            ),
+        ),
+    ] = "candidate-only",
+    redecode_wide_beam_size: Annotated[
+        int,
+        typer.Option(
+            "--redecode-wide-beam-size",
+            min=2,
+            max=10,
+            help="Wide rung of the adaptive beam ladder; must exceed --redecode-beam-size.",
+        ),
+    ] = 10,
     redecode_temperature: Annotated[
         float,
         typer.Option("--redecode-temperature", min=0.0, max=2.0),
@@ -942,10 +980,28 @@ def transcribe(
             config.redecode.pad_seconds = redecode_pad_seconds
         if use_cli_value("redecode_beam_size"):
             config.redecode.beam_size = redecode_beam_size
+        if redecode_selection_policy not in {"candidate-only", "adaptive-safe"}:
+            raise typer.BadParameter(
+                "redecode-selection-policy must be candidate-only or adaptive-safe"
+            )
+        if use_cli_value("redecode_selection_policy"):
+            config.redecode.selection_policy = cast(
+                Literal["candidate-only", "adaptive-safe"],
+                redecode_selection_policy,
+            )
+        if use_cli_value("redecode_wide_beam_size"):
+            config.redecode.adaptive_wide_beam_size = redecode_wide_beam_size
         if use_cli_value("redecode_temperature"):
             config.redecode.temperature = redecode_temperature
         if use_cli_value("write_redecode_report"):
             config.redecode.write_report = write_redecode_report
+        try:
+            config.redecode = RedecodeConfig.model_validate(
+                config.redecode.model_dump(mode="python")
+            )
+            validate_adaptive_selection(config)
+        except (ValidationError, ValueError) as exc:
+            raise typer.BadParameter(_first_validation_message(exc)) from exc
         if speaker_id not in {"off", "auto"}:
             raise typer.BadParameter("speaker-id must be off or auto")
         if use_cli_value("speaker_id"):

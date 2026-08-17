@@ -136,6 +136,16 @@ The pipeline must not overwrite:
 Agentic diarization, targeted re-decode, speaker matching, and cleanup all write
 separate artifacts.
 
+The opt-in adaptive re-decode lane writes a separate `adaptive/` directory. Its
+reconciliation plan, validation report, and summary are privacy-safe: hashes,
+counts, metrics, statuses, and reason codes, with no candidate transcript
+excerpts and no private absolute paths. Candidate transcript surfaces stay in
+`adaptive/transcript.adaptive_candidates.json`, which is sensitive, ignored by
+Git, and excluded from source distributions and release payloads. Both beam
+candidates run locally on an extracted, hashed audio window in a private
+ephemeral directory that is removed when the lane finishes; the lane adds no
+network dependency, telemetry, or model download.
+
 The identity resolver uses a private per-job lock and unique private staging
 directory. It rehashes canonical inputs before publishing, writes its canonical
 report last as the commit marker, rolls back a failed multi-artifact publish,

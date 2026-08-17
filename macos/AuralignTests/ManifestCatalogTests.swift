@@ -91,16 +91,16 @@ final class ManifestCatalogTests: XCTestCase {
             by: { controlProjection(for: $0).rawValue }
         ).mapValues { $0.count }
 
-        XCTAssertEqual(keys.count, 123)
-        XCTAssertEqual(Set(keys).count, 123, "manifest field keys must be unique")
+        XCTAssertEqual(keys.count, 131)
+        XCTAssertEqual(Set(keys).count, 131, "manifest field keys must be unique")
         XCTAssertEqual(
             kindCounts,
             [
                 "bool": 31,
-                "enum": 24,
-                "float": 19,
+                "enum": 25,
+                "float": 24,
                 "float_or_float_list": 1,
-                "int": 18,
+                "int": 20,
                 "path": 13,
                 "path_list": 1,
                 "string": 15,
@@ -111,9 +111,9 @@ final class ManifestCatalogTests: XCTestCase {
             controlCounts,
             [
                 "toggle": 31,
-                "enumPicker": 24,
-                "integerEditor": 18,
-                "floatEditor": 19,
+                "enumPicker": 25,
+                "integerEditor": 20,
+                "floatEditor": 24,
                 "textEditor": 10,
                 "modelPicker": 5,
                 "pathPicker": 13,
@@ -149,8 +149,8 @@ final class ManifestCatalogTests: XCTestCase {
         let catalog = try loadCatalog()
         let manifestKeys = Set(manifest.fields.map(\.key))
         let catalogKeys = Set(catalog.fields.map(\.key))
-        XCTAssertEqual(manifest.fields.count, 123)
-        XCTAssertEqual(catalog.fields.count, 123)
+        XCTAssertEqual(manifest.fields.count, 131)
+        XCTAssertEqual(catalog.fields.count, 131)
         XCTAssertEqual(manifestKeys.count, manifest.fields.count, "duplicate manifest key")
         XCTAssertEqual(catalogKeys.count, catalog.fields.count, "duplicate catalog key")
         XCTAssertEqual(
@@ -183,7 +183,7 @@ final class ManifestCatalogTests: XCTestCase {
                 "cleanup.presentation_scorers.token_classifier.backend",
             ]
         )
-        XCTAssertEqual(catalog.fields.filter(\.isProductVisible).count, 115)
+        XCTAssertEqual(catalog.fields.filter(\.isProductVisible).count, 123)
         XCTAssertEqual(
             manifest.field("asr.backend")?.choices,
             ["faster-whisper", "mlx-whisper"]
@@ -314,8 +314,8 @@ final class ManifestCatalogTests: XCTestCase {
         XCTAssertEqual(
             dispositions,
             [
-                "primary": 39,
-                "advanced": 83,
+                "primary": 40,
+                "advanced": 90,
                 "readonly": 1,
             ]
         )

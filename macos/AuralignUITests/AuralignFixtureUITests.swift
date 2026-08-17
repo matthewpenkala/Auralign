@@ -116,7 +116,7 @@ final class AuralignFixtureUITests: XCTestCase {
 
         let count = element("parameters.count", in: launched)
         XCTAssertTrue(count.waitForExistence(timeout: 3))
-        XCTAssertTrue(accessibilityText(count).contains("115 of 115"))
+        XCTAssertTrue(accessibilityText(count).contains("123 of 123"))
 
         let search = element("parameters.search", in: launched)
         XCTAssertTrue(search.exists)

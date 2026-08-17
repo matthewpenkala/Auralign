@@ -87,6 +87,18 @@ cleanup_report.json
 cleanup_diff.json
 redecode_report.json
 transcript.redecode_candidates.json
+# Derived adaptive re-decode lane: selected transcript, sensitive candidate
+# surfaces, reconciliation plan, and its validation evidence.
+adaptive/
+# The engine's own adaptive package is source, not a job artifact. Re-include
+# it explicitly so the unanchored job-artifact pattern above cannot silently
+# drop it from Git, the wheel, or the source distribution.
+!/src/local_transcript_max/qa/adaptive/
+.adaptive-staging-*/
+adaptive_redecode_report.json
+adaptive_validation_report.json
+redecode_plan.json
+qa_report.selected.json
 speaker_cluster_embeddings.json
 words.csv
 model_audit.json

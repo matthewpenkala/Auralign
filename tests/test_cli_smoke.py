@@ -1295,3 +1295,176 @@ def test_benchmark_corpus_dry_run_writes_inventory(tmp_path, monkeypatch) -> Non
     assert "transcribe" in planned
     assert "--asr-batched" in planned
     assert '"asr_batch_size": 6' in planned
+
+
+def _cli_error_text(result) -> str:
+    """Collect a CLI failure message from whichever stream the runner captured."""
+
+    parts = [result.output]
+    stderr = getattr(result, "stderr", None)
+    if stderr:
+        parts.append(stderr)
+    if result.exception is not None:
+        parts.append(str(result.exception))
+    return "\n".join(part for part in parts if part)
+
+
+def test_transcribe_accepts_the_adaptive_selection_policy(tmp_path, monkeypatch) -> None:
+    captured = {}
+
+    def fake_transcribe_file(input_file, out_dir, config, debug_report_path=None):
+        captured["config"] = config
+        return Transcript(input_path=str(input_file))
+
+    monkeypatch.setattr("local_transcript_max.cli.transcribe_file", fake_transcribe_file)
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--out",
+            str(tmp_path / "out"),
+            "--targeted-redecode",
+            "low-confidence",
+            "--redecode-selection-policy",
+            "adaptive-safe",
+            "--redecode-wide-beam-size",
+            "8",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    config = captured["config"]
+    assert config.redecode.selection_policy == "adaptive-safe"
+    assert config.redecode.beam_ladder == (5, 8)
+
+
+def test_transcribe_rejects_an_adaptive_policy_without_a_redecode_mode(tmp_path) -> None:
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--out",
+            str(tmp_path / "out"),
+            "--redecode-selection-policy",
+            "adaptive-safe",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "requires a re-decode mode" in _cli_error_text(result)
+
+
+def test_transcribe_rejects_a_non_increasing_beam_ladder(tmp_path) -> None:
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--out",
+            str(tmp_path / "out"),
+            "--targeted-redecode",
+            "low-confidence",
+            "--redecode-selection-policy",
+            "adaptive-safe",
+            "--redecode-beam-size",
+            "10",
+            "--redecode-wide-beam-size",
+            "10",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "strictly increase" in _cli_error_text(result)
+
+
+def test_transcribe_keeps_a_legacy_wide_candidate_only_beam(tmp_path, monkeypatch) -> None:
+    """The ladder rule must not reject a legacy candidate-only re-decode beam."""
+
+    captured = {}
+
+    def fake_transcribe_file(input_file, out_dir, config, debug_report_path=None):
+        captured["config"] = config
+        return Transcript(input_path=str(input_file))
+
+    monkeypatch.setattr("local_transcript_max.cli.transcribe_file", fake_transcribe_file)
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--out",
+            str(tmp_path / "out"),
+            "--targeted-redecode",
+            "low-confidence",
+            "--redecode-beam-size",
+            "10",
+        ],
+    )
+
+    assert result.exit_code == 0, _cli_error_text(result)
+    assert captured["config"].redecode.beam_ladder == (10,)
+
+
+def test_transcribe_rejects_an_unsupported_wide_beam_value(tmp_path) -> None:
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--out",
+            str(tmp_path / "out"),
+            "--redecode-wide-beam-size",
+            "12",
+        ],
+    )
+
+    assert result.exit_code != 0
+
+
+def test_candidate_only_default_leaves_the_beam_ladder_at_the_control_beam(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    captured = {}
+
+    def fake_transcribe_file(input_file, out_dir, config, debug_report_path=None):
+        captured["config"] = config
+        return Transcript(input_path=str(input_file))
+
+    monkeypatch.setattr("local_transcript_max.cli.transcribe_file", fake_transcribe_file)
+    audio_path = tmp_path / "input.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "transcribe",
+            str(audio_path),
+            "--out",
+            str(tmp_path / "out"),
+            "--targeted-redecode",
+            "low-confidence",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    config = captured["config"]
+    assert config.redecode.selection_policy == "candidate-only"
+    assert config.redecode.beam_ladder == (5,)

@@ -287,9 +287,26 @@ def base_debug_report(input_file: Path, out_dir: Path, config: PipelineConfig) -
             "temperature": config.redecode.temperature,
             "write_report": config.redecode.write_report,
             "write_repaired_transcript": config.redecode.write_repaired_transcript,
-            "replacement_policy": "preserve_raw_record_candidates_only",
+            "selection_policy": config.redecode.selection_policy,
+            "beam_ladder": list(config.redecode.beam_ladder),
+            "replacement_policy": (
+                "preserve_raw_record_candidates_only"
+                if config.redecode.selection_policy == "candidate-only"
+                else "preserve_raw_publish_derived_selected_lane"
+            ),
             "temporary_audio_policy": "private_ephemeral_cleanup",
             "candidate_timestamp_coordinates": ["window_relative", "canonical"],
+            "adaptive_limits": {
+                "wide_beam_size": config.redecode.adaptive_wide_beam_size,
+                "max_span_seconds": config.redecode.adaptive_max_span_seconds,
+                "max_total_window_seconds": config.redecode.adaptive_max_total_window_seconds,
+                "min_alignment_coverage": config.redecode.adaptive_min_alignment_coverage,
+                "min_logprob_margin": config.redecode.adaptive_min_logprob_margin,
+                "protected_margin_multiplier": (
+                    config.redecode.adaptive_protected_margin_multiplier
+                ),
+                "max_plan_bytes": config.redecode.adaptive_max_plan_bytes,
+            },
         },
         "device": device,
         "compute_type": compute_type,

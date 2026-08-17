@@ -75,6 +75,8 @@ from .fusion.word_speaker_assignment import assign_speakers_to_words
 from .model_lifecycle import release_runtime_models
 from .models import require_model
 from .platform_security import ensure_private_directory
+from .qa.adaptive.lane import run_adaptive_redecode
+from .qa.adaptive.publish import AdaptiveDerivatives, publish_adaptive_lane
 from .qa.heuristics import run_qa
 from .qa.redecode import run_targeted_redecode
 from .redaction import privacy_safe_text
@@ -91,6 +93,7 @@ from .schemas import (
     CompletionStageDurations,
     CompletionTimingReport,
     DiarizationResult,
+    DiarizationTurn,
     ModelMetadata,
     QAReport,
     RunMetadata,
@@ -104,6 +107,7 @@ from .vad.energy import EnergyVAD
 
 PIPELINE_ARTIFACT_NAMES = frozenset(
     {
+        "adaptive",
         "alignment_report.json",
         "audio_metadata.json",
         "canonical.wav",
@@ -497,7 +501,55 @@ def transcribe_file(
             duration_seconds=time.perf_counter() - qa_started,
         )
         resource_monitor.snapshot("qa")
-        if config.redecode.mode != "off" or config.redecode.write_report:
+        if config.redecode.selection_policy == "adaptive-safe":
+            emit_progress(
+                progress,
+                "adaptive_redecode_start",
+                {"mode": config.redecode.mode, "beam_ladder": list(config.redecode.beam_ladder)},
+            )
+            adaptive_outcome = run_adaptive_redecode(
+                canonical_path,
+                transcript,
+                qa_report,
+                config,
+                asr_backend,
+                first_pass_result=asr_result,
+                alignment_backend=alignment_backend,
+                audio_duration_seconds=canonical_metadata.duration_seconds,
+            )
+            adaptive_validation = publish_adaptive_lane(
+                out_dir,
+                adaptive_outcome,
+                first_pass_qa=qa_report,
+                regenerate=adaptive_regenerator(
+                    input_file=input_file,
+                    canonical_path=canonical_path,
+                    config=config,
+                    alignment_backend=alignment_backend,
+                    diarization_result=diarization_result,
+                    fusion_turns=fusion_turns,
+                    requested_speaker_count=requested_speaker_count,
+                ),
+                write_exports=lambda directory, selected: write_exports(
+                    directory, selected, config
+                ),
+            )
+            debug_report["adaptive_redecode"] = {
+                "plan_sha256": adaptive_outcome.sealed_plan["plan_sha256"],
+                "promoted_span_count": adaptive_outcome.plan.summary.promoted_span_count,
+                "abstained_span_count": adaptive_outcome.plan.summary.abstained_span_count,
+                "published": adaptive_outcome.promoted,
+                "validation": adaptive_validation.get("valid", True),
+            }
+            emit_progress(
+                progress,
+                "adaptive_redecode_done",
+                {
+                    "promoted_span_count": adaptive_outcome.plan.summary.promoted_span_count,
+                    "span_count": adaptive_outcome.plan.summary.span_count,
+                },
+            )
+        elif config.redecode.mode != "off" or config.redecode.write_report:
             emit_progress(progress, "redecode_start", {"mode": config.redecode.mode})
             run_targeted_redecode(
                 canonical_path,
@@ -854,6 +906,65 @@ def transcribe_file(
         raise
     finally:
         identity_lock.__exit__(None, None, None)
+
+
+def adaptive_regenerator(
+    *,
+    input_file: Path,
+    canonical_path: Path,
+    config: PipelineConfig,
+    alignment_backend: AlignmentBackend | None,
+    diarization_result: DiarizationResult,
+    fusion_turns: list[DiarizationTurn],
+    requested_speaker_count: int | None,
+) -> Callable[[ASRResult], AdaptiveDerivatives]:
+    """Rerun exactly the stages whose correctness depends on the selected ASR text.
+
+    Media preparation, VAD, and diarization are text-independent and their exact
+    inputs are unchanged, so they are reused; the plan records that decision.
+    """
+
+    def regenerate(selected: ASRResult) -> AdaptiveDerivatives:
+        started = time.perf_counter()
+        alignment = align_words(canonical_path, selected, config, alignment_backend)
+        alignment_report = alignment_diagnostic_payload(
+            requested_backend=config.alignment.backend,
+            backend=alignment.backend,
+            device=alignment.device,
+            words=alignment.words,
+            warnings=alignment.warnings,
+            duration_seconds=time.perf_counter() - started,
+            metadata=alignment.metadata,
+            reference_words=[
+                word
+                for segment in selected.segments
+                for word in segment.words
+                if word.text.strip()
+            ],
+        )
+        assigned = assign_speakers_to_words(alignment.words, fusion_turns)
+        selected_transcript = Transcript(
+            input_path=str(input_file),
+            language=selected.language,
+            segments=selected.segments,
+            words=assigned,
+            diarization_turns=diarization_result.turns,
+            exclusive_diarization_turns=diarization_result.exclusive_turns,
+            speaker_turns=repair_unknown_fragment_labels(build_speaker_turns(assigned)),
+        )
+        selected_qa = (
+            run_qa(selected_transcript, requested_speaker_count=requested_speaker_count)
+            if config.qa.enabled
+            else QAReport()
+        )
+        return AdaptiveDerivatives(
+            selected_result=selected,
+            selected_transcript=selected_transcript,
+            qa_report=selected_qa,
+            alignment_report=alignment_report,
+        )
+
+    return regenerate
 
 
 def existing_pipeline_artifacts(out_dir: Path) -> list[str]:

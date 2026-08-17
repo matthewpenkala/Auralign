@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+# MAX with the opt-in adaptive beam re-decode lane.
+#
+# The full file is still decoded once at beam 5. Only QA-flagged spans are
+# decoded a second time at beam 10, and a wider-beam result is promoted only
+# when independent forced-alignment and QA evidence supports it. An accepted
+# selection is published as a separate derived `adaptive/` lane; the first-pass
+# transcript is never modified.
+#
+# This policy is opt-in and is deliberately not the MAX default. See
+# docs/accuracy.md for the evidence required before it could become one.
+
+preset: max
+asr:
+  backend: faster-whisper
+  model: large-v3
+  beam_size: 5
+  condition_on_previous_text: false
+  word_timestamps: true
+diarization:
+  backend: pyannote
+  model: community-1
+  enabled: true
+alignment:
+  # Forced alignment is required: it is the independent evidence the promotion
+  # decision rests on. Whisper word timestamps come from the decode being judged.
+  backend: forced
+  enabled: true
+qa:
+  enabled: true
+redecode:
+  mode: low-confidence
+  selection_policy: adaptive-safe
+  beam_size: 5
+  adaptive_wide_beam_size: 10
+  max_spans: 5
+  pad_seconds: 1.0
+  adaptive_max_span_seconds: 30.0
+  adaptive_max_total_window_seconds: 300.0
+  adaptive_min_alignment_coverage: 0.9
+  adaptive_min_logprob_margin: 0.05
+  adaptive_protected_margin_multiplier: 3.0
+  temperature: 0.0
+cleanup:
+  # Cleanup depends on the selected ASR text and is not regenerated inside the
+  # derived lane, so adaptive-safe fails closed while it is enabled.
+  mode: off
