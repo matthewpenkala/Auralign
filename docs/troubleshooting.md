@@ -16,7 +16,7 @@ uv sync --extra asr --extra dev
 
 ## `ltm doctor` says mlx-whisper is missing
 
-The installed 0.3.1 runtime already contains mlx-whisper 0.4.3 and MLX 0.31.2.
+The installed 0.3.2 runtime already contains mlx-whisper 0.4.3 and MLX 0.31.2.
 If the installed app reports this error, repair/reinstall the exact signed
 application; do not run `pip`, point it at a development `.venv`, or change
 `$PATH`.
@@ -32,7 +32,7 @@ First identify the trust lane. For source development, prepare the private
 cache with the exact maintainer `ltm models pull ...` command printed by doctor,
 then retry with `LTM_OFFLINE=1`.
 
-For the installed 0.3.1 product, distinguish the cause:
+For the installed 0.3.2 product, distinguish the cause:
 
 - missing/altered Community-1, English alignment, ECAPA, or Punkt: repair or
   reinstall the signed PKG's bootstrap component;
@@ -55,7 +55,7 @@ controlled local environment, then retry.
 
 For a direct maintainer pull, complete the official Hugging Face
 acquisition/contact flow, then expose `HF_TOKEN` or `LTM_HF_TOKEN` only in the
-local shell. Do not place tokens in committed files. The installed 0.3.1
+local shell. Do not place tokens in committed files. The installed 0.3.2
 product redistributes the exact owner-cleared attributed Community-1 copy in
 the bootstrap component and requires no recipient token.
 

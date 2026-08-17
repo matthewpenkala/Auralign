@@ -244,7 +244,7 @@ final class ModelDownloadServiceTests: XCTestCase {
         let catalog = ModelDeliveryCatalog(
             schema: ModelDeliveryCatalog.schemaVersion,
             catalogVersion: "1.1.0",
-            productVersion: "0.3.1",
+            productVersion: "0.3.2",
             allowedInitialHosts: ["huggingface.co"],
             redirectHostSuffixes: [
                 "huggingface.co",

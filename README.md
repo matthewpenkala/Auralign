@@ -86,7 +86,7 @@ native media closure inside `Auralign.app`, so an installed user does not need
 Python, Homebrew, Git, `uv`, Xcode, Command Line Tools, a source checkout, a
 virtual environment, or shell configuration.
 
-The successor 0.3.1 release contract adds a separate root-owned bootstrap
+The current 0.3.2 release contract reuses the separate root-owned bootstrap
 component, `com.auralign.studio.models.bootstrap.v2` version `2.0.0`, below
 `/Library/Application Support/com.auralign.studio/Models/`. It contains only
 the exact Community-1 diarization, English alignment, and ECAPA speaker models
@@ -109,7 +109,7 @@ Mutable user state remains separately under the user's Library. No compiled
 app, PKG, model weight, model cache, or token is included in the source
 wheel/sdist or Git repository. See the
 [native macOS GUI runbook](docs/macos-gui.md) and
-[private 0.3.1 PKG release runbook](docs/release/macos-v0.3.1-private-pkg.md).
+[private 0.3.2 PKG release runbook](docs/release/macos-v0.3.2-private-pkg.md).
 
 ## Source-Development Local Cache Setup
 
@@ -118,7 +118,7 @@ compliance metadata, and setup commands—not model weights or gated-model
 rights. This section is for source development and maintainer-controlled model
 preparation. Each operator acquires models under upstream terms; weights,
 Hugging Face caches, tokens, and audit output remain local and ignored. It is
-not the recipient path for the 0.3.1 product PKG.
+not the recipient path for the 0.3.2 product PKG.
 
 Keep model and Hugging Face caches inside ignored project directories:
 
@@ -140,7 +140,7 @@ uv run ltm models audit
 > Hugging Face gate is an acquisition/contact mechanism. A direct upstream pull
 > still requires completing that flow and using a read token. Matthew Penkala's
 > 2026-07-25 project decision narrowly clears the exact attributed bytes for the
-> private 0.3.1 model component; it is not a legal opinion or a change to
+> private 0.3.2 model component; it is not a legal opinion or a change to
 > upstream terms.
 
 Only after the committed digest contract is complete, acquire and verify the
@@ -169,7 +169,7 @@ so it does not leave a half-prepared cache. Each pinned pull writes a local
 every allowlisted runtime file and fails when bytes, revision, or repository
 manifest identity differ.
 
-The 0.3.1 product PKG never contains that private marker, raw cache metadata,
+The 0.3.2 product PKG never contains that private marker, raw cache metadata,
 or a token. Its root-owned bootstrap component and each per-user ASR pack use
 deterministic privacy-safe manifest/verification/provenance/completion records,
 complete license texts and notices, CycloneDX SBOMs, and the same exact file
@@ -208,7 +208,7 @@ uv run ltm inspect outputs/job_001
 uv run ltm validate-speakers outputs/job_001 --expected-speakers <N>
 ```
 
-Normal 0.3.1 presets deliberately select tested local packs:
+Normal 0.3.2 presets deliberately select tested local packs:
 
 | Preset | ASR model | Intended tradeoff |
 | --- | --- | --- |

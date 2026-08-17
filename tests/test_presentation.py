@@ -15,18 +15,27 @@ from local_transcript_max.presentation import (
     BoundarySupport,
     DecoderWord,
     EvidenceRole,
+    IndexedEditorialAdjudicationEvidence,
+    IndexedExactMarkEvidence,
     PresentationDecision,
     PresentationPlan,
     PresentationProposal,
+    RetainedEvidenceDisposition,
+    RetainedScorerEvidence,
     ScorerOutput,
     ScorerProvenance,
     TrailingPunctuation,
     apply_presentation_plan,
+    build_indexed_editorial_adjudication_scorer_output,
+    build_indexed_exact_mark_scorer_output,
+    compose_retained_presentation,
     decode_presentation,
     deserialize_presentation_plan,
     lexical_signature,
     lexical_text_digest,
+    presentation_input_digest,
     presentation_plan_sha256,
+    scorer_output_sha256,
     serialize_presentation_plan,
 )
 
@@ -122,6 +131,7 @@ def _proposal(
         EvidenceRole.EXACT_MARK,
         EvidenceRole.CASE_ONLY,
     ),
+    source_mark_veto: bool = False,
 ) -> PresentationProposal:
     return PresentationProposal(
         word_index=word.word_index,
@@ -133,6 +143,7 @@ def _proposal(
         sentence_break_probability=sentence_break,
         paragraph_break_probability=paragraph_break,
         evidence_roles=roles,
+        source_mark_veto=source_mark_veto,
         casing_surface=casing_surface,
         casing_probability=casing_probability,
     )
@@ -182,6 +193,78 @@ def _corroborated(
             f"{exact.provenance.scorer_id}-boundary",
             tuple(words),
             probability=probability,
+        ),
+    )
+
+
+def _indexed_mark_evidence(
+    word_index: int,
+    selected: TrailingPunctuation | None,
+) -> IndexedExactMarkEvidence:
+    selected_probability = 0.9
+    other_probability = (1.0 - selected_probability) / (len(TrailingPunctuation) - 1)
+    return IndexedExactMarkEvidence(
+        word_index=word_index,
+        punctuation_probabilities=tuple(
+            (
+                punctuation,
+                (
+                    1.0 / len(TrailingPunctuation)
+                    if selected is None
+                    else selected_probability
+                    if punctuation is selected
+                    else other_probability
+                ),
+            )
+            for punctuation in TrailingPunctuation
+        ),
+    )
+
+
+def _editorial_evidence(
+    word_index: int,
+    selected: TrailingPunctuation | None,
+    *,
+    sentence_break: float = 0.5,
+    source_mark_veto: bool = False,
+) -> IndexedEditorialAdjudicationEvidence:
+    selected_probability = 0.99
+    other_probability = (1.0 - selected_probability) / (len(TrailingPunctuation) - 1)
+    return IndexedEditorialAdjudicationEvidence(
+        word_index=word_index,
+        punctuation_probabilities=tuple(
+            (
+                punctuation,
+                (
+                    1.0 / len(TrailingPunctuation)
+                    if selected is None
+                    else selected_probability
+                    if punctuation is selected
+                    else other_probability
+                ),
+            )
+            for punctuation in TrailingPunctuation
+        ),
+        sentence_break_probability=sentence_break,
+        source_mark_veto=source_mark_veto,
+    )
+
+
+def _retained(
+    words: tuple[DecoderWord, ...],
+    output: ScorerOutput,
+    *,
+    receipt_character: str = "a",
+    disposition: RetainedEvidenceDisposition = RetainedEvidenceDisposition.ADMIT,
+) -> RetainedScorerEvidence:
+    return RetainedScorerEvidence(
+        output=output,
+        presentation_input_digest=presentation_input_digest(words),
+        output_sha256=scorer_output_sha256(output),
+        receipt_sha256=receipt_character * 64,
+        disposition=disposition,
+        abstention_reason=(
+            None if disposition is RetainedEvidenceDisposition.ADMIT else "quality_gate_failed"
         ),
     )
 
@@ -381,14 +464,110 @@ def test_length_pressure_never_promotes_uncorroborated_exact_mark() -> None:
         _proposal(words[63], TrailingPunctuation.PERIOD, 1.0, sentence_break=1.0),
     )
 
-    with pytest.raises(ValueError, match="no safe presentation path at word index 96"):
-        decode_presentation(words, (exact,))
+    uncorroborated = decode_presentation(words, (exact,))
+
+    assert not uncorroborated.decisions[63].sentence_break
+    assert not any(decision.sentence_break for decision in uncorroborated.decisions)
 
     admitted = decode_presentation(
         words,
         (exact, _boundary_output("length-boundary", (words[63],), probability=0.70)),
     )
     assert admitted.decisions[63].sentence_break
+
+
+def test_hard_sentence_limit_saturates_without_manufacturing_punctuation() -> None:
+    words = tuple(_word(index, f"word{index}") for index in range(97))
+
+    plan = decode_presentation(words, ())
+
+    assert len(plan.decisions) == 97
+    assert not any(decision.sentence_break for decision in plan.decisions)
+    rendered = apply_presentation_plan(words, plan)
+    assert len(rendered) == 97
+    assert all(not any(mark in token for mark in ".?!…") for token in rendered)
+
+
+@pytest.mark.parametrize(
+    "source_mark",
+    (
+        TrailingPunctuation.COMMA,
+        TrailingPunctuation.SEMICOLON,
+        TrailingPunctuation.COLON,
+    ),
+)
+def test_typed_question_endpoint_may_replace_only_source_weak_mark(
+    source_mark: TrailingPunctuation,
+) -> None:
+    words = (
+        _word(0, "can"),
+        _word(
+            1,
+            f"you{source_mark.value}",
+            question=0.95,
+            question_scope_start=0,
+        ),
+    )
+
+    plan = decode_presentation(words, ())
+    restored = deserialize_presentation_plan(serialize_presentation_plan(plan))
+
+    assert plan.decisions[1].trailing_punctuation is TrailingPunctuation.QUESTION
+    assert plan.decisions[1].boundary_support.source_weak_question_override
+    assert apply_presentation_plan(words, restored)[1].endswith("?")
+
+
+def test_source_weak_mark_outside_typed_question_endpoint_remains_unchanged() -> None:
+    words = (_word(0, "ready,"), _word(1, "today"))
+    exact = _output(
+        "question-model",
+        _proposal(words[0], TrailingPunctuation.QUESTION, 0.999, sentence_break=0.999),
+    )
+    boundary = _boundary_output("boundary-model", (words[0],), probability=0.95)
+
+    plan = decode_presentation(words, (exact, boundary))
+
+    assert plan.decisions[0].trailing_punctuation is TrailingPunctuation.COMMA
+
+
+@pytest.mark.parametrize(
+    "source_text,expected",
+    (("ready.", "."), ("ready!", "!"), ("ready…", "…")),
+)
+def test_typed_question_scope_abstains_before_conflicting_source_strong_mark(
+    source_text: str,
+    expected: str,
+) -> None:
+    words = (
+        _word(0, "can"),
+        _word(1, source_text, question=0.95, question_scope_start=0),
+    )
+
+    plan = decode_presentation(words, ())
+
+    assert plan.decisions[1].trailing_punctuation.value == expected
+    assert not plan.decisions[1].boundary_support.source_weak_question_override
+
+
+def test_replay_rejects_forged_source_weak_mark_replacement_outside_endpoint() -> None:
+    words = (_word(0, "ready,"),)
+    exact = _output(
+        "period-model",
+        _proposal(words[0], TrailingPunctuation.PERIOD, 0.999, sentence_break=0.999),
+    )
+    boundary = _boundary_output("boundary-model", (words[0],), probability=0.95)
+    plan = decode_presentation(words, (exact, boundary))
+    forged_decision = replace(
+        plan.decisions[0],
+        trailing_punctuation=TrailingPunctuation.PERIOD,
+        sentence_break=True,
+        boundary_support=_scorer_support(exact, boundary),
+        contributing_provenance=_contributing(exact, boundary),
+    )
+    forged = replace(plan, decisions=(forged_decision,))
+
+    with pytest.raises(ValueError, match="source punctuation policy"):
+        apply_presentation_plan(words, forged)
 
 
 def test_incomplete_contraction_hard_rejects_strong_stop() -> None:
@@ -735,11 +914,13 @@ def test_global_length_prior_selects_supported_mid_sequence_stop() -> None:
     assert plan.decisions[12].capitalize
 
 
-def test_maximum_sentence_span_fails_closed_without_a_supported_stop() -> None:
+def test_maximum_sentence_span_saturates_without_a_supported_stop() -> None:
     words = tuple(_word(index, f"word{index}") for index in range(120))
 
-    with pytest.raises(ValueError, match="no safe presentation path at word index 96"):
-        decode_presentation(words, ())
+    plan = decode_presentation(words, ())
+
+    assert len(plan.decisions) == 120
+    assert not any(decision.sentence_break for decision in plan.decisions)
 
 
 def test_64_word_incomplete_trailing_fragment_remains_unpunctuated() -> None:
@@ -820,7 +1001,7 @@ def test_comma_punctuated_65_to_96_span_reaches_later_supported_stop() -> None:
     assert apply_presentation_plan(words, plan)[31].endswith(",")
 
 
-def test_supported_stop_on_word_97_cannot_escape_the_hard_limit() -> None:
+def test_uncorroborated_exact_stop_on_word_97_does_not_gain_length_authority() -> None:
     words = tuple(_word(index, f"word{index}") for index in range(97))
     scorer = _output(
         "too-late-boundary-model",
@@ -832,8 +1013,9 @@ def test_supported_stop_on_word_97_cannot_escape_the_hard_limit() -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="no safe presentation path at word index 96"):
-        decode_presentation(words, (scorer,))
+    plan = decode_presentation(words, (scorer,))
+
+    assert not plan.decisions[-1].sentence_break
 
 
 def test_supported_stop_on_word_64_allows_incomplete_trailing_continuation() -> None:
@@ -1489,7 +1671,7 @@ def test_positive_question_evidence_requires_an_exact_source_scope() -> None:
         DecoderWord.from_text(0, "ready", question_evidence=0.95)
 
 
-def test_long_question_scope_fails_closed_at_the_sentence_span_limit() -> None:
+def test_long_question_scope_abstains_beyond_the_sentence_state_limit() -> None:
     words = tuple(
         _word(
             index,
@@ -1509,11 +1691,12 @@ def test_long_question_scope_fails_closed_at_the_sentence_span_limit() -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="no safe presentation path at word index 96"):
-        decode_presentation(words, (scorer,))
+    plan = decode_presentation(words, (scorer,))
+
+    assert not any(decision.sentence_break for decision in plan.decisions)
 
 
-def test_question_scope_over_state_cap_cannot_be_severed_by_an_earlier_stop() -> None:
+def test_question_scope_over_state_cap_abstains_without_an_earlier_stop() -> None:
     words = tuple(
         _word(
             index,
@@ -1544,8 +1727,9 @@ def test_question_scope_over_state_cap_cannot_be_severed_by_an_earlier_stop() ->
         ),
     )
 
-    with pytest.raises(ValueError, match="no safe presentation path at word index 96"):
-        decode_presentation(words, scorers)
+    plan = decode_presentation(words, scorers)
+
+    assert not any(decision.sentence_break for decision in plan.decisions)
 
 
 def test_typed_plan_round_trip_rejects_opaque_or_noncanonical_authority() -> None:
@@ -1570,6 +1754,21 @@ def test_plan_schema_bump_rejects_stale_decoder_contract() -> None:
     ).encode()
 
     with pytest.raises(ValueError, match="unsupported presentation decoder version"):
+        deserialize_presentation_plan(serialized)
+
+
+@pytest.mark.parametrize("mutation", ("missing", "stale"))
+def test_plan_rejects_missing_or_stale_escalation_policy(mutation: str) -> None:
+    payload = json.loads(serialize_presentation_plan(decode_presentation((_word(0, "ready"),), ())))
+    if mutation == "missing":
+        del payload["escalation_policy"]
+    else:
+        payload["escalation_policy"] = "obsolete-hard-fail.v0"
+    serialized = (
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n"
+    ).encode()
+
+    with pytest.raises(ValueError):
         deserialize_presentation_plan(serialized)
 
 
@@ -1672,6 +1871,446 @@ def test_abstention_is_retained_but_does_not_contribute_to_decisions() -> None:
     assert plan.abstentions[0].reason == "insufficient_evidence"
     assert active_provenance in plan.decisions[1].contributing_provenance
     assert abstaining_provenance not in plan.decisions[1].contributing_provenance
+
+
+def test_retained_hybrid_composer_binds_receipts_and_abstains_rejected_scorers() -> None:
+    words = (
+        _word(0, "we", begins_turn=True),
+        _word(1, "are"),
+        _word(2, "ready", pause=1.4, ends_turn=True),
+    )
+    original_words = tuple(words)
+    source = _output(
+        "auralign.source-grammar-features",
+        _proposal(words[0], TrailingPunctuation.NONE, 0.95),
+    )
+    apple = _output(
+        "apple-foundation.window-aggregate",
+        _proposal(
+            words[2],
+            TrailingPunctuation.PERIOD,
+            0.99,
+            sentence_break=0.99,
+        ),
+    )
+    sat = _boundary_output("wtpsplit-sat-3l-sm", words, probability=0.95)
+    qwen4 = _output(
+        "qwen3-4b-exact-mark",
+        _proposal(words[1], TrailingPunctuation.PERIOD, 0.99, sentence_break=0.99),
+    )
+    qwen14 = _output(
+        "qwen3-14b-exact-mark",
+        _proposal(words[2], TrailingPunctuation.QUESTION, 0.99, sentence_break=0.99),
+    )
+    input_digest = presentation_input_digest(words)
+
+    def retained(
+        output: ScorerOutput,
+        receipt_character: str,
+        *,
+        admitted: bool,
+    ) -> RetainedScorerEvidence:
+        return RetainedScorerEvidence(
+            output=output,
+            presentation_input_digest=input_digest,
+            output_sha256=scorer_output_sha256(output),
+            receipt_sha256=receipt_character * 64,
+            disposition=(
+                RetainedEvidenceDisposition.ADMIT
+                if admitted
+                else RetainedEvidenceDisposition.ABSTAIN
+            ),
+            abstention_reason=None if admitted else "quality_gate_failed",
+        )
+
+    plan = compose_retained_presentation(
+        words,
+        (
+            retained(source, "1", admitted=True),
+            retained(apple, "2", admitted=True),
+            retained(sat, "3", admitted=True),
+            retained(qwen4, "4", admitted=False),
+            retained(qwen14, "5", admitted=False),
+        ),
+    )
+
+    assert words == original_words
+    assert apply_presentation_plan(words, plan) == ("We", "are", "ready.")
+    assert {item.provenance.scorer_id for item in plan.abstentions} == {
+        "qwen3-4b-exact-mark",
+        "qwen3-14b-exact-mark",
+    }
+    assert {
+        provenance.scorer_id
+        for decision in plan.decisions
+        for provenance in decision.contributing_provenance
+    }.isdisjoint({"qwen3-4b-exact-mark", "qwen3-14b-exact-mark"})
+    final_support = plan.decisions[-1].boundary_support
+    assert {item.scorer_id for item in final_support.exact_mark_provenance} == {
+        "apple-foundation.window-aggregate"
+    }
+    assert {item.scorer_id for item in final_support.boundary_provenance} == {"wtpsplit-sat-3l-sm"}
+    assert all(output.provenance.configuration_digest is not None for output in plan.scorer_outputs)
+    assert deserialize_presentation_plan(serialize_presentation_plan(plan)) == plan
+
+
+def test_retained_hybrid_composer_fails_closed_on_binding_or_identity_tamper() -> None:
+    words = (_word(0, "ready"),)
+    output = _output(
+        "retained-mark-model",
+        _proposal(words[0], TrailingPunctuation.PERIOD, 0.99, sentence_break=0.99),
+    )
+    digest = presentation_input_digest(words)
+    valid = RetainedScorerEvidence(
+        output=output,
+        presentation_input_digest=digest,
+        output_sha256=scorer_output_sha256(output),
+        receipt_sha256="a" * 64,
+        disposition=RetainedEvidenceDisposition.ADMIT,
+    )
+
+    with pytest.raises(ValueError, match="output digest"):
+        replace(valid, output_sha256="0" * 64)
+    with pytest.raises(ValueError, match="input binding"):
+        compose_retained_presentation(
+            words,
+            (replace(valid, presentation_input_digest="b" * 64),),
+        )
+
+    duplicate = ScorerOutput(
+        provenance=replace(output.provenance, configuration_digest="c" * 64),
+        proposals=output.proposals,
+    )
+    with pytest.raises(ValueError, match="duplicate scorer identity"):
+        compose_retained_presentation(
+            words,
+            (
+                valid,
+                RetainedScorerEvidence(
+                    output=duplicate,
+                    presentation_input_digest=digest,
+                    output_sha256=scorer_output_sha256(duplicate),
+                    receipt_sha256="d" * 64,
+                    disposition=RetainedEvidenceDisposition.ABSTAIN,
+                    abstention_reason="correlated_evidence",
+                ),
+            ),
+        )
+
+
+def test_indexed_exact_mark_adapter_is_full_coverage_mark_only_evidence() -> None:
+    words = (_word(0, "we"), _word(1, "agree"))
+    groups = (
+        _indexed_mark_evidence(0, None),
+        _indexed_mark_evidence(1, TrailingPunctuation.PERIOD),
+    )
+    output = build_indexed_exact_mark_scorer_output(
+        words,
+        ScorerProvenance("retained-exact-mark", "1.0", "a" * 64),
+        groups,
+    )
+
+    assert len(output.proposals) == len(words) * len(TrailingPunctuation)
+    assert {proposal.evidence_roles for proposal in output.proposals} == {
+        (EvidenceRole.EXACT_MARK,)
+    }
+    assert all(proposal.capitalization_probability == 0.5 for proposal in output.proposals)
+    assert all(proposal.sentence_break_probability == 0.5 for proposal in output.proposals)
+    assert {
+        proposal.lexical_text_digest for proposal in output.proposals if proposal.word_index == 1
+    } == {lexical_text_digest(words[1].lexical_text)}
+
+    with pytest.raises(ValueError, match="cover every word"):
+        build_indexed_exact_mark_scorer_output(words, output.provenance, groups[:1])
+    with pytest.raises(ValueError, match="canonical punctuation order"):
+        IndexedExactMarkEvidence(
+            word_index=0,
+            punctuation_probabilities=tuple(reversed(groups[0].punctuation_probabilities)),
+        )
+
+
+def test_editorial_adjudication_is_receipt_bound_single_source_authority() -> None:
+    words = (_word(0, "we"), _word(1, "agree"))
+    raw = build_indexed_editorial_adjudication_scorer_output(
+        words,
+        ScorerProvenance("auralign.editorial-adjudication.review", "1.0"),
+        (
+            _editorial_evidence(0, None),
+            _editorial_evidence(
+                1,
+                TrailingPunctuation.PERIOD,
+                sentence_break=0.99,
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="not receipt-bound"):
+        decode_presentation(words, (raw,))
+
+    plan = compose_retained_presentation(words, (_retained(words, raw),))
+    restored = deserialize_presentation_plan(serialize_presentation_plan(plan))
+
+    assert apply_presentation_plan(words, restored) == ("We", "agree.")
+    support = restored.decisions[-1].boundary_support
+    assert not support.exact_mark_provenance
+    assert not support.boundary_provenance
+    assert {item.scorer_id for item in support.editorial_adjudication_provenance} == {
+        "auralign.editorial-adjudication.review"
+    }
+    assert support.supported
+    assert {proposal.evidence_roles for proposal in raw.proposals} == {
+        (EvidenceRole.EDITORIAL_ADJUDICATION,)
+    }
+    assert all(proposal.capitalization_probability == 0.5 for proposal in raw.proposals)
+    assert all(proposal.casing_surface is None for proposal in raw.proposals)
+
+
+def test_editorial_adjudication_can_demote_only_reviewed_source_strong_mark() -> None:
+    words = (_word(0, "continues."), _word(1, "here"))
+    original_words = tuple(words)
+    raw = build_indexed_editorial_adjudication_scorer_output(
+        words,
+        ScorerProvenance("auralign.editorial-adjudication.review", "1.0"),
+        (
+            _editorial_evidence(
+                0,
+                TrailingPunctuation.NONE,
+                sentence_break=0.01,
+                source_mark_veto=True,
+            ),
+            _editorial_evidence(1, None),
+        ),
+    )
+
+    plan = compose_retained_presentation(words, (_retained(words, raw),))
+
+    assert words == original_words
+    assert apply_presentation_plan(words, plan) == ("Continues", "here")
+    assert plan.decisions[0].trailing_punctuation is TrailingPunctuation.NONE
+    assert {item.scorer_id for item in plan.decisions[0].contributing_provenance} == {
+        "auralign.editorial-adjudication.review"
+    }
+    assert not words[0].incomplete_continuation
+    assert words[0].speaker_id == "SPEAKER_00"
+    assert words[0].start_seconds == 0.0
+
+
+def test_editorial_adjudication_can_demote_only_reviewed_source_weak_mark() -> None:
+    words = (_word(0, "continues,"), _word(1, "here"))
+    raw = build_indexed_editorial_adjudication_scorer_output(
+        words,
+        ScorerProvenance("auralign.editorial-adjudication.review", "1.0"),
+        (
+            _editorial_evidence(
+                0,
+                TrailingPunctuation.NONE,
+                sentence_break=0.01,
+                source_mark_veto=True,
+            ),
+            _editorial_evidence(1, None),
+        ),
+    )
+
+    plan = compose_retained_presentation(words, (_retained(words, raw),))
+
+    assert apply_presentation_plan(words, plan) == ("Continues", "here")
+    assert plan.decisions[0].trailing_punctuation is TrailingPunctuation.NONE
+
+
+def test_editorial_adjudication_preserves_unreviewed_source_weak_mark() -> None:
+    words = (_word(0, "continues,"), _word(1, "here"))
+    raw = build_indexed_editorial_adjudication_scorer_output(
+        words,
+        ScorerProvenance("auralign.editorial-adjudication.review", "1.0"),
+        (_editorial_evidence(0, None), _editorial_evidence(1, None)),
+    )
+
+    plan = compose_retained_presentation(words, (_retained(words, raw),))
+
+    assert apply_presentation_plan(words, plan) == ("Continues,", "here")
+    assert plan.decisions[0].trailing_punctuation is TrailingPunctuation.COMMA
+
+
+@pytest.mark.parametrize(
+    "word,selected",
+    (
+        (_word(0, "because", incomplete=True), TrailingPunctuation.PERIOD),
+        (
+            _word(0, "I'm", incomplete_contraction=True),
+            TrailingPunctuation.COMMA,
+        ),
+    ),
+)
+def test_editorial_adjudication_remains_subordinate_to_structural_guards(
+    word: DecoderWord,
+    selected: TrailingPunctuation,
+) -> None:
+    words = (word,)
+    raw = build_indexed_editorial_adjudication_scorer_output(
+        words,
+        ScorerProvenance("auralign.editorial-adjudication.review", "1.0"),
+        (
+            _editorial_evidence(
+                0,
+                selected,
+                sentence_break=(0.99 if selected is TrailingPunctuation.PERIOD else 0.01),
+            ),
+        ),
+    )
+
+    plan = compose_retained_presentation(words, (_retained(words, raw),))
+
+    assert plan.decisions[0].trailing_punctuation is TrailingPunctuation.NONE
+
+
+def test_editorial_adjudication_rejects_role_confusion_and_invalid_veto() -> None:
+    source = _word(0, "ready.")
+    with pytest.raises(ValueError, match="requires editorial adjudication"):
+        _proposal(
+            source,
+            TrailingPunctuation.NONE,
+            0.99,
+            roles=(EvidenceRole.EXACT_MARK,),
+            source_mark_veto=True,
+        )
+
+    raw = build_indexed_editorial_adjudication_scorer_output(
+        (source,),
+        ScorerProvenance("auralign.editorial-adjudication.review", "1.0"),
+        (
+            _editorial_evidence(
+                0,
+                TrailingPunctuation.PERIOD,
+                sentence_break=0.99,
+                source_mark_veto=True,
+            ),
+        ),
+    )
+    with pytest.raises(ValueError, match="lacks a replacement"):
+        compose_retained_presentation((source,), (_retained((source,), raw),))
+
+    no_source_stop = (_word(0, "ready"),)
+    invalid = build_indexed_editorial_adjudication_scorer_output(
+        no_source_stop,
+        ScorerProvenance("auralign.editorial-adjudication.review", "1.0"),
+        (
+            _editorial_evidence(
+                0,
+                TrailingPunctuation.NONE,
+                sentence_break=0.01,
+                source_mark_veto=True,
+            ),
+        ),
+    )
+    with pytest.raises(ValueError, match="lacks a replacement"):
+        compose_retained_presentation(
+            no_source_stop,
+            (_retained(no_source_stop, invalid),),
+        )
+
+    with pytest.raises(ValueError, match="identity"):
+        build_indexed_editorial_adjudication_scorer_output(
+            (source,),
+            ScorerProvenance("generic-model", "1.0"),
+            (_editorial_evidence(0, None),),
+        )
+
+
+def test_editorial_adjudication_replay_rejects_veto_or_provenance_tamper() -> None:
+    words = (_word(0, "continues."), _word(1, "here"))
+    raw = build_indexed_editorial_adjudication_scorer_output(
+        words,
+        ScorerProvenance("auralign.editorial-adjudication.review", "1.0"),
+        (
+            _editorial_evidence(
+                0,
+                TrailingPunctuation.NONE,
+                sentence_break=0.01,
+                source_mark_veto=True,
+            ),
+            _editorial_evidence(1, None),
+        ),
+    )
+    plan = compose_retained_presentation(words, (_retained(words, raw),))
+    output = plan.scorer_outputs[0]
+    altered_proposals = tuple(
+        replace(proposal, source_mark_veto=False) for proposal in output.proposals
+    )
+    forged = replace(
+        plan,
+        scorer_outputs=(replace(output, proposals=altered_proposals),),
+    )
+
+    with pytest.raises(ValueError, match="source punctuation policy"):
+        apply_presentation_plan(words, forged)
+
+    alternate_receipt_plan = compose_retained_presentation(
+        words,
+        (_retained(words, raw, receipt_character="b"),),
+    )
+    assert presentation_plan_sha256(alternate_receipt_plan) != presentation_plan_sha256(plan)
+    with pytest.raises(ValueError, match="contributing provenance"):
+        apply_presentation_plan(
+            words,
+            replace(
+                plan,
+                decisions=(
+                    replace(
+                        plan.decisions[0],
+                        contributing_provenance=(),
+                    ),
+                    plan.decisions[1],
+                ),
+            ),
+        )
+
+
+def test_editorial_adjudication_adapter_requires_complete_canonical_coverage() -> None:
+    words = (_word(0, "we"), _word(1, "agree"))
+    provenance = ScorerProvenance("auralign.editorial-adjudication.review", "1.0")
+    evidence = (_editorial_evidence(0, None), _editorial_evidence(1, None))
+
+    with pytest.raises(ValueError, match="cover every word"):
+        build_indexed_editorial_adjudication_scorer_output(
+            words,
+            provenance,
+            evidence[:1],
+        )
+    with pytest.raises(ValueError, match="canonical punctuation order"):
+        IndexedEditorialAdjudicationEvidence(
+            word_index=0,
+            punctuation_probabilities=tuple(reversed(evidence[0].punctuation_probabilities)),
+            sentence_break_probability=0.5,
+        )
+
+
+def test_same_scorer_id_cannot_self_corroborate_across_configuration_digests() -> None:
+    word = _word(0, "ready")
+    exact = ScorerOutput(
+        provenance=ScorerProvenance("correlated-family", "1.0", "1" * 64),
+        proposals=(_proposal(word, TrailingPunctuation.PERIOD, 0.99, sentence_break=0.99),),
+    )
+    boundary = ScorerOutput(
+        provenance=ScorerProvenance("correlated-family", "1.0", "2" * 64),
+        proposals=(
+            _proposal(
+                word,
+                TrailingPunctuation.NONE,
+                1.0 / len(TrailingPunctuation),
+                capitalization=0.5,
+                sentence_break=0.99,
+                paragraph_break=0.5,
+                roles=(EvidenceRole.BOUNDARY_ONLY,),
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="correlation identity"):
+        decode_presentation((word,), (exact, boundary))
+    assert not BoundarySupport(
+        exact_mark_provenance=(exact.provenance,),
+        boundary_provenance=(boundary.provenance,),
+    ).supported
 
 
 def test_decoder_is_deterministic_under_scorer_and_proposal_reordering() -> None:
@@ -1919,6 +2558,7 @@ def test_plan_serialization_and_hash_are_canonical_and_complete() -> None:
         "violation_count": 0,
     }
     assert payload["tie_break_policy"] == plan.tie_break_policy
+    assert payload["escalation_policy"] == plan.escalation_policy
     assert payload["abstentions"][0]["reason"] == "insufficient_evidence"
 
 

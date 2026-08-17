@@ -57,7 +57,7 @@ Possession of an archive does not authorize redistribution.
 ## Standalone macOS Application
 
 The accepted 0.2.0 and 0.2.1 releases remain immutable app-only artifacts under
-their historical release contracts. The owner-authorized private macOS 0.3.1
+their historical release contracts. The owner-authorized private macOS 0.3.2
 lane is one scriptless, system-domain product PKG with two
 independently inventoried components:
 
@@ -114,8 +114,9 @@ An accepted artifact must:
 - remain private and hash-identical to the allowlisted release assets.
 
 The nineteen-model 0.3.0 decision was recorded by Matthew Penkala on
-2026-07-25 and is reused unchanged by the 0.3.1 successor authorization
-recorded on 2026-08-16; neither is a legal opinion or changes upstream terms.
+2026-07-25 and is reused unchanged by the 0.3.1 and 0.3.2 successor
+authorizations recorded on 2026-08-16; none is a legal opinion or changes
+upstream terms.
 Normal presets map to `max=large-v3`, `balanced=turbo`,
 `fast=distil-large-v3.5`, and `cpu=turbo`. `distil-large-v3` and all twelve
 MLX entries are optional advanced choices. The system bootstrap provides
@@ -147,7 +148,7 @@ external image delivery must be hard-blocked.
 
 Models and datasets are governed by their own upstream licenses and terms. They
 are never included by implication in an Auralign license or release. The
-current private macOS 0.3.1 exception is exactly the three-model bootstrap
+current private macOS 0.3.2 exception is exactly the three-model bootstrap
 component plus the sixteen versioned native-download ASR packs recorded in the
 machine-readable registry and release runbook. Raw caches and loose model
 release assets remain prohibited. Unverified, extra, or differently revised

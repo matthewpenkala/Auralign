@@ -15,6 +15,7 @@ import shutil
 import stat
 import tempfile
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,7 @@ from .export.subtitle import iter_subtitle_cues, overlay_cue_word_surfaces
 from .export.vtt_export import render_vtt
 from .presentation import (
     DECODER_VERSION,
+    HARD96_ESCALATION_POLICY,
     MAX_PRESENTATION_PLAN_BYTES,
     DecoderWord,
     PresentationPlan,
@@ -647,6 +649,7 @@ def _require_complete_cleanup(
         raise PolishError("Complete cleanup requires every nonempty window to succeed.")
     if (
         request.get("decoder_version") != DECODER_VERSION
+        or request.get("decoder_escalation_policy") != HARD96_ESCALATION_POLICY
         or not isinstance(request.get("presentation_plan_sha256"), str)
         or request.get("presentation_plan_word_count") != request.get("semantic_clean_word_count")
         or not isinstance(request.get("semantic_cleanup_plan_sha256"), str)
@@ -658,14 +661,14 @@ def _require_complete_cleanup(
     surface_quality = request.get("surface_quality")
     if (
         not isinstance(surface_quality, Mapping)
-        or surface_quality.get("schema_version") != "global_presentation_quality.v5"
+        or surface_quality.get("schema_version") != "global_presentation_quality.v7"
+        or not isinstance(surface_quality.get("long_sentence_span_receipt_sha256"), str)
+        or not isinstance(surface_quality.get("overlong_sentence_span_receipt_sha256"), str)
         or surface_quality.get("lexical_sequence_preserved") is not True
         or surface_quality.get("suspicious_fragment_addition_count") != 0
         or surface_quality.get("contraction_punctuation_violation_count") != 0
         or surface_quality.get("added_short_strong_stop_burst_count") != 0
         or surface_quality.get("added_strong_stop_burst_count") != 0
-        or surface_quality.get("long_unpunctuated_run_count") != 0
-        or surface_quality.get("overlong_sentence_span_count") != 0
         or surface_quality.get("unsupported_added_strong_stop_count") != 0
         or surface_quality.get("incomplete_abandoned_fragment_stop_violation_count") != 0
         or surface_quality.get("lowercase_after_strong_stop_count") != 0
@@ -1087,6 +1090,8 @@ def _validate_presentation_plan_binding(
         raise PolishError("Presentation plan decoder version does not match the report.")
     if plan.tie_break_policy != request.get("decoder_tie_break_policy"):
         raise PolishError("Presentation plan tie-break policy does not match the report.")
+    if plan.escalation_policy != request.get("decoder_escalation_policy"):
+        raise PolishError("Presentation plan escalation policy does not match the report.")
     if plan.hard_constraint_application_count != request.get("hard_constraint_application_count"):
         raise PolishError("Presentation plan hard-constraint count does not match the report.")
     if plan.hard_constraint_violation_count != request.get("hard_constraint_violation_count"):
@@ -1161,12 +1166,70 @@ def _validate_semantic_receipt_binding(
         raise PolishError("Semantic abstention receipt coverage is incomplete.")
 
 
+def _apply_reviewed_question_scopes(
+    words: Sequence[DecoderWord],
+    scopes: Mapping[int, int],
+) -> tuple[DecoderWord, ...]:
+    """Bind a reviewed question judgment without changing canonical evidence.
+
+    The supplied mapping is recording-specific, receipt-bound presentation
+    evidence.  It may add only question metadata to an otherwise byte-for-byte
+    equivalent decoder-word sequence.  Scopes must be non-overlapping and stay
+    inside one exact speaker/container continuity span.
+    """
+
+    bound_words = tuple(words)
+    if not scopes:
+        return bound_words
+    normalized: list[tuple[int, int]] = []
+    prior_endpoint = -1
+    for endpoint, scope_start in sorted(scopes.items()):
+        if (
+            isinstance(endpoint, bool)
+            or not isinstance(endpoint, int)
+            or isinstance(scope_start, bool)
+            or not isinstance(scope_start, int)
+            or scope_start < 0
+            or endpoint < scope_start
+            or endpoint >= len(bound_words)
+        ):
+            raise PolishError("Reviewed question scope is out of bounds.")
+        if scope_start <= prior_endpoint:
+            raise PolishError("Reviewed question scopes overlap.")
+        if endpoint - scope_start + 1 > 96:
+            raise PolishError("Reviewed question scope exceeds the decoder envelope.")
+        scope_words = bound_words[scope_start : endpoint + 1]
+        owner = (scope_words[0].speaker_id, scope_words[0].container_index)
+        if any((word.speaker_id, word.container_index) != owner for word in scope_words):
+            raise PolishError("Reviewed question scope crosses a continuity owner.")
+        if any(word.ends_turn for word in scope_words[:-1]):
+            raise PolishError("Reviewed question scope crosses an internal turn ending.")
+        endpoint_word = bound_words[endpoint]
+        if endpoint_word.question_evidence > 0.0 and (
+            endpoint_word.question_scope_start_index != scope_start
+        ):
+            raise PolishError("Reviewed question scope conflicts with typed source evidence.")
+        normalized.append((endpoint, scope_start))
+        prior_endpoint = endpoint
+
+    reviewed = list(bound_words)
+    for endpoint, scope_start in normalized:
+        reviewed[endpoint] = replace(
+            reviewed[endpoint],
+            question_evidence=0.9999,
+            question_scope_start_index=scope_start,
+        )
+    return tuple(reviewed)
+
+
 def _validate_cleaned_transcript(
     canonical: Transcript,
     cleaned: Transcript,
     config: PipelineConfig,
     semantic_plan: SemanticCleanupPlan,
     presentation_plan: PresentationPlan,
+    *,
+    reviewed_question_scopes: Mapping[int, int] | None = None,
 ) -> dict[str, Any]:
     source_text = cleanup_source_text(canonical)
     cleaned_text = cleanup_source_text(cleaned)
@@ -1256,6 +1319,10 @@ def _validate_cleaned_transcript(
             clean_surfaces,
             source_word_indices=clean_to_source,
         )
+        decoder_words = _apply_reviewed_question_scopes(
+            decoder_words,
+            reviewed_question_scopes or {},
+        )
         planned_surfaces = apply_presentation_plan(
             decoder_words,
             presentation_plan,
@@ -1338,6 +1405,7 @@ def _validate_cleaned_transcript(
         "word_timestamps_preserved": True,
         "alignment_sources_preserved": True,
         "speaker_attribution_preserved": True,
+        "reviewed_question_scope_count": len(reviewed_question_scopes or {}),
         "nonpresentation_fields_preserved": True,
         "lowercase_pronoun_i_count": 0,
         "proper_noun_occurrences": proper_noun_counts,
@@ -1865,6 +1933,7 @@ def _cleanup_receipt(report: Mapping[str, Any], config: PipelineConfig) -> dict[
         "fallback_reasons": request.get("fallback_reasons", {}),
         "decoder_version": request.get("decoder_version"),
         "decoder_tie_break_policy": request.get("decoder_tie_break_policy"),
+        "decoder_escalation_policy": request.get("decoder_escalation_policy"),
         "presentation_plan_sha256": request.get("presentation_plan_sha256"),
         "presentation_plan_word_count": request.get("presentation_plan_word_count"),
         "presentation_input_digest": request.get("presentation_input_digest"),

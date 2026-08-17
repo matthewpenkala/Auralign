@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 schema_version = "auralign-macos-runtime-sources.v1"
-product_version = "0.3.1"
+product_version = "0.3.2"
 build_number = "1"
 architecture = "arm64"
 minimum_macos = "14.0"

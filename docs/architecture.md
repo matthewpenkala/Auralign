@@ -290,7 +290,7 @@ uv run mypy src/local_transcript_max
 
 ## Installed macOS Trust Topology
 
-The 0.3.1 product separates executable code, shared bootstrap resources, and
+The 0.3.2 product separates executable code, shared bootstrap resources, and
 per-user ASR packs:
 
 ```text

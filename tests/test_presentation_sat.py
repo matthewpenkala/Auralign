@@ -844,6 +844,7 @@ def test_pins_and_proposal_surface_have_no_lexical_mutation_operation() -> None:
         "sentence_break_probability",
         "paragraph_break_probability",
         "evidence_roles",
+        "source_mark_veto",
         "casing_surface",
         "casing_probability",
     }

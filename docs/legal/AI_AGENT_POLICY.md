@@ -184,6 +184,35 @@ public visibility, force-push, loose model assets, raw caches, credentials,
 media, transcripts, private validation logs, or any artifact outside the
 0.3.1 runbook allowlist.
 
+## Owner-Authorized Private macOS 0.3.2 Presentation Quality Successor
+
+On 2026-08-16, repository owner Matthew Penkala explicitly authorized the
+private macOS `0.3.2` successor requested in this task, reviewed synchronization
+to the existing private `main`, creation and normal push of the new
+`macos-v0.3.2` tag, and publication of the exact accepted private release
+allowlist. The published `macos-v0.3.1` tag, release, package, hashes, and
+acceptance records remain immutable and must not be moved, overwritten, or
+relabeled.
+
+The 0.3.2 release reuses without modification the exact nineteen model
+identities, revisions, files, licenses, owner-clearance boundary, native pack
+catalog, and bootstrap v2 component authorized for 0.3.1. The bootstrap remains
+`com.auralign.studio.models.bootstrap.v2` version `2.0.0`, installed by receipt
+`com.auralign.studio.pkg.models.bootstrap-v2`; it is not rebuilt under a new
+model identity merely because the application version advances.
+
+The successor scope is the reviewed presentation-decoder, cleanup-report,
+polish/replay, and QA changes that preserve canonical lexical, timing,
+alignment, speaker, privacy, and provenance invariants while representing
+ordinary punctuation uncertainty as reversible editorial presentation. The
+authorization permits the exact clean pushed source commit, fresh no-cache
+Developer ID build, Apple notarization and stapling, Gatekeeper and native
+install/reinstall acceptance, new tag, private release, and independent private
+download/hash parity required by the 0.3.2 runbook. It does not authorize
+public visibility, force-push, loose model assets, raw caches, credentials,
+media, transcripts, private validation logs, or any artifact outside that
+runbook's allowlist.
+
 ## Escalation
 
 Stop and request owner review when evidence conflicts, an upstream license is

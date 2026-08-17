@@ -389,7 +389,7 @@ product.
 `local_transcript_max.presentation_sat` is an isolated advisory sentence-
 boundary scorer for optional or required source/headless use. It is not part of
 `MODEL_MANIFEST`, any default preset, `full`, the macOS 14+ standalone
-application, or the 0.3.1 model components. Install its runtime only with the
+application, or the 0.3.2 model components. Install its runtime only with the
 explicit
 `presentation-sat` extra.
 
@@ -497,7 +497,7 @@ access fails before offline readiness.
 
 ### Installed-recipient lane
 
-1. Install the signed, notarized, stapled 0.3.1 PKG.
+1. Install the signed, notarized, stapled 0.3.2 PKG.
 2. Open Auralign from Finder.
 3. In **Complete Offline Setup**, choose the desired ASR pack.
 4. Keep the app open while the native setup downloads and verifies it.
@@ -546,3 +546,11 @@ LTM_OFFLINE=1 uv run ltm doctor --startup \
 
 A passing fixture or mocked test is not a substitute for the exact packaged or
 installed backend evidence.
+
+## 0.3.2 Delivery Architecture
+
+The owner-authorized 0.3.2 presentation-quality successor reuses the exact
+0.3.1 model, license, bootstrap-v2, native-pack, catalog, and redistribution
+contracts without changing any external asset. The application/product version
+advances to 0.3.2; the independently versioned bootstrap remains
+`com.auralign.studio.models.bootstrap.v2` version `2.0.0`.

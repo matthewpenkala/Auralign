@@ -40,6 +40,7 @@ from .presentation import (
     DECODER_VERSION,
     DecoderWord,
     EvidenceRole,
+    PresentationDecision,
     PresentationPlan,
     PresentationProposal,
     ScorerOutput,
@@ -1181,7 +1182,7 @@ def _request_punctuation_presentation(
                 },
                 "word_model_receipt": _disabled_word_model_receipt(),
                 "surface_quality": {
-                    "schema_version": "global_presentation_quality.v5",
+                    "schema_version": "global_presentation_quality.v7",
                     "lexical_sequence_preserved": True,
                     "suspicious_fragment_addition_count": 0,
                     "contraction_punctuation_violation_count": 0,
@@ -1193,6 +1194,9 @@ def _request_punctuation_presentation(
                     "long_unpunctuated_run_count": 0,
                     "long_sentence_span_count": 0,
                     "overlong_sentence_span_count": 0,
+                    "unresolved_overlong_sentence_span_count": 0,
+                    "long_sentence_span_receipt_sha256": _sentence_span_receipt_sha256(()),
+                    "overlong_sentence_span_receipt_sha256": _sentence_span_receipt_sha256(()),
                     "max_sentence_span_words": 0,
                     "incomplete_trailing_fragment_count": 0,
                     "incomplete_abandoned_fragment_stop_violation_count": 0,
@@ -1285,8 +1289,6 @@ def _request_punctuation_presentation(
                 "contraction_punctuation_violation_count",
                 "added_short_strong_stop_burst_count",
                 "added_strong_stop_burst_count",
-                "long_unpunctuated_run_count",
-                "overlong_sentence_span_count",
                 "unsupported_added_strong_stop_count",
                 "incomplete_abandoned_fragment_stop_violation_count",
                 "lowercase_after_strong_stop_count",
@@ -1359,6 +1361,7 @@ def _request_punctuation_presentation(
         {
             "decoder_version": plan.decoder_version,
             "decoder_tie_break_policy": plan.tie_break_policy,
+            "decoder_escalation_policy": plan.escalation_policy,
             "presentation_plan_sha256": presentation_plan_sha256(plan),
             "presentation_plan_word_count": len(plan.decisions),
             "presentation_input_digest": plan.input_digest,
@@ -2561,6 +2564,7 @@ def scorer_output_digest(output: ScorerOutput) -> str:
             "sentence_break_probability": proposal.sentence_break_probability,
             "paragraph_break_probability": proposal.paragraph_break_probability,
             "evidence_roles": [role.value for role in proposal.evidence_roles],
+            "source_mark_veto": proposal.source_mark_veto,
         }
         for proposal in output.proposals
     ]
@@ -2678,6 +2682,9 @@ def _decoded_surface_quality(
             "max_unpunctuated_run_words": 0,
             "long_sentence_span_count": 0,
             "overlong_sentence_span_count": 0,
+            "unresolved_overlong_sentence_span_count": 0,
+            "long_sentence_span_receipt_sha256": _sentence_span_receipt_sha256(()),
+            "overlong_sentence_span_receipt_sha256": _sentence_span_receipt_sha256(()),
             "max_sentence_span_words": 0,
             "incomplete_trailing_fragment_count": 0,
             "incomplete_abandoned_fragment_stop_violation_count": 0,
@@ -2693,6 +2700,7 @@ def _decoded_surface_quality(
             cleaned_tokens,
             contexts=contexts,
             turn_end_indexes=turn_end_indexes,
+            decisions=plan.decisions,
         )
         diagnostics = _surface_quality_diagnostics(
             transcript,
@@ -2738,7 +2746,7 @@ def _decoded_surface_quality(
     if lowercase_after_strong_stops:
         warnings.append("lowercase_after_strong_stops_require_review")
     return {
-        "schema_version": "global_presentation_quality.v5",
+        "schema_version": "global_presentation_quality.v7",
         "lexical_sequence_preserved": True,
         "suspicious_fragment_addition_count": suspicious,
         "hard_constraint_violation_count": plan.hard_constraint_violation_count,
@@ -3671,7 +3679,10 @@ def _suspicious_added_sentence_breaks(
     *,
     contexts: Sequence[CleanupTokenContext],
     turn_end_indexes: set[int],
+    decisions: Sequence[PresentationDecision] | None = None,
 ) -> int:
+    if decisions is not None and len(decisions) != len(source_tokens):
+        raise ValueError("presentation decision coverage does not match source tokens")
     suspicious = 0
     clause_length = 0
     for index, (source, repaired) in enumerate(zip(source_tokens, repaired_tokens, strict=True)):
@@ -3681,6 +3692,11 @@ def _suspicious_added_sentence_breaks(
         added_strong = not any(
             mark in _STRONG_SENTENCE_PUNCTUATION for mark in source_punctuation
         ) and any(mark in _STRONG_SENTENCE_PUNCTUATION for mark in repaired_punctuation)
+        typed_question = bool(
+            decisions is not None
+            and decisions[index].trailing_punctuation is TrailingPunctuation.QUESTION
+            and decisions[index].boundary_support.typed_question
+        )
         if added_strong and (
             _structural_incomplete_continuation(
                 index,
@@ -3689,6 +3705,7 @@ def _suspicious_added_sentence_breaks(
             )
             or (
                 "?" in repaired_punctuation
+                and not typed_question
                 and not _question_boundary_supported(
                     index=index,
                     source_tokens=source_tokens,
@@ -3716,6 +3733,30 @@ def _clause_length_at(tokens: Sequence[str], index: int) -> int:
     return length
 
 
+def _sentence_span_receipt_sha256(
+    spans: Sequence[tuple[int, int, int, bool, bool]],
+) -> str:
+    """Bind private sentence-span placement without publishing transcript text."""
+
+    return hashlib.sha256(
+        json.dumps(
+            [
+                {
+                    "start_word_index": start,
+                    "end_word_index": end,
+                    "word_count": length,
+                    "over_soft_limit": over_soft,
+                    "over_hard_limit": over_hard,
+                }
+                for start, end, length, over_soft, over_hard in spans
+            ],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def _surface_quality_diagnostics(
     transcript: Transcript,
     source_tokens: Sequence[str],
@@ -3738,7 +3779,9 @@ def _surface_quality_diagnostics(
     prior_added_strong_stop_index: int | None = None
     prior_added_strong_stop_owner: tuple[str, object] | None = None
     sentence_length = 0
+    sentence_start_index = 0
     sentence_owners: set[tuple[str, object]] = set()
+    long_sentence_span_records: list[tuple[int, int, int, bool, bool]] = []
     long_sentence_spans = 0
     overlong_sentence_spans = 0
     max_sentence_span_words = 0
@@ -3813,9 +3856,20 @@ def _surface_quality_diagnostics(
             incomplete_abandoned_fragment_stop_violations += 1
         if has_strong:
             max_sentence_span_words = max(max_sentence_span_words, sentence_length)
-            if sentence_length > _MAX_STRONG_SENTENCE_SPAN_WORDS:
+            over_soft_limit = sentence_length > _MAX_STRONG_SENTENCE_SPAN_WORDS
+            over_hard_limit = sentence_length > _HARD_MAX_STRONG_SENTENCE_SPAN_WORDS
+            if over_soft_limit:
                 long_sentence_spans += 1
-            if sentence_length > _HARD_MAX_STRONG_SENTENCE_SPAN_WORDS:
+                long_sentence_span_records.append(
+                    (
+                        sentence_start_index,
+                        index,
+                        sentence_length,
+                        True,
+                        over_hard_limit,
+                    )
+                )
+            if over_hard_limit:
                 overlong_sentence_spans += 1
             short_added = bool(added_strong and sentence_length <= 2 and len(sentence_owners) == 1)
             if short_added:
@@ -3853,13 +3907,25 @@ def _surface_quality_diagnostics(
                 prior_added_strong_stop_index = None
                 prior_added_strong_stop_owner = None
             sentence_length = 0
+            sentence_start_index = index + 1
             sentence_owners.clear()
 
     if sentence_length:
         max_sentence_span_words = max(max_sentence_span_words, sentence_length)
-        if sentence_length > _MAX_STRONG_SENTENCE_SPAN_WORDS:
+        over_soft_limit = sentence_length > _MAX_STRONG_SENTENCE_SPAN_WORDS
+        over_hard_limit = sentence_length > _HARD_MAX_STRONG_SENTENCE_SPAN_WORDS
+        if over_soft_limit:
             long_sentence_spans += 1
-        if sentence_length > _HARD_MAX_STRONG_SENTENCE_SPAN_WORDS:
+            long_sentence_span_records.append(
+                (
+                    sentence_start_index,
+                    len(repaired_tokens) - 1,
+                    sentence_length,
+                    True,
+                    over_hard_limit,
+                )
+            )
+        if over_hard_limit:
             overlong_sentence_spans += 1
     incomplete_trailing_fragments = int(
         bool(source_tokens)
@@ -3927,7 +3993,7 @@ def _surface_quality_diagnostics(
     if long_sentence_spans:
         warnings.append("long_sentence_spans_require_editorial_review")
     if overlong_sentence_spans:
-        warnings.append("overlong_sentence_spans_fail_required_cleanup")
+        warnings.append("unresolved_overlong_sentence_spans_need_editorial_review")
     if incomplete_trailing_fragments:
         warnings.append("incomplete_trailing_fragment_preserved")
     if incomplete_abandoned_fragment_stop_violations:
@@ -3948,6 +4014,13 @@ def _surface_quality_diagnostics(
         "max_unpunctuated_run_words": max_unpunctuated_run_words,
         "long_sentence_span_count": long_sentence_spans,
         "overlong_sentence_span_count": overlong_sentence_spans,
+        "unresolved_overlong_sentence_span_count": overlong_sentence_spans,
+        "long_sentence_span_receipt_sha256": _sentence_span_receipt_sha256(
+            long_sentence_span_records
+        ),
+        "overlong_sentence_span_receipt_sha256": _sentence_span_receipt_sha256(
+            tuple(record for record in long_sentence_span_records if record[4])
+        ),
         "max_sentence_span_words": max_sentence_span_words,
         "incomplete_trailing_fragment_count": incomplete_trailing_fragments,
         "question_leading_turn_without_question_mark_count": (typed_question_scopes_without_mark),

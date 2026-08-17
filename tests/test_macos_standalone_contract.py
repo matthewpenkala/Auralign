@@ -42,7 +42,7 @@ def test_runtime_sources_are_exact_for_model_inclusive_successor() -> None:
     sources = tomllib.loads((PACKAGING / "runtime-sources.toml").read_text(encoding="utf-8"))
 
     assert sources["schema_version"] == "auralign-macos-runtime-sources.v1"
-    assert sources["product_version"] == "0.3.1"
+    assert sources["product_version"] == "0.3.2"
     assert sources["build_number"] == "1"
     assert sources["architecture"] == "arm64"
     assert sources["minimum_macos"] == "14.0"
@@ -1614,7 +1614,7 @@ def test_package_definition_is_scriptless_system_only_arm64_macos14() -> None:
         "com.auralign.studio.pkg.app",
         "com.auralign.studio.pkg.models.bootstrap-v2",
     }
-    assert packages["com.auralign.studio.pkg.app"].attrib["version"] == "0.3.1.1"
+    assert packages["com.auralign.studio.pkg.app"].attrib["version"] == "0.3.2.1"
     assert (packages["com.auralign.studio.pkg.app"].text or "").strip() == (
         "Auralign-application-component.pkg"
     )
@@ -1665,7 +1665,7 @@ def test_final_product_package_uses_exact_component_expansion(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    package = tmp_path / "Auralign-0.3.1-1-macos-arm64.pkg"
+    package = tmp_path / "Auralign-0.3.2-1-macos-arm64.pkg"
     package.write_bytes(b"product package fixture")
     signed_app = tmp_path / "signed/Auralign.app"
     model_bundle = tmp_path / "model-bundle"
@@ -1736,7 +1736,7 @@ def test_final_product_package_uses_exact_component_expansion(
         package,
         app=signed_app,
         model_bundle=model_bundle,
-        sources={"product_version": "0.3.1", "build_number": "1"},
+        sources={"product_version": "0.3.2", "build_number": "1"},
         expected_team="TEAM123",
         structure_only=False,
     )
@@ -1938,5 +1938,5 @@ def test_release_swift_uses_embedded_runtime_and_verified_system_models() -> Non
     assert "#if DEBUG" in settings
     assert "normal use is offline" in settings
     assert "requires no Hugging Face account" in settings
-    assert project.count("MARKETING_VERSION = 0.3.1;") == 6
+    assert project.count("MARKETING_VERSION = 0.3.2;") == 6
     assert "MARKETING_VERSION = 0.2.1;" not in project

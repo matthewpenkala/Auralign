@@ -6,7 +6,7 @@ SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 # Accuracy
 
-Normal 0.3.1 presets map to tested exact local packs: `max` uses
+Normal 0.3.2 presets map to tested exact local packs: `max` uses
 `large-v3`, `balanced` and `cpu` use `turbo`, and `fast` uses the English-only
 `distil-large-v3.5`. `distil-large-v3` and all twelve MLX models remain
 available as optional advanced selections after their exact packs are
@@ -16,7 +16,7 @@ readiness when the effective model changes. Denoising and vocal separation
 remain opt-in because they can help or hurt ASR and diarization depending on
 source audio.
 
-The optional faster-whisper Silero VAD asset is not in the verified 0.3.1 model
+The optional faster-whisper Silero VAD asset is not in the verified 0.3.2 model
 component, so `asr.vad_filter: true` is rejected rather than silently
 downloading or approximating that model. The normal pipeline continues to use
 Auralign's local model-free EnergyVAD.

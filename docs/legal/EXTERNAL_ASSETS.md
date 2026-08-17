@@ -64,6 +64,16 @@ corpus-free Punkt tree for NLTK `3.10.3` with its own marker, manifest,
 verification, notices, SBOM, provenance, and completion hashes. The historical
 0.3.0/v1 record remains unchanged and is not release evidence for v2.
 
+## 0.3.2 Successor Disposition
+
+On 2026-08-16, Matthew Penkala authorized the private 0.3.2 presentation-quality
+successor to reuse the exact 0.3.1 external-asset contract without changing any
+model identity, revision, file, license, native-pack destination, bootstrap
+byte, or redistribution boundary. The app/product version advances; the
+independently versioned bootstrap remains v2 `2.0.0`. The published 0.3.1
+artifact and its hashes remain immutable historical evidence and do not
+establish acceptance of the new application bytes.
+
 ## Model License Evidence
 
 The four CTranslate2 conversions are recorded as MIT. The twelve MLX

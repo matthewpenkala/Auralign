@@ -22,13 +22,13 @@ final class ModelDeliveryCatalogTests: XCTestCase {
 
         XCTAssertEqual(
             catalog.digest,
-            "45616b6f9af3a115621cc1d31b2fb22cc344dc6f0a6d78afc676cbd6b8796681"
+            "e1af5b1511f39f400b7db644dc4fb71dfcb278ec9d28ebe29e3caabdaa7b8ce3"
         )
         XCTAssertEqual(
             catalog.schema,
             ModelDeliveryCatalog.schemaVersion
         )
-        XCTAssertEqual(catalog.productVersion, "0.3.1")
+        XCTAssertEqual(catalog.productVersion, "0.3.2")
         XCTAssertEqual(catalog.models.count, 19)
         XCTAssertEqual(catalog.packs.count, 16)
         XCTAssertEqual(

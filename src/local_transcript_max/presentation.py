@@ -29,8 +29,9 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/+-]{0,127}$")
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _EPSILON = 1e-9
 _SCORE_EPSILON = 1e-12
-DECODER_VERSION = "auralign.presentation.v9"
+DECODER_VERSION = "auralign.presentation.v13"
 TIE_BREAK_POLICY = "lexicographic-source-preserving-v1"
+HARD96_ESCALATION_POLICY = "saturate-and-needs-review.v1"
 MAX_PRESENTATION_WORDS = 50_000
 MAX_PRESENTATION_SCORER_OUTPUTS = 16
 MAX_PRESENTATION_PROPOSALS = 1_000_000
@@ -64,6 +65,26 @@ class EvidenceRole(StrEnum):
     BOUNDARY_ONLY = "boundary_only"
     CASE_ONLY = "case_only"
     STRUCTURAL_VETO = "structural_veto"
+    EDITORIAL_ADJUDICATION = "editorial_adjudication"
+
+
+class RetainedEvidenceDisposition(StrEnum):
+    """Whether closed, receipt-bound scorer evidence may influence decoding."""
+
+    ADMIT = "admit"
+    ABSTAIN = "abstain"
+
+
+class NoSafePresentationPathError(ValueError):
+    """Typed global-decode failure with a stable, privacy-safe reason code."""
+
+    def __init__(self, word_index: int, reason_code: str) -> None:
+        if isinstance(word_index, bool) or not isinstance(word_index, int) or word_index < 0:
+            raise ValueError("no-safe-path word index must be a non-negative integer")
+        _validate_identifier(reason_code, "reason_code")
+        self.word_index = word_index
+        self.reason_code = reason_code
+        super().__init__(f"no safe presentation path at word index {word_index}")
 
 
 _EVIDENCE_ROLE_ORDER = tuple(EvidenceRole)
@@ -240,6 +261,14 @@ class DecoderWord:
         )
 
 
+def presentation_input_digest(words: Sequence[DecoderWord]) -> str:
+    """Return the canonical digest for one validated decoder-word sequence."""
+
+    bound_words = tuple(words)
+    _validate_decoder_inputs(bound_words, ())
+    return _input_digest(bound_words)
+
+
 @dataclass(frozen=True, slots=True)
 class ScorerProvenance:
     """Stable identity for one scorer and its exact configuration."""
@@ -279,6 +308,7 @@ class PresentationProposal:
         EvidenceRole.EXACT_MARK,
         EvidenceRole.CASE_ONLY,
     )
+    source_mark_veto: bool = False
     casing_surface: str | None = None
     casing_probability: float | None = None
 
@@ -319,6 +349,12 @@ class PresentationProposal:
             != self.evidence_roles
         ):
             raise ValueError("proposal evidence_roles must be unique and canonically ordered")
+        if not isinstance(self.source_mark_veto, bool):
+            raise ValueError("source_mark_veto must be a boolean")
+        if self.source_mark_veto and EvidenceRole.EDITORIAL_ADJUDICATION not in (
+            self.evidence_roles
+        ):
+            raise ValueError("source-mark veto requires editorial adjudication")
         if self.casing_surface is not None and EvidenceRole.CASE_ONLY not in self.evidence_roles:
             raise ValueError("casing_surface requires CASE_ONLY evidence")
         if self.casing_surface is not None:
@@ -369,6 +405,114 @@ class ScorerOutput:
 
 
 @dataclass(frozen=True, slots=True)
+class IndexedExactMarkEvidence:
+    """One full exact-mark distribution bound to a canonical word index."""
+
+    word_index: int
+    punctuation_probabilities: tuple[tuple[TrailingPunctuation, float], ...]
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.word_index, bool)
+            or not isinstance(self.word_index, int)
+            or self.word_index < 0
+        ):
+            raise ValueError("exact-mark word_index must be a non-negative integer")
+        if not isinstance(self.punctuation_probabilities, tuple):
+            raise ValueError("exact-mark probabilities must be an immutable tuple")
+        expected = tuple(_PUNCTUATION_ORDER)
+        observed = tuple(item[0] for item in self.punctuation_probabilities)
+        if observed != expected:
+            raise ValueError("exact-mark probabilities must cover canonical punctuation order")
+        for punctuation, probability in self.punctuation_probabilities:
+            if not isinstance(punctuation, TrailingPunctuation):
+                raise ValueError("exact-mark punctuation is not allowlisted")
+            _validate_probability(probability, "exact-mark probability")
+        if (
+            abs(math.fsum(probability for _, probability in self.punctuation_probabilities) - 1.0)
+            > _EPSILON
+        ):
+            raise ValueError("exact-mark probabilities must sum to one")
+
+
+@dataclass(frozen=True, slots=True)
+class IndexedEditorialAdjudicationEvidence:
+    """One receipt-bound reviewed mark, boundary, and optional source veto."""
+
+    word_index: int
+    punctuation_probabilities: tuple[tuple[TrailingPunctuation, float], ...]
+    sentence_break_probability: float
+    source_mark_veto: bool = False
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.word_index, bool)
+            or not isinstance(self.word_index, int)
+            or self.word_index < 0
+        ):
+            raise ValueError("editorial word_index must be a non-negative integer")
+        if not isinstance(self.punctuation_probabilities, tuple):
+            raise ValueError("editorial probabilities must be an immutable tuple")
+        if tuple(item[0] for item in self.punctuation_probabilities) != tuple(_PUNCTUATION_ORDER):
+            raise ValueError("editorial probabilities must cover canonical punctuation order")
+        for punctuation, probability in self.punctuation_probabilities:
+            if not isinstance(punctuation, TrailingPunctuation):
+                raise ValueError("editorial punctuation is not allowlisted")
+            _validate_probability(probability, "editorial punctuation probability")
+        if (
+            abs(math.fsum(probability for _, probability in self.punctuation_probabilities) - 1.0)
+            > _EPSILON
+        ):
+            raise ValueError("editorial punctuation probabilities must sum to one")
+        _validate_probability(
+            self.sentence_break_probability,
+            "editorial sentence-break probability",
+        )
+        if not isinstance(self.source_mark_veto, bool):
+            raise ValueError("editorial source_mark_veto must be a boolean")
+
+
+@dataclass(frozen=True, slots=True)
+class RetainedScorerEvidence:
+    """One immutable scorer output plus its external receipt disposition.
+
+    ``output_sha256`` binds the complete typed scorer output, while
+    ``receipt_sha256`` binds the external execution or evaluation receipt that
+    authorized its disposition.  Rejected or merely diagnostic evidence is
+    retained as an explicit abstention and therefore cannot vote in decoding.
+    """
+
+    output: ScorerOutput
+    presentation_input_digest: str
+    output_sha256: str
+    receipt_sha256: str
+    disposition: RetainedEvidenceDisposition
+    abstention_reason: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.output, ScorerOutput):
+            raise ValueError("retained scorer output is invalid")
+        for value, field in (
+            (self.presentation_input_digest, "presentation_input_digest"),
+            (self.output_sha256, "output_sha256"),
+            (self.receipt_sha256, "receipt_sha256"),
+        ):
+            if not isinstance(value, str) or not _DIGEST_RE.fullmatch(value):
+                raise ValueError(f"retained evidence {field} must be a SHA-256 digest")
+        if self.output_sha256 != scorer_output_sha256(self.output):
+            raise ValueError("retained evidence output digest mismatch")
+        if not isinstance(self.disposition, RetainedEvidenceDisposition):
+            raise ValueError("retained evidence disposition is invalid")
+        if self.disposition is RetainedEvidenceDisposition.ADMIT:
+            if self.abstention_reason is not None:
+                raise ValueError("admitted evidence cannot declare an abstention reason")
+        else:
+            if not isinstance(self.abstention_reason, str):
+                raise ValueError("abstained evidence requires a reason")
+            _validate_identifier(self.abstention_reason, "abstention_reason")
+
+
+@dataclass(frozen=True, slots=True)
 class ScorerAbstention:
     """An abstention retained in the final plan's provenance record."""
 
@@ -389,15 +533,18 @@ class BoundarySupport:
 
     source_punctuation: bool = False
     typed_question: bool = False
+    source_weak_question_override: bool = False
     timing_pause: bool = False
     exact_mark_provenance: tuple[ScorerProvenance, ...] = ()
     boundary_provenance: tuple[ScorerProvenance, ...] = ()
+    editorial_adjudication_provenance: tuple[ScorerProvenance, ...] = ()
     structural_veto: bool = False
 
     def __post_init__(self) -> None:
         for label, values in (
             ("exact-mark", self.exact_mark_provenance),
             ("boundary", self.boundary_provenance),
+            ("editorial-adjudication", self.editorial_adjudication_provenance),
         ):
             if tuple(sorted(set(values), key=_provenance_key)) != values:
                 raise ValueError(f"{label} scorer provenance must be unique and sorted")
@@ -408,7 +555,9 @@ class BoundarySupport:
 
         return tuple(
             sorted(
-                set(self.exact_mark_provenance) | set(self.boundary_provenance),
+                set(self.exact_mark_provenance)
+                | set(self.boundary_provenance)
+                | set(self.editorial_adjudication_provenance),
                 key=_provenance_key,
             )
         )
@@ -416,13 +565,18 @@ class BoundarySupport:
     @property
     def supported(self) -> bool:
         independently_corroborated = any(
-            exact != boundary
+            exact.scorer_id != boundary.scorer_id
             for exact in self.exact_mark_provenance
             for boundary in self.boundary_provenance
         )
         return bool(
             not self.structural_veto
-            and (self.source_punctuation or self.typed_question or independently_corroborated)
+            and (
+                self.source_punctuation
+                or self.typed_question
+                or independently_corroborated
+                or bool(self.editorial_adjudication_provenance)
+            )
         )
 
 
@@ -493,6 +647,7 @@ class PresentationPlan:
     hard_constraint_violation_count: int
     decoder_version: str = DECODER_VERSION
     tie_break_policy: str = TIE_BREAK_POLICY
+    escalation_policy: str = HARD96_ESCALATION_POLICY
 
     def __post_init__(self) -> None:
         if (
@@ -530,9 +685,11 @@ class PresentationPlan:
             != self.scorer_outputs
             or len({output.provenance for output in self.scorer_outputs})
             != len(self.scorer_outputs)
+            or len({output.provenance.scorer_id for output in self.scorer_outputs})
+            != len(self.scorer_outputs)
             or any(_canonical_scorer_output(output) != output for output in self.scorer_outputs)
         ):
-            raise ValueError("scorer outputs must have unique sorted provenance")
+            raise ValueError("scorer outputs must have unique sorted correlation identities")
         if len(self.scorer_outputs) > MAX_PRESENTATION_SCORER_OUTPUTS:
             raise ValueError("presentation plan exceeds the maximum scorer count")
         if sum(len(output.proposals) for output in self.scorer_outputs) > (
@@ -565,6 +722,8 @@ class PresentationPlan:
             raise ValueError("unsupported presentation decoder version")
         if self.tie_break_policy != TIE_BREAK_POLICY:
             raise ValueError("unsupported presentation tie-break policy")
+        if self.escalation_policy != HARD96_ESCALATION_POLICY:
+            raise ValueError("unsupported presentation escalation policy")
 
 
 @dataclass(frozen=True, slots=True)
@@ -715,7 +874,7 @@ def decode_presentation(
                 if current is None or _path_is_better(proposed, current):
                     next_paths[new_state] = proposed
         if not next_paths:
-            raise ValueError(f"no safe presentation path at word index {word.word_index}")
+            raise NoSafePresentationPathError(word.word_index, "constraint_exhaustion")
         ranked = sorted(next_paths.items(), key=lambda item: item[1].tie_extension)
         paths = {state: replace(path, tie_rank=rank) for rank, (state, path) in enumerate(ranked)}
 
@@ -777,6 +936,147 @@ def decode_presentation(
     )
 
 
+def build_indexed_exact_mark_scorer_output(
+    words: Sequence[DecoderWord],
+    provenance: ScorerProvenance,
+    evidence: Sequence[IndexedExactMarkEvidence],
+) -> ScorerOutput:
+    """Convert a complete indexed exact-mark distribution into typed evidence.
+
+    The adapter has no operation for lexical edits, casing, or boundary-class
+    authority.  Every proposal is rebound to the supplied immutable word
+    sequence, and incomplete or reordered coverage fails closed.
+    """
+
+    bound_words = tuple(words)
+    groups = tuple(evidence)
+    _validate_decoder_inputs(bound_words, ())
+    if not isinstance(provenance, ScorerProvenance):
+        raise ValueError("exact-mark scorer provenance is invalid")
+    if tuple(group.word_index for group in groups) != tuple(range(len(bound_words))):
+        raise ValueError("exact-mark evidence must cover every word in canonical order")
+    proposals = tuple(
+        PresentationProposal(
+            word_index=word.word_index,
+            lexical_signature=word.lexical_signature,
+            lexical_text_digest=lexical_text_digest(word.lexical_text),
+            trailing_punctuation=punctuation,
+            punctuation_probability=probability,
+            capitalization_probability=0.5,
+            sentence_break_probability=0.5,
+            paragraph_break_probability=0.5,
+            evidence_roles=(EvidenceRole.EXACT_MARK,),
+        )
+        for word, group in zip(bound_words, groups, strict=True)
+        for punctuation, probability in group.punctuation_probabilities
+    )
+    output = ScorerOutput(provenance=provenance, proposals=proposals)
+    _validate_decoder_inputs(bound_words, (output,))
+    return _canonical_scorer_output(output)
+
+
+def build_indexed_editorial_adjudication_scorer_output(
+    words: Sequence[DecoderWord],
+    provenance: ScorerProvenance,
+    evidence: Sequence[IndexedEditorialAdjudicationEvidence],
+) -> ScorerOutput:
+    """Convert a complete reviewed edit plan into typed presentation evidence.
+
+    The adapter binds every review decision to one canonical word and exposes
+    only an exact punctuation distribution, sentence-boundary judgment, and
+    the narrowly typed ability to veto that word's source-authored strong
+    mark.  It has no lexical, casing, speaker, timing, or free-form structural
+    operation.  The raw output is intentionally not directly decodable:
+    :func:`compose_retained_presentation` must first bind it to the external
+    review receipt and exact input digest.
+    """
+
+    bound_words = tuple(words)
+    groups = tuple(evidence)
+    _validate_decoder_inputs(bound_words, ())
+    if not isinstance(provenance, ScorerProvenance):
+        raise ValueError("editorial scorer provenance is invalid")
+    if not provenance.scorer_id.startswith("auralign.editorial-adjudication"):
+        raise ValueError("editorial scorer identity is invalid")
+    if tuple(group.word_index for group in groups) != tuple(range(len(bound_words))):
+        raise ValueError("editorial evidence must cover every word in canonical order")
+    proposals = tuple(
+        PresentationProposal(
+            word_index=word.word_index,
+            lexical_signature=word.lexical_signature,
+            lexical_text_digest=lexical_text_digest(word.lexical_text),
+            trailing_punctuation=punctuation,
+            punctuation_probability=probability,
+            capitalization_probability=0.5,
+            sentence_break_probability=group.sentence_break_probability,
+            paragraph_break_probability=0.5,
+            evidence_roles=(EvidenceRole.EDITORIAL_ADJUDICATION,),
+            source_mark_veto=group.source_mark_veto,
+        )
+        for word, group in zip(bound_words, groups, strict=True)
+        for punctuation, probability in group.punctuation_probabilities
+    )
+    return _canonical_scorer_output(ScorerOutput(provenance=provenance, proposals=proposals))
+
+
+def compose_retained_presentation(
+    words: Sequence[DecoderWord],
+    evidence: Sequence[RetainedScorerEvidence],
+) -> PresentationPlan:
+    """Decode a receipt-bound closed evidence set deterministically.
+
+    Each admitted scorer is re-provenanced with a configuration digest that
+    commits to its original identity, exact typed output, execution receipt,
+    input sequence, and admission decision.  Non-admitted evidence is retained
+    as an explicit abstention.  It therefore remains auditable without being
+    able to change punctuation or casing.
+    """
+
+    bound_words = tuple(words)
+    retained = tuple(evidence)
+    _validate_decoder_inputs(bound_words, ())
+    input_digest = _input_digest(bound_words)
+    identities = [
+        (item.output.provenance.scorer_id, item.output.provenance.scorer_version)
+        for item in retained
+    ]
+    if len(identities) != len(set(identities)):
+        raise ValueError("retained evidence contains a duplicate scorer identity")
+
+    composed_outputs: list[ScorerOutput] = []
+    for item in retained:
+        if not isinstance(item, RetainedScorerEvidence):
+            raise ValueError("retained evidence contains an invalid item")
+        if item.presentation_input_digest != input_digest:
+            raise ValueError("retained evidence input binding mismatch")
+        original = item.output.provenance
+        composed_provenance = ScorerProvenance(
+            scorer_id=original.scorer_id,
+            scorer_version=original.scorer_version,
+            configuration_digest=_retained_evidence_configuration_digest(item),
+        )
+        if item.disposition is RetainedEvidenceDisposition.ABSTAIN:
+            assert item.abstention_reason is not None
+            composed_outputs.append(
+                ScorerOutput.abstain(composed_provenance, item.abstention_reason)
+            )
+        elif item.output.abstention_reason is not None:
+            composed_outputs.append(
+                ScorerOutput.abstain(
+                    composed_provenance,
+                    item.output.abstention_reason,
+                )
+            )
+        else:
+            composed_outputs.append(
+                ScorerOutput(
+                    provenance=composed_provenance,
+                    proposals=item.output.proposals,
+                )
+            )
+    return decode_presentation(bound_words, composed_outputs)
+
+
 def apply_presentation_plan(
     words: Sequence[DecoderWord],
     plan: PresentationPlan,
@@ -836,6 +1136,19 @@ def apply_presentation_plan(
             decision.trailing_punctuation,
         ):
             raise ValueError("presentation mark class lacks exact typed support")
+        if _editorial_structural_veto_applies(
+            word,
+            replay_evidence[position],
+            decision.trailing_punctuation,
+        ):
+            raise ValueError("presentation decision violates editorial structural veto")
+        if not _source_mark_change_allowed(
+            word,
+            evidence=replay_evidence[position],
+            selected=decision.trailing_punctuation,
+            question_scope_endpoint=(word.word_index in question_scope_endpoint_indices),
+        ):
+            raise ValueError("presentation decision violates source punctuation policy")
         if not _same_continuity_owner(previous_word, word):
             short_stop_streak = 0
             added_stop_cluster_count = 0
@@ -934,6 +1247,7 @@ def serialize_presentation_plan(plan: PresentationPlan) -> bytes:
         "schema_version": DECODER_VERSION,
         "decoder_version": plan.decoder_version,
         "tie_break_policy": plan.tie_break_policy,
+        "escalation_policy": plan.escalation_policy,
         "input_digest": plan.input_digest,
         "total_score": plan.total_score,
         "hard_constraints": {
@@ -966,6 +1280,9 @@ def serialize_presentation_plan(plan: PresentationPlan) -> bytes:
                 "boundary_support": {
                     "source_punctuation": decision.boundary_support.source_punctuation,
                     "typed_question": decision.boundary_support.typed_question,
+                    "source_weak_question_override": (
+                        decision.boundary_support.source_weak_question_override
+                    ),
                     "timing_pause": decision.boundary_support.timing_pause,
                     "exact_mark_provenance": [
                         _provenance_payload(provenance)
@@ -974,6 +1291,12 @@ def serialize_presentation_plan(plan: PresentationPlan) -> bytes:
                     "boundary_provenance": [
                         _provenance_payload(provenance)
                         for provenance in decision.boundary_support.boundary_provenance
+                    ],
+                    "editorial_adjudication_provenance": [
+                        _provenance_payload(provenance)
+                        for provenance in (
+                            decision.boundary_support.editorial_adjudication_provenance
+                        )
                     ],
                     "structural_veto": decision.boundary_support.structural_veto,
                 },
@@ -1020,6 +1343,7 @@ def deserialize_presentation_plan(data: bytes) -> PresentationPlan:
             "abstentions",
             "decisions",
             "decoder_version",
+            "escalation_policy",
             "hard_constraints",
             "input_digest",
             "scorer_outputs",
@@ -1062,6 +1386,10 @@ def deserialize_presentation_plan(data: bytes) -> PresentationPlan:
         ),
         decoder_version=_require_string(payload["decoder_version"], "decoder_version"),
         tie_break_policy=_require_string(payload["tie_break_policy"], "tie_break_policy"),
+        escalation_policy=_require_string(
+            payload["escalation_policy"],
+            "escalation_policy",
+        ),
     )
     if serialize_presentation_plan(plan) != data:
         raise ValueError("presentation plan is not canonical JSON")
@@ -1096,6 +1424,7 @@ def _proposal_group_payload(
         "sentence_break_probability": representative.sentence_break_probability,
         "paragraph_break_probability": representative.paragraph_break_probability,
         "evidence_roles": [role.value for role in representative.evidence_roles],
+        "source_mark_veto": representative.source_mark_veto,
         "casing_surface": representative.casing_surface,
         "casing_probability": representative.casing_probability,
         "punctuation_probabilities": [
@@ -1120,6 +1449,43 @@ def _scorer_output_payload(output: ScorerOutput) -> dict[str, object]:
         "proposal_groups": proposal_groups,
         "abstention_reason": output.abstention_reason,
     }
+
+
+def scorer_output_sha256(output: ScorerOutput) -> str:
+    """Hash one complete typed scorer output in canonical JSON form."""
+
+    if not isinstance(output, ScorerOutput):
+        raise ValueError("output must be a ScorerOutput")
+    canonical = _canonical_scorer_output(output)
+    return _canonical_json_sha256(_scorer_output_payload(canonical))
+
+
+def _retained_evidence_configuration_digest(
+    evidence: RetainedScorerEvidence,
+) -> str:
+    return _canonical_json_sha256(
+        {
+            "schema_version": "auralign.presentation.retained-evidence.v1",
+            "source_provenance": _provenance_payload(evidence.output.provenance),
+            "presentation_input_digest": evidence.presentation_input_digest,
+            "output_sha256": evidence.output_sha256,
+            "receipt_sha256": evidence.receipt_sha256,
+            "disposition": evidence.disposition.value,
+            "abstention_reason": evidence.abstention_reason,
+        }
+    )
+
+
+def _canonical_json_sha256(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def _provenance_from_record(value: object) -> ScorerProvenance:
@@ -1153,6 +1519,7 @@ def _proposal_group_from_record(value: object) -> tuple[PresentationProposal, ..
             "paragraph_break_probability",
             "punctuation_probabilities",
             "sentence_break_probability",
+            "source_mark_veto",
             "word_index",
         },
         "presentation proposal group",
@@ -1177,6 +1544,10 @@ def _proposal_group_from_record(value: object) -> tuple[PresentationProposal, ..
     paragraph_break_probability = _require_number(
         payload["paragraph_break_probability"],
         "paragraph_break_probability",
+    )
+    source_mark_veto = _require_boolean(
+        payload["source_mark_veto"],
+        "source_mark_veto",
     )
     try:
         evidence_roles = tuple(
@@ -1219,6 +1590,7 @@ def _proposal_group_from_record(value: object) -> tuple[PresentationProposal, ..
                 sentence_break_probability=sentence_break_probability,
                 paragraph_break_probability=paragraph_break_probability,
                 evidence_roles=evidence_roles,
+                source_mark_veto=source_mark_veto,
                 casing_surface=casing_surface,
                 casing_probability=casing_probability,
             )
@@ -1305,8 +1677,10 @@ def _boundary_support_from_record(value: object) -> BoundarySupport:
         payload,
         {
             "boundary_provenance",
+            "editorial_adjudication_provenance",
             "exact_mark_provenance",
             "source_punctuation",
+            "source_weak_question_override",
             "structural_veto",
             "timing_pause",
             "typed_question",
@@ -1319,6 +1693,10 @@ def _boundary_support_from_record(value: object) -> BoundarySupport:
             "source_punctuation",
         ),
         typed_question=_require_boolean(payload["typed_question"], "typed_question"),
+        source_weak_question_override=_require_boolean(
+            payload["source_weak_question_override"],
+            "source_weak_question_override",
+        ),
         timing_pause=_require_boolean(payload["timing_pause"], "timing_pause"),
         exact_mark_provenance=tuple(
             _provenance_from_record(item)
@@ -1332,6 +1710,13 @@ def _boundary_support_from_record(value: object) -> BoundarySupport:
             for item in _require_list(
                 payload["boundary_provenance"],
                 "boundary_provenance",
+            )
+        ),
+        editorial_adjudication_provenance=tuple(
+            _provenance_from_record(item)
+            for item in _require_list(
+                payload["editorial_adjudication_provenance"],
+                "editorial_adjudication_provenance",
             )
         ),
         structural_veto=_require_boolean(payload["structural_veto"], "structural_veto"),
@@ -1463,6 +1848,7 @@ def _validate_scorer_proposals(proposals: tuple[PresentationProposal, ...]) -> N
                 proposal.sentence_break_probability,
                 proposal.paragraph_break_probability,
                 proposal.evidence_roles,
+                proposal.source_mark_veto,
             )
             for proposal in word_proposals
         }
@@ -1510,9 +1896,9 @@ def _validate_decoder_inputs(
             and not current.ends_turn
         ):
             raise ValueError("speaker change is missing a turn boundary")
-    provenances = [output.provenance for output in scorer_outputs]
-    if len(provenances) != len(set(provenances)):
-        raise ValueError("duplicate scorer provenance")
+    scorer_ids = [output.provenance.scorer_id for output in scorer_outputs]
+    if len(scorer_ids) != len(set(scorer_ids)):
+        raise ValueError("duplicate scorer correlation identity")
     for output in scorer_outputs:
         _validate_scorer_role_contract(output, words)
         for proposal in output.proposals:
@@ -1544,7 +1930,10 @@ def _validate_scorer_role_contract(
         proposals = tuple(raw_group)
         roles = proposals[0].evidence_roles
         distribution = _proposal_distribution(proposals)
-        if EvidenceRole.EXACT_MARK not in roles and any(
+        if not {
+            EvidenceRole.EXACT_MARK,
+            EvidenceRole.EDITORIAL_ADJUDICATION,
+        }.intersection(roles) and any(
             abs(probability - (1.0 / len(_PUNCTUATION_ORDER))) > _SCORE_EPSILON
             for probability in distribution.values()
         ):
@@ -1561,6 +1950,37 @@ def _validate_scorer_role_contract(
             and output.provenance.scorer_id != "auralign.source-grammar-features"
         ):
             raise ValueError("only canonical source evidence may carry a structural veto")
+        if EvidenceRole.EDITORIAL_ADJUDICATION in roles:
+            if roles != (EvidenceRole.EDITORIAL_ADJUDICATION,):
+                raise ValueError("editorial adjudication must use one exclusive evidence role")
+            if (
+                not output.provenance.scorer_id.startswith("auralign.editorial-adjudication")
+                or output.provenance.configuration_digest is None
+            ):
+                raise ValueError("editorial adjudication is not receipt-bound")
+            if representative.source_mark_veto:
+                source_mark = _source_punctuation(words[word_index].lexical_text)
+                selected = max(
+                    _PUNCTUATION_ORDER,
+                    key=lambda punctuation: (
+                        distribution[punctuation],
+                        -_PUNCTUATION_RANK[punctuation],
+                    ),
+                )
+                if source_mark is TrailingPunctuation.NONE or selected is source_mark:
+                    raise ValueError("editorial source-mark veto lacks a replacement")
+                if source_mark in _STRONG_STOPS and (
+                    selected in _STRONG_STOPS or representative.sentence_break_probability >= 0.5
+                ):
+                    raise ValueError(
+                        "editorial strong source-mark veto lacks a non-strong replacement"
+                    )
+                if source_mark not in _STRONG_STOPS and selected in _STRONG_STOPS:
+                    raise ValueError(
+                        "editorial weak source-mark veto cannot promote a strong replacement"
+                    )
+        elif representative.source_mark_veto:
+            raise ValueError("non-editorial evidence cannot veto source punctuation")
         if output.provenance.scorer_id == "wtpsplit-sat-3l-sm" and roles != (
             EvidenceRole.BOUNDARY_ONLY,
         ):
@@ -1632,13 +2052,13 @@ def _collect_evidence(
         for _provenance, group_proposals in scorer_groups:
             roles = group_proposals[0].evidence_roles
             distribution = _proposal_distribution(group_proposals)
-            if EvidenceRole.EXACT_MARK in roles:
+            if EvidenceRole.EXACT_MARK in roles or EvidenceRole.EDITORIAL_ADJUDICATION in roles:
                 for punctuation in _PUNCTUATION_ORDER:
                     punctuation_probabilities[punctuation].append(distribution[punctuation])
             representative = group_proposals[0]
             if EvidenceRole.CASE_ONLY in roles:
                 capitalization.append(representative.capitalization_probability)
-            if EvidenceRole.BOUNDARY_ONLY in roles:
+            if EvidenceRole.BOUNDARY_ONLY in roles or EvidenceRole.EDITORIAL_ADJUDICATION in roles:
                 sentence_break.append(representative.sentence_break_probability)
                 paragraph_break.append(representative.paragraph_break_probability)
         collected.append(
@@ -1730,7 +2150,7 @@ def _supporting_provenance(
         distribution = _proposal_distribution(proposals)
         representative = proposals[0]
         mark_support = bool(
-            EvidenceRole.EXACT_MARK in roles
+            (EvidenceRole.EXACT_MARK in roles or EvidenceRole.EDITORIAL_ADJUDICATION in roles)
             and distribution[punctuation] + _SCORE_EPSILON >= max(distribution.values())
             and distribution[punctuation] > (1.0 / len(_PUNCTUATION_ORDER)) + _SCORE_EPSILON
         )
@@ -1746,7 +2166,7 @@ def _supporting_provenance(
             )
         )
         boundary_support = bool(
-            EvidenceRole.BOUNDARY_ONLY in roles
+            (EvidenceRole.BOUNDARY_ONLY in roles or EvidenceRole.EDITORIAL_ADJUDICATION in roles)
             and _probability_supports(
                 representative.sentence_break_probability,
                 sentence_break,
@@ -1777,6 +2197,7 @@ def _proposal_group_is_neutral(
         and abs(representative.capitalization_probability - 0.5) <= _SCORE_EPSILON
         and abs(representative.sentence_break_probability - 0.5) <= _SCORE_EPSILON
         and abs(representative.paragraph_break_probability - 0.5) <= _SCORE_EPSILON
+        and not representative.source_mark_veto
         and representative.casing_surface is None
         and representative.casing_probability is None
     )
@@ -1973,14 +2394,13 @@ def _reject_candidate(
 ) -> bool:
     if not _mark_class_admitted(word, evidence, candidate.punctuation):
         return True
-    source_punctuation = _source_punctuation(word.lexical_text)
-    if (
-        source_punctuation is not TrailingPunctuation.NONE
-        and candidate.punctuation is not source_punctuation
-        and not (
-            source_punctuation in _STRONG_STOPS
-            and _structural_veto_applies(word, source_punctuation)
-        )
+    if _editorial_structural_veto_applies(word, evidence, candidate.punctuation):
+        return True
+    if not _source_mark_change_allowed(
+        word,
+        evidence=evidence,
+        selected=candidate.punctuation,
+        question_scope_endpoint=question_scope_endpoint,
     ):
         return True
     if (
@@ -2015,6 +2435,47 @@ def _reject_candidate(
     return not candidate.boundary_supported
 
 
+def _source_mark_change_allowed(
+    word: DecoderWord,
+    *,
+    evidence: _WordEvidence,
+    selected: TrailingPunctuation,
+    question_scope_endpoint: bool,
+) -> bool:
+    """Return whether one selected mark may differ from canonical punctuation.
+
+    Source punctuation is weighted evidence, but broad post-hoc rewriting is
+    prohibited.  The only weak-mark replacement is a final, typed question
+    endpoint replacing a source comma, semicolon, or colon with ``?``.  A
+    source-authored mark otherwise remains protected unless an independently
+    typed structural relation or receipt-bound editorial review proves that
+    exact mark unsafe.
+    """
+
+    source = _source_punctuation(word.lexical_text)
+    if source is TrailingPunctuation.NONE or selected is source:
+        return True
+    if source in _STRONG_STOPS:
+        return bool(
+            _structural_veto_applies(word, source)
+            or _editorial_structural_veto_applies(word, evidence, source)
+        )
+    if _editorial_structural_veto_applies(word, evidence, source):
+        return True
+    return bool(
+        source
+        in {
+            TrailingPunctuation.COMMA,
+            TrailingPunctuation.SEMICOLON,
+            TrailingPunctuation.COLON,
+        }
+        and question_scope_endpoint
+        and selected is TrailingPunctuation.QUESTION
+        and word.question_evidence >= 0.8
+        and word.question_scope_start_index is not None
+    )
+
+
 def _decision_violates_global_constraints(
     word: DecoderWord,
     *,
@@ -2028,8 +2489,12 @@ def _decision_violates_global_constraints(
 ) -> bool:
     """Reject unsafe sequence shapes independently of scorer confidence."""
 
-    if sentence_length > MAX_SENTENCE_WORDS:
-        return True
+    # The finite sentence-length state saturates at 96 words.  Crossing that
+    # editorial escalation boundary must remain visible to surface QA, but it
+    # is not itself a structural contradiction and must not manufacture a
+    # punctuation mark or disconnect an otherwise valid lexical path.  The
+    # exact rendered span length is recomputed from the finished plan and
+    # retained as a needs-review diagnostic by cleanup.
     sentence_break = punctuation in _STRONG_STOPS
     if (
         punctuation
@@ -2135,6 +2600,22 @@ def _structural_veto_applies(
     return False
 
 
+def _editorial_structural_veto_applies(
+    word: DecoderWord,
+    evidence: _WordEvidence,
+    punctuation: TrailingPunctuation,
+) -> bool:
+    """Return a receipt-bound reviewed veto for this authored source mark."""
+
+    if _source_punctuation(word.lexical_text) is not punctuation:
+        return False
+    return any(
+        EvidenceRole.EDITORIAL_ADJUDICATION in proposals[0].evidence_roles
+        and proposals[0].source_mark_veto
+        for _provenance, proposals in evidence.scorer_proposals
+    )
+
+
 def _complete_negative_contraction_question_supported(
     word: DecoderWord,
     *,
@@ -2186,6 +2667,16 @@ def _typed_question_scope_endpoints(
         if word.question_evidence < 0.8 or scope_start is None:
             continue
         if word.word_index - scope_start + 1 > MAX_SENTENCE_WORDS:
+            continue
+        source_punctuation = _source_punctuation(word.lexical_text)
+        if (
+            source_punctuation in _STRONG_STOPS
+            and source_punctuation is not TrailingPunctuation.QUESTION
+            and not _structural_veto_applies(word, source_punctuation)
+        ):
+            # A derived question scope cannot silently replace an authored
+            # declarative/exclamatory/ellipsis stop.  Abstain at this site so
+            # endpoint selection never creates an impossible local mandate.
             continue
         if (
             word.incomplete_continuation
@@ -2469,6 +2960,7 @@ def _strong_boundary_support(
         return BoundarySupport()
     exact_mark_supporters: list[ScorerProvenance] = []
     boundary_supporters: list[ScorerProvenance] = []
+    editorial_adjudicators: list[ScorerProvenance] = []
     for provenance, proposals in evidence.scorer_proposals:
         roles = proposals[0].evidence_roles
         distribution = _proposal_distribution(proposals)
@@ -2486,15 +2978,40 @@ def _strong_boundary_support(
             >= BOUNDARY_CORROBORATION_THRESHOLD - _SCORE_EPSILON
         ):
             boundary_supporters.append(provenance)
+        if (
+            EvidenceRole.EDITORIAL_ADJUDICATION in roles
+            and selected + _SCORE_EPSILON >= max(distribution.values())
+            and selected > (1.0 / len(_PUNCTUATION_ORDER)) + _SCORE_EPSILON
+            and representative.sentence_break_probability
+            >= BOUNDARY_CORROBORATION_THRESHOLD - _SCORE_EPSILON
+        ):
+            editorial_adjudicators.append(provenance)
     return BoundarySupport(
         source_punctuation=_source_punctuation(word.lexical_text) == punctuation,
         typed_question=(
             punctuation is TrailingPunctuation.QUESTION and word.question_evidence >= 0.8
         ),
+        source_weak_question_override=(
+            punctuation is TrailingPunctuation.QUESTION
+            and _source_punctuation(word.lexical_text)
+            in {
+                TrailingPunctuation.COMMA,
+                TrailingPunctuation.SEMICOLON,
+                TrailingPunctuation.COLON,
+            }
+            and word.question_evidence >= 0.8
+            and word.question_scope_start_index is not None
+        ),
         timing_pause=(word.pause_after_seconds is not None and word.pause_after_seconds >= 1.2),
         exact_mark_provenance=tuple(sorted(set(exact_mark_supporters), key=_provenance_key)),
         boundary_provenance=tuple(sorted(set(boundary_supporters), key=_provenance_key)),
-        structural_veto=_structural_veto_applies(word, punctuation),
+        editorial_adjudication_provenance=tuple(
+            sorted(set(editorial_adjudicators), key=_provenance_key)
+        ),
+        structural_veto=(
+            _structural_veto_applies(word, punctuation)
+            or _editorial_structural_veto_applies(word, evidence, punctuation)
+        ),
     )
 
 
@@ -2518,7 +3035,10 @@ def _mark_class_admitted(
     if punctuation is TrailingPunctuation.COMMA and _weak_contraction_exception(word):
         return True
     for _provenance, proposals in evidence.scorer_proposals:
-        if EvidenceRole.EXACT_MARK not in proposals[0].evidence_roles:
+        if not {
+            EvidenceRole.EXACT_MARK,
+            EvidenceRole.EDITORIAL_ADJUDICATION,
+        }.intersection(proposals[0].evidence_roles):
             continue
         distribution = _proposal_distribution(proposals)
         selected = distribution[punctuation]

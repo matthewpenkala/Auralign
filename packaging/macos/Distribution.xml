@@ -38,7 +38,7 @@
   <choice id="com.auralign.studio.pkg.models.bootstrap-v2" visible="false">
     <pkg-ref id="com.auralign.studio.pkg.models.bootstrap-v2"/>
   </choice>
-  <pkg-ref id="com.auralign.studio.pkg.app" version="0.3.1.1"
+  <pkg-ref id="com.auralign.studio.pkg.app" version="0.3.2.1"
     onConclusion="none">Auralign-application-component.pkg</pkg-ref>
   <pkg-ref id="com.auralign.studio.pkg.models.bootstrap-v2" version="2.0.0"
     onConclusion="none">Auralign-offline-models-component.pkg</pkg-ref>

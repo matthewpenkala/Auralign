@@ -155,6 +155,28 @@ def verify_project_metadata() -> None:
         == "com.auralign.studio.pkg.models.bootstrap-v2",
         "authorized 0.3.1 successor release contract drift",
     )
+    current_release = release_authorizations.get("macos_0_3_2")
+    require(
+        isinstance(current_release, dict)
+        and current_release.get("status") == "owner_cleared_project_release_decision"
+        and current_release.get("approved_by") == "Matthew Penkala"
+        and current_release.get("approved_at") == "2026-08-16"
+        and current_release.get("visibility") == "private_only"
+        and current_release.get("inherits_exact_model_contract_from") == "macos_0_3_1"
+        and current_release.get("model_keys") == successor_release.get("model_keys")
+        and current_release.get("normal_preset_asr") == successor_release.get("normal_preset_asr")
+        and current_release.get("bootstrap_model_keys")
+        == successor_release.get("bootstrap_model_keys")
+        and current_release.get("native_download_model_keys")
+        == successor_release.get("native_download_model_keys")
+        and current_release.get("runtime_asset_contract")
+        == successor_release.get("runtime_asset_contract")
+        and current_release.get("component_root") == successor_release.get("component_root")
+        and current_release.get("component_version") == "2.0.0"
+        and current_release.get("component_receipt")
+        == "com.auralign.studio.pkg.models.bootstrap-v2",
+        "authorized 0.3.2 successor release contract drift",
+    )
     development_contracts = policy.get("development_contracts")
     require(
         isinstance(development_contracts, dict),

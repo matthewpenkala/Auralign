@@ -40,6 +40,7 @@ from local_transcript_max.polish import (
 )
 from local_transcript_max.presentation import (
     BoundarySupport,
+    DecoderWord,
     EvidenceRole,
     PresentationProposal,
     ScorerOutput,
@@ -95,6 +96,53 @@ def _word(text: str, start: float, end: float, speaker: str) -> AlignedWord:
         alignment_source="forced",
         assignment_source="exclusive_diarization",
     )
+
+
+def test_reviewed_question_scopes_change_only_receipt_bound_question_metadata() -> None:
+    words = tuple(
+        DecoderWord.from_text(
+            index,
+            token,
+            speaker_id="SPEAKER_00",
+            container_index=0,
+            begins_turn=index == 0,
+            ends_turn=index == 4,
+        )
+        for index, token in enumerate("you can hear me now".split())
+    )
+
+    reviewed = polish_module._apply_reviewed_question_scopes(words, {4: 1})
+
+    assert reviewed[4].question_evidence == 0.9999
+    assert reviewed[4].question_scope_start_index == 1
+    assert [
+        replace(word, question_evidence=0.0, question_scope_start_index=None) for word in reviewed
+    ] == list(words)
+
+
+@pytest.mark.parametrize(
+    "scopes",
+    (
+        {-1: 0},
+        {4: 5},
+        {3: 1, 4: 3},
+    ),
+)
+def test_reviewed_question_scopes_fail_closed_on_invalid_bounds_or_overlap(
+    scopes: dict[int, int],
+) -> None:
+    words = tuple(
+        DecoderWord.from_text(
+            index,
+            token,
+            speaker_id="SPEAKER_00",
+            container_index=0,
+        )
+        for index, token in enumerate("one two three four five".split())
+    )
+
+    with pytest.raises(PolishError, match="Reviewed question scope"):
+        polish_module._apply_reviewed_question_scopes(words, scopes)
 
 
 def _write_completed_job(root: Path, monkeypatch: pytest.MonkeyPatch) -> Transcript:
@@ -398,6 +446,7 @@ def _accepted_cleanup(transcript: Transcript, out_dir: Path, _config: PipelineCo
             "fallback_reasons": {},
             "decoder_version": presentation_plan.decoder_version,
             "decoder_tie_break_policy": presentation_plan.tie_break_policy,
+            "decoder_escalation_policy": presentation_plan.escalation_policy,
             "presentation_plan_sha256": hashlib.sha256(plan_bytes).hexdigest(),
             "presentation_plan_word_count": 5,
             "presentation_input_digest": presentation_plan.input_digest,
@@ -682,6 +731,29 @@ def test_polish_reapplies_typed_plan_and_rejects_surface_injection(
             _config(),
             semantic_plan,
             presentation_plan,
+        )
+
+
+@pytest.mark.parametrize("mutation", ["omitted", "stale"])
+def test_polish_rejects_missing_or_stale_report_escalation_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    canonical = _write_completed_job(tmp_path / "job", monkeypatch)
+    cleanup_dir = tmp_path / "cleanup"
+    cleanup_dir.mkdir()
+    report = _accepted_cleanup(canonical, cleanup_dir, _config())
+    request = report["request"]
+    if mutation == "omitted":
+        request.pop("decoder_escalation_policy")
+    else:
+        request["decoder_escalation_policy"] = "stale-policy.v0"
+
+    with pytest.raises(PolishError, match="escalation policy"):
+        polish_module._validate_presentation_plan_binding(
+            report,
+            (cleanup_dir / "presentation_plan.json").read_bytes(),
         )
 
 
@@ -1180,6 +1252,50 @@ def test_complete_cleanup_allows_receipt_bound_negative_local_margin_warning(
     polish_module._require_complete_cleanup(report, canonical, config)
 
 
+def test_complete_cleanup_allows_explicit_unresolved_run_on_review_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canonical = _write_completed_job(tmp_path / "job", monkeypatch)
+    cleanup_dir = tmp_path / "cleanup"
+    cleanup_dir.mkdir()
+    config = _config()
+    report = _accepted_cleanup(canonical, cleanup_dir, config)
+    quality = report["request"]["surface_quality"]
+    quality["long_unpunctuated_run_count"] = 1
+    quality["overlong_sentence_span_count"] = 1
+    quality["unresolved_overlong_sentence_span_count"] = 1
+    quality["max_sentence_span_words"] = 120
+    quality["quality_warnings"].extend(
+        [
+            "long_unpunctuated_runs_require_editorial_review",
+            "unresolved_overlong_sentence_spans_need_editorial_review",
+        ]
+    )
+
+    polish_module._require_complete_cleanup(report, canonical, config)
+
+
+@pytest.mark.parametrize(
+    "field",
+    ("long_sentence_span_receipt_sha256", "overlong_sentence_span_receipt_sha256"),
+)
+def test_complete_cleanup_requires_sentence_span_receipt_digests(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+) -> None:
+    canonical = _write_completed_job(tmp_path / "job", monkeypatch)
+    cleanup_dir = tmp_path / "cleanup"
+    cleanup_dir.mkdir()
+    config = _config()
+    report = _accepted_cleanup(canonical, cleanup_dir, config)
+    del report["request"]["surface_quality"][field]
+
+    with pytest.raises(PolishError, match="surface-quality"):
+        polish_module._require_complete_cleanup(report, canonical, config)
+
+
 def test_polish_recomputes_surface_quality_instead_of_trusting_counters(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1191,6 +1307,34 @@ def test_polish_recomputes_surface_quality_instead_of_trusting_counters(
     report = _accepted_cleanup(canonical, cleanup_dir, config)
     request = report["request"]
     request["surface_quality"]["locally_adverse_added_strong_stop_count"] += 1
+    semantic_plan = deserialize_semantic_cleanup_plan(
+        (cleanup_dir / "semantic_cleanup_plan.json").read_bytes().rstrip(b"\n")
+    )
+    presentation_plan = deserialize_presentation_plan(
+        (cleanup_dir / "presentation_plan.json").read_bytes()
+    )
+
+    with pytest.raises(PolishError, match="surface-quality report does not match exact replay"):
+        polish_module._validate_surface_quality_replay(
+            request,
+            canonical,
+            semantic_plan,
+            presentation_plan,
+            config,
+        )
+
+
+def test_polish_rejects_rehashed_sentence_span_receipt_substitution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canonical = _write_completed_job(tmp_path / "job", monkeypatch)
+    cleanup_dir = tmp_path / "cleanup"
+    cleanup_dir.mkdir()
+    config = _config()
+    report = _accepted_cleanup(canonical, cleanup_dir, config)
+    request = report["request"]
+    request["surface_quality"]["long_sentence_span_receipt_sha256"] = "f" * 64
     semantic_plan = deserialize_semantic_cleanup_plan(
         (cleanup_dir / "semantic_cleanup_plan.json").read_bytes().rstrip(b"\n")
     )

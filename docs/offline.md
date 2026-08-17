@@ -45,7 +45,7 @@ model fails fast with the exact maintainer pull command, and a pullable cache is
 rejected when its private `.ltm-model.json` linkage marker does not match the
 manifest's immutable model ID and revision.
 
-The installed 0.3.1 product has two fail-closed resource contracts:
+The installed 0.3.2 product has two fail-closed resource contracts:
 
 - the root-owned `com.auralign.studio.models.bootstrap.v2` version `2.0.0`
   component, containing Community-1, English alignment, ECAPA, and deterministic
@@ -140,7 +140,7 @@ preserving hidden
 `.ltm-model.json` linkage files. Do not copy `.hf-cache`, `.env`, shell history,
 token stores, media, or generated output. A different pyannote operator must
 complete the upstream gate for a direct maintainer pull. This cache-transfer
-workflow is not the installed 0.3.1 recipient path: the product PKG installs
+workflow is not the installed 0.3.2 recipient path: the product PKG installs
 the exact cleared, attributed bootstrap component, and the native app installs
 or imports the selected verified ASR pack. No recipient token is needed, but
 the first native pack setup needs a connection unless an exact pack is already

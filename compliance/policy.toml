@@ -243,6 +243,77 @@ installer_scripts = "prohibited"
 build_tools = "maintainer_only"
 recipient_toolchain_required = false
 
+[release_authorizations.macos_0_3_2]
+status = "owner_cleared_project_release_decision"
+approved_by = "Matthew Penkala"
+approved_at = "2026-08-16"
+legal_character = "Project release decision and technical scope record; not legal advice, a legal opinion, or a change to upstream terms."
+scope = "Private 0.3.2 presentation-quality successor using the unchanged exact 0.3.1 bootstrap v2 and sixteen native-download pack contracts."
+visibility = "private_only"
+inherits_exact_model_contract_from = "macos_0_3_1"
+model_keys = [
+  "large-v3",
+  "turbo",
+  "distil-large-v3",
+  "distil-large-v3.5",
+  "mlx-tiny",
+  "mlx-tiny.en",
+  "mlx-base",
+  "mlx-base.en",
+  "mlx-small",
+  "mlx-small.en",
+  "mlx-medium",
+  "mlx-medium.en",
+  "mlx-large",
+  "mlx-large-v2",
+  "mlx-large-v3",
+  "mlx-large-v3-turbo",
+  "community-1",
+  "en",
+  "ecapa",
+]
+normal_preset_asr = [
+  "max=large-v3",
+  "balanced=turbo",
+  "fast=distil-large-v3.5",
+  "cpu=turbo",
+]
+blocked_normal_product_model_keys = []
+bootstrap_model_keys = ["community-1", "en", "ecapa"]
+native_download_model_keys = [
+  "large-v3",
+  "turbo",
+  "distil-large-v3",
+  "distil-large-v3.5",
+  "mlx-tiny",
+  "mlx-tiny.en",
+  "mlx-base",
+  "mlx-base.en",
+  "mlx-small",
+  "mlx-small.en",
+  "mlx-medium",
+  "mlx-medium.en",
+  "mlx-large",
+  "mlx-large-v2",
+  "mlx-large-v3",
+  "mlx-large-v3-turbo",
+]
+runtime_asset_keys = ["nltk-punkt-tab-english-corpus-free"]
+runtime_asset_contract = "NLTK 3.10.3; generated with no training data; four empty SHA-256-bound English punkt_tab files plus a deterministic marker; not a model or downloaded corpus."
+component_root = "/Library/Application Support/com.auralign.studio/Models/com.auralign.studio.models.bootstrap.v2"
+component_version = "2.0.0"
+component_receipt = "com.auralign.studio.pkg.models.bootstrap-v2"
+source_repository_weights = "prohibited"
+loose_release_model_assets = "prohibited"
+raw_cache_material = "prohibited"
+tokens = "prohibited"
+private_linkage_markers = "prohibited"
+installer_runtime_or_model_acquisition = "prohibited"
+native_verified_model_pack_acquisition = "permitted_for_exact_owner-cleared_catalog_entries"
+installer_scripts = "prohibited"
+build_tools = "maintainer_only"
+recipient_toolchain_required = false
+
 [development_contracts.nltk_punkt_successor]
 status = "release_successor_macos_0_3_1"
 nltk_version = "3.10.3"

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 import local_transcript_max.cleanup as cleanup_module
+import local_transcript_max.presentation as presentation_module
 from local_transcript_max.cleanup import (
     CleanupRejectedError,
     PunctuationEdit,
@@ -521,7 +522,7 @@ def test_required_cleanup_rejects_surface_quality_blockers(
         cleanup_module,
         "_decoded_surface_quality",
         lambda *args, **kwargs: {
-            "schema_version": "global_presentation_quality.v5",
+            "schema_version": "global_presentation_quality.v7",
             "lexical_sequence_preserved": True,
             "suspicious_fragment_addition_count": 1,
             "contraction_punctuation_violation_count": 0,
@@ -558,7 +559,7 @@ def test_required_cleanup_treats_typed_supported_negative_margin_as_warning(
         cleanup_module,
         "_decoded_surface_quality",
         lambda *args, **kwargs: {
-            "schema_version": "global_presentation_quality.v5",
+            "schema_version": "global_presentation_quality.v7",
             "lexical_sequence_preserved": True,
             "suspicious_fragment_addition_count": 0,
             "contraction_punctuation_violation_count": 0,
@@ -597,7 +598,7 @@ def test_required_cleanup_blocks_added_stop_without_typed_support(
         cleanup_module,
         "_decoded_surface_quality",
         lambda *args, **kwargs: {
-            "schema_version": "global_presentation_quality.v5",
+            "schema_version": "global_presentation_quality.v7",
             "lexical_sequence_preserved": True,
             "suspicious_fragment_addition_count": 0,
             "contraction_punctuation_violation_count": 0,
@@ -1364,6 +1365,74 @@ def test_production_decoder_types_direct_contracted_question_from_response_evide
     )
 
 
+def test_typed_reviewed_question_is_not_reclassified_as_a_suspicious_fragment() -> None:
+    source = "you can hear me".split()
+    transcript = Transcript(
+        input_path="x.wav",
+        speaker_turns=[_timed_turn(" ".join(source), speaker="SPEAKER_00")],
+    )
+    words = tuple(
+        DecoderWord.from_text(
+            index,
+            token,
+            speaker_id="SPEAKER_00",
+            container_index=0,
+            begins_turn=index == 0,
+            ends_turn=index == len(source) - 1,
+            question_evidence=0.9999 if index == len(source) - 1 else 0.0,
+            question_scope_start_index=0 if index == len(source) - 1 else None,
+        )
+        for index, token in enumerate(source)
+    )
+    order = tuple(presentation_module.TrailingPunctuation)
+    groups = tuple(
+        presentation_module.IndexedEditorialAdjudicationEvidence(
+            word_index=index,
+            punctuation_probabilities=tuple(
+                (
+                    mark,
+                    0.9999
+                    if (index == len(source) - 1 and mark.value == "?")
+                    or (index < len(source) - 1 and mark.value == "")
+                    else 0.0001 / 7,
+                )
+                for mark in order
+            ),
+            sentence_break_probability=0.9999 if index == len(source) - 1 else 0.0001,
+        )
+        for index in range(len(source))
+    )
+    output = presentation_module.build_indexed_editorial_adjudication_scorer_output(
+        words,
+        ScorerProvenance("auralign.editorial-adjudication.test", "1.0"),
+        groups,
+    )
+    plan = presentation_module.compose_retained_presentation(
+        words,
+        (
+            presentation_module.RetainedScorerEvidence(
+                output=output,
+                presentation_input_digest=presentation_module.presentation_input_digest(words),
+                output_sha256=presentation_module.scorer_output_sha256(output),
+                receipt_sha256="a" * 64,
+                disposition=presentation_module.RetainedEvidenceDisposition.ADMIT,
+            ),
+        ),
+    )
+    surfaces = apply_presentation_plan(words, plan)
+
+    quality = cleanup_module._decoded_surface_quality(
+        transcript,
+        source,
+        surfaces,
+        plan,
+    )
+
+    assert surfaces[-1].endswith("?")
+    assert quality["suspicious_fragment_addition_count"] == 0
+    assert quality["typed_question_scope_without_question_mark_count"] == 0
+
+
 def test_contracted_pseudo_cleft_remains_declarative_in_production_decoder(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1631,6 +1700,45 @@ def test_surface_quality_detects_cross_turn_long_sentence_despite_weak_punctuati
     assert quality["max_sentence_span_words"] == 120
 
 
+def test_surface_quality_binds_distinct_overlong_span_placements() -> None:
+    raw_tokens = [f"token{index}" for index in range(250)]
+    transcript = Transcript(
+        input_path="x.wav",
+        speaker_turns=[_timed_turn(" ".join(raw_tokens))],
+    )
+    contexts, turn_end_indexes = cleanup_module._cleanup_token_contexts(transcript)
+
+    first = list(raw_tokens)
+    second = list(raw_tokens)
+    for index in (119, 239):
+        first[index] += "."
+    for index in (109, 229):
+        second[index] += "."
+    first_quality = cleanup_module._surface_quality_diagnostics(
+        transcript,
+        raw_tokens,
+        first,
+        contexts=contexts,
+        turn_end_indexes=turn_end_indexes,
+    )
+    second_quality = cleanup_module._surface_quality_diagnostics(
+        transcript,
+        raw_tokens,
+        second,
+        contexts=contexts,
+        turn_end_indexes=turn_end_indexes,
+    )
+
+    assert first_quality["overlong_sentence_span_count"] == 2
+    assert second_quality["overlong_sentence_span_count"] == 2
+    assert first_quality["max_sentence_span_words"] == 120
+    assert second_quality["max_sentence_span_words"] == 120
+    assert (
+        first_quality["overlong_sentence_span_receipt_sha256"]
+        != second_quality["overlong_sentence_span_receipt_sha256"]
+    )
+
+
 def test_surface_quality_records_explicit_incomplete_trailing_fragment() -> None:
     source = "we can finish because".split()
     transcript = Transcript(
@@ -1653,7 +1761,7 @@ def test_surface_quality_records_explicit_incomplete_trailing_fragment() -> None
     assert "incomplete_trailing_fragment_preserved" in quality["quality_warnings"]
 
 
-def test_required_decoder_rejects_228_word_cross_turn_run_without_supported_stop(
+def test_required_decoder_retains_228_word_cross_turn_run_as_review_warning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     raw_tokens = [f"token{index}" for index in range(228)]
@@ -1671,19 +1779,20 @@ def test_required_decoder_rejects_228_word_cross_turn_run_without_supported_stop
         lambda endpoint, model, scope, text: text,
     )
 
-    with pytest.raises(
-        CleanupRejectedError,
-        match="no safe presentation path at word index 96",
-    ):
-        cleanup_module._request_punctuation_presentation(
-            "http://127.0.0.1:11434/v1",
-            model=None,
-            text=" ".join(raw_tokens),
-            mode="local-llm",
-            proper_nouns=(),
-            required_complete=True,
-            transcript=transcript,
-        )
+    result = cleanup_module._request_punctuation_presentation(
+        "http://127.0.0.1:11434/v1",
+        model=None,
+        text=" ".join(raw_tokens),
+        mode="local-llm",
+        proper_nouns=(),
+        required_complete=True,
+        transcript=transcript,
+    )
+
+    quality = result.report["surface_quality"]
+    assert quality["overlong_sentence_span_count"] == 1
+    assert quality["unresolved_overlong_sentence_span_count"] == 1
+    assert "unresolved_overlong_sentence_spans_need_editorial_review" in quality["quality_warnings"]
 
 
 def test_required_production_decoder_allows_soft_overlong_span_to_supported_stop(
@@ -2510,7 +2619,7 @@ def test_required_cleanup_blocks_missing_question_warning(
         cleanup_module,
         "_decoded_surface_quality",
         lambda *args, **kwargs: {
-            "schema_version": "global_presentation_quality.v5",
+            "schema_version": "global_presentation_quality.v7",
             "lexical_sequence_preserved": True,
             "suspicious_fragment_addition_count": 0,
             "contraction_punctuation_violation_count": 0,

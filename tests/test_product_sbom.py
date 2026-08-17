@@ -47,7 +47,7 @@ dependency_sbom = product_sbom.dependency_sbom
 standalone_builder = _load_script("build_macos_standalone")
 
 BUNDLED_KEYS = ("community-1", "en", "ecapa")
-PRODUCT_REF = "product:com.auralign.studio@0.3.1"
+PRODUCT_REF = "product:com.auralign.studio@0.3.2"
 
 
 def _model_digest(key: str) -> str:
@@ -159,7 +159,7 @@ def _complete_product_sbom() -> dict[str, Any]:
                 "bom-ref": PRODUCT_REF,
                 "type": "application",
                 "name": "Auralign",
-                "version": "0.3.1",
+                "version": "0.3.2",
             },
             "properties": [
                 {"name": "auralign:commit", "value": "a" * 40},

@@ -6,9 +6,9 @@ SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
 
 # Apple Silicon Runbook
 
-## Supported 0.3.1 Product Topology
+## Supported 0.3.2 Product Topology
 
-Auralign 0.3.1 supports macOS 14 or later on Apple Silicon. The signed
+Auralign 0.3.2 supports macOS 14 or later on Apple Silicon. The signed
 standalone application embeds Python 3.11, the Auralign engine, its locked CPU
 dependency closure, MLX 0.31.2, mlx-whisper 0.4.3, and the reviewed
 FFmpeg/PyAV closure. Recipients do not need Python, Xcode, Command Line Tools,
@@ -119,7 +119,7 @@ records instead. Neither trust contract may be substituted for the other.
 
 ### MLX ASR
 
-MLX is a supported 0.3.1 ASR backend on Apple Silicon when the selected exact
+MLX is a supported 0.3.2 ASR backend on Apple Silicon when the selected exact
 pack is valid. It must not:
 
 - resolve or download a remote repository ID during readiness or transcription;
@@ -171,7 +171,7 @@ payload verification, or clean-recipient acceptance.
 
 ## Release Acceptance
 
-The exact 0.3.1 candidate must prove:
+The exact 0.3.2 candidate must prove:
 
 - arm64-only application and embedded native closure;
 - exact bootstrap component ID/version, file sizes, SHA-256 values, modes,
