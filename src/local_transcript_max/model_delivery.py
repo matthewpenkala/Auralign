@@ -26,7 +26,7 @@ from .model_pack import model_pack_contract, model_pack_sbom
 
 MODEL_DELIVERY_CATALOG_SCHEMA_VERSION: Final = "auralign-model-delivery-catalog.v1"
 MODEL_DELIVERY_CATALOG_VERSION: Final = "1.1.0"
-MODEL_DELIVERY_PRODUCT_VERSION: Final = "0.3.1"
+MODEL_DELIVERY_PRODUCT_VERSION: Final = "0.3.2"
 BOOTSTRAP_BUNDLE_ID: Final = "com.auralign.studio.models.bootstrap.v2"
 BOOTSTRAP_BUNDLE_VERSION: Final = "2.0.0"
 BOOTSTRAP_MODEL_KEYS: Final = ("community-1", "en", "ecapa")
