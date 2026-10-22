@@ -79,6 +79,26 @@ Every transcription run writes `alignment_report.json`. It records:
 - missing timestamp spans by word index only
 - raw-ASR-to-published timestamp displacement and a separate displacement
   summary limited to words actually changed by timing repair
+- up to 100 indexed review spans for endpoint displacements of at least one
+  second or published word durations of at least two seconds, with total count,
+  truncation state, signed deltas and both timing coordinate pairs
+- preserved review cues for finite raw ASR intervals that were negative,
+  zero-duration or reversed, even if forced alignment later gives them positive
+  duration; this can expose a segment-edge duplicate for source review without
+  asserting that a repeated word is false
+
+Review spans contain no word text. Their `asr_confidence` comes from the raw ASR
+word; `published_confidence` retains the published word's existing score, whose
+kind is explicitly `ctc_alignment_score` for forced words. These are different
+model measurements, not interchangeable estimates of lexical correctness.
+The existing transcript `confidence` field keeps its compatibility semantics.
+
+A long or displaced forced word can cross a pause, omitted restart or competing
+take while still satisfying lexical conservation and monotonic timing. These
+thresholds are review cues, not acoustic limits: a sustained word or a correct
+alignment repair can also trigger one. Listen to the surrounding source and
+inspect raw ASR before using such a boundary in an edit. No word is deleted,
+re-timed, re-decoded or accepted automatically by this diagnostic.
 
 The report deliberately omits transcript text. Use it with `qa_report.json` and
 `run_metadata.json` to decide whether an export is timing-grade or should be

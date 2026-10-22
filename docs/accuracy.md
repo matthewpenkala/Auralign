@@ -32,6 +32,33 @@ accuracy proof.
 For long files, the default ASR config disables `condition_on_previous_text` to
 reduce runaway context loops in chunked transcription.
 
+## Recognition, timing and editorial review
+
+Forced alignment times the supplied recognized words. It cannot recover speech
+the recognizer omitted. Complete forced coverage, high confidence, lexical
+conservation from raw to final output, or agreement between recognizers does
+not establish that all source speech was recognized. Repeated takes can be
+normalized into one fluent reading; even an independent recognizer can omit a
+unique passage. Preserve raw outputs and challenge disputed passages with
+bounded acoustic context rather than rewriting the script into ASR evidence.
+
+QA now excludes nonfinite, negative, zero-duration and reversed word timestamps
+from usable timestamp coverage and reports their indexes as errors. It also
+flags words lasting at least two seconds for contextual review. The
+`review_scope` summary explicitly separates deterministic timing checks from
+unestablished lexical completeness, unevaluated take selection and unperformed
+perceptual review. `no_deterministic_warnings` remains a narrow statement about
+these checks, not an acceptance verdict. The
+[alignment report](alignment.md#report) locates large raw-to-published shifts.
+
+For source/export comparisons, record the actual media, selected microphone,
+decoded duration and coordinate origin. An export may contain an opening offset
+or valid speech missing from the source transcript. Word boundaries crossing a
+cut need quarantine and review, not forced mapping or automatic deletion.
+Neither whole-file text agreement nor a successful decode replaces listening to
+the retained interiors and joins of the actual export. Automated timing cues
+do not choose takes or authorize editorial changes.
+
 ## Presentation Proposal Evidence
 
 Punctuation, casing, and sentence boundaries are derived presentation, not ASR

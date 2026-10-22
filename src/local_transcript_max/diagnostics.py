@@ -32,11 +32,15 @@ from .asr.mlx_whisper_backend import (
 from .config import PipelineConfig, default_hf_home, default_hf_hub_cache
 from .errors import ModelCacheError
 from .models import audit_selected_models
+from .qa.heuristics import LONG_WORD_DURATION_SECONDS
 from .redaction import redact_obj, redact_text
 from .resource_usage import framework_allocator_counters
 from .runtime_policy import collect_host_capabilities, resolve_runtime_policy
 from .schemas import AlignedWord
 from .utils import run_command, which
+
+TIMESTAMP_REVIEW_DISPLACEMENT_SECONDS = 1.0
+TIMESTAMP_REVIEW_MAX_SPANS = 100
 
 
 def runtime_environment(config: PipelineConfig) -> dict[str, Any]:
@@ -520,8 +524,49 @@ def timestamp_displacement_payload(
     final_endpoint_delta: float | None = None
     reference_end = reference_words[-1].end
     published_end = words[-1].end
-    if reference_end is not None and published_end is not None:
+    if (
+        reference_end is not None and published_end is not None
+        and math.isfinite(reference_end) and math.isfinite(published_end)
+    ):
         final_endpoint_delta = round(published_end - reference_end, 9)
+    review_spans: list[dict[str, Any]] = []
+    review_span_count = 0
+    for index, (reference, published) in enumerate(zip(reference_words, words, strict=True)):
+        endpoints = (reference.start, reference.end, published.start, published.end)
+        if any(value is None or not math.isfinite(value) for value in endpoints):
+            continue
+        assert reference.start is not None and reference.end is not None
+        assert published.start is not None and published.end is not None
+        start_delta = published.start - reference.start
+        end_delta = published.end - reference.end
+        reasons: list[str] = []
+        if reference.start < 0 or reference.end <= reference.start:
+            reasons.append("invalid_asr_word_timestamp")
+        if max(abs(start_delta), abs(end_delta)) >= TIMESTAMP_REVIEW_DISPLACEMENT_SECONDS:
+            reasons.append("large_timestamp_displacement")
+        if published.end - published.start >= LONG_WORD_DURATION_SECONDS:
+            reasons.append("long_word_duration")
+        if not reasons:
+            continue
+        review_span_count += 1
+        if len(review_spans) < TIMESTAMP_REVIEW_MAX_SPANS:
+            review_spans.append({
+                "word_index": index,
+                "reason_codes": reasons,
+                "asr_start": reference.start,
+                "asr_end": reference.end,
+                "published_start": published.start,
+                "published_end": published.end,
+                "start_delta_seconds": round(start_delta, 9),
+                "end_delta_seconds": round(end_delta, 9),
+                "asr_confidence": _finite_confidence(reference.confidence),
+                "published_confidence": _finite_confidence(published.confidence),
+                "published_confidence_kind": (
+                    "ctc_alignment_score" if published.alignment_source == "forced"
+                    else "asr_or_estimated"
+                ),
+                "alignment_source": published.alignment_source,
+            })
     return {
         "available": True,
         "reason": None,
@@ -530,7 +575,20 @@ def timestamp_displacement_payload(
         "start": _displacement_statistics(start_displacements),
         "end": _displacement_statistics(end_displacements),
         "final_endpoint_delta_seconds": final_endpoint_delta,
+        "review_span_count": review_span_count,
+        "review_spans": review_spans,
+        "review_spans_truncated": review_span_count > len(review_spans),
+        "review_thresholds": {
+            "endpoint_displacement_seconds": TIMESTAMP_REVIEW_DISPLACEMENT_SECONDS,
+            "word_duration_seconds": LONG_WORD_DURATION_SECONDS,
+            "maximum_reported_spans": TIMESTAMP_REVIEW_MAX_SPANS,
+        },
+        "review_policy": "contextual_review_only_no_automatic_repair",
     }
+
+
+def _finite_confidence(value: float | None) -> float | None:
+    return value if value is not None and math.isfinite(value) else None
 
 
 def timing_repair_displacement_payload(
@@ -561,6 +619,8 @@ def timing_repair_displacement_payload(
         len(words) - 1 in affected_indices
         and reference_words[-1].end is not None
         and words[-1].end is not None
+        and math.isfinite(reference_words[-1].end)
+        and math.isfinite(words[-1].end)
     ):
         final_endpoint_delta = round(words[-1].end - reference_words[-1].end, 9)
     return {
@@ -620,7 +680,10 @@ def _timestamp_displacements(
     for reference, published in zip(reference_words, words, strict=True):
         reference_value = getattr(reference, field)
         published_value = getattr(published, field)
-        if reference_value is None or published_value is None:
+        if (
+            reference_value is None or published_value is None
+            or not math.isfinite(reference_value) or not math.isfinite(published_value)
+        ):
             continue
         values.append(abs(float(published_value) - float(reference_value)))
     return values

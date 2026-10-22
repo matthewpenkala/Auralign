@@ -20,6 +20,10 @@ canonical sources for implementation details and operational policy.
 
 ## Operations
 
+- [Media ingestion](media-ingestion.md): deterministic audio-stream selection,
+  microphone/channel boundaries, and timestamp coordinates.
+- [Configuration preview](configuration-preview.md): inspect the exact effective
+  CLI configuration without loading models or creating a job.
 - [Models](models.md): canonical human and AI-agent runbook for all nineteen
   entries, bootstrap/native delivery, exact verification, and offline use.
 - [Offline mode](offline.md): local cache requirements and failure behavior.
@@ -28,6 +32,8 @@ canonical sources for implementation details and operational policy.
 
 ## Quality
 
+- [October 22 field repairs](development/2026-10-22-field-repairs.md): ingestion
+  and timing-review changes, compatibility, evidence boundary, and validation.
 - [Accuracy](accuracy.md): source-development preset history, re-decode, and
   evaluation boundaries; the authoritative 0.3.2 preset/model mapping is in
   [Models](models.md).

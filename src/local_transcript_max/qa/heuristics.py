@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 
 from local_transcript_max.schemas import DiarizationTurn, QAFlag, QAReport, Transcript
@@ -14,6 +15,8 @@ SPEAKER_FLAPPING_MAX_GAP_SECONDS = 1.0
 SPEAKER_FLAPPING_MAX_TURN_SECONDS = 2.0
 SPEAKER_FLAPPING_WARNING_THRESHOLD = 0.35
 EXCESSIVELY_SHORT_TURN_SECONDS = 0.75
+# Review threshold, not a phonetic limit or a rule for deleting/re-timing words.
+LONG_WORD_DURATION_SECONDS = 2.0
 
 
 def run_qa(
@@ -23,16 +26,22 @@ def run_qa(
 ) -> QAReport:
     flags: list[QAFlag] = []
     for segment in transcript.segments:
-        if segment.end < segment.start:
+        if (
+            not math.isfinite(segment.start)
+            or not math.isfinite(segment.end)
+            or segment.start < 0
+            or segment.end < segment.start
+        ):
             flags.append(
                 QAFlag(
                     code="impossible_timestamp",
                     severity="error",
-                    message="Segment end is before segment start.",
-                    start=segment.start,
-                    end=segment.end,
+                    message="Segment timing is nonfinite, negative, or reversed.",
+                    start=segment.start if math.isfinite(segment.start) else None,
+                    end=segment.end if math.isfinite(segment.end) else None,
                 )
             )
+            continue
         if segment.avg_logprob is not None and segment.avg_logprob < -1.0:
             flags.append(
                 QAFlag(
@@ -85,6 +94,44 @@ def run_qa(
     missing_timestamps = sum(
         1 for word in transcript.words if word.start is None or word.end is None
     )
+    invalid_timestamps = 0
+    long_word_count = 0
+    for index, word in enumerate(transcript.words):
+        if word.start is None or word.end is None:
+            continue
+        if (
+            not math.isfinite(word.start)
+            or not math.isfinite(word.end)
+            or word.start < 0
+            or word.end <= word.start
+        ):
+            invalid_timestamps += 1
+            flags.append(QAFlag(
+                code="invalid_word_timestamp",
+                severity="error",
+                message="Word timing is nonfinite, negative, zero-duration, or reversed.",
+                start=word.start if math.isfinite(word.start) else None,
+                end=word.end if math.isfinite(word.end) else None,
+                evidence={"word_index": index, "alignment_source": word.alignment_source},
+            ))
+        elif word.end - word.start >= LONG_WORD_DURATION_SECONDS:
+            long_word_count += 1
+            flags.append(QAFlag(
+                code="long_word_duration",
+                severity="warning",
+                message=(
+                    "One word spans unusually long audio. Review the source context for "
+                    "sustained speech, silence, or an omitted restart; timing alone cannot decide."
+                ),
+                start=word.start,
+                end=word.end,
+                evidence={
+                    "word_index": index,
+                    "alignment_source": word.alignment_source,
+                    "duration_seconds": round(word.end - word.start, 6),
+                    "threshold_seconds": LONG_WORD_DURATION_SECONDS,
+                },
+            ))
     non_monotonic_words = count_non_monotonic_words(transcript)
     if transcript.words and unlabeled / len(transcript.words) > 0.2:
         flags.append(
@@ -170,8 +217,13 @@ def run_qa(
         "whisper_alignment_percentage": percent(alignment_counts["whisper"], word_count),
         "estimated_alignment_percentage": percent(alignment_counts["estimated"], word_count),
         "missing_alignment_percentage": percent(alignment_counts["missing"], word_count),
-        "timestamp_coverage_percentage": percent(word_count - missing_timestamps, word_count),
+        "timestamp_coverage_percentage": percent(
+            word_count - missing_timestamps - invalid_timestamps, word_count
+        ),
         "missing_timestamp_count": missing_timestamps,
+        "invalid_word_timestamp_count": invalid_timestamps,
+        "long_word_duration_count": long_word_count,
+        "long_word_duration_threshold_seconds": LONG_WORD_DURATION_SECONDS,
         "non_monotonic_timestamp_count": non_monotonic_words,
         "missing_segment_timestamp_count": 0,
         "overlap_spans": overlap_spans,
@@ -189,6 +241,12 @@ def run_qa(
         },
         "short_turn_definition_seconds": EXCESSIVELY_SHORT_TURN_SECONDS,
         "overall_quality_summary": "review_warnings" if flags else "no_deterministic_warnings",
+        "review_scope": {
+            "timing": "deterministic_checks_only",
+            "lexical_completeness": "not_established",
+            "take_selection": "not_evaluated",
+            "perceptual_review": "not_performed",
+        },
         "actionable_remediation_suggestions": remediation_suggestions(flags),
     }
     return QAReport(flags=flags, summary=summary)
@@ -215,6 +273,8 @@ def count_non_monotonic_words(transcript: Transcript) -> int:
     previous_end = 0.0
     for word in transcript.words:
         if word.start is None or word.end is None:
+            continue
+        if not math.isfinite(word.start) or not math.isfinite(word.end):
             continue
         if word.start < previous_end or word.end < word.start:
             count += 1
@@ -273,6 +333,15 @@ def remediation_suggestions(flags: list[QAFlag]) -> list[str]:
         )
     if "missing_word_timestamps" in codes:
         suggestions.append("Keep --word-timestamps enabled or use --forced-alignment auto.")
+    if "invalid_word_timestamp" in codes:
+        suggestions.append(
+            "Review invalid word indexes and alignment provenance before using timings."
+        )
+    if "long_word_duration" in codes:
+        suggestions.append(
+            "Listen to the flagged source spans with surrounding context; compare raw ASR and "
+            "alignment timings, and use independent recognition when wording is disputed."
+        )
     if {"many_words_without_speaker", "speaker_flapping"} & codes:
         suggestions.append("Retry with --num-speakers, --min-speakers, or --max-speakers.")
     return suggestions
