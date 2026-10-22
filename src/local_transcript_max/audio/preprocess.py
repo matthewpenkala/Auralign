@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 from local_transcript_max.config import AudioConfig
+from local_transcript_max.errors import LTMError
 from local_transcript_max.platform_security import (
     ensure_private_directory,
     ensure_private_file,
@@ -31,13 +32,18 @@ def prepare_canonical_audio(
     input_metadata: AudioMetadata | None = None,
 ) -> tuple[Path, list[str]]:
     canonical = out_dir / "canonical.wav"
-    metadata = input_metadata or inspect_media(input_path)
+    metadata = input_metadata or inspect_media(input_path, stream_index=config.stream_index)
+    if (
+        config.stream_index is not None
+        and metadata.selected_audio_stream_index != config.stream_index
+    ):
+        raise LTMError("Inspected audio stream does not match audio.stream_index.")
     if can_reuse_as_canonical(metadata, config):
         canonical.parent.mkdir(parents=True, exist_ok=True)
         atomic_copy(input_path, canonical)
         ensure_private_file(canonical)
         return canonical, ["reuse-canonical-wav", str(input_path), str(canonical)]
-    command = normalize_audio(input_path, canonical, config)
+    command = normalize_audio(input_path, canonical, config, input_metadata=metadata)
     ensure_private_file(canonical)
     return canonical, command
 
@@ -63,6 +69,8 @@ def canonical_audio_decision(
         "channels": metadata.channels,
         "codec": metadata.codec,
         "format_name": metadata.format_name,
+        "selected_audio_stream_index": metadata.selected_audio_stream_index,
+        "audio_stream_count": metadata.audio_stream_count,
     }
 
 
@@ -71,6 +79,13 @@ def can_reuse_as_canonical(metadata: AudioMetadata, config: AudioConfig) -> bool
 
 
 def canonical_reuse_blocker(metadata: AudioMetadata, config: AudioConfig) -> str | None:
+    if metadata.audio_stream_count is not None and metadata.audio_stream_count != 1:
+        return "multiple_audio_streams"
+    if (
+        config.stream_index is not None
+        and metadata.selected_audio_stream_index != config.stream_index
+    ):
+        return "audio_stream_selection_mismatch"
     if config.normalize_loudness or config.denoise != "off" or config.separate_vocals != "off":
         return "audio_processing_requested"
     expected_channels = 1 if config.mono and not config.preserve_channels else metadata.channels

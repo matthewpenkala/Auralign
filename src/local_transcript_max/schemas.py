@@ -32,6 +32,10 @@ class AudioMetadata(LTMBaseModel):
     codec: str | None = None
     bit_rate: int | None = None
     format_name: str | None = None
+    selected_audio_stream_index: int | None = Field(default=None, ge=0)
+    audio_stream_count: int | None = Field(default=None, ge=1)
+    time_base: str | None = None
+    start_time_seconds: float | None = None
     loudness_estimate: float | None = None
     clipping_risk: bool | None = None
     silence_ratio: float | None = None

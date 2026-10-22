@@ -91,8 +91,8 @@ final class ManifestCatalogTests: XCTestCase {
             by: { controlProjection(for: $0).rawValue }
         ).mapValues { $0.count }
 
-        XCTAssertEqual(keys.count, 131)
-        XCTAssertEqual(Set(keys).count, 131, "manifest field keys must be unique")
+        XCTAssertEqual(keys.count, 132)
+        XCTAssertEqual(Set(keys).count, 132, "manifest field keys must be unique")
         XCTAssertEqual(
             kindCounts,
             [
@@ -100,7 +100,7 @@ final class ManifestCatalogTests: XCTestCase {
                 "enum": 25,
                 "float": 24,
                 "float_or_float_list": 1,
-                "int": 20,
+                "int": 21,
                 "path": 13,
                 "path_list": 1,
                 "string": 15,
@@ -112,7 +112,7 @@ final class ManifestCatalogTests: XCTestCase {
             [
                 "toggle": 31,
                 "enumPicker": 25,
-                "integerEditor": 20,
+                "integerEditor": 21,
                 "floatEditor": 24,
                 "textEditor": 10,
                 "modelPicker": 5,
@@ -142,6 +142,12 @@ final class ManifestCatalogTests: XCTestCase {
         XCTAssertEqual(properNouns.kind, .stringList)
         XCTAssertEqual(properNouns.default, .array([]))
         XCTAssertEqual(properNouns.maxLength, 128)
+
+        let audioStream = try XCTUnwrap(manifest.field("audio.stream_index"))
+        XCTAssertEqual(audioStream.kind, .int)
+        XCTAssertTrue(audioStream.optional)
+        XCTAssertEqual(audioStream.default, .null)
+        XCTAssertEqual(audioStream.ge, 0)
     }
 
     func testCatalogExactlyCoversManifest() throws {
@@ -149,8 +155,8 @@ final class ManifestCatalogTests: XCTestCase {
         let catalog = try loadCatalog()
         let manifestKeys = Set(manifest.fields.map(\.key))
         let catalogKeys = Set(catalog.fields.map(\.key))
-        XCTAssertEqual(manifest.fields.count, 131)
-        XCTAssertEqual(catalog.fields.count, 131)
+        XCTAssertEqual(manifest.fields.count, 132)
+        XCTAssertEqual(catalog.fields.count, 132)
         XCTAssertEqual(manifestKeys.count, manifest.fields.count, "duplicate manifest key")
         XCTAssertEqual(catalogKeys.count, catalog.fields.count, "duplicate catalog key")
         XCTAssertEqual(
@@ -173,6 +179,7 @@ final class ManifestCatalogTests: XCTestCase {
         XCTAssertEqual(
             Set(hidden.map(\.key)),
             [
+                "audio.stream_index",
                 "asr.vad_filter",
                 "asr.mlx_model_path",
                 "cleanup.presentation_scorers.sat.mode",
@@ -315,7 +322,7 @@ final class ManifestCatalogTests: XCTestCase {
             dispositions,
             [
                 "primary": 40,
-                "advanced": 90,
+                "advanced": 91,
                 "readonly": 1,
             ]
         )

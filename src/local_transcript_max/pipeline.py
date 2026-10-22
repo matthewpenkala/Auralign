@@ -249,7 +249,7 @@ def transcribe_file(
 
         probe_started = time.perf_counter()
         emit_progress(progress, "inspect_start", {"path": str(input_file)})
-        input_metadata = inspect_media(input_file)
+        input_metadata = inspect_media(input_file, stream_index=config.audio.stream_index)
         media_probe_timing = StageTiming(
             name="media_probe",
             duration_seconds=time.perf_counter() - probe_started,

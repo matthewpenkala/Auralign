@@ -28,7 +28,7 @@ after caches are prepared.
 
 ## Current Capabilities
 
-- FFmpeg inspection and canonical-audio preparation
+- FFmpeg inspection and canonical-audio preparation with explicit audio-stream selection
 - four verified faster-whisper/CTranslate2 ASR choices and twelve verified
   MLX/Apple-Silicon ASR choices, all available through exact local packs
 - actual WhisperX forced alignment; non-strict configurations report any timestamp fallback
@@ -207,6 +207,18 @@ Inspect and validate the result without printing transcript content:
 uv run ltm inspect outputs/job_001
 uv run ltm validate-speakers outputs/job_001 --expected-speakers <N>
 ```
+
+Before starting inference, inspect the effective configuration with the same
+flags plus `--print-effective-config`. This prints a privacy-safe JSON
+projection and a digest of the complete configuration, then exits without
+creating outputs. It does not establish model, media, or device readiness.
+Environment variables override YAML; explicitly supplied CLI flags override
+both. See [configuration preview](docs/configuration-preview.md).
+
+For multi-stream media, `--audio-stream-index N` selects the absolute zero-based
+FFprobe stream index. The default consistently inspects and decodes the first
+audio stream. Select and audition the microphone separately; see
+[media ingestion](docs/media-ingestion.md).
 
 Normal 0.3.2 presets deliberately select tested local packs:
 

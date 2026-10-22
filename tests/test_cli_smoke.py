@@ -607,7 +607,7 @@ def test_required_sat_rejects_incomplete_asset_configuration(tmp_path, monkeypat
     )
 
     assert result.exit_code != 0
-    assert "configured together" in result.stderr
+    assert "cleanup.presentation_scorers.sat (value_error)" in result.stderr
 
 
 def test_entire_pipeline_rejects_remote_cleanup_opt_in(tmp_path, monkeypatch) -> None:
@@ -659,7 +659,7 @@ def test_entire_pipeline_rejects_unidentified_local_cleanup_model(
     )
 
     assert result.exit_code != 0
-    assert "requires an explicit model" in result.stderr
+    assert "cleanup (value_error)" in result.stderr
 
 
 def test_entire_pipeline_rejects_non_max_preset(tmp_path, monkeypatch) -> None:

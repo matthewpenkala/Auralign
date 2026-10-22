@@ -868,6 +868,7 @@ class AlignmentConfig(BaseModel):
 
 
 class AudioConfig(BaseModel):
+    stream_index: int | None = Field(default=None, ge=0, strict=True)
     sample_rate: int = 16000
     mono: bool = True
     normalize_loudness: bool = False
@@ -1393,13 +1394,27 @@ def load_config(
 ) -> PipelineConfig:
     config = preset_config(preset, cwd=cwd)
     if config_file:
-        with config_file.expanduser().open("r", encoding="utf-8") as handle:
-            loaded = _normalize_yaml_literals(yaml.safe_load(handle) or {})
+        try:
+            with config_file.expanduser().open("r", encoding="utf-8") as handle:
+                loaded = yaml.safe_load(handle)
+        except yaml.YAMLError as exc:
+            mark = getattr(exc, "problem_mark", None)
+            location = (
+                f" at line {mark.line + 1}, column {mark.column + 1}" if mark else ""
+            )
+            raise LTMError(f"Invalid config file: yaml_syntax{location}.") from exc
+        except UnicodeError as exc:
+            raise LTMError("Invalid config file: invalid_utf8_encoding.") from exc
+        if loaded is None:
+            loaded = {}
+        if not isinstance(loaded, dict):
+            raise LTMError("Invalid config file: configuration (mapping_type).")
+        loaded = _normalize_yaml_literals(loaded)
         merged = _deep_update(config.model_dump(mode="python"), loaded)
         try:
             config = PipelineConfig.model_validate(merged)
         except ValidationError as exc:
-            raise LTMError(f"Invalid config file {config_file}: {exc}") from exc
+            raise LTMError(f"Invalid config file: {configuration_validation_summary(exc)}") from exc
     if os.getenv("LTM_MODEL_CACHE"):
         config.model_cache = default_model_cache(cwd)
     config.offline = env_flag("LTM_OFFLINE", config.offline)
@@ -1464,7 +1479,35 @@ def load_config(
     try:
         return PipelineConfig.model_validate(config.model_dump(mode="python"))
     except ValidationError as exc:
-        raise LTMError(f"Invalid effective configuration: {exc}") from exc
+        raise LTMError(
+            f"Invalid effective configuration: {configuration_validation_summary(exc)}"
+        ) from exc
+
+
+def configuration_validation_summary(exc: ValidationError) -> str:
+    """Describe fields and categories without private inputs or validator messages."""
+
+    known_fields: set[str] = set()
+    pending: list[type[BaseModel]] = [PipelineConfig]
+    visited: set[type[BaseModel]] = set()
+    while pending:
+        model = pending.pop()
+        if model in visited:
+            continue
+        visited.add(model)
+        known_fields.update(model.model_fields)
+        for field in model.model_fields.values():
+            nested = field.annotation
+            if isinstance(nested, type) and issubclass(nested, BaseModel):
+                pending.append(nested)
+    summaries: list[str] = []
+    for error in exc.errors(include_url=False, include_input=False, include_context=False):
+        location = ".".join(
+            str(part) if isinstance(part, int) or part in known_fields else "<field>"
+            for part in error["loc"]
+        )
+        summaries.append(f"{location or 'configuration'} ({error['type']})")
+    return "; ".join(summaries)
 
 
 def _validate_asr_backend(value: str) -> Literal["faster-whisper", "mlx-whisper"]:

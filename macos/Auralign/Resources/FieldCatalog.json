@@ -115,6 +115,14 @@
       "disposition": "advanced"
     },
     {
+      "key": "audio.stream_index",
+      "title": "Audio stream index",
+      "help": "Source/headless stream selection by absolute zero-based FFprobe index. Null selects the first audio stream. The native product has no stream-audition selector; inspect and choose a microphone through the CLI or YAML before processing multi-stream media.",
+      "section": "audio",
+      "disposition": "advanced",
+      "product_visible": false
+    },
+    {
       "key": "audio.sample_rate",
       "title": "Sample rate",
       "help": "Canonical WAV sample rate. The pipeline standardizes on 16000 Hz for recognition.",

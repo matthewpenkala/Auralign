@@ -475,7 +475,7 @@ def test_legacy_redecode_repaired_transcript_true_is_rejected(tmp_path: Path) ->
         encoding="utf-8",
     )
 
-    with pytest.raises(LTMError, match="candidate-only"):
+    with pytest.raises(LTMError, match=r"redecode.write_repaired_transcript \(value_error\)"):
         load_config(config_file=config_path, cwd=tmp_path)
 
 

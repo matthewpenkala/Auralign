@@ -25,6 +25,13 @@
       "optional": false
     },
     {
+      "default": null,
+      "ge": 0,
+      "key": "audio.stream_index",
+      "kind": "int",
+      "optional": true
+    },
+    {
       "default": 16000,
       "key": "audio.sample_rate",
       "kind": "int",

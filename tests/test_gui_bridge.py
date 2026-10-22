@@ -55,13 +55,13 @@ REGENERATE_HINT = (
     "--write macos/Auralign/Resources/config_manifest.json"
 )
 
-EXPECTED_FIELD_COUNT = 131
+EXPECTED_FIELD_COUNT = 132
 EXPECTED_KIND_COUNTS = {
     "bool": 31,
     "enum": 25,
     "float": 24,
     "float_or_float_list": 1,
-    "int": 20,
+    "int": 21,
     "path": 13,
     "path_list": 1,
     "string": 15,
@@ -81,13 +81,13 @@ EXPECTED_SECTION_IDS = [
 ]
 EXPECTED_DISPOSITION_COUNTS = {
     "primary": 40,
-    "advanced": 90,
+    "advanced": 91,
     "readonly": 1,
 }
 EXPECTED_CONTROL_COUNTS = {
     "toggle": 31,
     "enum_picker": 25,
-    "integer_editor": 20,
+    "integer_editor": 21,
     "float_editor": 24,
     "text_editor": 10,
     "model_picker": 5,
@@ -279,8 +279,22 @@ def test_presentation_scorers_are_truthful_and_hidden_from_standalone_product() 
     hidden = {
         key for key, field in catalog_by_key.items() if not field.get("product_visible", True)
     }
-    assert hidden == {"asr.vad_filter", "asr.mlx_model_path", *scorer_keys}
+    assert hidden == {"audio.stream_index", "asr.vad_filter", "asr.mlx_model_path", *scorer_keys}
     assert sum(field.get("product_visible", True) for field in catalog["fields"]) == 123
+
+
+def test_audio_stream_manifest_supports_null_and_absolute_integer() -> None:
+    manifest = {field["key"]: field for field in config_manifest()["fields"]}
+    assert manifest["audio.stream_index"] == {
+        "key": "audio.stream_index",
+        "kind": "int",
+        "optional": True,
+        "default": None,
+        "ge": 0,
+    }
+    default = PipelineConfig.model_validate({"audio": {"stream_index": None}})
+    assert default.audio.stream_index is None
+    assert PipelineConfig.model_validate({"audio": {"stream_index": 2}}).audio.stream_index == 2
 
 
 def test_field_catalog_entries_are_well_formed() -> None:

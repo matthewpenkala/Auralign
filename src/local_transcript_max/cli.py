@@ -25,12 +25,14 @@ from .config import (
     PipelineConfig,
     PresetName,
     RedecodeConfig,
+    configuration_validation_summary,
     default_model_cache,
     load_config,
     required_model_requests,
     resolve_model_entry,
     validate_adaptive_selection,
 )
+from .configuration_evidence import configuration_preview
 from .datasets import (
     DEFAULT_DATASET_PROFILE,
     DEFAULT_MAX_LOCAL_GB,
@@ -233,7 +235,7 @@ def _require_production_model_selection(config: PipelineConfig) -> None:
     for role, value in required_model_requests(config):
         entry = resolve_model_entry(role, value)
         if entry is None:
-            raise LTMError(f"Unknown {role} model '{value}'.")
+            raise LTMError(f"Unknown {role} model selector; inspect 'ltm models list'.")
         if not entry.production_selectable:
             raise LTMError(
                 f"{entry.role}:{entry.key} ({entry.model_id}) is unavailable in the "
@@ -502,6 +504,14 @@ def transcribe(
         typer.Option("--model-cache", help="Override the local model-cache directory."),
     ] = None,
     language: Annotated[str | None, typer.Option("--language")] = None,
+    audio_stream_index: Annotated[
+        int | None,
+        typer.Option(
+            "--audio-stream-index",
+            min=0,
+            help="Absolute zero-based FFprobe audio stream index; unset selects first audio.",
+        ),
+    ] = None,
     asr_backend: Annotated[
         str,
         typer.Option(
@@ -796,6 +806,14 @@ def transcribe(
             help="auto, persistent, or per-job model/cache residency.",
         ),
     ] = None,
+    print_effective_config: Annotated[
+        bool,
+        typer.Option(
+            "--print-effective-config",
+            help="Print privacy-safe resolved configuration JSON and exit without inference. "
+            "Does not verify media, models, or device readiness.",
+        ),
+    ] = False,
 ) -> None:
     """Transcribe one local audio/video file into reproducible artifacts."""
     try:
@@ -816,6 +834,8 @@ def transcribe(
             config.model_cache = model_cache
         if use_cli_value("language"):
             config.asr.language = language
+        if use_cli_value("audio_stream_index"):
+            config.audio.stream_index = audio_stream_index
         if asr_backend not in {"faster-whisper", "mlx-whisper"}:
             raise typer.BadParameter("asr-backend must be one of: faster-whisper, mlx-whisper")
         if use_cli_default_or_explicit("asr_backend", ("LTM_ASR_BACKEND",)):
@@ -1109,9 +1129,12 @@ def transcribe(
             config.cleanup.write_diff = True
         try:
             config = PipelineConfig.model_validate(config.model_dump(mode="python"))
-        except ValueError as exc:
-            raise typer.BadParameter(str(exc)) from exc
+        except ValidationError as exc:
+            raise typer.BadParameter(configuration_validation_summary(exc)) from exc
         _require_production_model_selection(config)
+        if print_effective_config:
+            typer.echo(json.dumps(configuration_preview(config), indent=2, allow_nan=False))
+            return
         debug_path = out / "debug_report.json" if debug_report else None
         if verbose:
             transcript = transcribe_file(
@@ -1128,7 +1151,9 @@ def transcribe(
                 config,
                 debug_report_path=debug_path,
             )
-        typer.echo(f"Wrote transcript with {len(transcript.speaker_turns)} speaker turns to {out}")
+        turn_count = len(transcript.speaker_turns)
+        turn_label = "transcript turn" if turn_count == 1 else "transcript turns"
+        typer.echo(f"Wrote transcript with {turn_count} {turn_label} to {out}")
     except LTMError as exc:
         typer.echo(privacy_safe_text(str(exc)), err=True)
         raise typer.Exit(1) from exc

@@ -227,3 +227,24 @@ decoder strategy, but it does not pin, downgrade, or rewrite local
 FFmpeg/TorchCodec installations. Treat the warning as a compatibility note
 unless a run fails during audio decoding, then align the installed versions
 using their upstream compatibility guidance.
+
+On Windows, a working static `ffmpeg.exe` does not prove that TorchCodec can
+load its shared FFmpeg libraries. The pinned TorchCodec 0.7.0 lane used here
+requires compatible shared FFmpeg 4–7 libraries; a static FFmpeg 8 executable
+did not satisfy that ABI during field setup. Use the compatibility contract of
+the exact installed TorchCodec build; the
+[0.7.0 upstream README](https://github.com/pytorch/torchcodec/blob/v0.7.0/README.md)
+records its FFmpeg 4–7 range. Keep an approved shared-library directory
+alongside the task runtime rather than replacing global FFmpeg or upgrading
+Torch to guess at a repair.
+
+If a task-local Python bootstrap registers trusted DLL paths with
+`os.add_dll_directory`, retain each returned handle for the lifetime of library
+use. [Python's Windows DLL API](https://docs.python.org/3.11/library/os.html#os.add_dll_directory)
+removes the search registration when the handle is closed. Register
+only explicit reviewed directories (including the matching Torch CUDA libraries
+when required), without scanning arbitrary locations or altering cached models.
+Run `ltm doctor --startup` with the exact offline job configuration and then a
+bounded real inference case; parsing a wrapper or finding DLL filenames is not
+startup or transcription proof. Auralign does not install a global DLL hook or
+silently change host libraries.
