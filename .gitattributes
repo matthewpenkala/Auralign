@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Matthew Penkala
+#
+# SPDX-License-Identifier: LicenseRef-PolyForm-Internal-Use-1.0.0
+
+# Canonical text bytes are part of license, notice and release hash contracts.
+# Keep them stable on Windows even when a user's core.autocrlf is true.
+# Automatic text detection preserves binary resources byte-for-byte.
+* text=auto eol=lf
