@@ -78,3 +78,12 @@ These checks do not measure model recognition accuracy or certify native macOS
 execution, private episode content, listening review or release packaging.
 Deployment into the originating production integration is a separate operation;
 its pinned checkout, environment, model cache and wrappers remain unchanged.
+
+## Remaining work
+
+The tracked [known-issues register](known-issues.md) records unresolved
+limitations, deferred proposals, validation failures and acceptance criteria.
+The [sanitized validation inventory](2026-10-22-validation-inventory.json)
+enumerates the retained failing/error/skipped checks and type diagnostics.
+Publishing the repairs does not resolve those items or establish release
+acceptance.

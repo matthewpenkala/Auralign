@@ -482,6 +482,8 @@ uv.lock                     Locked Python dependency graph
 ```
 
 Start with the [documentation index](docs/README.md) for focused guidance.
+See [known issues and unfinished work](docs/development/known-issues.md) for
+unresolved limitations, deferred capabilities and validation blockers.
 
 ## Development and Validation
 

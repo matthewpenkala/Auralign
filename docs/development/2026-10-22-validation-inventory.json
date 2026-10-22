@@ -1,0 +1,1070 @@
+{
+  "schema_version": "auralign_known_validation_inventory.v1",
+  "observed_date": "2026-10-22",
+  "reference_source_revision": "93a20ee6f99115743367d945a84c566c0566fea7",
+  "baseline_revision": "d99b6a929fe14f37ce88eb38c1c833ca1bb48204",
+  "runtime": {
+    "platform": "Windows",
+    "python": "3.11.13",
+    "dependency_lane": "locked dev+api with three hash-verified existing locked NLTK-related test packages"
+  },
+  "evidence_scope": "Sanitized derivative of retained execution receipts; not a new test execution. Raw messages, paths, logs and private project content excluded.",
+  "classification_scope": "Triage associations, not proven product defect diagnoses. Case identity hashes retain receipt correlation; oversized parameter display omitted.",
+  "non_gui": {
+    "passed_count": 1658,
+    "failure_elements": 105,
+    "error_elements": 0,
+    "skip_count": 9,
+    "testcase_elements": 1772
+  },
+  "gui": {
+    "passed_count": 89,
+    "failure_elements": 8,
+    "error_elements": 2,
+    "skip_count": 1,
+    "testcase_elements": 99
+  },
+  "baseline_comparison": {
+    "shared_original_cases": 1831,
+    "baseline_pass_to_final_failure": false,
+    "scope": "See known-issues.md for dependency reconciliation and later focused checks; historical Windows results do not establish native/model acceptance."
+  },
+  "failure_error_event_count": 115,
+  "failure_error_events_by_backlog": {
+    "KI-014": 40,
+    "KI-015": 22,
+    "KI-016": 25,
+    "KI-017": 10,
+    "KI-018": 1,
+    "KI-019": 5,
+    "KI-020": 2,
+    "KI-021": 1,
+    "KI-022": 9
+  },
+  "failure_error_events": [
+    {
+      "case": "tests/test_agentic_diarization.py::test_candidate_directory_symlink_is_rejected_without_touching_target",
+      "receipt_case_sha256": "54fc5969803f351b3c2c717c48c4716e3d59691b1db26e48113c85f72dd1fcf6",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_alignment.py::test_wav2vec2_inference_config_does_not_create_specaugment_parameter",
+      "receipt_case_sha256": "ffd31050cff9d8d16d515c687825714cb98fed60e8992b15dc71be161fd94815",
+      "event": "failure",
+      "triage_category": "optional transformers absent",
+      "backlog_id": "KI-020"
+    },
+    {
+      "case": "tests/test_alignment.py::test_shared_wav2vec2_loader_applies_inference_overrides_before_construction",
+      "receipt_case_sha256": "a731015949e55e2b59215085b04224103ff10c28cdc16f84235f855aeee727b8",
+      "event": "failure",
+      "triage_category": "optional transformers absent",
+      "backlog_id": "KI-020"
+    },
+    {
+      "case": "tests/test_api.py::test_server_error_redaction",
+      "receipt_case_sha256": "0650bd9602acfc6557ae93b035444708e0f73c0b5d24167694a1c0e7adc168da",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-018"
+    },
+    {
+      "case": "tests/test_api.py::test_export_rejects_symlink_escape_and_oversized_artifact",
+      "receipt_case_sha256": "51a9e99f7e88a6a37be65440cc7d94fbb08e8174cfed91f57b8f858e03aee280",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_api.py::test_delete_files_rejects_symlinked_job_root",
+      "receipt_case_sha256": "95db1ae617267581c66b6c24083f93f9ba7251954c3d963143dc9c91b79f2ae1",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_cli_smoke.py::test_inspect_rejects_symlink_and_non_regular_artifacts_without_following_them",
+      "receipt_case_sha256": "0649f8f8a018abc26ca44dc0fa8bbf7e98eb0abe21a6c23d47edc5343b1f7b82",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_cli_smoke.py::test_inspect_rejects_qa_symlink_swap_at_open",
+      "receipt_case_sha256": "7a244b150f7ebd8380f625f541781e4a815d070c2657f2d0a4645d28db69869d",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_cli_smoke.py::test_inspect_rejects_unsafe_candidate_directory_children",
+      "receipt_case_sha256": "3e79517e6dfddf35bc334dadf2b6a144be651755d78e80d370ff6db4d87d38f3",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_cli_smoke.py::test_inspect_rejects_job_root_symlink_before_reading_children",
+      "receipt_case_sha256": "a8b3aa818f4171e92648cb10ba52203b5b5714bfac0b1d64cd7362cd52f5fd79",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_identity_api.py::test_identity_inputs_are_fixed_job_local_artifacts",
+      "receipt_case_sha256": "33a98441eda60f1807d954d6280801f96dfd3c42e905146a215c897f4eb4e89b",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_identity_io.py::test_readers_require_regular_non_symlink_files",
+      "receipt_case_sha256": "778987b8a338707eb3e55b6240ef8afa2d46b2400c894ad6ff188c4ee73e60d5",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_identity_io.py::test_job_directory_and_artifact_path_guards",
+      "receipt_case_sha256": "064c40f7e4bf16491ecac7d4dd01a5e484b871bf0159fd37024cb7fb36a47d3a",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_identity_io.py::test_canonical_and_external_transcript_symlinks_fail_closed",
+      "receipt_case_sha256": "8d528052c8034e3cd8f5e1074a8bbca12dc55e579060f4c4a4769185b227dae4",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_identity_io.py::test_transaction_rejects_symlink_and_unallowlisted_outputs",
+      "receipt_case_sha256": "1d5336108d147c38483dda7318259dcd2de91ea6ebf3e571ba62d9e57e6cbe57",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_identity_resolver.py::test_sibling_count_is_bounded_and_symlink_roots_fail_closed",
+      "receipt_case_sha256": "de4d2fc6925b18c4bd16def8f7c0f1728ad8d615faad24aeacd783e214df2255",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_identity_resolver.py::test_malformed_and_symlinked_inputs_fail_without_absolute_path_or_excerpt_leak",
+      "receipt_case_sha256": "4acc328344620a065f7c8ff688d3ba1ac2aa000d80f8cb4f04907aa9b05d3ec4",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_macos_gui_contract.py::test_visual_capture_matrix_freezes_presentation_and_receipt_state",
+      "receipt_case_sha256": "7ca840996af0908e0f77b8143f5aca13a54099cd43463e93805f683cdbf3c8d9",
+      "event": "failure",
+      "triage_category": "POSIX shell invocation on Windows",
+      "backlog_id": "KI-019"
+    },
+    {
+      "case": "tests/test_macos_standalone_contract.py::test_expanded_component_payload_layout_allows_only_exact_internal_symlinks",
+      "receipt_case_sha256": "2bb8b7f0c84b79847b3fa93dad5c4aca0d2f8d56193b74fafcd27b48c647ab1f",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_macos_standalone_contract.py::test_installable_payload_modes_are_normalized_and_fail_closed",
+      "receipt_case_sha256": "82dd62720ee2bc30e5e5a271690bb8033c6cb7b29433a7eae01dd6403d258d20",
+      "event": "failure",
+      "triage_category": "POSIX payload modes on Windows",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_macos_standalone_contract.py::test_app_signing_seals_nested_code_before_the_outer_app",
+      "receipt_case_sha256": "cf25e0f2ce79173023e667f5f99b07ceea67bdb29a7c61ac813581105255c503",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_assembly_is_deterministic_runtime_compatible_and_read_only",
+      "receipt_case_sha256": "44a80c2c00afc2482fec01b1317b53509c173ad0f7e3827b34aa23fbe91e2a9b",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_punkt_runtime_asset_verification_fails_closed[missing]",
+      "receipt_case_sha256": "798574a17ef7503cbfc041ebe819a68a031949774aeb32fd09357bdac40fed5c",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_punkt_runtime_asset_verification_fails_closed[digest]",
+      "receipt_case_sha256": "9a29f285cffd775694f6ed03a5e5ce56372f74d9fdc6b0faacd47d0cf53a95df",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_punkt_runtime_asset_verification_fails_closed[extra]",
+      "receipt_case_sha256": "2575721d47ed069b3077c3e6d30965f4aa7a2662b7bd11512f82eaffe9c39b3f",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_punkt_runtime_asset_verification_fails_closed[marker-version]",
+      "receipt_case_sha256": "cf211317203157b965c123065eb574a7590b3c84f8ce3ef80f750f422356bc46",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_punkt_runtime_asset_verification_fails_closed[locked-version]",
+      "receipt_case_sha256": "d106a9d06225933573158b2c81de146e51b768d99ee4562a11a7f4b98d230b96",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_source_punkt_tree_rejects_missing_or_private_marker_metadata",
+      "receipt_case_sha256": "67a68049af29385157f3a9f4afacbeebddb2fffd4f5e2661a8fb136bd88a029c",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_doctor_accepts_only_exact_verified_read_only_system_model_cache",
+      "receipt_case_sha256": "a41a1fa6baf052fe333b14bbfcc81c7684c755e521fcc76ba02771bea58ee82d",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_doctor_rejects_corrupt_exact_system_model_cache",
+      "receipt_case_sha256": "2ab656423423ba2d46711082789b2356c6b92afb70d740d66c0f729b0c172dac",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_packaged_cache_discovery_requires_exact_verified_bundle",
+      "receipt_case_sha256": "8990baccb04b1e7022c3279578774916ae9a6510e190c33ddb633b7e42c2d410",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_packaged_cache_discovery_fails_after_completion_record_tamper",
+      "receipt_case_sha256": "c2a082e57e03ef7bfe0e9834c56601f35f4f6f732630042720bf7a5ca87f6289",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_license_and_notice_inputs_are_exact_and_privacy_safe",
+      "receipt_case_sha256": "f8d98e7598d517f150c7676afc7c80fcecf46863d1721df80ce0f956ee0dc907",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_license_input_rejects_phrase_preserving_byte_drift",
+      "receipt_case_sha256": "4d42d7541768983c0719f4ea802363df5249eb8b330126cc4b8db101c897070d",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_verifier_rejects_missing_extra_hash_size_and_mode[missing]",
+      "receipt_case_sha256": "6fe54d39e253af5e2e4367484a6f580fa5e842dd3d1c74da9ba01e5fa933120b",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_verifier_rejects_missing_extra_hash_size_and_mode[extra]",
+      "receipt_case_sha256": "5ffc6d8f543f191f4ccf6f9b8f7d5cd65822bb78b4969d2da148e429f747c800",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_verifier_rejects_missing_extra_hash_size_and_mode[digest]",
+      "receipt_case_sha256": "6913abb87c33dd69cbcdd1b8d670eff4ea700ab5f16dbe0e07c5d1141f35e0b4",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_verifier_rejects_missing_extra_hash_size_and_mode[size]",
+      "receipt_case_sha256": "35b4a1b778c9509011e6fa7b5e72f160e873574b2d31e0314212630491d76b5a",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_verifier_rejects_missing_extra_hash_size_and_mode[mode]",
+      "receipt_case_sha256": "9920b61a95edb5b06bf8be1a9c9ceba6aa01a7c189fe48ad35ddfbf376273381",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_verifier_rejects_symlinks_and_hardlinks",
+      "receipt_case_sha256": "924819dcdd5471f08041436922277999454d6569e10a6c60648ead9c5383d926",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_verifier_rejects_relative_ownership_mismatch",
+      "receipt_case_sha256": "564f085e35ec9a923124e0ce92b7f441c7200df3bd83ee5d284700969321e8b3",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_bundle.py::test_verifier_rejects_revision_and_completion_marker_inconsistency",
+      "receipt_case_sha256": "c37d46176f667459aba5c9959ffcf55963ceeb6536def7d4fb87b05eea181ccc",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-015"
+    },
+    {
+      "case": "tests/test_model_delivery.py::test_catalog_destination_rejects_symlink",
+      "receipt_case_sha256": "5c8862eb8200f3ff4ca21f9ddbfcd37d3e438b6ab30acda9ed3e255f2c1a1a93",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_assembly_is_deterministic_private_and_authority_bound",
+      "receipt_case_sha256": "d7eb357892bc81cfe6a151e4d6642c74f8674b775a787782b644c76b4bc4d6fb",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_missing_corrupt_extra_and_mutable_content[missing]",
+      "receipt_case_sha256": "e4f821f14e298a9fce03f7cbf9d130da2f052a7f40d8394f8352d2818a343826",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_missing_corrupt_extra_and_mutable_content[corrupt]",
+      "receipt_case_sha256": "b81e1b503e0bba174309e201c0360fa05de03b9ed08573bc266080f8fee70e28",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_missing_corrupt_extra_and_mutable_content[extra]",
+      "receipt_case_sha256": "833193d5affc2c52d58869ba196ebae74227a57020e7946fde7524e348f8a496",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_missing_corrupt_extra_and_mutable_content[mode]",
+      "receipt_case_sha256": "8f6eefb8704d4af8cc297d2df9e5dc0a897228436f19f274fca4ea831fb925aa",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_symlink_and_hardlink",
+      "receipt_case_sha256": "250271fe6cf15dc2b4be82114aaa3e318ff370ac7f1385fbe0a36ed43d437322",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_non_current_owner_contract",
+      "receipt_case_sha256": "d01626a771df642ed1c6d60172aab9c69c320bbdcb0e840de8d17786f7a20418",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_completion_marker_tamper",
+      "receipt_case_sha256": "24766a6e627a89bc6789557fcfec0c63ff5b77b13951efc8ba875f5f493881e5",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_missing_or_noncanonical_sbom_authority[missing]",
+      "receipt_case_sha256": "ce9e5172cace6f2f5838b4441ac3db07b7c085c98abde862dc3fad31694610ad",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_missing_or_noncanonical_sbom_authority[digest]",
+      "receipt_case_sha256": "efd5ffb6ce0b1c7cb57c703760dacd9434f6c369e52d91bd1446948022f4b1c4",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_missing_or_noncanonical_sbom_authority[private-path]",
+      "receipt_case_sha256": "7d5bb9ea457c53eb7fbc1ea968a899d7685494726ba06e67d72b5c1499c90f0c",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_missing_or_noncanonical_sbom_authority[timestamp]",
+      "receipt_case_sha256": "eae6967b82be7f7aa2be5513dd078953de727a77984c04d5155a6c4e9f03ae7c",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_revision_and_bundle_authority_mismatch[entry_change0]",
+      "receipt_case_sha256": "2e6988a39e994c29be2f230e848ea64136c14f5a9c34a9e0cea342aeca007918",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_revision_and_bundle_authority_mismatch[entry_change1]",
+      "receipt_case_sha256": "6b8ae1114e1602a42618f6ab9ee550c60f4a3cae03ecdfb9dd53365b7fba5d2a",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_revision_and_bundle_authority_mismatch[entry_change2]",
+      "receipt_case_sha256": "765b502b99314b649a13db84cf7e8bfc9d764c400cc4d36a2a16e12efd19164a",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_source_rejects_missing_corrupt_private_marker_and_links",
+      "receipt_case_sha256": "41fb5bb35718dadc4a6f40599e9e3e20f53b5d1a7dcdcf25dbb80635dd361a5e",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_destination_must_be_absent_and_failed_assembly_leaves_no_staging",
+      "receipt_case_sha256": "2ab98707162459a0e35cdc584a12070366fd7eb8835013ff0df2cf452fcb85cc",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_atomic_publication_never_replaces_racing_destination",
+      "receipt_case_sha256": "df79877b4a69fec748d65f465d68d2594628d226c66d3ff5f5f3ce58172537cf",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_post_commit_failure_reports_published_recoverable_identity",
+      "receipt_case_sha256": "768e49daf92ab4b334dbf1862234a5feb7b575953012b64bad2572326c7fe735",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_publication_keeps_staging_root_writable_then_seals_before_acceptance",
+      "receipt_case_sha256": "141a25e74c34cd00f64609c44add18cefa982c25e8aede1b1532f440db043bdf",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_seal_failure_never_returns_an_accepted_pack_identity",
+      "receipt_case_sha256": "e6030a504573e1a2c1a426030b4a598483e8b382f2f20386464236ed738e401a",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_tree_change_after_payload_hashing[chmod]",
+      "receipt_case_sha256": "6ecdd8971f520bc0d07e1434939c3a29c9eee8711c116c055222cbb82de4b253",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_verifier_rejects_tree_change_after_payload_hashing[replace]",
+      "receipt_case_sha256": "447d65076d13044215aa0c9f45fc286271817a4d6b70efe7ebc0ba4dc9883d37",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack.py::test_license_text_and_native_download_authority_fail_closed",
+      "receipt_case_sha256": "ac95fc70a04b09cd82d5b0681e85533409b4ae87c933347495b3860cafccc691",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack_resolution.py::test_status_prefers_exact_verified_fixed_user_pack_and_audits_source",
+      "receipt_case_sha256": "5a81e77c430b8546e50b41d8ad3e115c0ddeefeea55aa6d2a3687a334e833dfe",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack_resolution.py::test_exact_location_rejects_pack_with_wrong_id_or_version[identity_change0]",
+      "receipt_case_sha256": "593c3b6e95a403d3140211f94ab501a2e9e8405ceed770a513096e7d6f260b6e",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack_resolution.py::test_exact_location_rejects_pack_with_wrong_id_or_version[identity_change1]",
+      "receipt_case_sha256": "a9a86adc7f3ed841571b6fe9ea50096afc33104061b6c9f6f21cd5319955eb9f",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack_resolution.py::test_pack_cache_invalidates_after_payload_hash_tamper",
+      "receipt_case_sha256": "5af01612d9f96bf0f71cca9766c8d977320874a049fddf2a3b1376fd6b74e43d",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack_resolution.py::test_cached_pack_identity_cannot_survive_mid_lookup_mutation",
+      "receipt_case_sha256": "14ab5fcee89283c3a399c41ce0853190ad478bd166d32a0f70b436e7f97014eb",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack_resolution.py::test_pack_rejects_partial_unexpected_and_linked_content[partial]",
+      "receipt_case_sha256": "9257284f4e623d0c03920e985582e4aab90c4581f69d11b707cfe4984b4310d2",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack_resolution.py::test_pack_rejects_partial_unexpected_and_linked_content[unexpected]",
+      "receipt_case_sha256": "0fdcc617d1d7a800b2de78b4d9b662a960e31943f743cf306272c6bf9eefb52f",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack_resolution.py::test_pack_rejects_partial_unexpected_and_linked_content[symlink]",
+      "receipt_case_sha256": "9d0b991b9629d20c0507fe57e32ec01b2ec0f257806cc1362655221267fec065",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack_resolution.py::test_pack_rejects_symlinked_fixed_namespace_ancestor",
+      "receipt_case_sha256": "2d0e662d9ce6a8121f4e1c62eb62b9d33d8f1c12131da85537529c0b6c0750b6",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_model_pack_resolution.py::test_pack_tree_outside_fixed_namespace_is_not_a_trusted_pack",
+      "receipt_case_sha256": "59fd92489678a7a67622a246342de1affb91688cf9392563373baea0cd5c67a3",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_native_model_acceptance.py::test_work_directory_normalizes_inherited_group_before_children",
+      "receipt_case_sha256": "2784bba10a45ffae95fa1d8b571e1acc8b788fdf902109e20c14848df96baaa5",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_native_model_acceptance.py::test_source_roots_resolve_exactly_once_without_aggregate_cache",
+      "receipt_case_sha256": "681b4990d5513f3ac5ec9e9f7d10f3457d831b713f1631495a347dc98c767f05",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_native_model_acceptance.py::test_source_roots_fail_closed_on_missing_or_duplicate_key",
+      "receipt_case_sha256": "28b58dc3e900544848529fb12122e2ff43e1a5a1c56829dad362c3d21a8fc20a",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_native_model_acceptance.py::test_acquisition_marker_is_filtered_from_exact_transient_tree",
+      "receipt_case_sha256": "e88319224238d17a2d190e9fa7ab34d5d7b77dca0b43b8e4e875a6065c4b2fdb",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_native_model_acceptance.py::test_exact_source_with_alternate_group_uses_unchanged_transient_view",
+      "receipt_case_sha256": "a90b69c75efc78d81cb29e19c570e64689bde87f763aecdaa8b2ca88a98a5361",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_native_model_acceptance.py::test_model_source_rejects_links_and_unexpected_content",
+      "receipt_case_sha256": "2e3911a1080c11a6926f7d1bd626014e3029ce837b833eea8ca348a383a85880",
+      "event": "failure",
+      "triage_category": "POSIX os attributes unavailable on Windows",
+      "backlog_id": "KI-014"
+    },
+    {
+      "case": "tests/test_native_release_validation.py::test_macos_bootstrap_rejects_missing_option_values[arguments0]",
+      "receipt_case_sha256": "07b5da260cea8814e3f7d9cd684261c57ed2610f0904482464cfa8f58ce016a7",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-019"
+    },
+    {
+      "case": "tests/test_native_release_validation.py::test_macos_bootstrap_rejects_missing_option_values[arguments1]",
+      "receipt_case_sha256": "2170160bc806fca8dafd4c101093ae6824f4878bd502bced87cbbb9f452b5f55",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-019"
+    },
+    {
+      "case": "tests/test_native_release_validation.py::test_macos_bootstrap_rejects_missing_option_values[arguments2]",
+      "receipt_case_sha256": "1c12b99e92b648b541358b9c8a4c8c159493297c94ee80ca0e3870565c70f31b",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-019"
+    },
+    {
+      "case": "tests/test_native_runtime.py::test_macos_torchcodec_probe_supports_fully_versioned_pyav_wheel_libraries",
+      "receipt_case_sha256": "c228773e46b1d4c51914acd61175db88f082f391fefefff4f595d0d26fccb742",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_pipeline_mocked.py::test_pipeline_rejects_existing_candidate_directory_symlink",
+      "receipt_case_sha256": "9cbc99bd95fe1dbc0cca0dbe51ac06a5d5f2137b9ac4d494efefd980e2c1860a",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_pipeline_mocked.py::test_pipeline_rejects_resolved_input_alias_of_canonical_destination",
+      "receipt_case_sha256": "21cbe7610b443ff08efbfdcba6a07c17971816d5c6048d377c84df3e2ace9f93",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_polish.py::test_polish_composes_complete_cleanup_and_global_identity_mapping",
+      "receipt_case_sha256": "bbfcf207612dad49ee12cce8d3700e8a3f22ac7368c4102ce9e7addeae673aa3",
+      "event": "failure",
+      "triage_category": "Windows filesystem permissions",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_polish.py::test_cleanup_then_identity_and_identity_then_cleanup_compose_identically",
+      "receipt_case_sha256": "bbba173f2af08418880b0ed747f596add8b202e7654a963963831f25a1e89203",
+      "event": "failure",
+      "triage_category": "Windows filesystem permissions",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_presentation_sat.py::test_symlinked_asset_root_is_rejected_before_backend",
+      "receipt_case_sha256": "1316f25a993b45722f69223d9a8c8869affd8476baa7e883067facfa72103262",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_presentation_sat.py::test_default_backend_constructor_is_exact_local_cpu_only",
+      "receipt_case_sha256": "1d71ab9f56f1e20cae38b2b665ac897eff187af7c112ffc6ca2ed40bb759da99",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-021"
+    },
+    {
+      "case": "tests/test_private_release.py::test_release_requirements_match_lock",
+      "receipt_case_sha256": "3a42628a9cd597609b5508a70e44ab2bff8b2804f9fe6b323508e43c5c623691",
+      "event": "failure",
+      "triage_category": "missing executable/file (Windows)",
+      "backlog_id": "KI-019"
+    },
+    {
+      "case": "tests/test_speaker_id.py::test_embedding_storage_rejects_nonfinite_and_symlink_files",
+      "receipt_case_sha256": "c0fe71b37ded40374cc3e828940f46131ccc63d45f46131972df1de4bda5c5cc",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_validate_speakers.py::test_validate_speakers_rejects_symlink_without_reading_target",
+      "receipt_case_sha256": "01fc4976d23601e12862677dd1a7fad8948e0886b69ca5007a71958a0a7a20b4",
+      "event": "failure",
+      "triage_category": "Windows symlink privilege unavailable (1314)",
+      "backlog_id": "KI-016"
+    },
+    {
+      "case": "tests/test_vulnerability_audit.py::test_owner_approved_exact_unexpired_register_passes",
+      "receipt_case_sha256": "d589e524b103375cadf36352c76631ff5745c9e1c76c2d26c409db112ca02f67",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-022"
+    },
+    {
+      "case": "tests/test_vulnerability_audit.py::test_pending_owner_review_status_fails",
+      "receipt_case_sha256": "2d7145bd70717172a413e6ac45466e2fb58ac48e49667906c29843ad985b3944",
+      "event": "failure",
+      "triage_category": "vulnerability register expired before cutoff",
+      "backlog_id": "KI-022"
+    },
+    {
+      "case": "tests/test_vulnerability_audit.py::test_disposition_drift_fails",
+      "receipt_case_sha256": "c6a80e318b1a87cb27413c308d365b81e2596cefb7fb21da3b21b36eb09edb9d",
+      "event": "failure",
+      "triage_category": "vulnerability register expired before cutoff",
+      "backlog_id": "KI-022"
+    },
+    {
+      "case": "tests/test_vulnerability_audit.py::test_advisory_drift_fails",
+      "receipt_case_sha256": "ea6d891aa01b9532972011e63df8ae5323f625a65da66b786f458744a852707a",
+      "event": "failure",
+      "triage_category": "vulnerability register expired before cutoff",
+      "backlog_id": "KI-022"
+    },
+    {
+      "case": "tests/test_vulnerability_audit.py::test_upstream_primary_identifier_change_matches_an_accepted_alias",
+      "receipt_case_sha256": "89c005812ed74d9542d8a3b18da56462fa58682854c75a3045bee2aa8b6ea36e",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-022"
+    },
+    {
+      "case": "tests/test_vulnerability_audit.py::test_duplicate_audit_dependency_fails_closed",
+      "receipt_case_sha256": "5029a1f8a9eeee2d9d56fd7686c25c400fff00f38a729c2a9d2137adad67e7c8",
+      "event": "failure",
+      "triage_category": "vulnerability register expired before cutoff",
+      "backlog_id": "KI-022"
+    },
+    {
+      "case": "tests/test_vulnerability_audit.py::test_duplicate_exception_key_fails_closed",
+      "receipt_case_sha256": "aacb54433d42e68d8e558046df2cc89b606fcf82038651e5b5f435060af2297d",
+      "event": "failure",
+      "triage_category": "vulnerability register expired before cutoff",
+      "backlog_id": "KI-022"
+    },
+    {
+      "case": "tests/test_vulnerability_audit.py::test_exact_source_remediation_is_bound_to_lock_and_audit",
+      "receipt_case_sha256": "a8a6aa080bc0544b3cc6ae1e43caaf39954be4b72d4df67c1c244e2a859ed8f6",
+      "event": "failure",
+      "triage_category": "other assertion/contract",
+      "backlog_id": "KI-022"
+    },
+    {
+      "case": "tests/test_vulnerability_audit.py::test_source_remediation_lock_hash_drift_fails_closed",
+      "receipt_case_sha256": "cdfe8ab34c895a76d9cad16c23d61d552124a3ce8de456fc177442661b237a71",
+      "event": "failure",
+      "triage_category": "vulnerability register expired before cutoff",
+      "backlog_id": "KI-022"
+    },
+    {
+      "case": "tests/test_gui_bridge.py::test_shared_result_fixture_validates_against_python_contract",
+      "receipt_case_sha256": "2c181a8e24d65535ea4ab9715c72a07762e45c65f9d5948547ee6be3d9dd77e6",
+      "event": "failure",
+      "triage_category": "GUI contract or fixture failure",
+      "backlog_id": "KI-017"
+    },
+    {
+      "case": "tests/test_gui_bridge.py::test_run_transcribe_streams_events_and_result",
+      "receipt_case_sha256": "3cbfced119d507d4a5f2cdec29a68ceef13ab9c4ffbb67f2f49ad6df97877c5b",
+      "event": "failure",
+      "triage_category": "GUI contract or fixture failure",
+      "backlog_id": "KI-017"
+    },
+    {
+      "case": "tests/test_gui_bridge.py::test_run_transcribe_result_rejects_visible_symlink",
+      "receipt_case_sha256": "50c521a647f11333cd87ef481e3d542820202b7956dc4b2a2a7b2eace905e8ef",
+      "event": "failure",
+      "triage_category": "GUI contract or fixture failure",
+      "backlog_id": "KI-017"
+    },
+    {
+      "case": "tests/test_gui_bridge.py::test_run_transcribe_result_is_bounded_sorted_and_regular_file_only",
+      "receipt_case_sha256": "9e6467ef4d8e08150966db01090323a88894d309224cf08db4d466ed88159d77",
+      "event": "failure",
+      "triage_category": "GUI contract or fixture failure",
+      "backlog_id": "KI-017"
+    },
+    {
+      "case": "tests/test_gui_bridge.py::test_run_transcribe_enforces_exact_visible_artifact_boundary[512-0]",
+      "receipt_case_sha256": "b65c9ea49dbe8dd119a512529c2ec1f53ac7796842957a3b43a01ad97cfb47c5",
+      "event": "failure",
+      "triage_category": "GUI contract or fixture failure",
+      "backlog_id": "KI-017"
+    },
+    {
+      "case": "tests/test_gui_bridge.py::test_run_transcribe_projects_real_qa_and_bounded_utf8_preview",
+      "receipt_case_sha256": "d3b058f62a960d9b43c12a52928e14aab1bc9f37a72235f81cbe49909c57b3fc",
+      "event": "failure",
+      "triage_category": "GUI contract or fixture failure",
+      "backlog_id": "KI-017"
+    },
+    {
+      "case": "tests/test_gui_bridge.py::test_run_transcribe_distinguishes_invalid_and_oversized_qa[not-json-invalid]",
+      "receipt_case_sha256": "741ce7fb0915700ffc3e5f72673d31f04fcb2dac54eef712081995055f2d4210",
+      "event": "failure",
+      "triage_category": "GUI contract or fixture failure",
+      "backlog_id": "KI-017"
+    },
+    {
+      "case": "tests/test_gui_bridge.py::test_run_transcribe_distinguishes_invalid_and_oversized_qa[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "receipt_case_sha256": "6139eebef7f411d3baa23469a4650b521277ad974a1b415048296369e1bbcf51",
+      "event": "error",
+      "triage_category": "GUI contract or fixture failure",
+      "backlog_id": "KI-017"
+    },
+    {
+      "case": "tests/test_gui_bridge.py::test_run_transcribe_distinguishes_invalid_and_oversized_qa[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "receipt_case_sha256": "6139eebef7f411d3baa23469a4650b521277ad974a1b415048296369e1bbcf51",
+      "event": "error",
+      "triage_category": "GUI contract or fixture failure",
+      "backlog_id": "KI-017"
+    },
+    {
+      "case": "tests/test_gui_bridge.py::test_run_transcribe_qa_disabled_does_not_claim_a_pass",
+      "receipt_case_sha256": "44058ba7a121339dfde7d316da91e42c4eea6219a12dab5275f6a76dd369f58a",
+      "event": "failure",
+      "triage_category": "GUI contract or fixture failure",
+      "backlog_id": "KI-017"
+    }
+  ],
+  "skipped_cases": [
+    {
+      "case": "tests/test_macos_standalone_contract.py::test_embedded_python_launcher_forces_both_bytecode_controls",
+      "event": "skipped",
+      "backlog_id": "KI-023",
+      "related_backlog_ids": []
+    },
+    {
+      "case": "tests/test_macos_standalone_contract.py::test_universal_macho_bundle_is_not_misread_as_a_dylib",
+      "event": "skipped",
+      "backlog_id": "KI-023",
+      "related_backlog_ids": []
+    },
+    {
+      "case": "tests/test_macos_standalone_contract.py::test_copied_signed_universal_stage_is_normalized_and_resigned",
+      "event": "skipped",
+      "backlog_id": "KI-023",
+      "related_backlog_ids": []
+    },
+    {
+      "case": "tests/test_models.py::test_symlinked_runtime_asset_fails_model_verification",
+      "event": "skipped",
+      "backlog_id": "KI-023",
+      "related_backlog_ids": [
+        "KI-016"
+      ]
+    },
+    {
+      "case": "tests/test_models.py::test_linked_model_root_fails_without_reading_target",
+      "event": "skipped",
+      "backlog_id": "KI-023",
+      "related_backlog_ids": [
+        "KI-016"
+      ]
+    },
+    {
+      "case": "tests/test_native_release_validation.py::test_environment_sbom_cli_preserves_virtual_environment_launcher_symlink",
+      "event": "skipped",
+      "backlog_id": "KI-023",
+      "related_backlog_ids": [
+        "KI-016"
+      ]
+    },
+    {
+      "case": "tests/test_platform_security.py::test_no_follow_open_rejects_symbolic_link",
+      "event": "skipped",
+      "backlog_id": "KI-023",
+      "related_backlog_ids": [
+        "KI-016"
+      ]
+    },
+    {
+      "case": "tests/test_platform_security.py::test_private_directory_rejects_linked_ancestor",
+      "event": "skipped",
+      "backlog_id": "KI-023",
+      "related_backlog_ids": [
+        "KI-016"
+      ]
+    },
+    {
+      "case": "tests/test_platform_security.py::test_macos_standard_tmp_alias_is_canonicalized",
+      "event": "skipped",
+      "backlog_id": "KI-023",
+      "related_backlog_ids": []
+    },
+    {
+      "case": "tests/test_gui_bridge.py::test_run_transcribe_rejects_special_artifact_without_blocking",
+      "event": "skipped",
+      "backlog_id": "KI-023",
+      "related_backlog_ids": [
+        "KI-017"
+      ]
+    }
+  ],
+  "mypy": {
+    "error_count": 22,
+    "file_count": 6,
+    "baseline_byte_identical": true,
+    "diagnostics": [
+      {
+        "source": "src/local_transcript_max/platform_security.py",
+        "line_at_reference_revision": 543,
+        "diagnostic": "Module has no attribute \"fchmod\"; maybe \"chmod\"?  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/platform_security.py",
+        "line_at_reference_revision": 625,
+        "diagnostic": "Module has no attribute \"fchmod\"; maybe \"chmod\"?  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/platform_security.py",
+        "line_at_reference_revision": 682,
+        "diagnostic": "Module has no attribute \"flock\"  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/platform_security.py",
+        "line_at_reference_revision": 682,
+        "diagnostic": "Module has no attribute \"LOCK_EX\"  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/platform_security.py",
+        "line_at_reference_revision": 682,
+        "diagnostic": "Module has no attribute \"LOCK_NB\"  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/platform_security.py",
+        "line_at_reference_revision": 704,
+        "diagnostic": "Module has no attribute \"flock\"  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/platform_security.py",
+        "line_at_reference_revision": 704,
+        "diagnostic": "Module has no attribute \"LOCK_UN\"  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/platform_security.py",
+        "line_at_reference_revision": 740,
+        "diagnostic": "Module has no attribute \"getrusage\"  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/platform_security.py",
+        "line_at_reference_revision": 740,
+        "diagnostic": "Module has no attribute \"RUSAGE_SELF\"  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/model_pack.py",
+        "line_at_reference_revision": 1204,
+        "diagnostic": "Module has no attribute \"fchmod\"; maybe \"chmod\"?  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/model_pack.py",
+        "line_at_reference_revision": 1390,
+        "diagnostic": "Module has no attribute \"fchmod\"; maybe \"chmod\"?  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/model_pack.py",
+        "line_at_reference_revision": 1486,
+        "diagnostic": "Module has no attribute \"fchmod\"; maybe \"chmod\"?  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/model_pack.py",
+        "line_at_reference_revision": 1623,
+        "diagnostic": "Module has no attribute \"geteuid\"; maybe \"getpid\"?  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/model_pack.py",
+        "line_at_reference_revision": 1623,
+        "diagnostic": "Module has no attribute \"getegid\"; maybe \"getpid\"?  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/models.py",
+        "line_at_reference_revision": 1321,
+        "diagnostic": "Module has no attribute \"geteuid\"; maybe \"getpid\"?  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/model_bundle.py",
+        "line_at_reference_revision": 882,
+        "diagnostic": "Module has no attribute \"fchmod\"; maybe \"chmod\"?  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/model_bundle.py",
+        "line_at_reference_revision": 895,
+        "diagnostic": "Module has no attribute \"fchmod\"; maybe \"chmod\"?  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/alignment/forced_alignment.py",
+        "line_at_reference_revision": 184,
+        "diagnostic": "Cannot find implementation or library stub for module named \"transformers\"  [import-not-found]",
+        "backlog_id": "KI-020"
+      },
+      {
+        "source": "src/local_transcript_max/alignment/forced_alignment.py",
+        "line_at_reference_revision": 190,
+        "diagnostic": "Unused \"type: ignore\" comment  [unused-ignore]",
+        "backlog_id": "KI-020"
+      },
+      {
+        "source": "src/local_transcript_max/gui_bridge.py",
+        "line_at_reference_revision": 866,
+        "diagnostic": "Module has no attribute \"fchmod\"; maybe \"chmod\"?  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/gui_bridge.py",
+        "line_at_reference_revision": 1496,
+        "diagnostic": "Module has no attribute \"setpgrp\"  [attr-defined]",
+        "backlog_id": "KI-014"
+      },
+      {
+        "source": "src/local_transcript_max/gui_bridge.py",
+        "line_at_reference_revision": 1498,
+        "diagnostic": "Module has no attribute \"getpgrp\"  [attr-defined]",
+        "backlog_id": "KI-014"
+      }
+    ]
+  },
+  "private_receipt_sha256": {
+    "final-lf-tests.xml": "d3e069b03efb49d1e9bdf023489ef3e7350247cefac33d42d010926babe0793a",
+    "final-gui-tests.xml": "e1b59ddb34de01af89f1d4e3a9e8cd35d627e5ff57719ddba28f8999e9e67782",
+    "final-mypy.log": "ef9a3ce1b5999c5883779515e09380fedf3a45e28b8c701163b8c9a6bbf12d2d",
+    "final-validation-comparison.json": "2b8100dc7477aae9801d2ff70f1fed6fe47483ca612fe5c15bb33a2c06232cd6"
+  }
+}

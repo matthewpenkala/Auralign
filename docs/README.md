@@ -32,6 +32,8 @@ canonical sources for implementation details and operational policy.
 
 ## Quality
 
+- [Known issues and unfinished work](development/known-issues.md): open defects,
+  model limitations, deferred capabilities, validation failures and closure criteria.
 - [October 22 field repairs](development/2026-10-22-field-repairs.md): ingestion
   and timing-review changes, compatibility, evidence boundary, and validation.
 - [Accuracy](accuracy.md): source-development preset history, re-decode, and
